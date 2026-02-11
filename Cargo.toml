@@ -1,0 +1,12 @@
+[package]
+name = "fynix"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/voxell-tech/fynix"
+description = "A composable, declarative UI framework."
+keywords = ["ui", "gui", "layout", "typst", "reactive"]
+categories = ["gui", "graphics", "visualization", "rendering"]
+readme = "./README.md"
+
+[dependencies]
