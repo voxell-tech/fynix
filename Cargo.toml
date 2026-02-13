@@ -1,6 +1,6 @@
 [package]
 name = "fynix"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/voxell-tech/fynix"
@@ -10,3 +10,8 @@ categories = ["gui", "graphics", "visualization", "rendering"]
 readme = "./README.md"
 
 [dependencies]
+rectree = { git = "https://github.com/voxell-tech/rectree", rev = "29f557d" }
+vello = "0.7.0"
+hashbrown = "0.16.1"
+field_path = "0.2.0"
+sparse_map = "0.1.2"
