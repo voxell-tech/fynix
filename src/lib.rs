@@ -6,6 +6,7 @@ use core::any::{Any, TypeId};
 use core::marker::PhantomData;
 
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use hashbrown::HashMap;
 use rectree::layout::{LayoutSolver, LayoutWorld};
 use rectree::{NodeId, Rectree};
@@ -46,22 +47,95 @@ pub mod style {
 }
 
 pub struct FynixWorld {
-    pub rectree: Rectree,
-    pub cached_styles: TypeMaps<NodeId>,
+    pub tree: Rectree,
+    pub style_maps: TypeMaps<NodeId>,
+    pub style_caches: HashMap<TypeId, Vec<NodeId>>,
+}
+
+impl FynixWorld {
+    pub fn create_widget<W>(&self, node_id: &NodeId) -> W
+    where
+        W: Widget,
+    {
+        let type_id = TypeId::of::<W>();
+        let mut widget = None;
+
+        if let Some(cache) = self.style_caches.get(&type_id) {
+            let depth = self.tree.get(node_id).depth();
+            for cache_id in cache.iter().rev() {
+                let cache_depth = self.tree.get(cache_id).depth();
+
+                if cache_depth < depth
+                    || (cache_depth == depth && cache_id == node_id)
+                {
+                    widget = self.style_maps.get(node_id).cloned();
+                    break;
+                }
+            }
+        }
+
+        widget.unwrap_or_default()
+    }
+
+    pub fn set_style<W, F>(
+        &mut self,
+        node_id: &NodeId,
+        style: impl Into<Style<W, F>>,
+    ) where
+        W: Widget,
+        F: FnOnce(&mut W),
+    {
+        let type_id = TypeId::of::<W>();
+        let mut widget = self.create_widget(node_id);
+        style.into().apply(&mut widget);
+
+        self.style_maps.insert(*node_id, widget);
+        self.style_caches.entry(type_id).or_default().push(*node_id);
+    }
+}
+
+pub struct Style<W, F>
+where
+    W: Widget,
+    F: FnOnce(&mut W),
+{
+    pub func: F,
+    _marker: PhantomData<W>,
+}
+
+impl<W, F> Style<W, F>
+where
+    W: Widget,
+    F: FnOnce(&mut W),
+{
+    pub fn apply(self, widget: &mut W) {
+        (self.func)(widget)
+    }
+}
+
+pub trait Widget: Default + Clone + 'static {}
+impl<T> Widget for T where T: Default + Clone + 'static {}
+
+pub struct WidgetNode<W>
+where
+    W: Widget,
+{
+    _marker: PhantomData<W>,
+}
+
+impl<W> WidgetNode<W>
+where
+    W: Widget,
+{
+    pub const fn type_id() -> TypeId {
+        TypeId::of::<W>()
+    }
 }
 
 impl LayoutWorld for FynixWorld {
     fn get_solver(&self, id: &NodeId) -> &dyn LayoutSolver {
         todo!()
     }
-}
-
-#[derive(Default)]
-pub struct StyleRef(HashMap<TypeId, Key>);
-
-pub struct Style<T: 'static, F: FnOnce(&mut T)> {
-    pub func: F,
-    _marker: PhantomData<T>,
 }
 
 /// A generic container that maps [`TypeId::of::<T>()`] to
