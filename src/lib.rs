@@ -3,122 +3,66 @@
 extern crate alloc;
 
 use core::any::{Any, TypeId};
+use core::marker::PhantomData;
 
 use alloc::boxed::Box;
-use alloc::vec;
-use alloc::vec::Vec;
-use field_path::accessor::FieldAccessorRegistry;
-use field_path::field::{Field, UntypedField};
 use hashbrown::HashMap;
-use hashbrown::hash_map::Entry;
-use rectree::Rectree;
+use rectree::layout::{LayoutSolver, LayoutWorld};
+use rectree::{NodeId, Rectree};
 use sparse_map::{Key, SparseMap};
 use vello::kurbo::Stroke;
 use vello::peniko::Color;
 
-#[derive(Default)]
-pub struct Styles {
-    maps: TypeSparseMaps,
-    // TODO(nixon): Possibly upstream the concept of partial field/field path to the `field_path` crate.
-    // This helps reduce memory footprint here because we only need to store parts of the `UntypedField`.
-    /// Stores all the fields associated to the target source type.
-    type_to_fields: HashMap<TypeId, Vec<UntypedField>>,
-    field_to_key: HashMap<UntypedField, Key>,
+use crate::type_map::TypeMaps;
+
+pub mod type_map;
+pub mod widgets;
+
+pub mod style {
+    /// Concept: Every widget is represented via style.
+    /// ```no_compile
+    /// // Instantiating a widget can be expressed via:
+    /// let mut frame_a = ctx.instantiate_with::<Frame>(Style(|frame| { frame.height = Some(10.0) }));
+    /// let frame_b = ctx.instantiate::<Frame>();
+    ///
+    /// // At any point in the layout flow, a style override can occur:
+    /// ctx.set_style::<Frame>(Style(|frame| { frame.height = Some(20.0) }));
+    /// let frame_c = ctx.instantiate::<Frame>(); // This will have height as `20.0`.
+    ///
+    /// // We can also support scoped style:
+    /// ctx.scope(|ctx| {
+    ///     ctx.set_style::<Frame>(Style(|frame| { frame.height = Some(5.0) }));
+    ///     let frame_in_scope = ctx.instantiate::<Frame>(); // This will have height as `5.0`.
+    /// });
+    ///
+    /// // Each widget should be able to hold style overrides:
+    /// frame_a.set_style::<Frame>(Style(|frame| { frame.fill = None }));
+    /// // The style override will only affect its descendants.
+    /// // TODO: Better ergonomics? Should we not support this?
+    /// // I can see some potential bad outcomes from this:
+    /// // If the style is being set in the widget itself, this will have no effect, leading to confusion...
+    /// ```
+    pub struct Dummy;
 }
 
-impl Styles {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn set<S: 'static, T: 'static>(
-        &mut self,
-        field: Field<S, T>,
-        value: T,
-    ) {
-        let untyped = field.untyped();
-        // Get or create the map for type `T`.
-        let map = self.maps.get_or_create::<T>();
-        match self.type_to_fields.entry(TypeId::of::<S>()) {
-            Entry::Occupied(mut entry) => {
-                if !entry.get_mut().contains(&untyped) {
-                    entry.get_mut().push(untyped);
-                }
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(vec![untyped]);
-            }
-        }
-
-        // Update or insert.
-        if let Some(original_value) = self
-            .field_to_key
-            .get(&untyped)
-            .and_then(|key| map.get_mut(key))
-        {
-            *original_value = value;
-        } else {
-            let key = map.insert(value);
-            self.field_to_key.insert(untyped, key);
-        }
-    }
-
-    pub fn get<S: 'static, T: 'static>(
-        &self,
-        field: Field<S, T>,
-    ) -> Option<&T> {
-        let untyped = field.untyped();
-        self.maps
-            .get::<T>()
-            .and_then(|m| m.get(self.field_to_key.get(&untyped)?))
-    }
-
-    pub fn fields_of<S: 'static>(&self) -> Option<&[UntypedField]> {
-        self.type_to_fields
-            .get(&TypeId::of::<S>())
-            .map(|v| v.as_slice())
-    }
-
-    // TODO(nixon): Validate that we don't need this!
-    // TODO(nixon): If so, use Vec<T> instead of SparseMap<T>!
-    //
-    // pub fn remove<S: 'static, T: 'static>(
-    //     &mut self,
-    //     field: Field<S, T>,
-    // ) -> Option<T> {
-    //     let untyped = field.untyped();
-    //     self.maps
-    //         .get_mut::<T>()
-    //         .and_then(|m| m.remove(self.field_to_key.get(&untyped)?))
-    // }
-}
-
-// pub struct FieldPath {
-//     /// See [`Field::field_path`].
-//     field_path: &'static str,
-// }
-
-// impl FieldPath {
-//     pub fn new(untyped: &UntypedField) -> Self {
-//         Self {
-//             field_path: untyped.field_path(),
-//         }
-//     }
-
-//     pub fn into_untyped<S: 'static, T: 'static>(
-//         &self,
-//     ) -> UntypedField {
-//         UntypedField::new::<S, T>(self.field_path)
-//     }
-// }
-
-pub struct FynixCtx {
+pub struct FynixWorld {
     pub rectree: Rectree,
-    pub registry: FieldAccessorRegistry,
-    pub style_chain: Vec<Styles>,
+    pub cached_styles: TypeMaps<NodeId>,
 }
 
-impl FynixCtx {}
+impl LayoutWorld for FynixWorld {
+    fn get_solver(&self, id: &NodeId) -> &dyn LayoutSolver {
+        todo!()
+    }
+}
+
+#[derive(Default)]
+pub struct StyleRef(HashMap<TypeId, Key>);
+
+pub struct Style<T: 'static, F: FnOnce(&mut T)> {
+    pub func: F,
+    _marker: PhantomData<T>,
+}
 
 /// A generic container that maps [`TypeId::of::<T>()`] to
 /// [`SparseMap<T>`] with guarantee of correctness on construction.
@@ -162,25 +106,6 @@ impl TypeSparseMaps {
     }
 }
 
-// pub trait CloneBox<T: ?Sized>: Any {
-//     fn clone_box(&self) -> Box<T>;
-// }
-
-// impl<T> CloneBox<DynAnySparseMap> for T
-// where
-//     T: Clone + Any + 'static,
-// {
-//     fn clone_box(&self) -> Box<DynAnySparseMap> {
-//         Box::new(self.clone())
-//     }
-// }
-
-// impl Clone for Box<DynAnySparseMap> {
-//     fn clone(&self) -> Self {
-//         self.clone_box()
-//     }
-// }
-
 trait AnySparseMap: Any + 'static {}
 
 impl<T> AnySparseMap for T where T: Any + 'static {}
@@ -203,6 +128,7 @@ impl DynAnySparseMap {
     }
 }
 
+#[derive(Default)]
 pub struct Frame {
     pub inner_margin: Option<Margin>,
     pub outer_margin: Option<Margin>,
@@ -212,10 +138,24 @@ pub struct Frame {
     pub height: Option<f32>,
 }
 
+fn example() {
+    let default_frame = Frame {
+        fill: Some(Color::WHITE),
+        ..Default::default()
+    };
+
+    let set_frame = Frame {
+        fill: None,
+        ..Default::default()
+    };
+}
+
+// #[derive(FieldReg)]
 pub struct Margin {
     pub left: f32,
     pub right: f32,
     pub top: f32,
+    // #[field_reg(skip)]
     pub down: f32,
 }
 
@@ -227,13 +167,13 @@ mod tests {
 
     #[test]
     fn set_get_style() {
-        let mut styles = Styles::new();
-        let field = field!(<Margin>::left);
-        styles.set(field, 4.0);
-        assert_eq!(styles.get(field).copied(), Some(4.0));
+        // let mut styles = Styles::new();
+        // let field = field!(<Margin>::left);
+        // styles.set(field, 4.0);
+        // assert_eq!(styles.get(field).copied(), Some(4.0));
 
-        // Override.
-        styles.set(field, 42.0);
-        assert_eq!(styles.get(field).copied(), Some(42.0));
+        // // Override.
+        // styles.set(field, 42.0);
+        // assert_eq!(styles.get(field).copied(), Some(42.0));
     }
 }
