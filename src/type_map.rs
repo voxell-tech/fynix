@@ -96,7 +96,7 @@ where
     }
 
     pub fn remove(&mut self, id: &K) -> Option<T> {
-        self.map.get(id).and_then(|k| self.values.remove(k))
+        self.map.remove(id).and_then(|k| self.values.remove(&k))
     }
 }
 
@@ -251,6 +251,21 @@ mod tests {
         assert!(maps.get::<Velocity>(&id).is_none());
         // Verify removing again returns None
         assert!(maps.remove::<Velocity>(&id).is_none());
+    }
+
+    #[test]
+    fn test_remove_from_internal_map() {
+        let mut map = TypeMap::<u32, Velocity>::new();
+        let id = 10;
+
+        // Adding only one value
+        map.insert(id, Velocity(5.0));
+        // Removing that value
+        assert_eq!(map.remove(&id), Some(Velocity(5.0)));
+
+        // Verifying that both internal maps are empty
+        assert!(map.values.is_empty());
+        assert!(map.map.is_empty());
     }
 
     #[test]
