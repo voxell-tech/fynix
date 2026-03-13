@@ -1,6 +1,8 @@
+use core::any::TypeId;
 use core::hash::Hash;
 
 use field_path::accessor::UntypedAccessor;
+use field_path::registry::FieldAccessorRegistry;
 
 use crate::type_map::TypeMaps;
 
@@ -39,6 +41,20 @@ impl<K: Hash + Eq + 'static, S: 'static> Style<K, S> {
         (self.0)(source, key, accessor, map);
     }
 }
+
+pub struct UntypedStyle {
+    source_id: TypeId,
+    set_fn: *const (),
+}
+
+pub struct StyleMap<K> {
+    pub registries: FieldAccessorRegistry,
+    pub values: TypeMaps<K>,
+}
+
+// impl<K> StyleMap<K> {
+//     pub fn insert<T: 'static>(key: K) {}
+// }
 
 // pub fn test() {
 //     let mut values = TypeMaps::<u32>::new();
