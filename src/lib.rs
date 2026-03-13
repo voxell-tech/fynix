@@ -16,6 +16,7 @@ use vello::peniko::Color;
 
 use crate::type_map::TypeMaps;
 
+pub mod any_wrapper;
 pub mod type_map;
 pub mod widgets;
 
