@@ -209,9 +209,8 @@ dependencies = [
 
 [[package]]
 name = "field_path"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a43b503e6d23f29de41c2d3ba6bfefb48e19a452c520887cb2201e1d7fd3d7f"
+version = "0.3.0"
+source = "git+https://github.com/voxell-tech/field_path?rev=1e8f41c#1e8f41cf882019c5e1f26e682c0fef41aeb7b26f"
 dependencies = [
  "hashbrown 0.16.1",
 ]

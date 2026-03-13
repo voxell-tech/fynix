@@ -61,6 +61,12 @@ impl<K> Default for TypeMaps<K> {
     }
 }
 
+crate::any_wrapper!({
+    mod any_type_map {
+        pub trait AnyTypeMap: TypeMap<K> {}
+    }
+});
+
 pub struct TypeMap<K, T> {
     values: SparseMap<T>,
     map: HashMap<K, Key>,
@@ -72,6 +78,12 @@ impl<K, T> TypeMap<K, T> {
             values: SparseMap::new(),
             map: HashMap::new(),
         }
+    }
+}
+
+impl<K, T> Default for TypeMap<K, T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -97,86 +109,6 @@ where
 
     pub fn remove(&mut self, id: &K) -> Option<T> {
         self.map.remove(id).and_then(|k| self.values.remove(&k))
-    }
-}
-
-impl<K, T> Default for TypeMap<K, T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-trait AnyTypeMap<K> {
-    fn element_type_id(&self) -> TypeId;
-}
-
-impl<K, T: 'static> AnyTypeMap<K> for TypeMap<K, T> {
-    fn element_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
-    }
-}
-
-impl<K> dyn AnyTypeMap<K> {
-    #[inline]
-    pub fn element_is<T: 'static>(&self) -> bool {
-        // Compare both `TypeId`s on equality.
-        self.element_type_id() == TypeId::of::<T>()
-    }
-
-    #[inline]
-    pub fn downcast_ref<T: 'static>(&self) -> Option<&TypeMap<K, T>> {
-        if self.element_is::<T>() {
-            // SAFETY: Just checked whether we are pointing to the
-            // correct type, and we can rely on that check for
-            // memory safety because `AnyStyleMap` is only ever
-            // privately implemented for `StyleMap<T>`.
-            unsafe { Some(self.downcast_unchecked_ref()) }
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    pub fn downcast_mut<T: 'static>(
-        &mut self,
-    ) -> Option<&mut TypeMap<K, T>> {
-        if self.element_is::<T>() {
-            // SAFETY: Just checked whether we are pointing to the
-            // correct type, and we can rely on that check for
-            // memory safety because `AnyStyleMap` is only ever
-            // privately implemented for `StyleMap<T>`.
-            unsafe { Some(self.downcast_unchecked_mut()) }
-        } else {
-            None
-        }
-    }
-
-    /// # Safety
-    ///
-    /// The contained value must be of type [`SparseMap<T>`].
-    /// Calling this method with the incorrect type is
-    /// *undefined behavior*.
-    #[inline]
-    pub unsafe fn downcast_unchecked_ref<T: 'static>(
-        &self,
-    ) -> &TypeMap<K, T> {
-        debug_assert!(self.element_is::<T>());
-        // SAFETY: caller guarantees that T is the correct type
-        unsafe { &*(self as *const Self as *const TypeMap<K, T>) }
-    }
-
-    /// # Safety
-    ///
-    /// The contained value must be of type [`SparseMap<T>`].
-    /// Calling this method with the incorrect type is
-    /// *undefined behavior*.
-    #[inline]
-    pub unsafe fn downcast_unchecked_mut<T: 'static>(
-        &mut self,
-    ) -> &mut TypeMap<K, T> {
-        debug_assert!(self.element_is::<T>());
-        // SAFETY: caller guarantees that T is the correct type
-        unsafe { &mut *(self as *mut Self as *mut TypeMap<K, T>) }
     }
 }
 

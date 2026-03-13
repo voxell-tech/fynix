@@ -13,5 +13,5 @@ readme = "./README.md"
 rectree = { git = "https://github.com/voxell-tech/rectree", rev = "29f557d" }
 vello = "0.7.0"
 hashbrown = "0.16.1"
-field_path = "0.2.0"
+field_path = { git = "https://github.com/voxell-tech/field_path", rev = "1e8f41c"}
 sparse_map = "0.1.2"
