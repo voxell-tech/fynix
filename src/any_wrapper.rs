@@ -1,3 +1,5 @@
+// TODO(nixon): T: 'static shouldn't be forced.
+// TODO(nixon): Support custom type constraints.
 #[macro_export]
 macro_rules! any_wrapper {
     (mod $seal:ident { $v:vis trait $name:ident: $wrapper:ident {} }) => {

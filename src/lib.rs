@@ -8,6 +8,7 @@ use vello::kurbo::Stroke;
 use vello::peniko::Color;
 
 pub mod any_wrapper;
+pub mod field_map;
 pub mod style;
 pub mod type_map;
 pub mod widgets;

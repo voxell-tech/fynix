@@ -5,19 +5,31 @@ use alloc::boxed::Box;
 use hashbrown::HashMap;
 use sparse_map::{Key, SparseMap};
 
-pub struct TypeMaps<K> {
-    type_maps: HashMap<TypeId, Box<dyn AnyTypeMap<K>>>,
+/// A key mapped table for different types.
+///
+/// Each key can point towards several types, but can only hold a
+/// single instance for every unique type.
+///
+/// ## Mental model
+///
+/// | key | `f32` | `u32` | `i32` |
+/// |-----|-------|-------|-------|
+/// | k1  | -     | 10    | -10   |
+/// | k2  | -     | -     | -24   |
+/// | k3  | 3.14  | -     | -     |
+pub struct TypeTable<K> {
+    table: HashMap<TypeId, Box<dyn DynTypeMap<K>>>,
 }
 
-impl<K> TypeMaps<K> {
+impl<K> TypeTable<K> {
     pub fn new() -> Self {
         Self {
-            type_maps: HashMap::new(),
+            table: HashMap::new(),
         }
     }
 }
 
-impl<K> TypeMaps<K>
+impl<K> TypeTable<K>
 where
     K: Hash + Eq + 'static,
 {
@@ -28,9 +40,10 @@ where
     ) -> Option<T> {
         let type_id = TypeId::of::<T>();
         let m = unsafe {
-            self.type_maps
+            self.table
                 .entry(type_id)
                 .or_insert_with(|| Box::new(TypeMap::<K, T>::new()))
+                .any_mut()
                 // SAFETY: Type garuanteed on creation.
                 .downcast_unchecked_mut()
         };
@@ -40,32 +53,36 @@ where
 
     pub fn get<T: 'static>(&self, id: &K) -> Option<&T> {
         let type_id = TypeId::of::<T>();
-        self.type_maps
+        self.table
             .get(&type_id)
-            .and_then(|m| m.downcast_ref())
+            .and_then(|m| m.any_ref().downcast_ref())
             .and_then(|m| m.get(id))
     }
 
     pub fn remove<T: 'static>(&mut self, id: &K) -> Option<T> {
         let type_id = TypeId::of::<T>();
-        self.type_maps
+        self.table
             .get_mut(&type_id)
-            .and_then(|m| m.downcast_mut())
+            // .and_then(|m| m.remove(id))
+            .and_then(|m| {
+                m.any_mut().downcast_mut()
+                // (&mut **m as &mut dyn AnyTypeMap<K>).downcast_mut()
+            })
             .and_then(|m| m.remove(id))
+    }
+
+    pub fn remove_all(&mut self, id: &K) {
+        for map in self.table.values_mut() {
+            map.dyn_remove(id);
+        }
     }
 }
 
-impl<K> Default for TypeMaps<K> {
+impl<K> Default for TypeTable<K> {
     fn default() -> Self {
         Self::new()
     }
 }
-
-crate::any_wrapper!({
-    mod any_type_map {
-        pub trait AnyTypeMap: TypeMap<K> {}
-    }
-});
 
 pub struct TypeMap<K, T> {
     values: SparseMap<T>,
@@ -112,6 +129,39 @@ where
     }
 }
 
+pub trait DynTypeMap<K>: AnyTypeMap<K> {
+    fn dyn_remove(&mut self, key: &K);
+}
+
+impl<K> dyn DynTypeMap<K> {
+    pub fn any_ref<'a>(&self) -> &(dyn AnyTypeMap<K> + 'a) {
+        self as &dyn AnyTypeMap<K>
+    }
+
+    pub fn any_mut<'a>(&mut self) -> &mut (dyn AnyTypeMap<K> + 'a) {
+        self as &mut dyn AnyTypeMap<K>
+    }
+}
+
+impl<K, T> DynTypeMap<K> for TypeMap<K, T>
+where
+    K: Hash + Eq,
+    T: 'static,
+{
+    fn dyn_remove(&mut self, id: &K) {
+        self.remove(id);
+        // let Some(key) = self.map.remove(id) else {
+        //     return;
+        // };
+    }
+}
+
+crate::any_wrapper!({
+    mod any_type_map {
+        pub trait AnyTypeMap: TypeMap<K> {}
+    }
+});
+
 #[cfg(test)]
 mod tests {
     use alloc::string::String;
@@ -130,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_basic_insert_and_get() {
-        let mut maps = TypeMaps::<u32>::new();
+        let mut maps = TypeTable::<u32>::new();
         let id = 1;
 
         maps.insert(id, Velocity(10.5));
@@ -141,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_heterogeneous_storage() {
-        let mut maps = TypeMaps::<u32>::new();
+        let mut maps = TypeTable::<u32>::new();
         let id = 42;
 
         // Store different types for the same key
@@ -158,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_overwrite_behavior() {
-        let mut maps = TypeMaps::<u32>::new();
+        let mut maps = TypeTable::<u32>::new();
         let id = 7;
 
         maps.insert(id, 100);
@@ -171,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_remove_logic() {
-        let mut maps = TypeMaps::<u32>::new();
+        let mut maps = TypeTable::<u32>::new();
         let id = 10;
 
         maps.insert(id, Velocity(5.0));
@@ -202,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_type_isolation() {
-        let mut maps = TypeMaps::<u32>::new();
+        let mut maps = TypeTable::<u32>::new();
         let id = 1;
 
         maps.insert(id, 50u64);
@@ -216,7 +266,7 @@ mod tests {
     #[test]
     fn test_generic_key_support() {
         // Test with a custom key type.
-        let mut maps = TypeMaps::<CustomKey>::new();
+        let mut maps = TypeTable::<CustomKey>::new();
         let key = CustomKey(99);
 
         maps.insert(key.clone(), "Hello World");
@@ -229,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_multiple_keys_one_type() {
-        let mut maps = TypeMaps::<u32>::new();
+        let mut maps = TypeTable::<u32>::new();
 
         maps.insert(1, Velocity(1.0));
         maps.insert(2, Velocity(2.0));
@@ -240,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_empty_map_get() {
-        let maps: TypeMaps<u32> = TypeMaps::new();
+        let maps: TypeTable<u32> = TypeTable::new();
         assert!(maps.get::<Velocity>(&0).is_none());
     }
 }
