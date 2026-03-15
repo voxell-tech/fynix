@@ -9,7 +9,9 @@ use vello::peniko::Color;
 
 pub mod any_wrapper;
 pub mod field_map;
+pub mod registry;
 pub mod style;
+pub mod style_map;
 pub mod type_map;
 pub mod widgets;
 
