@@ -35,7 +35,7 @@ where
 {
     pub fn insert<T: 'static>(
         &mut self,
-        id: K,
+        key: K,
         value: T,
     ) -> Option<T> {
         let type_id = TypeId::of::<T>();
@@ -48,18 +48,18 @@ where
                 .downcast_unchecked_mut()
         };
 
-        m.insert(id, value)
+        m.insert(key, value)
     }
 
-    pub fn get<T: 'static>(&self, id: &K) -> Option<&T> {
+    pub fn get<T: 'static>(&self, key: &K) -> Option<&T> {
         let type_id = TypeId::of::<T>();
         self.table
             .get(&type_id)
             .and_then(|m| m.any_ref().downcast_ref())
-            .and_then(|m| m.get(id))
+            .and_then(|m| m.get(key))
     }
 
-    pub fn remove<T: 'static>(&mut self, id: &K) -> Option<T> {
+    pub fn remove<T: 'static>(&mut self, key: &K) -> Option<T> {
         let type_id = TypeId::of::<T>();
         self.table
             .get_mut(&type_id)
@@ -68,12 +68,21 @@ where
                 m.any_mut().downcast_mut()
                 // (&mut **m as &mut dyn AnyTypeMap<K>).downcast_mut()
             })
-            .and_then(|m| m.remove(id))
+            .and_then(|m| m.remove(key))
     }
 
-    pub fn remove_all(&mut self, id: &K) {
+    pub fn dyn_remove(&mut self, type_id: &TypeId, key: &K) -> bool {
+        if let Some(map) = self.table.get_mut(type_id) {
+            map.dyn_remove(key);
+            return true;
+        }
+
+        false
+    }
+
+    pub fn remove_all(&mut self, key: &K) {
         for map in self.table.values_mut() {
-            map.dyn_remove(id);
+            map.dyn_remove(key);
         }
     }
 }
@@ -108,29 +117,29 @@ impl<K, T> TypeMap<K, T>
 where
     K: Hash + Eq,
 {
-    pub fn insert(&mut self, id: K, value: T) -> Option<T> {
+    pub fn insert(&mut self, key: K, value: T) -> Option<T> {
         let mut previous = None;
-        if let Some(key) = self.map.get(&id) {
-            previous = self.values.remove(key);
+        if let Some(sparse_key) = self.map.get(&key) {
+            previous = self.values.remove(sparse_key);
         }
 
-        let key = self.values.insert(value);
-        self.map.insert(id, key);
+        let sparse_key = self.values.insert(value);
+        self.map.insert(key, sparse_key);
 
         previous
     }
 
-    pub fn get(&self, id: &K) -> Option<&T> {
-        self.map.get(id).and_then(|k| self.values.get(k))
+    pub fn get(&self, key: &K) -> Option<&T> {
+        self.map.get(key).and_then(|k| self.values.get(k))
     }
 
-    pub fn remove(&mut self, id: &K) -> Option<T> {
-        self.map.remove(id).and_then(|k| self.values.remove(&k))
+    pub fn remove(&mut self, key: &K) -> Option<T> {
+        self.map.remove(key).and_then(|k| self.values.remove(&k))
     }
 }
 
 pub trait DynTypeMap<K>: AnyTypeMap<K> {
-    fn dyn_remove(&mut self, key: &K);
+    fn dyn_remove(&mut self, key: &K) -> bool;
 }
 
 impl<K> dyn DynTypeMap<K> {
@@ -148,11 +157,8 @@ where
     K: Hash + Eq,
     T: 'static,
 {
-    fn dyn_remove(&mut self, id: &K) {
-        self.remove(id);
-        // let Some(key) = self.map.remove(id) else {
-        //     return;
-        // };
+    fn dyn_remove(&mut self, id: &K) -> bool {
+        self.remove(id).is_some()
     }
 }
 
