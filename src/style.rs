@@ -4,60 +4,57 @@ use core::marker::PhantomData;
 
 use field_path::field::UntypedField;
 use field_path::registry::FieldAccessorRegistry;
+use hashbrown::HashMap;
 
-use crate::style_map::ValueKey;
+use crate::style_map::ValueId;
 use crate::type_map::TypeTable;
 
-// #[derive(Debug)]
-// pub struct StyleRegistry<K> {
-//     pub styles: HashMap<UntypedField, UntypedStyle<K>>,
-// }
+// TODO(nixon): Really improve the docs!
+// TODO(nixon): Implement Clone/Copy/Eq/Ord/Hash (just like field_path::accessors).
 
-// impl<K> StyleRegistry<K> {
-//     pub fn new() -> Self {
-//         Self {
-//             styles: HashMap::new(),
-//         }
-//     }
-// }
+#[derive(Debug)]
+pub struct StyleRegistry<K> {
+    pub styles: HashMap<UntypedField, UntypedStyle<K>>,
+}
 
-// impl<K> Default for StyleRegistry<K> {
-//     fn default() -> Self {
-//         Self::new()
-//     }
-// }
+impl<K> StyleRegistry<K> {
+    pub fn new() -> Self {
+        Self {
+            styles: HashMap::new(),
+        }
+    }
+}
+
+impl<K> Default for StyleRegistry<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub type ValueTable<K> = TypeTable<ValueId<K>>;
 
 /// Signature for applying a style.
-/// It looks up a value in the TypeTable using a StyleValueKey.
-pub type SetFn<K, S> = fn(
-    &mut S,
-    &K,
-    &UntypedField,
-    &FieldAccessorRegistry,
-    &TypeTable<ValueKey<K>>,
-);
+/// It looks up a value in the [`ValueTable`] and apply it via [`Accessor`].
+///
+/// [`Accessor`]: field_path::accessor::Accessor
+pub type SetFn<K, S> =
+    fn(&mut S, &ValueId<K>, &FieldAccessorRegistry, &ValueTable<K>);
 
 pub struct Style<K, S>(SetFn<K, S>);
 
 impl<K, S> Style<K, S>
 where
-    K: Hash + Eq + Clone + 'static,
+    K: Hash + Eq + 'static,
     S: 'static,
 {
     pub const fn new<T: 'static + Clone>() -> Self {
         Self(
             #[inline]
-            |source, key, field, registry, table| {
-                let Ok(accessor) = registry.get::<S, T>(field) else {
-                    return;
-                };
-
-                let value_key = ValueKey {
-                    key: key.clone(),
-                    field: *field,
-                };
-
-                if let Some(value) = table.get::<T>(&value_key) {
+            |source, value_id, registry, table| {
+                if let Ok(accessor) =
+                    registry.get::<S, T>(&value_id.field)
+                    && let Some(value) = table.get::<T>(value_id)
+                {
                     *accessor.get_mut(source) = value.clone();
                 }
             },
@@ -67,12 +64,11 @@ where
     pub fn apply(
         &self,
         source: &mut S,
-        key: &K,
-        field: &UntypedField,
+        value_id: &ValueId<K>,
         registry: &FieldAccessorRegistry,
-        table: &TypeTable<ValueKey<K>>,
+        table: &ValueTable<K>,
     ) {
-        (self.0)(source, key, field, registry, table);
+        (self.0)(source, value_id, registry, table);
     }
 
     pub fn untyped(&self) -> UntypedStyle<K> {

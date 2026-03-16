@@ -19,15 +19,21 @@ pub struct StyleId {
 }
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
-pub struct ValueKey<K> {
+pub struct ValueId<K> {
     pub key: K,
     pub field: UntypedField,
+}
+
+impl<K> ValueId<K> {
+    pub fn new(key: K, field: UntypedField) -> Self {
+        Self { key, field }
+    }
 }
 
 pub struct StyleContext<K> {
     pub registries: FieldAccessorRegistry,
     pub styles: HashMap<UntypedField, UntypedStyle<K>>,
-    pub values: TypeTable<ValueKey<K>>,
+    pub values: TypeTable<ValueId<K>>,
 }
 
 pub struct StyleMap<K> {
@@ -63,12 +69,8 @@ where
             for field in
                 field_map.fields[span.start..span.end].iter().copied()
             {
-                let value_key = ValueKey {
-                    key: key.clone(),
-                    field,
-                };
-
-                self.context.values.remove_all(&value_key);
+                let value_id = ValueId::new(key.clone(), field);
+                self.context.values.remove_all(&value_id);
             }
         }
     }
@@ -98,10 +100,11 @@ where
 
             // Cast the untyped style back to a typed one and execute
             if let Some(style) = untyped_style.typed::<S>() {
+                let value_id = ValueId::new(key.clone(), *field);
+
                 style.apply(
                     target,
-                    key,
-                    field,
+                    &value_id,
                     &self.context.registries,
                     &self.context.values,
                 );
@@ -138,7 +141,7 @@ where
         }
 
         // 2. Store the value in the TypeTable
-        let value_key = ValueKey {
+        let value_key = ValueId {
             key: self.key.clone(),
             field: untyped_field,
         };
@@ -163,7 +166,7 @@ where
         self.field_map_builder.remove(&source_id, &untyped_field);
 
         // 2. Actually purge the value from the TypeTable
-        let value_key = ValueKey {
+        let value_key = ValueId {
             key: self.key.clone(),
             field: untyped_field,
         };
