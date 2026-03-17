@@ -1,14 +1,13 @@
 use core::any::TypeId;
 use core::hash::Hash;
 
-use field_path::field::UntypedField;
 use field_path::field_accessor::FieldAccessor;
 use field_path::registry::FieldAccessorRegistry;
 use hashbrown::HashMap;
 use rectree::layout::DepthNode;
 
 use crate::field_index::{FieldIndex, FieldIndexBuilder};
-use crate::setter::{FieldSetterRegistry, Setter};
+use crate::setter::{FieldSetterRegistry, Setter, ValueId};
 use crate::type_table::TypeTable;
 
 #[derive(Debug, Copy, Clone)]
@@ -16,18 +15,6 @@ pub struct StyleId {
     /// The index of the last instantiated element in local context.
     pub local_rank: usize,
     pub depth_node: DepthNode,
-}
-
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
-pub struct ValueId<K> {
-    pub key: K,
-    pub field: UntypedField,
-}
-
-impl<K> ValueId<K> {
-    pub fn new(key: K, field: UntypedField) -> Self {
-        Self { key, field }
-    }
 }
 
 pub struct FieldRegistries<K> {
@@ -70,8 +57,9 @@ where
         };
 
         for span in field_index.index_map.into_values() {
-            for field in
-                field_index.fields[span.start..span.end].iter().copied()
+            for field in field_index.fields[span.start..span.end]
+                .iter()
+                .copied()
             {
                 let value_id = ValueId::new(key.clone(), field);
                 self.values.remove_all(&value_id);
@@ -101,7 +89,8 @@ where
         let fields = &field_index.fields[span.start..span.end];
 
         for field in fields {
-            let Some(untyped_setter) = registries.setters.get(field) else {
+            let Some(untyped_setter) = registries.setters.get(field)
+            else {
                 continue;
             };
 

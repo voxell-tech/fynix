@@ -6,15 +6,26 @@ use field_path::field::UntypedField;
 use field_path::registry::FieldAccessorRegistry;
 use hashbrown::HashMap;
 
-use crate::rule_set::ValueId;
 use crate::type_table::TypeTable;
 
 // TODO(nixon): Really improve the docs!
 // TODO(nixon): Implement Clone/Copy/Eq/Ord/Hash (just like field_path::accessors).
 
-pub type FieldSetterRegistry<K> = HashMap<UntypedField, UntypedSetter<K>>;
-
+pub type FieldSetterRegistry<K> =
+    HashMap<UntypedField, UntypedSetter<K>>;
 pub type ValueTable<K> = TypeTable<ValueId<K>>;
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
+pub struct ValueId<K> {
+    pub key: K,
+    pub field: UntypedField,
+}
+
+impl<K> ValueId<K> {
+    pub fn new(key: K, field: UntypedField) -> Self {
+        Self { key, field }
+    }
+}
 
 /// Signature for applying a setter.
 /// It looks up a value in the [`ValueTable`] and applies it via [`Accessor`].
