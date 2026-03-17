@@ -8,10 +8,10 @@ use vello::kurbo::Stroke;
 use vello::peniko::Color;
 
 pub mod any_wrapper;
-pub mod field_map;
+pub mod field_index;
 pub mod registry;
-pub mod style;
-pub mod style_map;
+pub mod rule_set;
+pub mod setter;
 pub mod type_table;
 pub mod widgets;
 
@@ -23,7 +23,7 @@ pub mod widgets;
 
 pub mod vision {
     /// Concept: Every widget is represented via style.
-    /// ```rust no_compile
+    /// ```rust,no_run,ignore
     /// // Instantiating a widget can be expressed via:
     /// let mut frame_a = ctx.instantiate_with::<Frame>(Style(|frame| { frame.height = Some(10.0) }));
     /// let frame_b = ctx.instantiate::<Frame>();

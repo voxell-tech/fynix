@@ -6,43 +6,26 @@ use field_path::field::UntypedField;
 use field_path::registry::FieldAccessorRegistry;
 use hashbrown::HashMap;
 
-use crate::style_map::ValueId;
+use crate::rule_set::ValueId;
 use crate::type_table::TypeTable;
 
 // TODO(nixon): Really improve the docs!
 // TODO(nixon): Implement Clone/Copy/Eq/Ord/Hash (just like field_path::accessors).
 
-#[derive(Debug)]
-pub struct StyleRegistry<K> {
-    pub styles: HashMap<UntypedField, UntypedStyle<K>>,
-}
-
-impl<K> StyleRegistry<K> {
-    pub fn new() -> Self {
-        Self {
-            styles: HashMap::new(),
-        }
-    }
-}
-
-impl<K> Default for StyleRegistry<K> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub type FieldSetterRegistry<K> = HashMap<UntypedField, UntypedSetter<K>>;
 
 pub type ValueTable<K> = TypeTable<ValueId<K>>;
 
-/// Signature for applying a style.
-/// It looks up a value in the [`ValueTable`] and apply it via [`Accessor`].
+/// Signature for applying a setter.
+/// It looks up a value in the [`ValueTable`] and applies it via [`Accessor`].
 ///
 /// [`Accessor`]: field_path::accessor::Accessor
 pub type SetFn<K, S> =
     fn(&mut S, &ValueId<K>, &FieldAccessorRegistry, &ValueTable<K>);
 
-pub struct Style<K, S>(SetFn<K, S>);
+pub struct Setter<K, S>(SetFn<K, S>);
 
-impl<K, S> Style<K, S>
+impl<K, S> Setter<K, S>
 where
     K: Hash + Eq + 'static,
     S: 'static,
@@ -71,8 +54,8 @@ where
         (self.0)(source, value_id, registry, table);
     }
 
-    pub fn untyped(&self) -> UntypedStyle<K> {
-        UntypedStyle {
+    pub fn untyped(&self) -> UntypedSetter<K> {
+        UntypedSetter {
             source_id: TypeId::of::<S>(),
             set_fn: self.0 as *const (),
             _marker: PhantomData,
@@ -81,14 +64,14 @@ where
 }
 
 #[derive(Debug)]
-pub struct UntypedStyle<K> {
+pub struct UntypedSetter<K> {
     source_id: TypeId,
     set_fn: *const (),
     _marker: PhantomData<K>,
 }
 
-impl<K> UntypedStyle<K> {
-    pub fn typed<S: 'static>(&self) -> Option<Style<K, S>> {
+impl<K> UntypedSetter<K> {
+    pub fn typed<S: 'static>(&self) -> Option<Setter<K, S>> {
         if self.source_id == TypeId::of::<S>() {
             return Some(unsafe { self.typed_unchecked() });
         }
@@ -97,9 +80,9 @@ impl<K> UntypedStyle<K> {
 
     // TODO(nixon): Write docs.
     /// ## Safety
-    pub const unsafe fn typed_unchecked<S>(&self) -> Style<K, S> {
+    pub const unsafe fn typed_unchecked<S>(&self) -> Setter<K, S> {
         unsafe {
-            Style(core::mem::transmute::<*const (), SetFn<K, S>>(
+            Setter(core::mem::transmute::<*const (), SetFn<K, S>>(
                 self.set_fn,
             ))
         }

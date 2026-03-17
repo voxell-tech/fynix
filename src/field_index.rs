@@ -5,16 +5,16 @@ use alloc::vec::Vec;
 use field_path::field::UntypedField;
 use hashbrown::{HashMap, HashSet};
 
-pub struct FieldMap<K> {
+pub struct FieldIndex<K> {
     pub index_map: HashMap<K, Span>,
     pub fields: Box<[UntypedField]>,
 }
 
-pub struct FieldMapBuilder<K> {
+pub struct FieldIndexBuilder<K> {
     pub field_map: HashMap<K, HashSet<UntypedField>>,
 }
 
-impl<K> FieldMapBuilder<K> {
+impl<K> FieldIndexBuilder<K> {
     pub fn new() -> Self {
         Self {
             field_map: HashMap::new(),
@@ -22,7 +22,7 @@ impl<K> FieldMapBuilder<K> {
     }
 }
 
-impl<K> FieldMapBuilder<K>
+impl<K> FieldIndexBuilder<K>
 where
     K: Hash + Eq,
 {
@@ -36,7 +36,7 @@ where
         }
     }
 
-    pub fn compile(self) -> FieldMap<K> {
+    pub fn compile(self) -> FieldIndex<K> {
         let mut index_map = HashMap::new();
         let mut all_fields = Vec::new();
 
@@ -47,14 +47,14 @@ where
             index_map.insert(key, Span { start, end });
         }
 
-        FieldMap {
+        FieldIndex {
             index_map,
             fields: all_fields.into_boxed_slice(),
         }
     }
 }
 
-impl<K> Default for FieldMapBuilder<K> {
+impl<K> Default for FieldIndexBuilder<K> {
     fn default() -> Self {
         Self::new()
     }
