@@ -31,10 +31,16 @@ impl<K> ValueId<K> {
 /// It looks up a value in the [`ValueTable`] and applies it via [`Accessor`].
 ///
 /// [`Accessor`]: field_path::accessor::Accessor
-pub type SetFn<K, S> =
-    fn(&mut S, &ValueId<K>, &FieldAccessorRegistry, &ValueTable<K>);
+pub type SetFn<K, S> = fn(
+    &mut S,
+    &ValueId<K>,
+    &FieldAccessorRegistry,
+    &ValueTable<K>,
+) -> bool;
 
-pub struct Setter<K, S>(SetFn<K, S>);
+pub struct Setter<K, S> {
+    pub set_fn: SetFn<K, S>,
+}
 
 impl<K, S> Setter<K, S>
 where
@@ -42,17 +48,30 @@ where
     S: 'static,
 {
     pub const fn new<T: 'static + Clone>() -> Self {
-        Self(
-            #[inline]
-            |source, value_id, registry, table| {
-                if let Ok(accessor) =
-                    registry.get::<S, T>(&value_id.field)
-                    && let Some(value) = table.get::<T>(value_id)
-                {
-                    *accessor.get_mut(source) = value.clone();
-                }
-            },
-        )
+        #[inline]
+        fn apply_impl<
+            K: Hash + Eq + 'static,
+            S: 'static,
+            T: Clone + 'static,
+        >(
+            source: &mut S,
+            value_id: &ValueId<K>,
+            registry: &FieldAccessorRegistry,
+            table: &ValueTable<K>,
+        ) -> bool {
+            if let Ok(accessor) =
+                registry.get::<S, T>(&value_id.field)
+                && let Some(value) = table.get::<T>(value_id)
+            {
+                *accessor.get_mut(source) = value.clone();
+                return true;
+            }
+            false
+        }
+
+        Self {
+            set_fn: apply_impl::<K, S, T>,
+        }
     }
 
     pub fn apply(
@@ -61,14 +80,14 @@ where
         value_id: &ValueId<K>,
         registry: &FieldAccessorRegistry,
         table: &ValueTable<K>,
-    ) {
-        (self.0)(source, value_id, registry, table);
+    ) -> bool {
+        (self.set_fn)(source, value_id, registry, table)
     }
 
     pub fn untyped(&self) -> UntypedSetter<K> {
         UntypedSetter {
             source_id: TypeId::of::<S>(),
-            set_fn: self.0 as *const (),
+            set_fn: self.set_fn as *const (),
             _marker: PhantomData,
         }
     }
@@ -93,9 +112,11 @@ impl<K> UntypedSetter<K> {
     /// ## Safety
     pub const unsafe fn typed_unchecked<S>(&self) -> Setter<K, S> {
         unsafe {
-            Setter(core::mem::transmute::<*const (), SetFn<K, S>>(
-                self.set_fn,
-            ))
+            Setter {
+                set_fn: core::mem::transmute::<*const (), SetFn<K, S>>(
+                    self.set_fn,
+                ),
+            }
         }
     }
 }
@@ -144,8 +165,10 @@ mod tests {
 
         let setter = Setter::<u32, Frame>::new::<f32>();
         let mut frame = Frame::default();
-        setter.apply(&mut frame, &value_id, &registry, &values);
+        let ok =
+            setter.apply(&mut frame, &value_id, &registry, &values);
 
+        assert!(ok);
         assert_eq!(frame.width, 42.0);
     }
 
@@ -161,9 +184,14 @@ mod tests {
         let value_id = ValueId::new(1u32, untyped_field);
 
         let setter = Setter::<u32, Frame>::new::<f32>();
-        let mut frame = Frame { width: 10.0, opacity: 1.0 };
-        setter.apply(&mut frame, &value_id, &registry, &values);
+        let mut frame = Frame {
+            width: 10.0,
+            opacity: 1.0,
+        };
+        let ok =
+            setter.apply(&mut frame, &value_id, &registry, &values);
 
+        assert!(!ok);
         assert_eq!(frame.width, 10.0); // unchanged
     }
 
@@ -180,9 +208,14 @@ mod tests {
         values.insert(value_id, 99.0f32);
 
         let setter = Setter::<u32, Frame>::new::<f32>();
-        let mut frame = Frame { width: 5.0, opacity: 1.0 };
-        setter.apply(&mut frame, &value_id, &registry, &values);
+        let mut frame = Frame {
+            width: 5.0,
+            opacity: 1.0,
+        };
+        let ok =
+            setter.apply(&mut frame, &value_id, &registry, &values);
 
+        assert!(!ok);
         assert_eq!(frame.width, 5.0); // unchanged
     }
 }

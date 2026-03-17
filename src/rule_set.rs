@@ -248,7 +248,10 @@ mod tests {
 
         let mut b = rs.edit(1u32, &mut reg);
         b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
-        b.add(field_path::field_accessor!(<Label>::font_size), 16.0f32);
+        b.add(
+            field_path::field_accessor!(<Label>::font_size),
+            16.0f32,
+        );
         b.commit();
 
         let mut frame = Frame::default();
@@ -271,7 +274,10 @@ mod tests {
         b.commit();
 
         // Label has no rules under this key — should remain default.
-        let mut label = Label { font_size: 12.0, bold: false };
+        let mut label = Label {
+            font_size: 12.0,
+            bold: false,
+        };
         rs.apply_styles(&1u32, &mut label, &reg);
         assert_eq!(label.font_size, 12.0);
     }
@@ -306,7 +312,11 @@ mod tests {
         let reg = make_registries::<u32>();
         let rs = make_rule_set::<u32>();
 
-        let mut frame = Frame { width: 50.0, height: 50.0, opacity: 1.0 };
+        let mut frame = Frame {
+            width: 50.0,
+            height: 50.0,
+            opacity: 1.0,
+        };
         rs.apply_styles(&999u32, &mut frame, &reg);
 
         assert_eq!(frame.width, 50.0);

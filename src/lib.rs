@@ -45,7 +45,7 @@ pub mod vision {
     /// // I can see some potential bad outcomes from this:
     /// // If the style is being set in the widget itself, this will have no effect, leading to confusion...
     /// ```
-    pub struct Dummy;
+    pub struct Vision;
 }
 
 // pub struct Container<'a> {
