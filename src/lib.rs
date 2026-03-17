@@ -12,7 +12,7 @@ pub mod field_map;
 pub mod registry;
 pub mod style;
 pub mod style_map;
-pub mod type_map;
+pub mod type_table;
 pub mod widgets;
 
 // any_wrapper!({
@@ -53,7 +53,7 @@ pub mod vision {
 // }
 
 // struct Ctx<'a> {
-//     pub world: &'a mut FynixWorld,
+//     pub world: &'a mut Fynix,
 //     // .. bevy world,
 //     // .. ui world
 // }
@@ -64,11 +64,11 @@ pub mod vision {
 //     }
 // }
 
-pub struct FynixWorld {
+pub struct Fynix {
     pub tree: Rectree,
 }
 
-impl LayoutWorld for FynixWorld {
+impl LayoutWorld for Fynix {
     fn get_solver(&self, _id: &NodeId) -> &dyn LayoutSolver {
         todo!()
     }

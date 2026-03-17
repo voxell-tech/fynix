@@ -9,7 +9,7 @@ use rectree::layout::DepthNode;
 
 use crate::field_map::{FieldMap, FieldMapBuilder};
 use crate::style::{Style, UntypedStyle};
-use crate::type_map::TypeTable;
+use crate::type_table::TypeTable;
 
 #[derive(Debug, Copy, Clone)]
 pub struct StyleId {

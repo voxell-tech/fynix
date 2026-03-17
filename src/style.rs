@@ -7,7 +7,7 @@ use field_path::registry::FieldAccessorRegistry;
 use hashbrown::HashMap;
 
 use crate::style_map::ValueId;
-use crate::type_map::TypeTable;
+use crate::type_table::TypeTable;
 
 // TODO(nixon): Really improve the docs!
 // TODO(nixon): Implement Clone/Copy/Eq/Ord/Hash (just like field_path::accessors).
