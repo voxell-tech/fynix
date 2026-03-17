@@ -40,15 +40,9 @@ where
             key,
             registries,
             values: &mut self.values,
+            field_indices: &mut self.field_indices,
             field_index_builder: FieldIndexBuilder::new(),
         }
-    }
-
-    /// Consumes the builder and commits its staged field indices.
-    pub fn commit(&mut self, builder: RuleSetBuilder<'_, K>) {
-        let key = builder.key.clone();
-        let compiled = builder.field_index_builder.compile();
-        self.field_indices.insert(key, compiled);
     }
 
     pub fn delete(&mut self, key: &K) {
@@ -112,6 +106,7 @@ pub struct RuleSetBuilder<'a, K> {
     pub key: K,
     pub registries: &'a mut FieldRegistries<K>,
     pub values: &'a mut TypeTable<ValueId<K>>,
+    pub field_indices: &'a mut HashMap<K, FieldIndex<TypeId>>,
     pub field_index_builder: FieldIndexBuilder<TypeId>,
 }
 
@@ -167,5 +162,217 @@ where
             field: untyped_field,
         };
         self.values.remove::<T>(&value_key);
+    }
+
+    /// Compiles the staged field index and inserts it into the rule set.
+    pub fn commit(self) {
+        let compiled = self.field_index_builder.compile();
+        self.field_indices.insert(self.key, compiled);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hashbrown::HashMap;
+
+    use crate::type_table::TypeTable;
+
+    #[derive(Default, Debug, PartialEq, Clone)]
+    struct Frame {
+        width: f32,
+        height: f32,
+        opacity: f32,
+    }
+
+    #[derive(Default, Debug, PartialEq, Clone)]
+    struct Label {
+        font_size: f32,
+        bold: bool,
+    }
+
+    fn make_registries<K>() -> FieldRegistries<K> {
+        FieldRegistries {
+            accessors: FieldAccessorRegistry::default(),
+            setters: HashMap::new(),
+        }
+    }
+
+    fn make_rule_set<K: Hash + Eq>() -> RuleSet<K> {
+        RuleSet {
+            values: TypeTable::new(),
+            field_indices: HashMap::new(),
+        }
+    }
+
+    // --- Basic application ---
+
+    #[test]
+    fn single_rule_applied_to_widget() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 200.0f32);
+        b.commit();
+
+        let mut frame = Frame::default();
+        rs.apply_styles(&1u32, &mut frame, &reg);
+        assert_eq!(frame.width, 200.0);
+    }
+
+    #[test]
+    fn multiple_fields_on_same_node_all_applied() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 300.0f32);
+        b.add(field_path::field_accessor!(<Frame>::height), 150.0f32);
+        b.add(field_path::field_accessor!(<Frame>::opacity), 0.8f32);
+        b.commit();
+
+        let mut frame = Frame::default();
+        rs.apply_styles(&1u32, &mut frame, &reg);
+        assert_eq!(frame.width, 300.0);
+        assert_eq!(frame.height, 150.0);
+        assert_eq!(frame.opacity, 0.8);
+    }
+
+    // --- Multiple widget types ---
+
+    #[test]
+    fn same_node_can_hold_rules_for_different_widget_types() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
+        b.add(field_path::field_accessor!(<Label>::font_size), 16.0f32);
+        b.commit();
+
+        let mut frame = Frame::default();
+        rs.apply_styles(&1u32, &mut frame, &reg);
+        assert_eq!(frame.width, 100.0);
+        assert_eq!(frame.height, 0.0); // untouched
+
+        let mut label = Label::default();
+        rs.apply_styles(&1u32, &mut label, &reg);
+        assert_eq!(label.font_size, 16.0);
+    }
+
+    #[test]
+    fn applying_frame_rules_does_not_affect_label_fields() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 500.0f32);
+        b.commit();
+
+        // Label has no rules under this key — should remain default.
+        let mut label = Label { font_size: 12.0, bold: false };
+        rs.apply_styles(&1u32, &mut label, &reg);
+        assert_eq!(label.font_size, 12.0);
+    }
+
+    // --- Isolation between nodes ---
+
+    #[test]
+    fn independent_nodes_do_not_share_values() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
+        b.commit();
+
+        let mut b = rs.edit(2u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 200.0f32);
+        b.commit();
+
+        let mut frame1 = Frame::default();
+        rs.apply_styles(&1u32, &mut frame1, &reg);
+
+        let mut frame2 = Frame::default();
+        rs.apply_styles(&2u32, &mut frame2, &reg);
+
+        assert_eq!(frame1.width, 100.0);
+        assert_eq!(frame2.width, 200.0);
+    }
+
+    #[test]
+    fn apply_styles_on_unknown_key_is_no_op() {
+        let reg = make_registries::<u32>();
+        let rs = make_rule_set::<u32>();
+
+        let mut frame = Frame { width: 50.0, height: 50.0, opacity: 1.0 };
+        rs.apply_styles(&999u32, &mut frame, &reg);
+
+        assert_eq!(frame.width, 50.0);
+        assert_eq!(frame.height, 50.0);
+    }
+
+    // --- Override & re-edit ---
+
+    #[test]
+    fn re_editing_a_field_overwrites_its_value() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
+        b.commit();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 250.0f32);
+        b.commit();
+
+        let mut frame = Frame::default();
+        rs.apply_styles(&1u32, &mut frame, &reg);
+        assert_eq!(frame.width, 250.0);
+    }
+
+    // --- Delete ---
+
+    #[test]
+    fn delete_removes_key_so_apply_becomes_no_op() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 200.0f32);
+        b.commit();
+
+        rs.delete(&1u32);
+
+        let mut frame = Frame::default();
+        rs.apply_styles(&1u32, &mut frame, &reg);
+        assert_eq!(frame.width, 0.0); // default, rule no longer applied
+    }
+
+    #[test]
+    fn delete_on_unknown_key_does_not_panic() {
+        let mut rs = make_rule_set::<u32>();
+        rs.delete(&42u32);
+    }
+
+    // --- Builder remove ---
+
+    #[test]
+    fn removing_a_field_in_builder_excludes_it_from_apply() {
+        let mut reg = make_registries::<u32>();
+        let mut rs = make_rule_set::<u32>();
+
+        let mut b = rs.edit(1u32, &mut reg);
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
+        b.add(field_path::field_accessor!(<Frame>::height), 80.0f32);
+        b.remove(&field_path::field_accessor!(<Frame>::height));
+        b.commit();
+
+        let mut frame = Frame::default();
+        rs.apply_styles(&1u32, &mut frame, &reg);
+        assert_eq!(frame.width, 100.0);
+        assert_eq!(frame.height, 0.0); // was removed from the rule
     }
 }

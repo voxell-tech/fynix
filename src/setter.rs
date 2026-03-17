@@ -99,3 +99,90 @@ impl<K> UntypedSetter<K> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use field_path::registry::FieldAccessorRegistry;
+
+    #[derive(Default, Debug, PartialEq, Clone)]
+    struct Frame {
+        width: f32,
+        opacity: f32,
+    }
+
+    #[derive(Default, Debug, PartialEq, Clone)]
+    struct Label {
+        font_size: f32,
+    }
+
+    #[test]
+    fn untyped_setter_recovers_correct_type() {
+        let setter = Setter::<u32, Frame>::new::<f32>();
+        let untyped = setter.untyped();
+        assert!(untyped.typed::<Frame>().is_some());
+    }
+
+    #[test]
+    fn untyped_setter_returns_none_for_wrong_source_type() {
+        let setter = Setter::<u32, Frame>::new::<f32>();
+        let untyped = setter.untyped();
+        assert!(untyped.typed::<Label>().is_none());
+    }
+
+    #[test]
+    fn setter_writes_value_into_field() {
+        let field_acc = field_path::field_accessor!(<Frame>::width);
+        let untyped_field = field_acc.field.untyped();
+
+        let mut registry = FieldAccessorRegistry::default();
+        registry.register_field(field_acc);
+
+        let mut values: ValueTable<u32> = TypeTable::new();
+        let value_id = ValueId::new(1u32, untyped_field);
+        values.insert(value_id, 42.0f32);
+
+        let setter = Setter::<u32, Frame>::new::<f32>();
+        let mut frame = Frame::default();
+        setter.apply(&mut frame, &value_id, &registry, &values);
+
+        assert_eq!(frame.width, 42.0);
+    }
+
+    #[test]
+    fn setter_is_no_op_when_value_is_absent() {
+        let field_acc = field_path::field_accessor!(<Frame>::width);
+        let untyped_field = field_acc.field.untyped();
+
+        let mut registry = FieldAccessorRegistry::default();
+        registry.register_field(field_acc);
+
+        let values: ValueTable<u32> = TypeTable::new(); // empty
+        let value_id = ValueId::new(1u32, untyped_field);
+
+        let setter = Setter::<u32, Frame>::new::<f32>();
+        let mut frame = Frame { width: 10.0, opacity: 1.0 };
+        setter.apply(&mut frame, &value_id, &registry, &values);
+
+        assert_eq!(frame.width, 10.0); // unchanged
+    }
+
+    #[test]
+    fn setter_is_no_op_when_accessor_is_absent() {
+        let field_acc = field_path::field_accessor!(<Frame>::width);
+        let untyped_field = field_acc.field.untyped();
+
+        // Registry has no registered accessor for Frame::width
+        let registry = FieldAccessorRegistry::default();
+
+        let mut values: ValueTable<u32> = TypeTable::new();
+        let value_id = ValueId::new(1u32, untyped_field);
+        values.insert(value_id, 99.0f32);
+
+        let setter = Setter::<u32, Frame>::new::<f32>();
+        let mut frame = Frame { width: 5.0, opacity: 1.0 };
+        setter.apply(&mut frame, &value_id, &registry, &values);
+
+        assert_eq!(frame.width, 5.0); // unchanged
+    }
+}
