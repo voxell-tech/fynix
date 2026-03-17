@@ -4,15 +4,12 @@ use core::marker::PhantomData;
 
 use field_path::field::UntypedField;
 use field_path::registry::FieldAccessorRegistry;
-use hashbrown::HashMap;
 
 use crate::type_table::TypeTable;
 
 // TODO(nixon): Really improve the docs!
 // TODO(nixon): Implement Clone/Copy/Eq/Ord/Hash (just like field_path::accessors).
 
-pub type FieldSetterRegistry<K> =
-    HashMap<UntypedField, UntypedSetter<K>>;
 pub type ValueTable<K> = TypeTable<ValueId<K>>;
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]

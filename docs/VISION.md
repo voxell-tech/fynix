@@ -7,6 +7,31 @@ configuration.
 
 ---
 
+## Intended API
+
+The high-level API Fynix is working towards:
+
+```rust
+// Instantiate an element with an inline rule override:
+let mut frame_a = ctx.instantiate_with::<Frame>(|frame| {
+    frame.height = Some(10.0);
+});
+let frame_b = ctx.instantiate::<Frame>();
+
+// Set a rule at any point — all subsequent instantiations inherit it:
+ctx.set_rule::<Frame>(|frame| { frame.height = Some(20.0) });
+let frame_c = ctx.instantiate::<Frame>(); // height == 20.0
+
+// Rules can be scoped — they only apply within the closure:
+ctx.scope(|ctx| {
+    ctx.set_rule::<Frame>(|frame| { frame.height = Some(5.0) });
+    let frame_in_scope = ctx.instantiate::<Frame>(); // height == 5.0
+});
+// Outside the scope, the previous rule is restored.
+```
+
+---
+
 ## Setters
 
 A **Setter** is the atomic unit of field mutation. It knows how to write a single typed

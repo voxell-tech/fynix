@@ -2,12 +2,12 @@ use core::any::TypeId;
 use core::hash::Hash;
 
 use field_path::field_accessor::FieldAccessor;
-use field_path::registry::FieldAccessorRegistry;
 use hashbrown::HashMap;
 use rectree::layout::DepthNode;
 
 use crate::field_index::{FieldIndex, FieldIndexBuilder};
-use crate::setter::{FieldSetterRegistry, Setter, ValueId};
+use crate::registry::FieldRegistries;
+use crate::setter::{Setter, ValueId};
 use crate::type_table::TypeTable;
 
 #[derive(Debug, Copy, Clone)]
@@ -17,14 +17,24 @@ pub struct StyleId {
     pub depth_node: DepthNode,
 }
 
-pub struct FieldRegistries<K> {
-    pub accessors: FieldAccessorRegistry,
-    pub setters: FieldSetterRegistry<K>,
-}
-
 pub struct RuleSet<K> {
     pub values: TypeTable<ValueId<K>>,
     pub field_indices: HashMap<K, FieldIndex<TypeId>>,
+}
+
+impl<K> RuleSet<K> {
+    pub fn new() -> Self {
+        Self {
+            values: TypeTable::new(),
+            field_indices: HashMap::new(),
+        }
+    }
+}
+
+impl<K> Default for RuleSet<K> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<K> RuleSet<K>
@@ -112,7 +122,7 @@ pub struct RuleSetBuilder<'a, K> {
 
 impl<'a, K> RuleSetBuilder<'a, K>
 where
-    K: Clone + Ord + Hash + Eq + 'static,
+    K: Clone + Hash + Eq + 'static,
 {
     pub fn add<S, T>(
         &mut self,
@@ -192,10 +202,7 @@ mod tests {
     }
 
     fn make_registries<K>() -> FieldRegistries<K> {
-        FieldRegistries {
-            accessors: FieldAccessorRegistry::default(),
-            setters: HashMap::new(),
-        }
+        FieldRegistries::new()
     }
 
     fn make_rule_set<K: Hash + Eq>() -> RuleSet<K> {
