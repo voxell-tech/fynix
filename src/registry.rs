@@ -1,27 +1,23 @@
-use field_path::field::UntypedField;
 use field_path::registry::FieldAccessorRegistry;
 use hashbrown::HashMap;
 
-use crate::setter::UntypedSetter;
+use crate::rule_set::FieldRuleRegistry;
 
-pub type FieldSetterRegistry<K> =
-    HashMap<UntypedField, UntypedSetter<K>>;
-
-pub struct FieldRegistries<K> {
+pub struct FieldRegistries {
     pub accessors: FieldAccessorRegistry,
-    pub setters: FieldSetterRegistry<K>,
+    pub rules: FieldRuleRegistry,
 }
 
-impl<K> FieldRegistries<K> {
+impl FieldRegistries {
     pub fn new() -> Self {
         Self {
             accessors: FieldAccessorRegistry::default(),
-            setters: HashMap::new(),
+            rules: HashMap::new(),
         }
     }
 }
 
-impl<K> Default for FieldRegistries<K> {
+impl Default for FieldRegistries {
     fn default() -> Self {
         Self::new()
     }

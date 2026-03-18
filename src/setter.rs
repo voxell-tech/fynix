@@ -19,7 +19,7 @@ pub struct ValueId<K> {
 }
 
 impl<K> ValueId<K> {
-    pub fn new(key: K, field: UntypedField) -> Self {
+    pub const fn new(key: K, field: UntypedField) -> Self {
         Self { key, field }
     }
 }
