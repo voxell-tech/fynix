@@ -10,6 +10,16 @@ pub struct FieldIndex<K> {
     pub fields: Box<[UntypedField]>,
 }
 
+impl<K> FieldIndex<K>
+where
+    K: Hash + Eq,
+{
+    pub fn get_fields(&self, key: &K) -> Option<&[UntypedField]> {
+        let span = self.index_map.get(key)?;
+        Some(&self.fields[span.start..span.end])
+    }
+}
+
 pub struct FieldIndexBuilder<K> {
     pub field_map: HashMap<K, HashSet<UntypedField>>,
 }
@@ -41,10 +51,15 @@ where
         let mut all_fields = Vec::new();
 
         for (key, fields) in self.field_map.into_iter() {
+            if fields.is_empty() {
+                continue;
+            }
+
             let start = all_fields.len();
             all_fields.extend(fields);
             let end = all_fields.len();
-            index_map.insert(key, Span { start, end });
+
+            index_map.insert(key, Span::new(start, end));
         }
 
         FieldIndex {
@@ -64,6 +79,12 @@ impl<K> Default for FieldIndexBuilder<K> {
 pub struct Span {
     pub start: usize,
     pub end: usize,
+}
+
+impl Span {
+    pub const fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
 }
 
 #[cfg(test)]
