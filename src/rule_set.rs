@@ -220,7 +220,7 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 200.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 200.0);
         b.commit();
 
         let mut frame = Frame::default();
@@ -234,9 +234,9 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 300.0f32);
-        b.add(field_path::field_accessor!(<Frame>::height), 150.0f32);
-        b.add(field_path::field_accessor!(<Frame>::opacity), 0.8f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 300.0);
+        b.add(field_path::field_accessor!(<Frame>::height), 150.0);
+        b.add(field_path::field_accessor!(<Frame>::opacity), 0.8);
         b.commit();
 
         let mut frame = Frame::default();
@@ -254,11 +254,8 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
-        b.add(
-            field_path::field_accessor!(<Label>::font_size),
-            16.0f32,
-        );
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0);
+        b.add(field_path::field_accessor!(<Label>::font_size), 16.0);
         b.commit();
 
         let mut frame = Frame::default();
@@ -277,7 +274,7 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 500.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 500.0);
         b.commit();
 
         // Label has no rules under this key — should remain default.
@@ -297,11 +294,11 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0);
         b.commit();
 
         let mut b = rs.edit(2u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 200.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 200.0);
         b.commit();
 
         let mut frame1 = Frame::default();
@@ -338,11 +335,11 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0);
         b.commit();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 250.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 250.0);
         b.commit();
 
         let mut frame = Frame::default();
@@ -358,7 +355,7 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 200.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 200.0);
         b.commit();
 
         rs.delete(&1u32);
@@ -382,8 +379,8 @@ mod tests {
         let mut rs = make_rule_set::<u32>();
 
         let mut b = rs.edit(1u32, &mut reg);
-        b.add(field_path::field_accessor!(<Frame>::width), 100.0f32);
-        b.add(field_path::field_accessor!(<Frame>::height), 80.0f32);
+        b.add(field_path::field_accessor!(<Frame>::width), 100.0);
+        b.add(field_path::field_accessor!(<Frame>::height), 80.0);
         b.remove(&field_path::field_accessor!(<Frame>::height));
         b.commit();
 
