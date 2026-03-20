@@ -6,20 +6,20 @@ use rectree::layout::{LayoutSolver, LayoutWorld};
 use rectree::{NodeId, Rectree};
 
 use crate::registry::FieldRegistries;
-use crate::rule_set::RuleSet;
+use crate::style::StyleChain;
 
 pub mod any_wrapper;
 pub mod element;
 pub mod field_index;
 pub mod registry;
-pub mod rule_set;
 pub mod setter;
+pub mod style;
 pub mod type_table;
 
 pub struct Fynix {
     pub tree: Rectree,
     pub registries: FieldRegistries,
-    pub rules: RuleSet,
+    pub rules: StyleChain,
 }
 
 impl Fynix {
@@ -27,7 +27,7 @@ impl Fynix {
         Self {
             tree: Rectree::new(),
             registries: FieldRegistries::default(),
-            rules: RuleSet::default(),
+            rules: StyleChain::default(),
         }
     }
 }

@@ -1,18 +1,22 @@
+use field_path::field::UntypedField;
 use field_path::registry::FieldAccessorRegistry;
 use hashbrown::HashMap;
 
-use crate::rule_set::FieldRuleRegistry;
+use crate::setter::UntypedSetter;
+use crate::style::StyleId;
 
+/// Global registries for field manipulation.
 pub struct FieldRegistries {
+    // TODO: Remove this from `field_path`.
     pub accessors: FieldAccessorRegistry,
-    pub rules: FieldRuleRegistry,
+    pub style_setters: HashMap<UntypedField, UntypedSetter<StyleId>>,
 }
 
 impl FieldRegistries {
     pub fn new() -> Self {
         Self {
             accessors: FieldAccessorRegistry::default(),
-            rules: HashMap::new(),
+            style_setters: HashMap::new(),
         }
     }
 }

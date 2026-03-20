@@ -8,37 +8,107 @@ use rectree::NodeId;
 
 use crate::field_index::{FieldIndex, FieldIndexBuilder};
 use crate::registry::FieldRegistries;
-use crate::setter::{Setter, UntypedSetter, ValueId};
+use crate::setter::{Setter, ValueId};
 use crate::type_table::TypeTable;
 
-pub type FieldRuleRegistry =
-    HashMap<UntypedField, UntypedSetter<RuleId>>;
+pub type StyleSetter<S> = Setter<StyleId, S>;
 
-pub type RuleSetter<S> = Setter<RuleId, S>;
-
-pub type RuleValueId = ValueId<RuleId>;
+pub type StyleValueId = ValueId<StyleId>;
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct RuleId {
-    /// The current node's Id.
-    pub node_id: NodeId,
+pub struct StyleId {
+    /// Parent's node id.
+    pub parent_id: Option<NodeId>,
     /// Sibling rank within the scope to disambiguates multiple
     /// elements at the same node.
-    pub rank: usize,
+    pub rank: u32,
 }
 
-impl RuleId {
-    pub const fn new(node_id: NodeId, rank: usize) -> Self {
-        Self { node_id, rank }
+impl StyleId {
+    pub const fn new(parent_id: Option<NodeId>, rank: u32) -> Self {
+        Self { parent_id, rank }
     }
 }
 
-pub struct RuleSet {
-    pub values: TypeTable<RuleValueId>,
-    pub field_indices: HashMap<RuleId, FieldIndex<TypeId>>,
+pub struct StyleCtx<'a> {
+    style_chain: &'a mut StyleChain,
+    registries: &'a mut FieldRegistries,
+    current_id: StyleId,
+    field_index_builder: FieldIndexBuilder<TypeId>,
 }
 
-impl RuleSet {
+impl StyleCtx<'_> {
+    pub fn add<S, T>(
+        mut self,
+        field_accessor: FieldAccessor<S, T>,
+        value: T,
+    ) -> Self
+    where
+        S: 'static,
+        T: Clone + 'static,
+    {
+        let untyped_field = field_accessor.field.untyped();
+        let source_id = TypeId::of::<S>();
+
+        let FieldRegistries {
+            accessors,
+            style_setters,
+        } = self.registries;
+
+        // Register setter and accessor to registries if not exists.
+        if !style_setters.contains_key(&untyped_field) {
+            let setter = StyleSetter::<S>::new::<T>().untyped();
+
+            style_setters.insert(untyped_field, setter);
+            accessors.register_field(field_accessor);
+        }
+
+        // Store the value.
+        let value_id = ValueId::new(self.current_id, untyped_field);
+        self.style_chain.values.insert(value_id, value);
+
+        // Update local builder state.
+        self.field_index_builder.insert(source_id, untyped_field);
+        self
+    }
+
+    pub fn remove<S, T>(
+        mut self,
+        field_accessor: &FieldAccessor<S, T>,
+    ) -> Self
+    where
+        S: 'static,
+        T: 'static,
+    {
+        let untyped_field = field_accessor.field.untyped();
+        let source_id = TypeId::of::<S>();
+
+        // Stage removal from the local builder state.
+        self.field_index_builder.remove(&source_id, &untyped_field);
+
+        // Removes the value.
+        let value_id = ValueId::new(self.current_id, untyped_field);
+        self.style_chain.values.remove::<T>(&value_id);
+        self
+    }
+
+    /// Compiles the staged field index and inserts it into the rule set.
+    pub fn commit(&mut self) {
+        self.current_id.rank += 1;
+        let field_index =
+            core::mem::take(&mut self.field_index_builder).compile();
+        self.style_chain
+            .field_indices
+            .insert(self.current_id, field_index);
+    }
+}
+
+pub struct StyleChain {
+    values: TypeTable<StyleValueId>,
+    field_indices: HashMap<StyleId, FieldIndex<TypeId>>,
+}
+
+impl StyleChain {
     pub fn new() -> Self {
         Self {
             values: TypeTable::new(),
@@ -48,10 +118,10 @@ impl RuleSet {
 
     pub fn edit<'a>(
         &'a mut self,
-        id: RuleId,
+        id: StyleId,
         registries: &'a mut FieldRegistries,
-    ) -> RuleSetBuilder<'a> {
-        RuleSetBuilder {
+    ) -> StylesBuilder<'a> {
+        StylesBuilder {
             id,
             registries,
             values: &mut self.values,
@@ -65,7 +135,7 @@ impl RuleSet {
     /// the set across multiple scope levels (leaf-first cascade).
     pub fn apply_styles_skipping<S: 'static>(
         &self,
-        id: &RuleId,
+        id: &StyleId,
         target: &mut S,
         registries: &FieldRegistries,
         visited: &mut HashSet<UntypedField>,
@@ -82,7 +152,8 @@ impl RuleSet {
             if !visited.insert(field) {
                 continue; // already set by a closer scope
             }
-            let Some(untyped_setter) = registries.rules.get(&field)
+            let Some(untyped_setter) =
+                registries.style_setters.get(&field)
             else {
                 continue;
             };
@@ -98,7 +169,7 @@ impl RuleSet {
         }
     }
 
-    pub fn delete(&mut self, id: &RuleId) {
+    pub fn delete(&mut self, id: &StyleId) {
         let Some(field_index) = self.field_indices.remove(id) else {
             return;
         };
@@ -117,7 +188,7 @@ impl RuleSet {
     /// Applies all setters associated with `key` to the `target` object.
     pub fn apply_styles<S: 'static>(
         &self,
-        id: &RuleId,
+        id: &StyleId,
         target: &mut S,
         registries: &FieldRegistries,
     ) {
@@ -136,7 +207,8 @@ impl RuleSet {
         let fields = &field_index.fields[span.start..span.end];
 
         for field in fields {
-            let Some(untyped_setter) = registries.rules.get(field)
+            let Some(untyped_setter) =
+                registries.style_setters.get(field)
             else {
                 continue;
             };
@@ -155,21 +227,21 @@ impl RuleSet {
     }
 }
 
-impl Default for RuleSet {
+impl Default for StyleChain {
     fn default() -> Self {
         Self::new()
     }
 }
 
-pub struct RuleSetBuilder<'a> {
-    pub id: RuleId,
+pub struct StylesBuilder<'a> {
+    pub id: StyleId,
     pub registries: &'a mut FieldRegistries,
-    pub values: &'a mut TypeTable<RuleValueId>,
-    pub field_indices: &'a mut HashMap<RuleId, FieldIndex<TypeId>>,
+    pub values: &'a mut TypeTable<StyleValueId>,
+    pub field_indices: &'a mut HashMap<StyleId, FieldIndex<TypeId>>,
     pub field_index_builder: FieldIndexBuilder<TypeId>,
 }
 
-impl<'a> RuleSetBuilder<'a> {
+impl<'a> StylesBuilder<'a> {
     pub fn add<S, T>(
         mut self,
         field_accessor: FieldAccessor<S, T>,
@@ -183,9 +255,12 @@ impl<'a> RuleSetBuilder<'a> {
         let source_id = TypeId::of::<S>();
 
         // 1. Ensure global setter exists
-        if !self.registries.rules.contains_key(&untyped_field) {
-            let setter = RuleSetter::<S>::new::<T>().untyped();
-            self.registries.rules.insert(untyped_field, setter);
+        if !self.registries.style_setters.contains_key(&untyped_field)
+        {
+            let setter = StyleSetter::<S>::new::<T>().untyped();
+            self.registries
+                .style_setters
+                .insert(untyped_field, setter);
         }
 
         // 2. Store the value in the TypeTable
