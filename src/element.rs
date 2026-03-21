@@ -1,146 +1,129 @@
-use alloc::string::String;
+use core::any::TypeId;
+
 use alloc::vec::Vec;
-use rectree::kurbo::{Size, Vec2};
-use rectree::layout::{Constraint, LayoutSolver, Positioner};
-use rectree::node::RectNode;
-use rectree::{NodeId, Rectree};
-use vello::Scene;
-use vello::peniko::Color;
+use hashbrown::HashMap;
 
 use crate::type_table::TypeTable;
 
-pub struct BuildCtx;
+#[derive(
+    Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord,
+)]
+pub struct ElementId {
+    id: u32,
+    generation: u32,
+}
 
-pub type ElementTable = TypeTable<NodeId>;
-
-pub trait Element: 'static {
-    fn build(
-        &self,
-        ctx: &BuildCtx,
-        node: &RectNode,
-        tree: &Rectree,
-        positioner: &mut Positioner,
-    ) -> Size;
-
-    fn constraint(
-        &self,
-        parent_constraint: Constraint,
-    ) -> Constraint {
-        parent_constraint
-    }
-
-    #[expect(unused_variables)]
-    fn push_child(&mut self, id: NodeId) {}
-
-    fn draw(&self) -> Option<Scene> {
-        None
+impl ElementId {
+    const fn from_raw(id: u32, generation: u32) -> Self {
+        Self { id, generation }
     }
 }
 
-// pub struct ElementWrapper<'a, E>
-// where
-//     E: Element,
-// {
-//     element: &'a E,
-//     context: &'a BuildCtx,
-// }
-
-// impl<E> LayoutSolver for ElementWrapper<'_, E>
-// where
-//     E: Element,
-// {
-//     fn build(
-//         &self,
-//         node: &RectNode,
-//         tree: &Rectree,
-//         positioner: &mut Positioner,
-//     ) -> Size {
-//         self.element.build(self.context, node, tree, positioner)
-//     }
-
-//     fn constraint(
-//         &self,
-//         parent_constraint: Constraint,
-//     ) -> Constraint {
-//         self.element.constraint(parent_constraint)
-//     }
-// }
-
-pub struct Label {
-    pub text: String,
-    pub fill: Color,
-    pub stroke: Color,
-}
-
-impl Element for Label {
-    fn build(
-        &self,
-        ctx: &BuildCtx,
-        _: &RectNode,
-        _: &Rectree,
-        _: &mut Positioner,
-    ) -> Size {
-        todo!()
-    }
-
-    fn draw(&self) -> Option<Scene> {
-        todo!()
-    }
-}
-
-// /// Spacing used within a block.
-// pub struct Space {
-//     spacing: f32,
-// }
-
-/// The fundamental building block of nodes in Fynix. Everything
-/// within it will only flow in 1 [`Direction`].
 #[derive(Default)]
-pub struct Block {
-    pub direction: Direction,
-    pub clip: bool,
-    children: Vec<NodeId>,
+pub struct BuildCtx {
+    elements: TypeTable<ElementId>,
+    element_types: HashMap<ElementId, TypeId>,
+    getters: HashMap<TypeId, GetElementFn>,
+    next_id: u32,
+    unused_ids: Vec<ElementId>,
 }
 
-impl Element for Block {
-    fn build(
-        &self,
-        _: &BuildCtx,
-        _: &RectNode,
-        tree: &Rectree,
-        positioner: &mut Positioner,
-    ) -> Size {
-        let mut max_height = 0.0;
-        let mut cursor = 0.0;
+pub type GetElementFn = for<'a> fn(
+    table: &'a TypeTable<ElementId>,
+    id: &ElementId,
+) -> Option<&'a dyn Element>;
 
-        // TODO: This is only horizontal.
-        for id in self.children.iter() {
-            let child_node = tree.get(id);
-            let child_size = child_node.size();
+impl BuildCtx {
+    #[must_use]
+    pub fn add<E: Element>(&mut self) -> ElementId {
+        let element = E::new();
+        self.add_impl(element)
+    }
 
-            positioner.set(*id, Vec2::new(cursor, 0.0));
-            cursor += child_size.width;
+    #[must_use]
+    pub fn add_with<E: Element>(
+        &mut self,
+        f: impl FnOnce(&mut E, &mut Self),
+    ) -> ElementId {
+        let mut element = E::new();
+        f(&mut element, self);
+        self.add_impl(element)
+    }
 
-            // Track the tallest child
-            if child_size.height > max_height {
-                max_height = child_size.height;
-            }
+    fn add_impl<E: Element>(&mut self, element: E) -> ElementId {
+        let type_id = TypeId::of::<E>();
+
+        if !self.getters.contains_key(&type_id) {
+            self.getters.insert(type_id, |table, id| {
+                let element = table.get::<E>(id);
+                element.map(|e| e as &dyn Element)
+            });
         }
 
-        Size::new(cursor, max_height)
+        let id = self.unused_ids.pop().unwrap_or_else(|| {
+            let id = ElementId::from_raw(self.next_id, 0);
+            self.next_id += 1;
+            id
+        });
+
+        self.element_types.insert(id, type_id);
+        self.elements.insert(id, element);
+        id
+    }
+
+    pub fn get(&mut self, id: &ElementId) -> Option<&dyn Element> {
+        if let Some(type_id) = self.element_types.get(id)
+            && let Some(getter) = self.getters.get(type_id)
+        {
+            return getter(&self.elements, id);
+        }
+
+        None
+    }
+
+    pub fn remove(&mut self, id: &ElementId) -> bool {
+        if let Some(type_id) = self.element_types.remove(id) {
+            return self.elements.dyn_remove(&type_id, id);
+        }
+
+        false
     }
 }
 
-/// Orthogonal direction in 2D space.
-#[derive(Default)]
-pub enum Direction {
-    /// Top to bottom.
-    #[default]
-    TTB,
-    /// Bottom to top.
-    BTT,
-    /// Left to right.
-    LTR,
-    /// Right to left.
-    RTL,
+pub trait Element: 'static {
+    fn new() -> Self
+    where
+        Self: Sized;
+}
+
+#[derive(Default, Debug)]
+pub struct Horizontal {
+    children: Vec<ElementId>,
+}
+
+impl Horizontal {
+    pub fn add(&mut self, id: ElementId) {
+        self.children.push(id);
+    }
+}
+
+impl Element for Horizontal {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        Self::default()
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct Frame;
+
+impl Element for Frame {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        Self
+    }
 }
