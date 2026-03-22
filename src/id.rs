@@ -1,0 +1,120 @@
+use core::fmt::{Debug, Display, Formatter, Result};
+use core::hash::Hash;
+use core::marker::PhantomData;
+
+use alloc::vec::Vec;
+
+pub struct GenId<T> {
+    id: u32,
+    generation: u32,
+    _marker: PhantomData<T>,
+}
+
+impl<T> GenId<T> {
+    const fn from_raw(id: u32, generation: u32) -> Self {
+        Self {
+            id,
+            generation,
+            _marker: PhantomData,
+        }
+    }
+
+    const fn next_generation(mut self) -> Self {
+        self.generation += 1;
+        self
+    }
+}
+
+impl<T> Display for GenId<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "{}v{}", self.id, self.generation)
+    }
+}
+
+impl<T> Debug for GenId<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        f.debug_struct("GenId")
+            .field("id", &self.id)
+            .field("generation", &self.generation)
+            .finish()
+    }
+}
+
+impl<T> Hash for GenId<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.generation.hash(state);
+        self._marker.hash(state);
+    }
+}
+
+impl<T> Eq for GenId<T> {}
+
+impl<T> PartialEq for GenId<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.generation == other.generation
+            && self._marker == other._marker
+    }
+}
+
+impl<T> Ord for GenId<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.id
+            .cmp(&other.id)
+            .then(self.generation.cmp(&other.generation))
+            .then(self._marker.cmp(&other._marker))
+    }
+}
+
+impl<T> PartialOrd for GenId<T> {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Copy for GenId<T> {}
+
+impl<T> Clone for GenId<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+pub struct IdGenerator<T> {
+    next_id: u32,
+    unused_ids: Vec<GenId<T>>,
+}
+
+impl<T> IdGenerator<T> {
+    pub const fn new() -> Self {
+        Self {
+            next_id: 0,
+            unused_ids: Vec::new(),
+        }
+    }
+
+    pub fn new_id(&mut self) -> GenId<T> {
+        self.unused_ids
+            .pop()
+            .map(|id| id.next_generation())
+            .unwrap_or_else(|| {
+                let id = GenId::from_raw(self.next_id, 0);
+                self.next_id += 1;
+                id
+            })
+    }
+
+    pub fn recycle(&mut self, id: GenId<T>) {
+        self.unused_ids.push(id);
+    }
+}
+
+impl<T> Default for IdGenerator<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}

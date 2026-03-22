@@ -1,56 +1,52 @@
-use core::hash::Hash;
+use core::any::TypeId;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use field_path::field::UntypedField;
 use hashbrown::{HashMap, HashSet};
 
-pub struct FieldIndex<K> {
-    pub index_map: HashMap<K, Span>,
+pub struct FieldIndex {
+    pub index_map: HashMap<TypeId, Span>,
     pub fields: Box<[UntypedField]>,
 }
 
-impl<K> FieldIndex<K>
-where
-    K: Hash + Eq,
-{
-    pub fn get_fields(&self, key: &K) -> Option<&[UntypedField]> {
-        let span = self.index_map.get(key)?;
+impl FieldIndex {
+    pub fn get_fields(&self, id: &TypeId) -> Option<&[UntypedField]> {
+        let span = self.index_map.get(id)?;
         Some(&self.fields[span.start..span.end])
     }
 }
 
-pub struct FieldIndexBuilder<K> {
-    pub field_map: HashMap<K, HashSet<UntypedField>>,
+pub struct FieldIndexBuilder {
+    field_map: HashMap<TypeId, HashSet<UntypedField>>,
 }
 
-impl<K> FieldIndexBuilder<K> {
+impl FieldIndexBuilder {
     pub fn new() -> Self {
         Self {
             field_map: HashMap::new(),
         }
     }
-}
 
-impl<K> FieldIndexBuilder<K>
-where
-    K: Hash + Eq,
-{
-    pub fn insert(&mut self, key: K, field: UntypedField) {
-        self.field_map.entry(key).or_default().insert(field);
+    pub fn insert(&mut self, id: TypeId, field: UntypedField) {
+        self.field_map.entry(id).or_default().insert(field);
     }
 
-    pub fn remove(&mut self, key: &K, field: &UntypedField) {
-        if let Some(fields) = self.field_map.get_mut(key) {
+    pub fn remove(&mut self, id: &TypeId, field: &UntypedField) {
+        if let Some(fields) = self.field_map.get_mut(id) {
             fields.remove(field);
         }
     }
 
-    pub fn compile(self) -> FieldIndex<K> {
+    pub fn is_empty(&self) -> bool {
+        self.field_map.is_empty()
+    }
+
+    pub fn compile(self) -> FieldIndex {
         let mut index_map = HashMap::new();
         let mut all_fields = Vec::new();
 
-        for (key, fields) in self.field_map.into_iter() {
+        for (id, fields) in self.field_map.into_iter() {
             if fields.is_empty() {
                 continue;
             }
@@ -59,7 +55,7 @@ where
             all_fields.extend(fields);
             let end = all_fields.len();
 
-            index_map.insert(key, Span::new(start, end));
+            index_map.insert(id, Span::new(start, end));
         }
 
         FieldIndex {
@@ -69,7 +65,7 @@ where
     }
 }
 
-impl<K> Default for FieldIndexBuilder<K> {
+impl Default for FieldIndexBuilder {
     fn default() -> Self {
         Self::new()
     }
@@ -117,7 +113,7 @@ mod tests {
 
     #[test]
     fn empty_builder_compiles_to_empty_index() {
-        let index = FieldIndexBuilder::<TypeId>::new().compile();
+        let index = FieldIndexBuilder::new().compile();
         assert!(index.index_map.is_empty());
         assert!(index.fields.is_empty());
     }
@@ -196,7 +192,7 @@ mod tests {
 
     #[test]
     fn remove_on_absent_key_does_not_panic() {
-        let mut builder = FieldIndexBuilder::<TypeId>::new();
+        let mut builder = FieldIndexBuilder::new();
         builder.remove(&TypeId::of::<Frame>(), &frame_width());
     }
 }

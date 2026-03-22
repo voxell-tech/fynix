@@ -1,301 +1,231 @@
 use core::any::TypeId;
-use core::hash::Hash;
 
+use field_path::accessor::UntypedAccessor;
 use field_path::field::UntypedField;
 use field_path::field_accessor::FieldAccessor;
-use hashbrown::{HashMap, HashSet};
-use rectree::NodeId;
+use hashbrown::HashMap;
 
+use crate::element::Element;
 use crate::field_index::{FieldIndex, FieldIndexBuilder};
-use crate::registry::FieldRegistries;
-use crate::setter::{Setter, ValueId};
+use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
-pub type StyleSetter<S> = Setter<StyleId, S>;
-
-pub type StyleValueId = ValueId<StyleId>;
-
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct StyleId {
-    /// Parent's node id.
-    pub parent_id: Option<NodeId>,
-    /// Sibling rank within the scope to disambiguates multiple
-    /// elements at the same node.
-    pub rank: u32,
-}
-
-impl StyleId {
-    pub const fn new(parent_id: Option<NodeId>, rank: u32) -> Self {
-        Self { parent_id, rank }
-    }
-}
-
-pub struct StyleCtx<'a> {
-    style_chain: &'a mut StyleChain,
-    registries: &'a mut FieldRegistries,
+pub struct Styles {
+    registry:
+        HashMap<UntypedField, (UntypedAccessor, UntypedSetStyle)>,
+    style_values: TypeTable<StyleId>,
+    field_indices: HashMap<StyleId, Style>,
+    field_index_builder: FieldIndexBuilder,
     current_id: StyleId,
-    field_index_builder: FieldIndexBuilder<TypeId>,
+    id_generator: StyleIdGenerator,
 }
 
-impl StyleCtx<'_> {
-    pub fn add<S, T>(
-        mut self,
-        field_accessor: FieldAccessor<S, T>,
+impl Styles {
+    pub fn new() -> Self {
+        let mut id_generator = StyleIdGenerator::new();
+
+        Self {
+            registry: HashMap::new(),
+            style_values: TypeTable::new(),
+            field_indices: HashMap::new(),
+            field_index_builder: FieldIndexBuilder::new(),
+            current_id: id_generator.new_id(),
+            id_generator,
+        }
+    }
+
+    pub fn current_id(&self) -> StyleId {
+        self.current_id
+    }
+
+    pub fn should_commit(&self) -> bool {
+        !self.field_index_builder.is_empty()
+    }
+
+    pub fn commit_styles(&mut self, parent_id: Option<StyleId>) {
+        let field_index =
+            core::mem::take(&mut self.field_index_builder).compile();
+
+        self.field_indices.insert(
+            self.current_id,
+            Style::new(parent_id, field_index),
+        );
+
+        self.current_id = self.id_generator.new_id();
+    }
+
+    pub fn set<E, T>(
+        &mut self,
+        field_accessor: FieldAccessor<E, T>,
         value: T,
-    ) -> Self
-    where
-        S: 'static,
+    ) where
+        E: Element,
         T: Clone + 'static,
     {
         let untyped_field = field_accessor.field.untyped();
-        let source_id = TypeId::of::<S>();
+        let type_id = TypeId::of::<E>();
 
-        let FieldRegistries {
-            accessors,
-            style_setters,
-        } = self.registries;
-
-        // Register setter and accessor to registries if not exists.
-        if !style_setters.contains_key(&untyped_field) {
-            let setter = StyleSetter::<S>::new::<T>().untyped();
-
-            style_setters.insert(untyped_field, setter);
-            accessors.register_field(field_accessor);
+        if !self.registry.contains_key(&untyped_field) {
+            self.registry.insert(
+                untyped_field,
+                (
+                    field_accessor.accessor.untyped(),
+                    SetStyle::<E>::new::<T>().untyped(),
+                ),
+            );
         }
 
-        // Store the value.
-        let value_id = ValueId::new(self.current_id, untyped_field);
-        self.style_chain.values.insert(value_id, value);
-
-        // Update local builder state.
-        self.field_index_builder.insert(source_id, untyped_field);
-        self
+        self.style_values.insert(self.current_id, value);
+        self.field_index_builder.insert(type_id, untyped_field);
     }
 
-    pub fn remove<S, T>(
-        mut self,
-        field_accessor: &FieldAccessor<S, T>,
-    ) -> Self
-    where
-        S: 'static,
-        T: 'static,
-    {
-        let untyped_field = field_accessor.field.untyped();
-        let source_id = TypeId::of::<S>();
+    pub fn delete(&mut self, id: &StyleId) -> bool {
+        if self.style_values.remove_all(id) {
+            self.field_indices.remove(id);
+            self.id_generator.recycle(*id);
+            return true;
+        }
 
-        // Stage removal from the local builder state.
-        self.field_index_builder.remove(&source_id, &untyped_field);
-
-        // Removes the value.
-        let value_id = ValueId::new(self.current_id, untyped_field);
-        self.style_chain.values.remove::<T>(&value_id);
-        self
+        false
     }
 
-    /// Compiles the staged field index and inserts it into the rule set.
-    pub fn commit(&mut self) {
-        self.current_id.rank += 1;
-        let field_index =
-            core::mem::take(&mut self.field_index_builder).compile();
-        self.style_chain
-            .field_indices
-            .insert(self.current_id, field_index);
+    pub fn apply<E: Element>(&self, element: &mut E, id: &StyleId) {
+        // TODO(nixon): Apply style!
     }
 }
 
-pub struct StyleChain {
-    values: TypeTable<StyleValueId>,
-    field_indices: HashMap<StyleId, FieldIndex<TypeId>>,
-}
-
-impl StyleChain {
-    pub fn new() -> Self {
-        Self {
-            values: TypeTable::new(),
-            field_indices: HashMap::new(),
-        }
-    }
-
-    pub fn edit<'a>(
-        &'a mut self,
-        id: StyleId,
-        registries: &'a mut FieldRegistries,
-    ) -> StylesBuilder<'a> {
-        StylesBuilder {
-            id,
-            registries,
-            values: &mut self.values,
-            field_indices: &mut self.field_indices,
-            field_index_builder: FieldIndexBuilder::new(),
-        }
-    }
-
-    /// Like `apply_styles`, but skips fields already present in `visited`.
-    /// Inserts each applied field into `visited` so callers can accumulate
-    /// the set across multiple scope levels (leaf-first cascade).
-    pub fn apply_styles_skipping<S: 'static>(
-        &self,
-        id: &StyleId,
-        target: &mut S,
-        registries: &FieldRegistries,
-        visited: &mut HashSet<UntypedField>,
-    ) {
-        let Some(field_index) = self.field_indices.get(id) else {
-            return;
-        };
-        let source_id = TypeId::of::<S>();
-        let Some(span) = field_index.index_map.get(&source_id) else {
-            return;
-        };
-        let fields = &field_index.fields[span.start..span.end];
-        for &field in fields {
-            if !visited.insert(field) {
-                continue; // already set by a closer scope
-            }
-            let Some(untyped_setter) =
-                registries.style_setters.get(&field)
-            else {
-                continue;
-            };
-            if let Some(setter) = untyped_setter.typed::<S>() {
-                let value_id = ValueId::new(*id, field);
-                setter.apply(
-                    target,
-                    &value_id,
-                    &registries.accessors,
-                    &self.values,
-                );
-            }
-        }
-    }
-
-    pub fn delete(&mut self, id: &StyleId) {
-        let Some(field_index) = self.field_indices.remove(id) else {
-            return;
-        };
-
-        for span in field_index.index_map.into_values() {
-            for field in field_index.fields[span.start..span.end]
-                .iter()
-                .copied()
-            {
-                let value_id = ValueId::new(*id, field);
-                self.values.remove_all(&value_id);
-            }
-        }
-    }
-
-    /// Applies all setters associated with `key` to the `target` object.
-    pub fn apply_styles<S: 'static>(
-        &self,
-        id: &StyleId,
-        target: &mut S,
-        registries: &FieldRegistries,
-    ) {
-        // 1. Get the FieldIndex for this specific key (e.g., a specific UI Node)
-        let Some(field_index) = self.field_indices.get(id) else {
-            return;
-        };
-
-        // 2. Find the span of fields that apply to type S
-        let source_id = TypeId::of::<S>();
-        let Some(span) = field_index.index_map.get(&source_id) else {
-            return;
-        };
-
-        // 3. Iterate through the relevant fields in linear memory
-        let fields = &field_index.fields[span.start..span.end];
-
-        for field in fields {
-            let Some(untyped_setter) =
-                registries.style_setters.get(field)
-            else {
-                continue;
-            };
-
-            if let Some(setter) = untyped_setter.typed::<S>() {
-                let value_id = ValueId::new(*id, *field);
-
-                setter.apply(
-                    target,
-                    &value_id,
-                    &registries.accessors,
-                    &self.values,
-                );
-            }
-        }
-    }
-}
-
-impl Default for StyleChain {
+impl Default for Styles {
     fn default() -> Self {
         Self::new()
     }
 }
 
-pub struct StylesBuilder<'a> {
-    pub id: StyleId,
-    pub registries: &'a mut FieldRegistries,
-    pub values: &'a mut TypeTable<StyleValueId>,
-    pub field_indices: &'a mut HashMap<StyleId, FieldIndex<TypeId>>,
-    pub field_index_builder: FieldIndexBuilder<TypeId>,
+pub struct Style {
+    parent_id: Option<StyleId>,
+    field_index: FieldIndex,
 }
 
-impl<'a> StylesBuilder<'a> {
-    pub fn add<S, T>(
-        mut self,
-        field_accessor: FieldAccessor<S, T>,
-        value: T,
-    ) -> Self
+impl Style {
+    pub const fn new(
+        parent_id: Option<StyleId>,
+        field_index: FieldIndex,
+    ) -> Self {
+        Self {
+            parent_id,
+            field_index,
+        }
+    }
+}
+
+// TODO: Fix doc.
+/// Function signature for setting a field of source `S` from a
+/// [`TypeTable<K>`] via an [`Accessor`].
+///
+/// ## Returns
+/// `true` if set succeeds, else `false`.
+///
+/// [`Accessor`]: field_path::accessor::Accessor
+pub type SetStyleFn<E> = fn(
+    &mut E,
+    &UntypedAccessor,
+    &StyleId,
+    &TypeTable<StyleId>,
+) -> bool;
+
+/// Implementation of [`SetFieldFn`].
+#[inline]
+pub fn set_style<E, T>(
+    element: &mut E,
+    accessor: &UntypedAccessor,
+    style_id: &StyleId,
+    values: &TypeTable<StyleId>,
+) -> bool
+where
+    E: 'static,
+    T: Clone + 'static,
+{
+    if let Some(accessor) = accessor.typed::<E, T>()
+        && let Some(value) = values.get::<T>(style_id)
+    {
+        *accessor.get_mut(element) = value.clone();
+        return true;
+    }
+    false
+}
+
+pub struct SetStyle<E>
+where
+    E: Element,
+{
+    set_fn: SetStyleFn<E>,
+}
+
+impl<E> SetStyle<E>
+where
+    E: Element,
+{
+    pub fn new<T>() -> Self
     where
-        S: 'static,
         T: Clone + 'static,
     {
-        let untyped_field = field_accessor.field.untyped();
-        let source_id = TypeId::of::<S>();
+        Self {
+            set_fn: set_style::<E, T>,
+        }
+    }
 
-        // 1. Ensure global setter exists
-        if !self.registries.style_setters.contains_key(&untyped_field)
-        {
-            let setter = StyleSetter::<S>::new::<T>().untyped();
-            self.registries
-                .style_setters
-                .insert(untyped_field, setter);
+    pub fn untyped(&self) -> UntypedSetStyle {
+        UntypedSetStyle {
+            source_id: TypeId::of::<E>(),
+            set_fn: self.set_fn as *const (),
+        }
+    }
+
+    pub fn apply(
+        &self,
+        element: &mut E,
+        accessor: &UntypedAccessor,
+        style_id: &StyleId,
+        values: &TypeTable<StyleId>,
+    ) -> bool {
+        (self.set_fn)(element, accessor, style_id, values)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct UntypedSetStyle {
+    source_id: TypeId,
+    set_fn: *const (),
+}
+
+impl UntypedSetStyle {
+    pub fn typed<E>(&self) -> Option<SetStyle<E>>
+    where
+        E: Element,
+    {
+        if TypeId::of::<E>() == self.source_id {
+            return Some(unsafe { self.typed_unchecked() });
         }
 
-        // 2. Store the value in the TypeTable
-        let value_key = ValueId::new(self.id, untyped_field);
-        self.values.insert(value_key, value);
-
-        // 3. Update registries and local builder state
-        self.registries.accessors.register_field(field_accessor);
-        self.field_index_builder.insert(source_id, untyped_field);
-        self
+        None
     }
 
-    pub fn remove<S, T>(
-        mut self,
-        field_accessor: &FieldAccessor<S, T>,
-    ) -> Self
+    /// ## Safety
+    pub const unsafe fn typed_unchecked<E>(&self) -> SetStyle<E>
     where
-        S: 'static,
-        T: 'static,
+        E: Element,
     {
-        let untyped_field = field_accessor.field.untyped();
-        let source_id = TypeId::of::<S>();
-
-        // 1. Stage removal from the field index
-        self.field_index_builder.remove(&source_id, &untyped_field);
-
-        // 2. Actually purge the value from the TypeTable
-        let value_key = ValueId::new(self.id, untyped_field);
-        self.values.remove::<T>(&value_key);
-        self
+        unsafe {
+            use core::mem::transmute;
+            SetStyle {
+                set_fn: transmute::<*const (), SetStyleFn<E>>(
+                    self.set_fn,
+                ),
+            }
+        }
     }
-
-    // /// Compiles the staged field index and inserts it into the rule set.
-    // pub(crate) fn commit(self) {
-    //     let field_index = self.field_index_builder.compile();
-    //     self.field_indices.insert(self.id, field_index);
-    // }
 }
+
+pub type StyleId = GenId<_StyleMarker>;
+pub type StyleIdGenerator = IdGenerator<_StyleMarker>;
+
+pub struct _StyleMarker;

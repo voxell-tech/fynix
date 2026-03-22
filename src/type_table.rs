@@ -80,10 +80,12 @@ where
         false
     }
 
-    pub fn remove_all(&mut self, key: &K) {
+    pub fn remove_all(&mut self, key: &K) -> bool {
+        let mut has_removed = false;
         for map in self.table.values_mut() {
-            map.dyn_remove(key);
+            has_removed |= map.dyn_remove(key);
         }
+        has_removed
     }
 }
 
@@ -162,6 +164,7 @@ where
     }
 }
 
+// TODO(nixon): Inline this?
 crate::any_wrapper!({
     mod any_type_map {
         pub trait AnyTypeMap: TypeMap<K> {}
