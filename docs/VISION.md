@@ -7,125 +7,175 @@ configuration.
 
 ---
 
+## Architecture Overview
+
+```
+Fynix
+├── tree: Rectree          — spatial layout tree
+├── elements: Elements     — type-erased heterogeneous element storage
+└── styles: Styles         — cascading style registry
+```
+
+Entry point is `Fynix::new()`. A `BuildCtx<'_>` is obtained via `fynix.root_ctx()` and
+is the primary handle for adding elements and declaring style defaults.
+
+---
+
 ## Intended API
 
 The high-level API Fynix is working towards:
 
 ```rust
-// Instantiate an element with an inline rule override:
-let mut frame_a = ctx.instantiate_with::<Frame>(|frame| {
-    frame.height = Some(10.0);
-});
-let frame_b = ctx.instantiate::<Frame>();
+let mut fynix = Fynix::new();
+let mut ctx = fynix.root_ctx();
 
-// Set a rule at any point — all subsequent instantiations inherit it:
-ctx.set_rule::<Frame>(|frame| { frame.height = Some(20.0) });
-let frame_c = ctx.instantiate::<Frame>(); // height == 20.0
+// Add an element:
+let id = ctx.add::<Horizontal>();
+
+// Set a style default — all elements of that type added afterwards inherit it:
+ctx.set(field_accessor!(<Horizontal>::gap), 8.0f32);
+let id = ctx.add::<Horizontal>(); // gap == 8.0
+
+// Add with inline mutations directly on the element:
+let id = ctx.add_with::<Horizontal>(|e, ctx| {
+    e.gap = 4.0;
+    e.add(child_id);
+});
 
 // Rules can be scoped — they only apply within the closure:
+// (not yet implemented)
 ctx.scope(|ctx| {
-    ctx.set_rule::<Frame>(|frame| { frame.height = Some(5.0) });
-    let frame_in_scope = ctx.instantiate::<Frame>(); // height == 5.0
+    ctx.set(field_accessor!(<Horizontal>::gap), 2.0f32);
+    let id = ctx.add::<Horizontal>(); // gap == 2.0
 });
-// Outside the scope, the previous rule is restored.
+// Outside the scope, the previous defaults are restored.
 ```
 
 ---
 
-## Setters
+## Elements
 
-A **Setter** is the atomic unit of field mutation. It knows how to write a single typed
-value `T` into a single field of a struct `S`, looked up by a `ValueId<K>` at apply time.
+The `Element` trait is the marker for widget types:
 
 ```rust
-pub struct Setter<K, S> {
-    pub set_fn: SetFn<K, S>,
+pub trait Element: 'static {
+    fn new() -> Self where Self: Sized;
 }
-
-pub type SetFn<K, S> =
-    fn(&mut S, &ValueId<K>, &FieldAccessorRegistry, &ValueTable<K>) -> bool;
 ```
 
-- `K` — the key type that identifies a node/scope (e.g. a node ID).
-- `S` — the source/target struct type (e.g. `Frame`, `Label`).
-- `SetFn` returns `bool` indicating whether the apply succeeded (both accessor and value
-  were found).
+Elements are stored type-erased inside `Elements`, keyed by `ElementId`
+(a generational ID). A registry of `GetDynElementFn` function pointers (one per concrete
+type, monomorphized at first insertion) allows polymorphic access via `&dyn Element`
+without boxing every element.
 
-A `Setter<K, S>` is always created for a specific value type `T` via `Setter::new::<T>()`.
-The resulting function pointer is monomorphized once per `<K, S, T>` triple — multiple
-`Setter` instances with the same triple share the same binary function.
+```
+Elements
+├── elements: TypeTable<ElementId>           — actual element instances
+├── element_types: HashMap<ElementId, TypeId>  — which concrete type each ID holds
+├── element_getters: HashMap<TypeId, GetDynElementFn>  — how to return &dyn Element
+└── id_generator: IdGenerator                — generational ID allocation + recycling
+```
+
+---
+
+## Styles
+
+### SetStyle
+
+`SetStyle<E>` is the atomic unit of field mutation. It holds a monomorphized function
+pointer (`SetStyleFn<E>`) that knows how to write a single typed value `T` into a field
+of element `E`, fetching the value from `TypeTable<StyleId>` via an `UntypedAccessor`.
+
+```rust
+pub type SetStyleFn<E> = fn(
+    &mut E,
+    &UntypedAccessor,
+    &StyleId,
+    &TypeTable<StyleId>,
+) -> bool;
+```
+
+Returns `true` if both the accessor and the stored value were found. The function is
+monomorphized once per `(E, T)` pair — multiple `SetStyle` instances for the same pair
+share the same binary function.
 
 ### Type erasure
 
-Since many different `T`s may target the same `S`, setters are stored type-erased as
-`UntypedSetter<K>` (keyed by `UntypedField`) in the `FieldSetterRegistry`. They can be
-recovered back to `Setter<K, S>` at apply time via a runtime `TypeId` check.
+Since many different `T`s may target the same `E`, `SetStyle<E>` is stored type-erased as
+`UntypedSetStyle` in the registry. It can be recovered at apply time via a runtime `TypeId`
+check:
 
 ```
-Setter<K, S>  <──────────────────>  UntypedSetter<K>
-   .untyped()                          .typed::<S>()
+SetStyle<E>  <────────────────────>  UntypedSetStyle
+  .untyped()                           .typed::<E>()
 ```
+
+### Styles struct
+
+`Styles` is the central style manager. It owns:
+
+```
+Styles
+├── registry: HashMap<UntypedField, (UntypedAccessor, UntypedSetStyle)>
+│     — registered once per field; "how" to read and write each field
+├── style_values: TypeTable<StyleId>
+│     — the actual stored values, keyed by (StyleId, T)
+├── field_indices: HashMap<StyleId, Style>
+│     — committed style nodes, each with a parent and a FieldIndex
+├── field_index_builder: FieldIndexBuilder
+│     — accumulates pending field changes before the next commit
+├── current_id: StyleId
+│     — the "open" style node being built
+└── id_generator: StyleIdGenerator
+      — generational ID allocation + recycling
+```
+
+### Style nodes
+
+A `Style` is an immutable, committed snapshot of a set of field changes:
+
+```rust
+pub struct Style {
+    parent_id: Option<StyleId>,  // inherited from
+    field_index: FieldIndex,     // which fields are active
+}
+```
+
+Style nodes form a singly-linked chain. Applying a style to an element walks the chain
+from the current node up to the root, applying each active field.
+
+### Two-phase commit
+
+Style changes are accumulated in `FieldIndexBuilder` and not committed until the next
+`add()` or `add_with()` call detects pending changes via `should_commit()`. At that
+point, `commit_styles()` compiles the builder into an immutable `FieldIndex`, stores the
+`Style` node, and advances to a fresh `StyleId`. This batching reduces allocations and
+enables future scoping.
 
 ---
 
-## Rules
+## Storage Infrastructure
 
-Rules are Fynix's equivalent of [Typst's `set` rules](https://typst.app/docs/reference/styling/#set-rules).
+### TypeTable\<K\>
 
-In Typst:
-```typst
-#set text(size: 14pt)
-// All text from here forward defaults to 14pt.
-```
+Heterogeneous key→value storage. A single key can hold values of multiple types
+simultaneously. Internally, one `TypeMap<K, T>` (backed by a `SparseMap`) exists per
+type `T` ever inserted.
 
-In Fynix, a rule is a scoped default applied to a widget's fields, identified by a key `K`.
-Rather than threading values explicitly through every widget instantiation, you declare
-what the defaults are and they propagate forward.
+Operations: `insert::<T>(key, val)`, `get::<T>(key)`, `remove::<T>(key)`,
+`remove_all(key)` (removes all types for a key), `dyn_remove(type_id, key)`.
 
-### Data model
+### FieldIndex
 
-```
-FieldRegistries<K>          — global, shared, grow-only
-  ├── FieldSetterRegistry<K>   HashMap<UntypedField, UntypedSetter<K>>
-  └── FieldAccessorRegistry    HashMap<UntypedField, UntypedAccessor>
+Maps `TypeId` → `Span` over a flat `Box<[UntypedField]>`. Tells you which fields of a
+given element type are active in a style node. Built by `FieldIndexBuilder` (mutable,
+uses a `HashSet` to deduplicate) and compiled to an immutable `FieldIndex` at commit
+time.
 
-RuleSet<K>                  — per-key, mutable
-  ├── values: TypeTable<ValueId<K>>       actual stored values, keyed by (K, field)
-  └── field_indices: HashMap<K, FieldIndex<TypeId>>   which fields are active per key
-```
+### GenId\<T\> / IdGenerator\<T\>
 
-`FieldRegistries` is global and shared — it holds the "how" (how to access and set a field).
-`RuleSet` is local and mutable — it holds the "what" (what value is set for a given key).
-
-### Usage
-
-```rust
-// Begin editing rules for node key `1`.
-let mut builder = rule_set.edit(1u32, &mut registries);
-builder.add(field_accessor!(<Frame>::width), 200.0f32);
-builder.add(field_accessor!(<Frame>::opacity), 0.9f32);
-builder.commit();
-
-// Apply all rules for key `1` onto a Frame instance.
-rule_set.apply_styles(&1u32, &mut frame, &registries);
-```
-
-### Key properties
-
-- **Scoped**: rules are keyed — different nodes/scopes can have different defaults.
-- **Multi-type**: a single key can hold rules for multiple widget types (`Frame`, `Label`, etc.)
-  simultaneously; `apply_styles::<S>` only applies the fields relevant to `S`.
-- **Composable**: rules can be built incrementally via the builder pattern, and overridden
-  by re-editing the same key.
-- **Type-safe**: field accessors carry full `<S, T>` type information at registration time;
-  only the storage and dispatch are type-erased.
-
-### StyleId
-
-`StyleId` captures the position of a widget in the layout tree:
-- `local_rank` — index among all instantiations of the same widget type in the current scope
-  (disambiguates multiple `Frame`s at the same depth).
-- `depth_node` — the node's depth + ID in the `Rectree`.
+Generational IDs with a phantom type parameter. `IdGenerator` recycles raw IDs (bumping
+the generation to prevent ABA problems). Used for both `ElementId` and `StyleId`.
 
 ---
 
@@ -183,7 +233,7 @@ No special-casing needed — they're just units with a dynamically-updated ratio
 
 The unit system will live in its own module: `src/unit.rs`.
 
-### Cycle prevention (to be discussed further...)
+### Cycle prevention
 
 Cycles are prevented at **compile time** via a `Parent` associated type and a `ToPx` trait:
 
@@ -214,4 +264,4 @@ separate handling outside of this static chain.
 
 ### Open questions
 
-- Scoping mechanism for context-aware units (tied to `Ctx` / `Fynix`).
+- Scoping mechanism for context-aware units (tied to `BuildCtx` / `Fynix`).
