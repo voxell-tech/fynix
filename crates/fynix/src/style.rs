@@ -125,6 +125,11 @@ impl Styles {
     }
 }
 
+pub enum StyleCommand {
+    Set(StyleId, UntypedField),
+    Replace(StyleId, StyleId, UntypedField),
+}
+
 impl Default for Styles {
     fn default() -> Self {
         Self::new()

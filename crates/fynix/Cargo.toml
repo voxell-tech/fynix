@@ -1,0 +1,16 @@
+[package]
+name = "fynix"
+description = "A composable, declarative UI framework."
+keywords = ["ui", "gui", "declarative", "style", "reactive"]
+categories = ["gui"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rectree.workspace = true
+hashbrown.workspace = true
+field_path.workspace = true
+sparse_map.workspace = true

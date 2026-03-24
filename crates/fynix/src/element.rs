@@ -1,6 +1,5 @@
 use core::any::TypeId;
 
-use alloc::vec::Vec;
 use hashbrown::HashMap;
 
 use crate::{
@@ -63,6 +62,10 @@ impl Elements {
         None
     }
 
+    pub fn get_typed<E: Element>(&self, id: &ElementId) -> Option<&E> {
+        self.elements.get::<E>(id)
+    }
+
     pub fn remove(&mut self, id: &ElementId) -> bool {
         if let Some(type_id) = self.element_types.remove(id)
             && self.elements.dyn_remove(&type_id, id)
@@ -79,26 +82,6 @@ pub trait Element: 'static {
     fn new() -> Self
     where
         Self: Sized;
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct Horizontal {
-    children: Vec<ElementId>,
-}
-
-impl Horizontal {
-    pub fn add(&mut self, id: ElementId) {
-        self.children.push(id);
-    }
-}
-
-impl Element for Horizontal {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
-    }
 }
 
 pub type ElementId = GenId<_ElementMarker>;
