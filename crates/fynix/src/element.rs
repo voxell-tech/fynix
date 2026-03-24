@@ -2,17 +2,15 @@ use core::any::TypeId;
 
 use hashbrown::HashMap;
 
-use crate::{
-    id::{GenId, IdGenerator},
-    type_table::TypeTable,
-};
+use crate::id::{GenId, IdGenerator};
+use crate::type_table::TypeTable;
 
 /// Type-erased storage for all element instances.
 ///
-/// Internally holds one [`TypeTable`] slot per element type. A parallel
-/// [`HashMap`] tracks the concrete type of each [`ElementId`] so that
-/// polymorphic access (via [`get`](Elements::get)) and removal work without
-/// knowing the type at the call site.
+/// Internally holds one [`TypeTable`] slot per element type. A
+/// parallel [`HashMap`] tracks the concrete type of each
+/// [`ElementId`] so that polymorphic access (via [`Self::get`]) and
+/// removal work without knowing the type at the call site.
 #[derive(Default)]
 pub struct Elements {
     elements: TypeTable<ElementId>,
@@ -38,7 +36,8 @@ pub type GetDynElementFn = for<'a> fn(
     id: &ElementId,
 ) -> Option<&'a dyn Element>;
 
-/// Monomorphized implementation of [`GetDynElementFn`] for element type `E`.
+/// Monomorphized implementation of [`GetDynElementFn`] for element
+/// type `E`.
 #[inline]
 pub fn get_dyn_element<'a, E: Element>(
     table: &'a TypeTable<ElementId>,
@@ -49,8 +48,8 @@ pub fn get_dyn_element<'a, E: Element>(
 }
 
 impl Elements {
-    /// Stores `element`, registers its type getter if needed, and returns a
-    /// fresh [`ElementId`].
+    /// Stores `element`, registers its type getter if needed, and
+    /// returns a fresh [`ElementId`].
     pub fn add<E: Element>(&mut self, element: E) -> ElementId {
         let type_id = TypeId::of::<E>();
 
@@ -68,9 +67,9 @@ impl Elements {
 
     /// Returns a type-erased reference to the element.
     ///
-    /// Prefer [`get_typed`](Elements::get_typed) when the concrete type is
-    /// known — it avoids the getter dispatch and does not require `&mut self`.
-    pub fn get(&mut self, id: &ElementId) -> Option<&dyn Element> {
+    /// Prefer [`get_typed`](Elements::get_typed) when the concrete
+    /// type is known, it avoids the getter dispatch.
+    pub fn get(&self, id: &ElementId) -> Option<&dyn Element> {
         if let Some(type_id) = self.element_types.get(id)
             && let Some(getter) = self.element_getters.get(type_id)
         {
@@ -82,8 +81,8 @@ impl Elements {
 
     /// Returns a typed reference to the element.
     ///
-    /// Returns `None` if `id` does not exist or does not hold a value of
-    /// type `E`.
+    /// Returns `None` if `id` does not exist or does not hold a value
+    /// of type `E`.
     pub fn get_typed<E: Element>(
         &self,
         id: &ElementId,
@@ -108,10 +107,11 @@ impl Elements {
 
 /// Marker trait for widget types.
 ///
-/// Implement this for any type you want to add to the element tree via
-/// [`BuildCtx::add`](crate::ctx::BuildCtx::add). The single required method,
-/// `new`, must return a default (unstyled) instance; styles are applied
-/// immediately after construction by the build context.
+/// Implement this for any type you want to add to the element tree
+/// via [`BuildCtx::add`](crate::ctx::BuildCtx::add). The single
+/// required method, `new`, must return a default (unstyled) instance.
+/// Styles are applied immediately after construction by the build
+/// context.
 pub trait Element: 'static {
     fn new() -> Self
     where
