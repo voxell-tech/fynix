@@ -88,8 +88,8 @@ mod tests {
 
     use field_path::field_accessor;
 
-    use crate::element::{Element, ElementId};
     use crate::Fynix;
+    use crate::element::{Element, ElementId};
 
     #[derive(Default, Clone)]
     struct Label {
@@ -124,15 +124,20 @@ mod tests {
         let mut fynix = Fynix::new();
         let root_id = {
             let mut ctx = fynix.root_ctx();
-            ctx.set(field_accessor!(<Label>::text), "hello".to_string());
+            ctx.set(
+                field_accessor!(<Label>::text),
+                "hello".to_string(),
+            );
             ctx.add_with::<Vertical>(|v, ctx| {
                 v.add(ctx.add::<Label>());
             })
         };
 
-        let vertical = fynix.elements.get_typed::<Vertical>(&root_id).unwrap();
+        let vertical =
+            fynix.elements.get_typed::<Vertical>(&root_id).unwrap();
         let label_id = vertical.children[0];
-        let label = fynix.elements.get_typed::<Label>(&label_id).unwrap();
+        let label =
+            fynix.elements.get_typed::<Label>(&label_id).unwrap();
         assert_eq!(label.text, "hello");
     }
 
@@ -141,7 +146,10 @@ mod tests {
         let mut fynix = Fynix::new();
         let root_id = {
             let mut ctx = fynix.root_ctx();
-            ctx.set(field_accessor!(<Label>::text), "outer".to_string());
+            ctx.set(
+                field_accessor!(<Label>::text),
+                "outer".to_string(),
+            );
             ctx.add_with::<Vertical>(|v, ctx| {
                 // Inner scope overrides the label text.
                 let inner_id = ctx.add_with::<Vertical>(|v, ctx| {
@@ -158,10 +166,13 @@ mod tests {
             })
         };
 
-        let vertical = fynix.elements.get_typed::<Vertical>(&root_id).unwrap();
+        let vertical =
+            fynix.elements.get_typed::<Vertical>(&root_id).unwrap();
         let outer_label_id = vertical.children[1];
-        let label =
-            fynix.elements.get_typed::<Label>(&outer_label_id).unwrap();
+        let label = fynix
+            .elements
+            .get_typed::<Label>(&outer_label_id)
+            .unwrap();
         assert_eq!(label.text, "outer");
     }
 
@@ -170,7 +181,10 @@ mod tests {
         let mut fynix = Fynix::new();
         let root_id = {
             let mut ctx = fynix.root_ctx();
-            ctx.set(field_accessor!(<Label>::text), "parent".to_string());
+            ctx.set(
+                field_accessor!(<Label>::text),
+                "parent".to_string(),
+            );
             ctx.add_with::<Vertical>(|v, ctx| {
                 ctx.set(
                     field_accessor!(<Label>::text),
@@ -180,9 +194,11 @@ mod tests {
             })
         };
 
-        let vertical = fynix.elements.get_typed::<Vertical>(&root_id).unwrap();
+        let vertical =
+            fynix.elements.get_typed::<Vertical>(&root_id).unwrap();
         let label_id = vertical.children[0];
-        let label = fynix.elements.get_typed::<Label>(&label_id).unwrap();
+        let label =
+            fynix.elements.get_typed::<Label>(&label_id).unwrap();
         assert_eq!(label.text, "child");
     }
 }

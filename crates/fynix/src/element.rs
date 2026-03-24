@@ -62,7 +62,10 @@ impl Elements {
         None
     }
 
-    pub fn get_typed<E: Element>(&self, id: &ElementId) -> Option<&E> {
+    pub fn get_typed<E: Element>(
+        &self,
+        id: &ElementId,
+    ) -> Option<&E> {
         self.elements.get::<E>(id)
     }
 
