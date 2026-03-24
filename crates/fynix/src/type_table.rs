@@ -5,10 +5,13 @@ use alloc::boxed::Box;
 use hashbrown::HashMap;
 use sparse_map::{Key, SparseMap};
 
-/// A key mapped table for different types.
+/// Heterogeneous table mapping keys of type `K` to typed
+/// values.
 ///
-/// Each key can point towards several types, but can only hold a
-/// single instance for every unique type.
+/// Each key can be associated with at most one value per
+/// concrete type `T`. Internally, one [`TypeMap<K, T>`]
+/// column is allocated the first time a value of type `T`
+/// is inserted.
 ///
 /// ## Mental model
 ///
@@ -22,6 +25,7 @@ pub struct TypeTable<K> {
 }
 
 impl<K> TypeTable<K> {
+    /// Creates an empty [`TypeTable`].
     pub fn new() -> Self {
         Self {
             table: HashMap::new(),
@@ -33,6 +37,10 @@ impl<K> TypeTable<K>
 where
     K: Hash + Eq + 'static,
 {
+    /// Inserts `value` of type `T` under `key`.
+    ///
+    /// Creates the column for `T` on first use.
+    /// Returns the displaced value if one was already present.
     pub fn insert<T: 'static>(
         &mut self,
         key: K,
@@ -51,6 +59,8 @@ where
         m.insert(key, value)
     }
 
+    /// Returns a reference to the `T`-typed value stored
+    /// under `key`, or `None` if no such entry exists.
     pub fn get<T: 'static>(&self, key: &K) -> Option<&T> {
         let type_id = TypeId::of::<T>();
         self.table
@@ -59,6 +69,8 @@ where
             .and_then(|m| m.get(key))
     }
 
+    /// Removes and returns the `T`-typed value stored under
+    /// `key`, or `None` if none exists.
     pub fn remove<T: 'static>(&mut self, key: &K) -> Option<T> {
         let type_id = TypeId::of::<T>();
         self.table
@@ -71,6 +83,12 @@ where
             .and_then(|m| m.remove(key))
     }
 
+    /// Removes `key` from the column identified by
+    /// `type_id`, without knowing the value type at compile
+    /// time.
+    ///
+    /// Returns `true` if the column existed (the key itself
+    /// may or may not have been present in it).
     pub fn dyn_remove(&mut self, type_id: &TypeId, key: &K) -> bool {
         if let Some(map) = self.table.get_mut(type_id) {
             map.dyn_remove(key);
@@ -80,6 +98,10 @@ where
         false
     }
 
+    /// Removes `key` from every type column.
+    ///
+    /// Returns `true` if at least one column contained an
+    /// entry for `key`.
     pub fn remove_all(&mut self, key: &K) -> bool {
         let mut has_removed = false;
         for map in self.table.values_mut() {
@@ -95,12 +117,16 @@ impl<K> Default for TypeTable<K> {
     }
 }
 
+/// Typed column inside a [`TypeTable`]: maps keys of type
+/// `K` to values of type `T`, backed by a [`SparseMap`]
+/// for cache-friendly dense storage.
 pub struct TypeMap<K, T> {
     values: SparseMap<T>,
     map: HashMap<K, Key>,
 }
 
 impl<K, T> TypeMap<K, T> {
+    /// Creates an empty [`TypeMap`].
     pub fn new() -> Self {
         Self {
             values: SparseMap::new(),
@@ -119,6 +145,10 @@ impl<K, T> TypeMap<K, T>
 where
     K: Hash + Eq,
 {
+    /// Inserts `value` under `key`.
+    ///
+    /// Returns the displaced value if one was already
+    /// present.
     pub fn insert(&mut self, key: K, value: T) -> Option<T> {
         let mut previous = None;
         if let Some(sparse_key) = self.map.get(&key) {
@@ -131,24 +161,39 @@ where
         previous
     }
 
+    /// Returns a reference to the value stored under `key`,
+    /// or `None` if absent.
     pub fn get(&self, key: &K) -> Option<&T> {
         self.map.get(key).and_then(|k| self.values.get(k))
     }
 
+    /// Removes and returns the value stored under `key`,
+    /// or `None` if absent.
     pub fn remove(&mut self, key: &K) -> Option<T> {
         self.map.remove(key).and_then(|k| self.values.remove(&k))
     }
 }
 
+/// Object-safe extension of [`AnyTypeMap`] with a
+/// type-erased remove method.
+///
+/// Stored as `Box<dyn DynTypeMap<K>>` inside [`TypeTable`]
+/// so entries can be removed without knowing the value
+/// type `T`.
 pub trait DynTypeMap<K>: AnyTypeMap<K> {
+    /// Removes `key` from the map.
+    ///
+    /// Returns `true` if an entry was present and removed.
     fn dyn_remove(&mut self, key: &K) -> bool;
 }
 
 impl<K> dyn DynTypeMap<K> {
+    /// Upcasts to `&dyn AnyTypeMap<K>` for downcasting.
     pub fn any_ref<'a>(&self) -> &(dyn AnyTypeMap<K> + 'a) {
         self as &dyn AnyTypeMap<K>
     }
 
+    /// Upcasts to `&mut dyn AnyTypeMap<K>` for downcasting.
     pub fn any_mut<'a>(&mut self) -> &mut (dyn AnyTypeMap<K> + 'a) {
         self as &mut dyn AnyTypeMap<K>
     }

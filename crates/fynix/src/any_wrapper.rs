@@ -1,5 +1,32 @@
 // TODO(nixon): T: 'static shouldn't be forced.
 // TODO(nixon): Support custom type constraints.
+
+/// Generates a sealed downcasting trait for a generic
+/// wrapper type.
+///
+/// The produced trait enables safe `downcast_ref` /
+/// `downcast_mut` on `dyn Trait` objects without
+/// `std::any::Any`. The trait is sealed so only the
+/// wrapper type can implement it, making the pointer casts
+/// sound.
+///
+/// # Usage
+///
+/// ```ignore
+/// any_wrapper!(mod my_mod {
+///     pub trait MyTrait: MyWrapper<K> {}
+/// });
+/// ```
+///
+/// This expands to a sealed trait `MyTrait<K>` implemented
+/// for `MyWrapper<K, T>` for all `T: 'static`. The
+/// resulting `dyn MyTrait<K>` object exposes:
+///
+/// - `element_is::<T>()` — type check
+/// - `downcast_ref::<T>()` — checked shared borrow
+/// - `downcast_mut::<T>()` — checked mutable borrow
+/// - `downcast_unchecked_ref::<T>()` — unchecked (unsafe)
+/// - `downcast_unchecked_mut::<T>()` — unchecked (unsafe)
 #[macro_export]
 macro_rules! any_wrapper {
     (mod $seal:ident { $v:vis trait $name:ident: $wrapper:ident {} }) => {

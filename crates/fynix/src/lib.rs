@@ -19,6 +19,9 @@ pub mod type_table;
 
 mod id;
 
+/// Root application context. Owns the layout tree, element storage, and style state.
+///
+/// Obtain a [`BuildCtx`] via [`root_ctx`](Fynix::root_ctx) to start building the UI.
 pub struct Fynix {
     pub tree: Rectree,
     pub elements: Elements,
@@ -34,11 +37,16 @@ impl Fynix {
         }
     }
 
+    /// Returns a [`BuildCtx`] rooted at the top of the style hierarchy.
     #[inline]
     pub fn root_ctx(&mut self) -> BuildCtx<'_> {
         self.create_ctx(None)
     }
 
+    /// Returns a [`BuildCtx`] starting at the given style scope.
+    ///
+    /// Use [`root_ctx`](Fynix::root_ctx) unless you need to resume building
+    /// from a previously committed [`StyleId`].
     #[inline]
     pub fn create_ctx(
         &mut self,
@@ -64,6 +72,10 @@ impl LayoutWorld for Fynix {
     }
 }
 
+/// Generic context pairing [`Fynix`] with an external world `W`.
+///
+/// Intended for integrations (e.g. a Bevy world) that need access to both
+/// the fynix state and their own data simultaneously.
 pub struct FynixCtx<'a, W> {
     pub fynix: &'a mut Fynix,
     pub world: &'a mut W,

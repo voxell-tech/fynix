@@ -7,6 +7,12 @@ use crate::{
     type_table::TypeTable,
 };
 
+/// Type-erased storage for all element instances.
+///
+/// Internally holds one [`TypeTable`] slot per element type. A parallel
+/// [`HashMap`] tracks the concrete type of each [`ElementId`] so that
+/// polymorphic access (via [`get`](Elements::get)) and removal work without
+/// knowing the type at the call site.
 #[derive(Default)]
 pub struct Elements {
     elements: TypeTable<ElementId>,
@@ -22,11 +28,17 @@ impl Elements {
     }
 }
 
+/// Function pointer for returning `&dyn Element` from a [`TypeTable`]
+/// without knowing the concrete type at the call site.
+///
+/// One monomorphized instance is registered per element type on first
+/// insertion.
 pub type GetDynElementFn = for<'a> fn(
     table: &'a TypeTable<ElementId>,
     id: &ElementId,
 ) -> Option<&'a dyn Element>;
 
+/// Monomorphized implementation of [`GetDynElementFn`] for element type `E`.
 #[inline]
 pub fn get_dyn_element<'a, E: Element>(
     table: &'a TypeTable<ElementId>,
@@ -37,6 +49,8 @@ pub fn get_dyn_element<'a, E: Element>(
 }
 
 impl Elements {
+    /// Stores `element`, registers its type getter if needed, and returns a
+    /// fresh [`ElementId`].
     pub fn add<E: Element>(&mut self, element: E) -> ElementId {
         let type_id = TypeId::of::<E>();
 
@@ -52,6 +66,10 @@ impl Elements {
         id
     }
 
+    /// Returns a type-erased reference to the element.
+    ///
+    /// Prefer [`get_typed`](Elements::get_typed) when the concrete type is
+    /// known — it avoids the getter dispatch and does not require `&mut self`.
     pub fn get(&mut self, id: &ElementId) -> Option<&dyn Element> {
         if let Some(type_id) = self.element_types.get(id)
             && let Some(getter) = self.element_getters.get(type_id)
@@ -62,6 +80,10 @@ impl Elements {
         None
     }
 
+    /// Returns a typed reference to the element.
+    ///
+    /// Returns `None` if `id` does not exist or does not hold a value of
+    /// type `E`.
     pub fn get_typed<E: Element>(
         &self,
         id: &ElementId,
@@ -69,6 +91,9 @@ impl Elements {
         self.elements.get::<E>(id)
     }
 
+    /// Removes the element and recycles its [`ElementId`].
+    ///
+    /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
         if let Some(type_id) = self.element_types.remove(id)
             && self.elements.dyn_remove(&type_id, id)
@@ -81,13 +106,21 @@ impl Elements {
     }
 }
 
+/// Marker trait for widget types.
+///
+/// Implement this for any type you want to add to the element tree via
+/// [`BuildCtx::add`](crate::ctx::BuildCtx::add). The single required method,
+/// `new`, must return a default (unstyled) instance; styles are applied
+/// immediately after construction by the build context.
 pub trait Element: 'static {
     fn new() -> Self
     where
         Self: Sized;
 }
 
+/// Generational ID for element instances.
 pub type ElementId = GenId<_ElementMarker>;
 pub type ElementIdGenerator = IdGenerator<_ElementMarker>;
 
+#[doc(hidden)]
 pub struct _ElementMarker;

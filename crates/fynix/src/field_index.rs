@@ -5,18 +5,31 @@ use alloc::vec::Vec;
 use field_path::field::UntypedField;
 use hashbrown::{HashMap, HashSet};
 
+/// Immutable index mapping a [`TypeId`] to the slice of [`UntypedField`]s
+/// that are active for that type in a given [`Style`](crate::style::Style)
+/// node.
+///
+/// Fields are stored in a single flat `Box<[UntypedField]>` with each type
+/// occupying a contiguous [`Span`], making iteration cache-friendly.
 pub struct FieldIndex {
     pub index_map: HashMap<TypeId, Span>,
     pub fields: Box<[UntypedField]>,
 }
 
 impl FieldIndex {
+    /// Returns the slice of fields registered for `id`, or `None` if this
+    /// type has no fields in this node.
     pub fn get_fields(&self, id: &TypeId) -> Option<&[UntypedField]> {
         let span = self.index_map.get(id)?;
         Some(&self.fields[span.start..span.end])
     }
 }
 
+/// Mutable builder for [`FieldIndex`].
+///
+/// Accumulates `(TypeId, UntypedField)` pairs (deduplicating per type via a
+/// [`HashSet`]) and produces an immutable [`FieldIndex`] via
+/// [`compile`](FieldIndexBuilder::compile).
 pub struct FieldIndexBuilder {
     field_map: HashMap<TypeId, HashSet<UntypedField>>,
 }
@@ -28,20 +41,26 @@ impl FieldIndexBuilder {
         }
     }
 
+    /// Records that `field` is active for type `id`.
+    ///
+    /// Duplicate insertions for the same `(id, field)` pair are ignored.
     pub fn insert(&mut self, id: TypeId, field: UntypedField) {
         self.field_map.entry(id).or_default().insert(field);
     }
 
+    /// Removes `field` from the set for type `id` (before compiling).
     pub fn remove(&mut self, id: &TypeId, field: &UntypedField) {
         if let Some(fields) = self.field_map.get_mut(id) {
             fields.remove(field);
         }
     }
 
+    /// Returns `true` when no fields have been inserted.
     pub fn is_empty(&self) -> bool {
         self.field_map.is_empty()
     }
 
+    /// Consumes the builder and produces an immutable [`FieldIndex`].
     pub fn compile(self) -> FieldIndex {
         let mut index_map = HashMap::new();
         let mut all_fields = Vec::new();
@@ -71,6 +90,7 @@ impl Default for FieldIndexBuilder {
     }
 }
 
+/// A half-open byte range `[start, end)` into [`FieldIndex::fields`].
 #[derive(Debug, Clone, Copy)]
 pub struct Span {
     pub start: usize,
