@@ -81,7 +81,7 @@ pub trait Element: 'static {
         Self: Sized;
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Horizontal {
     children: Vec<ElementId>,
 }
