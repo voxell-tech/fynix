@@ -1,12 +1,13 @@
 use core::any::TypeId;
 
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use field_path::accessor::UntypedAccessor;
 use field_path::field::UntypedField;
 use field_path::field_accessor::FieldAccessor;
 use hashbrown::{HashMap, HashSet};
 
 use crate::element::Element;
-use crate::field_index::{FieldIndex, FieldIndexBuilder};
 use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
@@ -27,12 +28,13 @@ pub struct Styles {
         HashMap<UntypedField, (UntypedAccessor, UntypedSetStyle)>,
     /// Stores the actual style values keyed by `(StyleId, T)`.
     style_values: TypeTable<StyleId>,
-    /// Committed style nodes, each holding a [`FieldIndex`] and an optional
-    /// parent reference forming an inheritance chain.
+    /// Committed style nodes, each forming a singly-linked
+    /// inheritance chain via their `parent_id`.
     styles: HashMap<StyleId, Style>,
-    /// Accumulates field changes for the *current* (open) style node until
-    /// the next [`commit_styles`](Styles::commit_styles) call.
-    field_index_builder: FieldIndexBuilder,
+    /// Accumulates field changes for the *current* (open) style
+    /// node until the next [`commit_styles`](Styles::commit_styles)
+    /// call.
+    style_builder: StyleBuilder,
     /// The ID of the open style node currently being built.
     current_id: StyleId,
     id_generator: StyleIdGenerator,
@@ -46,7 +48,7 @@ impl Styles {
             registry: HashMap::new(),
             style_values: TypeTable::new(),
             styles: HashMap::new(),
-            field_index_builder: FieldIndexBuilder::new(),
+            style_builder: StyleBuilder::new(),
             current_id: id_generator.new_id(),
             id_generator,
         }
@@ -60,7 +62,7 @@ impl Styles {
     /// Returns `true` when there are pending field changes that need to be
     /// committed before the next element is created.
     pub fn should_commit(&self) -> bool {
-        !self.field_index_builder.is_empty()
+        !self.style_builder.is_empty()
     }
 
     /// Flushes pending field changes into a new committed [`Style`] node
@@ -69,14 +71,10 @@ impl Styles {
     /// `parent_id` links the new node into the inheritance chain so that
     /// [`apply`](Styles::apply) can walk up to ancestor defaults.
     pub fn commit_styles(&mut self, parent_id: Option<StyleId>) {
-        let field_index =
-            core::mem::take(&mut self.field_index_builder).compile();
+        let style =
+            core::mem::take(&mut self.style_builder).build(parent_id);
 
-        self.styles.insert(
-            self.current_id,
-            Style::new(parent_id, field_index),
-        );
-
+        self.styles.insert(self.current_id, style);
         self.current_id = self.id_generator.new_id();
     }
 
@@ -105,7 +103,7 @@ impl Styles {
         }
 
         self.style_values.insert(self.current_id, value);
-        self.field_index_builder.insert(type_id, untyped_field);
+        self.style_builder.insert(type_id, untyped_field);
     }
 
     /// Removes a committed style node and recycles its [`StyleId`].
@@ -137,8 +135,7 @@ impl Styles {
             };
             current = style.parent_id;
 
-            let Some(fields) = style.field_index.get_fields(&type_id)
-            else {
+            let Some(fields) = style.get_fields(&type_id) else {
                 continue;
             };
 
@@ -175,24 +172,87 @@ impl Default for Styles {
     }
 }
 
-/// An immutable, committed snapshot of field changes for one style scope.
+/// An immutable, committed snapshot of field changes for one
+/// style scope.
 ///
-/// Nodes form a singly-linked chain via `parent_id`. [`Styles::apply`] walks
-/// this chain to resolve inherited defaults.
+/// Nodes form a singly-linked chain via `parent_id`.
+/// [`Styles::apply`] walks this chain to resolve inherited
+/// defaults.
 pub struct Style {
     parent_id: Option<StyleId>,
-    field_index: FieldIndex,
+    index_map: HashMap<TypeId, Span>,
+    fields: Box<[UntypedField]>,
 }
 
 impl Style {
-    pub const fn new(
-        parent_id: Option<StyleId>,
-        field_index: FieldIndex,
-    ) -> Self {
+    fn get_fields(&self, id: &TypeId) -> Option<&[UntypedField]> {
+        let span = self.index_map.get(id)?;
+        Some(&self.fields[span.start..span.end])
+    }
+}
+
+/// Mutable builder that accumulates pending field changes and
+/// produces an immutable [`Style`] via [`build`](StyleBuilder::build).
+struct StyleBuilder {
+    field_map: HashMap<TypeId, HashSet<UntypedField>>,
+}
+
+impl StyleBuilder {
+    fn new() -> Self {
         Self {
-            parent_id,
-            field_index,
+            field_map: HashMap::new(),
         }
+    }
+
+    fn insert(&mut self, id: TypeId, field: UntypedField) {
+        self.field_map.entry(id).or_default().insert(field);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.field_map.is_empty()
+    }
+
+    /// Consumes the builder and produces a committed [`Style`].
+    fn build(self, parent_id: Option<StyleId>) -> Style {
+        let mut index_map = HashMap::new();
+        let mut all_fields = Vec::new();
+
+        for (id, fields) in self.field_map {
+            if fields.is_empty() {
+                continue;
+            }
+
+            let start = all_fields.len();
+            all_fields.extend(fields);
+            let end = all_fields.len();
+
+            index_map.insert(id, Span::new(start, end));
+        }
+
+        Style {
+            parent_id,
+            index_map,
+            fields: all_fields.into_boxed_slice(),
+        }
+    }
+}
+
+impl Default for StyleBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Half-open index range `[start, end)` into [`Style::fields`].
+#[derive(Debug, Clone, Copy)]
+struct Span {
+    start: usize,
+    end: usize,
+}
+
+impl Span {
+    const fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
     }
 }
 
