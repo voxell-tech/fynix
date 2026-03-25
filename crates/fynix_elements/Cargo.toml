@@ -1,0 +1,13 @@
+[package]
+name = "fynix_elements"
+description = "Default element types for the Fynix UI framework."
+keywords = ["ui", "gui", "fynix"]
+categories = ["gui"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+fynix.workspace = true
+field_path.workspace = true

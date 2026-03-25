@@ -1,0 +1,14 @@
+[package]
+name = "fynix_vello"
+description = "Vello rendering backend for the Fynix UI framework."
+keywords = ["ui", "gui", "fynix", "vello", "rendering"]
+categories = ["gui", "graphics", "rendering"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+fynix.workspace = true
+fynix_elements.workspace = true
+vello.workspace = true
