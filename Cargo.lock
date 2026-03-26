@@ -819,7 +819,6 @@ dependencies = [
 [[package]]
 name = "rectree"
 version = "0.1.0"
-source = "git+https://github.com/voxell-tech/rectree?rev=29f557d#29f557d828090867e12e7fa99134daa80acbdf86"
 dependencies = [
  "bitflags 2.11.0",
  "hashbrown 0.16.1",

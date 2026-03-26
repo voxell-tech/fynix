@@ -1,0 +1,3 @@
+[submodule "vendor/rectree"]
+	path = vendor/rectree
+	url = https://github.com/voxell-tech/rectree
