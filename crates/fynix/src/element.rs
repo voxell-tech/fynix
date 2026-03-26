@@ -2,6 +2,7 @@ use core::any::TypeId;
 
 use hashbrown::HashMap;
 
+use crate::ctx::FynixCtx;
 use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
@@ -11,7 +12,6 @@ use crate::type_table::TypeTable;
 /// parallel [`HashMap`] tracks the concrete type of each
 /// [`ElementId`] so that polymorphic access (via [`Self::get`]) and
 /// removal work without knowing the type at the call site.
-#[derive(Default)]
 pub struct Elements {
     elements: TypeTable<ElementId>,
     // TODO(nixon): Move `TypeId` info into `ElementId`?
@@ -22,32 +22,14 @@ pub struct Elements {
 
 impl Elements {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            elements: TypeTable::new(),
+            element_types: HashMap::new(),
+            element_getters: HashMap::new(),
+            id_generator: IdGenerator::new(),
+        }
     }
-}
 
-/// Function pointer for returning `&dyn Element` from a [`TypeTable`]
-/// without knowing the concrete type at the call site.
-///
-/// One monomorphized instance is registered per element type on first
-/// insertion.
-pub type GetDynElementFn = for<'a> fn(
-    table: &'a TypeTable<ElementId>,
-    id: &ElementId,
-) -> Option<&'a dyn Element>;
-
-/// Monomorphized implementation of [`GetDynElementFn`] for element
-/// type `E`.
-#[inline]
-pub fn get_dyn_element<'a, E: Element>(
-    table: &'a TypeTable<ElementId>,
-    id: &ElementId,
-) -> Option<&'a dyn Element> {
-    let element = table.get::<E>(id);
-    element.map(|e| e as &dyn Element)
-}
-
-impl Elements {
     /// Stores `element`, registers its type getter if needed, and
     /// returns a fresh [`ElementId`].
     pub fn add<E: Element>(&mut self, element: E) -> ElementId {
@@ -69,7 +51,7 @@ impl Elements {
     ///
     /// Prefer [`get_typed`](Elements::get_typed) when the concrete
     /// type is known, it avoids the getter dispatch.
-    pub fn get(&self, id: &ElementId) -> Option<&dyn Element> {
+    pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
         if let Some(type_id) = self.element_types.get(id)
             && let Some(getter) = self.element_getters.get(type_id)
         {
@@ -105,6 +87,12 @@ impl Elements {
     }
 }
 
+impl Default for Elements {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Marker trait for widget types.
 ///
 /// Implement this for any type you want to add to the element tree
@@ -116,6 +104,34 @@ pub trait Element: 'static {
     fn new() -> Self
     where
         Self: Sized;
+
+    #[expect(unused_variables)]
+    fn build<W>(&self, ctx: FynixCtx<W>)
+    where
+        Self: Sized,
+    {
+    }
+}
+
+/// Function pointer for returning `&dyn Element` from a [`TypeTable`]
+/// without knowing the concrete type at the call site.
+///
+/// One monomorphized instance is registered per element type on first
+/// insertion.
+pub type GetDynElementFn = for<'a> fn(
+    table: &'a TypeTable<ElementId>,
+    id: &ElementId,
+) -> Option<&'a dyn Element>;
+
+/// Monomorphized implementation of [`GetDynElementFn`] for element
+/// type `E`.
+#[inline]
+pub fn get_dyn_element<'a, E: Element>(
+    table: &'a TypeTable<ElementId>,
+    id: &ElementId,
+) -> Option<&'a dyn Element> {
+    let element = table.get::<E>(id);
+    element.map(|e| e as &dyn Element)
 }
 
 /// Generational ID for element instances.
