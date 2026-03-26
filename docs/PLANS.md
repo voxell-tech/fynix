@@ -4,10 +4,88 @@
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
 | `ctx.scope()`                        | Planned, not started              |
+| Element builders                     | Planned, not started              |
 | `LayoutSolver` / rectree integration | Pending rectree API change        |
 | `fynix_elements` layout impls        | Blocked on rectree                |
 | `fynix_vello` rendering              | Blocked on layout                 |
 | Reactivity (`Signals`)               | Deferred until after first render |
+
+---
+
+## Element builders
+
+Element build behavior is registered externally via
+`ElementBuilders`, keeping element structs as pure data and
+backends decoupled from `fynix_elements`.
+
+### Types
+
+```rust
+// Typed builder function for element E in world W.
+pub type ElementBuilderFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
+
+// Typed wrapper - monomorphized for (E, W).
+pub struct ElementBuilder<E: Element, W> { ... }
+
+// Fully type-erased - stores TypeId for both E and W
+// alongside a *const () function pointer.
+// unsafe impl Sync - the pointer is always a fn pointer.
+pub struct UntypedElementBuilder {
+    element_id: TypeId,
+    world_id: TypeId,
+    build_fn: *const (),
+}
+
+// Non-generic registry keyed on element TypeId.
+pub struct ElementBuilders {
+    builders: HashMap<TypeId, UntypedElementBuilder>,
+}
+```
+
+`UntypedElementBuilder::new::<E, W>(f)` is `const` - both
+`TypeId::of` calls are const-stable when `T: 'static`.
+
+### Auto-registration via `linkme`
+
+A `linkme` distributed slice collects builders across crates:
+
+```rust
+#[distributed_slice]
+pub static ELEMENT_BUILDERS: [UntypedElementBuilder] = [..];
+```
+
+At startup, `ElementBuilders` is populated from the slice in
+one pass.
+
+### `#[element_builder]` proc-macro
+
+A proc-macro attribute handles registration boilerplate. `E`
+is inferred from the first parameter (`&mut E`), `W` from
+`FynixCtx<W>` in the second:
+
+```rust
+#[element_builder]
+fn hierarchy_builder(
+    e: &mut Hierarchy,
+    ctx: &mut FynixCtx<BevyWorld>,
+) {
+    // ...
+}
+```
+
+Expands to the function plus:
+
+```rust
+#[linkme::distributed_slice(fynix::ELEMENT_BUILDERS)]
+static _ELEMENT_BUILDER_HIERARCHY_BUILDER:
+    UntypedElementBuilder =
+    UntypedElementBuilder::new::<Hierarchy, BevyWorld>(
+        hierarchy_builder,
+    );
+```
+
+The static name is derived from the function name to
+guarantee uniqueness within a module.
 
 ---
 
