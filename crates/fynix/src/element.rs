@@ -2,7 +2,6 @@ use core::any::TypeId;
 
 use hashbrown::HashMap;
 
-use crate::ctx::FynixCtx;
 use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
@@ -105,11 +104,11 @@ pub trait Element: 'static {
     where
         Self: Sized;
 
-    #[expect(unused_variables)]
-    fn build<W>(&self, ctx: FynixCtx<W>)
+    fn children(&self) -> impl IntoIterator<Item = &ElementId>
     where
         Self: Sized,
     {
+        []
     }
 }
 

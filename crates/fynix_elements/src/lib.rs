@@ -13,8 +13,9 @@ pub struct Horizontal {
 }
 
 impl Horizontal {
-    pub fn add(&mut self, id: ElementId) {
+    pub fn add(&mut self, id: ElementId) -> &mut Self {
         self.children.push(id);
+        self
     }
 }
 
@@ -25,6 +26,15 @@ impl Element for Horizontal {
     {
         Self::default()
     }
+
+    fn children(&self) -> impl IntoIterator<Item = &ElementId>
+    where
+        Self: Sized,
+    {
+        // Showcasing the generic way of doing it.
+        #[allow(clippy::into_iter_on_ref)]
+        (&self.children).into_iter()
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -33,8 +43,9 @@ pub struct Vertical {
 }
 
 impl Vertical {
-    pub fn add(&mut self, id: ElementId) {
+    pub fn add(&mut self, id: ElementId) -> &mut Self {
         self.children.push(id);
+        self
     }
 }
 
@@ -44,6 +55,13 @@ impl Element for Vertical {
         Self: Sized,
     {
         Self::default()
+    }
+
+    fn children(&self) -> impl IntoIterator<Item = &ElementId>
+    where
+        Self: Sized,
+    {
+        self.children.iter()
     }
 }
 
