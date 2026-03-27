@@ -4,7 +4,8 @@
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
 | `ctx.scope()`                        | Planned, not started              |
-| Element builders                     | Planned, not started              |
+| Element composers                    | Planned, not started              |
+| Interactions & Events                | Planned, not started              |
 | `LayoutSolver` / rectree integration | Pending rectree API change        |
 | `fynix_elements` layout impls        | Blocked on rectree                |
 | `fynix_vello` rendering              | Blocked on layout                 |
@@ -12,62 +13,62 @@
 
 ---
 
-## Element builders
+## Element composers
 
-Element build behavior is registered externally via
-`ElementBuilders`, keeping element structs as pure data and
+Element compose behavior is registered externally via
+`ElementComposers`, keeping element structs as pure data and
 backends decoupled from `fynix_elements`.
 
 ### Types
 
 ```rust
-// Typed builder function for element E in world W.
-pub type ElementBuilderFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
+// Typed composer function for element E in world W.
+pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
 
 // Typed wrapper - monomorphized for (E, W).
-pub struct ElementBuilder<E: Element, W> { ... }
+pub struct ElementComposer<E: Element, W> { ... }
 
 // Fully type-erased - stores TypeId for both E and W
 // alongside a *const () function pointer.
 // unsafe impl Sync - the pointer is always a fn pointer.
-pub struct UntypedElementBuilder {
+pub struct UntypedElementComposer {
     element_id: TypeId,
     world_id: TypeId,
-    build_fn: *const (),
+    compose_fn: *const (),
 }
 
 // Non-generic registry keyed on element TypeId.
-pub struct ElementBuilders {
-    builders: HashMap<TypeId, UntypedElementBuilder>,
+pub struct ElementComposers {
+    composers: HashMap<TypeId, UntypedElementComposer>,
 }
 ```
 
-`UntypedElementBuilder::new::<E, W>(f)` is `const` - both
+`UntypedElementComposer::new::<E, W>(f)` is `const` - both
 `TypeId::of` calls are const-stable when `T: 'static`.
 
 ### Auto-registration via `linkme`
 
-A `linkme` distributed slice collects builders across crates:
+A `linkme` distributed slice collects composers across crates:
 
 ```rust
 #[distributed_slice]
-pub static ELEMENT_BUILDERS: [UntypedElementBuilder] = [..];
+pub static ELEMENT_COMPOSERS: [UntypedElementComposer] = [..];
 ```
 
-At startup, `ElementBuilders` is populated from the slice in
+At startup, `ElementComposers` is populated from the slice in
 one pass.
 
-### `#[element_builder]` proc-macro
+### `#[fynix(compose)]` proc-macro
 
 A proc-macro attribute handles registration boilerplate. `E`
 is inferred from the first parameter (`&mut E`), `W` from
 `FynixCtx<W>` in the second:
 
 ```rust
-#[element_builder]
-fn hierarchy_builder(
+#[fynix(compose)]
+fn compose_hierarchy(
     e: &mut Hierarchy,
-    ctx: &mut FynixCtx<BevyWorld>,
+    ctx: &mut FynixCtx<World>,
 ) {
     // ...
 }
@@ -76,16 +77,93 @@ fn hierarchy_builder(
 Expands to the function plus:
 
 ```rust
-#[linkme::distributed_slice(fynix::ELEMENT_BUILDERS)]
-static _ELEMENT_BUILDER_HIERARCHY_BUILDER:
-    UntypedElementBuilder =
-    UntypedElementBuilder::new::<Hierarchy, BevyWorld>(
-        hierarchy_builder,
+#[linkme::distributed_slice(fynix::ELEMENT_COMPOSERS)]
+static _ELEMENT_COMPOSER_COMPOSE_HIERARCHY:
+    UntypedElementComposer =
+    UntypedElementComposer::new::<Hierarchy, World>(
+        compose_hierarchy,
     );
 ```
 
 The static name is derived from the function name to
 guarantee uniqueness within a module.
+
+---
+
+## Interactions & Events
+
+Incoming user interactions are handled by world-agnostic handlers
+registered via `#[fynix(interaction)]`. Outgoing messages from UI
+to world flow through a Fynix-owned `Events` queue.
+
+### `#[fynix(interaction)]` proc-macro
+
+The element type is inferred from the first parameter, and the
+interaction type from the second. No world - handlers are fully
+world-agnostic.
+
+```rust
+#[fynix(interaction)]
+fn on_click_button(
+    e: &mut Button,
+    interaction: Click,
+    events: &mut Events,
+) {
+    (e.on_click)(events);
+}
+```
+
+Registered into a `ELEMENT_INTERACTIONS` distributed slice via
+`linkme`, same pattern as `ELEMENT_COMPOSERS`.
+
+```rust
+pub struct UntypedInteractionHandler {
+    element_id: TypeId,
+    interaction_id: TypeId,
+    handler_fn: *const (),
+}
+```
+
+Registry keyed on `(TypeId<E>, TypeId<Ev>)` - one handler per
+element + interaction pair.
+
+### Per-instance behavior via fn pointer
+
+Elements store `fn(&mut Events)` set per-instance via `add_with`,
+allowing different buttons to produce different events:
+
+```rust
+struct Button {
+    label: String,
+    on_click: fn(&mut Events),
+}
+
+ctx.add_with::<Button>(|e, ctx| {
+    e.on_click = |events| events.push(SpawnEnemy::default());
+});
+```
+
+### Events queue (UI -> world)
+
+`Events` is Fynix-owned, backed by `TypeTable`. Handlers push
+typed messages; the backend drains them with full world access:
+
+```rust
+fn process(fynix: Res<Fynix>, mut commands: Commands) {
+    for _ in fynix.events.drain::<SpawnEnemy>() {
+        commands.spawn(Enemy::default());
+    }
+}
+```
+
+### Registering interaction types
+
+Built-in interactions: `Click`, `Drag`, `Hover`.
+
+Custom interactions registered via a converter that maps raw input
+to `Option<MyInteraction>`. The framework only runs a converter if
+at least one element has a handler registered for that interaction
+type.
 
 ---
 
