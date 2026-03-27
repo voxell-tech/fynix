@@ -3,6 +3,7 @@ use core::any::TypeId;
 use hashbrown::HashMap;
 
 use crate::id::{GenId, IdGenerator};
+use crate::layout::Constraint;
 use crate::type_table::TypeTable;
 
 /// Type-erased storage for all element instances.
@@ -110,6 +111,15 @@ pub trait Element: 'static {
     {
         []
     }
+
+    fn constraint(
+        &self,
+        parent_constraint: Constraint,
+    ) -> Constraint {
+        parent_constraint
+    }
+
+    // fn size(&self) -> Size;
 }
 
 /// Function pointer for returning `&dyn Element` from a [`TypeTable`]
