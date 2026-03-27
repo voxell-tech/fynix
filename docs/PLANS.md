@@ -4,6 +4,7 @@
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
 | `ctx.scope()`                        | Planned, not started              |
+| `#[derive(Element)]` macro           | Planned, not started              |
 | Element composers                    | Planned, not started              |
 | Interactions & Events                | Planned, not started              |
 | `LayoutSolver` / rectree integration | Pending rectree API change        |
@@ -11,6 +12,43 @@
 | `fynix_vello` rendering              | Blocked on layout                 |
 | Reactivity (`Signals`)               | Deferred until after first render |
 | `TypeSlot` / typed table opt.        | Deferred, post-profiling          |
+
+---
+
+## `#[derive(Element)]` macro
+
+A derive macro that implements the `Element` trait automatically.
+Requires the struct to implement `Default`, which provides `new()`.
+
+```rust
+#[derive(Element, Default)]
+struct Horizontal {
+    #[children]
+    children: Vec<ElementId>,
+    gap: f32,
+}
+```
+
+### `#[children]` field attribute
+
+Fields marked `#[children]` are auto-registered as the element's
+child list. The macro implements `Element::children()` by calling
+`into_iter()` on the marked field by default.
+
+An optional method chain can be specified for types that need one
+to produce the iterator:
+
+```rust
+// Default - calls into_iter() on the field.
+#[children]
+children: Vec<ElementId>,
+
+// With method chain - calls .keys() first.
+#[children(.keys())]
+children: BTreeMap<ElementId, LayoutData>,
+```
+
+One element can have at most one `#[children]` field.
 
 ---
 
