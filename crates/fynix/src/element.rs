@@ -2,9 +2,12 @@ use core::any::TypeId;
 
 use hashbrown::HashMap;
 
+use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
-use crate::layout::Constraint;
+use crate::layout::{Constraint, Layouter, Size};
 use crate::type_table::TypeTable;
+
+mod meta;
 
 /// Type-erased storage for all element instances.
 ///
@@ -18,6 +21,9 @@ pub struct Elements {
     element_types: HashMap<ElementId, TypeId>,
     element_getters: HashMap<TypeId, GetDynElementFn>,
     id_generator: ElementIdGenerator,
+    // TODO: Create a new type for each.
+    metas: ElementMetas,
+    type_metas: ElementTypeMetas,
 }
 
 impl Elements {
@@ -27,6 +33,8 @@ impl Elements {
             element_types: HashMap::new(),
             element_getters: HashMap::new(),
             id_generator: IdGenerator::new(),
+            metas: ElementMetas::new(),
+            type_metas: ElementTypeMetas::new(),
         }
     }
 
@@ -35,31 +43,33 @@ impl Elements {
     pub fn add<E: Element>(&mut self, element: E) -> ElementId {
         let type_id = TypeId::of::<E>();
 
-        if !self.element_getters.contains_key(&type_id) {
-            self.element_getters
-                .insert(type_id, get_dyn_element::<E>);
-        }
+        self.type_metas.register::<E>();
+        // if !self.element_getters.contains_key(&type_id) {
+        //     self.element_getters
+        //         .insert(type_id, get_dyn_element::<E>);
+        // }
 
         let id = self.id_generator.new_id();
 
-        self.element_types.insert(id, type_id);
+        self.metas.init_element(id, type_id);
+        // self.element_types.insert(id, type_id);
         self.elements.insert(id, element);
         id
     }
 
-    /// Returns a type-erased reference to the element.
-    ///
-    /// Prefer [`get_typed`](Elements::get_typed) when the concrete
-    /// type is known, it avoids the getter dispatch.
-    pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
-        if let Some(type_id) = self.element_types.get(id)
-            && let Some(getter) = self.element_getters.get(type_id)
-        {
-            return getter(&self.elements, id);
-        }
+    // /// Returns a type-erased reference to the element.
+    // ///
+    // /// Prefer [`get_typed`](Elements::get_typed) when the concrete
+    // /// type is known, it avoids the getter dispatch.
+    // pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
+    //     if let Some(type_id) = self.element_types.get(id)
+    //         && let Some(getter) = self.element_getters.get(type_id)
+    //     {
+    //         return getter(&self.elements, id);
+    //     }
 
-        None
-    }
+    //     None
+    // }
 
     /// Returns a typed reference to the element.
     ///
@@ -76,6 +86,7 @@ impl Elements {
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
+        self.metas.remove(id);
         if let Some(type_id) = self.element_types.remove(id)
             && self.elements.dyn_remove(&type_id, id)
         {
@@ -112,14 +123,21 @@ pub trait Element: 'static {
         []
     }
 
-    fn constraint(
-        &self,
-        parent_constraint: Constraint,
-    ) -> Constraint {
+    fn constrain(&self, parent_constraint: Constraint) -> Constraint {
         parent_constraint
     }
 
-    // fn size(&self) -> Size;
+    #[expect(unused_variables)]
+    fn build(
+        &self,
+        constraint: Constraint,
+        layouter: &mut impl Layouter<Id = ElementId>,
+    ) -> Size
+    where
+        Self: Sized,
+    {
+        constraint.min
+    }
 }
 
 /// Function pointer for returning `&dyn Element` from a [`TypeTable`]

@@ -7,23 +7,58 @@ pub struct Size {
 }
 
 impl Size {
-    pub const ZERO: Self = Self {
-        width: 0.0,
-        height: 0.0,
-    };
+    pub const ZERO: Self = Self::splat(0.0);
 
-    pub const INFINITY: Self = Self {
-        width: f32::INFINITY,
-        height: f32::INFINITY,
-    };
+    pub const INFINITY: Self = Self::splat(f32::INFINITY);
+
+    #[inline]
+    pub const fn new(width: f32, height: f32) -> Self {
+        Self { width, height }
+    }
+
+    #[inline]
+    pub const fn splat(value: f32) -> Self {
+        Self::new(value, value)
+    }
+}
+
+impl Default for Size {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Vec2 {
+    pub const ZERO: Self = Self::splat(0.0);
+
+    #[inline]
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+
+    #[inline]
+    pub const fn splat(value: f32) -> Self {
+        Self::new(value, value)
+    }
+}
+
+impl Default for Vec2 {
+    fn default() -> Self {
+        Self::ZERO
+    }
 }
 
 /// A min/max size constraint passed down the element tree.
 ///
-/// `max` fields set to [`f32::INFINITY`] indicate an
-/// unconstrained axis. Use the constructor helpers
-/// ([`tight`](Constraint::tight), [`loose`](Constraint::loose),
-/// [`unbounded`](Constraint::unbounded)) rather than constructing
+/// `max` fields set to [`f32::INFINITY`] indicate an unconstrained
+/// axis. Use the constructor helpers [`Self::tight()`],
+/// [`Self::loose`], [`Self::unbounded`] rather than constructing
 /// directly where possible.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Constraint {
@@ -56,8 +91,32 @@ impl Constraint {
         }
     }
 
+    /// Bounded width, unbounded height
+    /// (e.g. vertical scroll container).
+    pub const fn fixed_width(width: f32) -> Self {
+        Self {
+            min: Size::ZERO,
+            max: Size {
+                width,
+                height: f32::INFINITY,
+            },
+        }
+    }
+
+    /// Bounded height, unbounded width
+    /// (e.g. horizontal scroll container).
+    pub const fn fixed_height(height: f32) -> Self {
+        Self {
+            min: Size::ZERO,
+            max: Size {
+                width: f32::INFINITY,
+                height,
+            },
+        }
+    }
+
     /// Clamps `size` so it satisfies this constraint.
-    pub fn constrain(&self, size: Size) -> Size {
+    pub const fn constrain(&self, size: Size) -> Size {
         Size {
             width: size.width.max(self.min.width).min(self.max.width),
             height: size
@@ -66,4 +125,18 @@ impl Constraint {
                 .min(self.max.height),
         }
     }
+}
+
+impl Default for Constraint {
+    fn default() -> Self {
+        Self::unbounded()
+    }
+}
+
+pub trait Layouter {
+    type Id;
+
+    fn get_size(&self, id: &Self::Id) -> Size;
+
+    fn set_position(&mut self, id: &Self::Id, position: Vec2);
 }

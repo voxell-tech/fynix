@@ -6,6 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use fynix::element::{Element, ElementId};
+use fynix::layout::{Constraint, Layouter, Size, Vec2};
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {
@@ -35,6 +36,27 @@ impl Element for Horizontal {
         #[allow(clippy::into_iter_on_ref)]
         (&self.children).into_iter()
     }
+
+    fn build(
+        &self,
+        _constraint: Constraint,
+        layouter: &mut impl Layouter<Id = ElementId>,
+    ) -> Size
+    where
+        Self: Sized,
+    {
+        let mut size = Size::ZERO;
+
+        for child in self.children.iter() {
+            let child_size = layouter.get_size(child);
+            layouter.set_position(child, Vec2::new(size.width, 0.0));
+
+            size.height = size.height.max(child_size.height);
+            size.width += child_size.width;
+        }
+
+        size
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -63,6 +85,27 @@ impl Element for Vertical {
     {
         self.children.iter()
     }
+
+    fn build(
+        &self,
+        _constraint: Constraint,
+        layouter: &mut impl Layouter<Id = ElementId>,
+    ) -> Size
+    where
+        Self: Sized,
+    {
+        let mut size = Size::ZERO;
+
+        for child in self.children.iter() {
+            let child_size = layouter.get_size(child);
+            layouter.set_position(child, Vec2::new(0.0, size.height));
+
+            size.width = size.width.max(child_size.width);
+            size.height += child_size.height;
+        }
+
+        size
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -76,5 +119,16 @@ impl Element for Label {
         Self: Sized,
     {
         Self::default()
+    }
+
+    fn build(
+        &self,
+        constraint: Constraint,
+        _layouter: &mut impl Layouter<Id = ElementId>,
+    ) -> Size
+    where
+        Self: Sized,
+    {
+        todo!()
     }
 }
