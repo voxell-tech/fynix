@@ -1,3 +1,6 @@
+// pub type Scalar = f32;
+// pub type Scalar = f64;
+
 // TODO: Should this be a u32?
 /// A 2D size in resolved pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -58,7 +61,7 @@ impl Default for Vec2 {
 ///
 /// `max` fields set to [`f32::INFINITY`] indicate an unconstrained
 /// axis. Use the constructor helpers [`Self::tight()`],
-/// [`Self::loose`], [`Self::unbounded`] rather than constructing
+/// [`Self::loose()`], [`Self::unbounded()`] rather than constructing
 /// directly where possible.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Constraint {

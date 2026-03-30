@@ -31,9 +31,10 @@ impl ElementMetas {
         id: &ElementId,
         parent: ElementId,
     ) -> bool {
-        if let Some(meta) = self.map.get_mut(id) {
+        if let Some(meta) = self.get_mut(id) {
             meta.parent = Some(parent);
-        };
+            return true;
+        }
 
         false
     }
@@ -43,17 +44,19 @@ impl ElementMetas {
         id: &ElementId,
         position: Vec2,
     ) -> bool {
-        if let Some(meta) = self.map.get_mut(id) {
+        if let Some(meta) = self.get_mut(id) {
             meta.position = position;
-        };
+            return true;
+        }
 
         false
     }
 
     pub fn set_size(&mut self, id: &ElementId, size: Size) -> bool {
-        if let Some(meta) = self.map.get_mut(id) {
+        if let Some(meta) = self.get_mut(id) {
             meta.size = size;
-        };
+            return true;
+        }
 
         false
     }
@@ -63,15 +66,23 @@ impl ElementMetas {
         id: &ElementId,
         constraint: Constraint,
     ) -> bool {
-        if let Some(meta) = self.map.get_mut(id) {
+        if let Some(meta) = self.get_mut(id) {
             meta.constraint = constraint;
-        };
+            return true;
+        }
 
         false
     }
 
     pub fn get(&self, id: &ElementId) -> Option<&ElementMeta> {
         self.map.get(id)
+    }
+
+    pub fn get_mut(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<&mut ElementMeta> {
+        self.map.get_mut(id)
     }
 }
 
