@@ -6,7 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use fynix::element::{Element, ElementId};
-use fynix::layout::{Constraint, Layouter, Size, Vec2};
+use fynix::rectree::{Constraint, Layouter, Size, Vec2};
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {

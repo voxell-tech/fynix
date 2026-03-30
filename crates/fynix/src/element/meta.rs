@@ -1,9 +1,9 @@
 use core::any::TypeId;
 
 use hashbrown::HashMap;
+use rectree::{Constraint, Layouter, Size, Vec2};
 
 use crate::element::{Element, ElementId};
-use crate::layout::{Constraint, Layouter, Size, Vec2};
 use crate::type_table::TypeTable;
 
 #[derive(Debug, Clone)]
@@ -100,11 +100,11 @@ impl Layouter for ElementMetas {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ElementMeta {
-    type_id: TypeId,
-    parent: Option<ElementId>,
-    size: Size,
-    position: Vec2,
-    constraint: Constraint,
+    pub type_id: TypeId,
+    pub parent: Option<ElementId>,
+    pub size: Size,
+    pub position: Vec2,
+    pub constraint: Constraint,
 }
 
 impl ElementMeta {

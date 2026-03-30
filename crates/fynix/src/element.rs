@@ -1,10 +1,11 @@
 use core::any::TypeId;
 
-use hashbrown::HashMap;
+use rectree::{Constraint, Layouter, Size};
 
-use crate::element::meta::{ElementMetas, ElementTypeMetas};
+use crate::element::meta::{
+    ElementMeta, ElementMetas, ElementTypeMetas,
+};
 use crate::id::{GenId, IdGenerator};
-use crate::layout::{Constraint, Layouter, Size};
 use crate::type_table::TypeTable;
 
 mod meta;
@@ -16,12 +17,8 @@ mod meta;
 /// [`ElementId`] so that polymorphic access (via [`Self::get`]) and
 /// removal work without knowing the type at the call site.
 pub struct Elements {
-    elements: TypeTable<ElementId>,
-    // TODO(nixon): Move `TypeId` info into `ElementId`?
-    element_types: HashMap<ElementId, TypeId>,
-    element_getters: HashMap<TypeId, GetDynElementFn>,
     id_generator: ElementIdGenerator,
-    // TODO: Create a new type for each.
+    elements: TypeTable<ElementId>,
     metas: ElementMetas,
     type_metas: ElementTypeMetas,
 }
@@ -29,10 +26,8 @@ pub struct Elements {
 impl Elements {
     pub fn new() -> Self {
         Self {
-            elements: TypeTable::new(),
-            element_types: HashMap::new(),
-            element_getters: HashMap::new(),
             id_generator: IdGenerator::new(),
+            elements: TypeTable::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
         }
@@ -44,32 +39,27 @@ impl Elements {
         let type_id = TypeId::of::<E>();
 
         self.type_metas.register::<E>();
-        // if !self.element_getters.contains_key(&type_id) {
-        //     self.element_getters
-        //         .insert(type_id, get_dyn_element::<E>);
-        // }
 
         let id = self.id_generator.new_id();
 
         self.metas.init_element(id, type_id);
-        // self.element_types.insert(id, type_id);
         self.elements.insert(id, element);
         id
     }
 
-    // /// Returns a type-erased reference to the element.
-    // ///
-    // /// Prefer [`get_typed`](Elements::get_typed) when the concrete
-    // /// type is known, it avoids the getter dispatch.
-    // pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
-    //     if let Some(type_id) = self.element_types.get(id)
-    //         && let Some(getter) = self.element_getters.get(type_id)
-    //     {
-    //         return getter(&self.elements, id);
-    //     }
+    /// Returns a type-erased reference to the element.
+    ///
+    /// Prefer [`get_typed`](Elements::get_typed) when the concrete
+    /// type is known, it avoids the getter dispatch.
+    pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
+        if let Some(ElementMeta { type_id, .. }) = self.metas.get(id)
+            && let Some(type_meta) = self.type_metas.get(type_id)
+        {
+            return type_meta.get_dyn(id, &self.elements);
+        }
 
-    //     None
-    // }
+        None
+    }
 
     /// Returns a typed reference to the element.
     ///
@@ -87,7 +77,8 @@ impl Elements {
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
         self.metas.remove(id);
-        if let Some(type_id) = self.element_types.remove(id)
+        if let Some(ElementMeta { type_id, .. }) =
+            self.metas.remove(id)
             && self.elements.dyn_remove(&type_id, id)
         {
             self.id_generator.recycle(*id);
