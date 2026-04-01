@@ -29,7 +29,7 @@ impl<T> GenId<T> {
     }
 
     const fn next_generation(mut self) -> Self {
-        self.generation += 1;
+        self.generation = self.generation.wrapping_add(1);
         self
     }
 }

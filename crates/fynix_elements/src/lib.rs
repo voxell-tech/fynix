@@ -5,8 +5,9 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use fynix::element::meta::ElementMetas;
 use fynix::element::{Element, ElementId};
-use fynix::rectree::{Constraint, Layouter, Size, Vec2};
+use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {
@@ -32,6 +33,9 @@ impl Element for Horizontal {
     where
         Self: Sized,
     {
+        // TODO: Refer to this when creating the #[derive(Element)]
+        // macro. And remove it after that.
+
         // Showcasing the generic way of doing it.
         #[allow(clippy::into_iter_on_ref)]
         (&self.children).into_iter()
@@ -40,7 +44,7 @@ impl Element for Horizontal {
     fn build(
         &self,
         _constraint: Constraint,
-        layouter: &mut impl Layouter<Id = ElementId>,
+        metas: &mut ElementMetas,
     ) -> Size
     where
         Self: Sized,
@@ -48,8 +52,8 @@ impl Element for Horizontal {
         let mut size = Size::ZERO;
 
         for child in self.children.iter() {
-            let child_size = layouter.get_size(child);
-            layouter.set_position(child, Vec2::new(size.width, 0.0));
+            let child_size = metas.get_size(child);
+            metas.set_translation(child, Vec2::new(size.width, 0.0));
 
             size.height = size.height.max(child_size.height);
             size.width += child_size.width;
@@ -89,7 +93,7 @@ impl Element for Vertical {
     fn build(
         &self,
         _constraint: Constraint,
-        layouter: &mut impl Layouter<Id = ElementId>,
+        metas: &mut ElementMetas,
     ) -> Size
     where
         Self: Sized,
@@ -97,8 +101,8 @@ impl Element for Vertical {
         let mut size = Size::ZERO;
 
         for child in self.children.iter() {
-            let child_size = layouter.get_size(child);
-            layouter.set_position(child, Vec2::new(0.0, size.height));
+            let child_size = metas.get_size(child);
+            metas.set_translation(child, Vec2::new(0.0, size.height));
 
             size.width = size.width.max(child_size.width);
             size.height += child_size.height;
@@ -124,11 +128,11 @@ impl Element for Label {
     fn build(
         &self,
         constraint: Constraint,
-        _layouter: &mut impl Layouter<Id = ElementId>,
+        _metas: &mut ElementMetas,
     ) -> Size
     where
         Self: Sized,
     {
-        todo!()
+        constraint.min
     }
 }

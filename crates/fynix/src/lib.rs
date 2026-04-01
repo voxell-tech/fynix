@@ -3,10 +3,9 @@
 
 extern crate alloc;
 
-// use rectree::Rectree;
-
 use crate::ctx::FynixCtx;
 use crate::element::Elements;
+pub use crate::element::ElementId;
 use crate::style::{StyleId, Styles};
 
 pub use rectree;
@@ -19,11 +18,12 @@ pub mod type_table;
 
 mod id;
 
-/// Root application context. Owns the layout tree, element storage, and style state.
+/// Root application context. Owns the element tree, layout state,
+/// and style state.
 ///
-/// Obtain a [`BuildCtx`] via [`root_ctx`](Fynix::root_ctx) to start building the UI.
+/// Obtain a [`BuildCtx`] via [`root_ctx`](Fynix::root_ctx) to start
+/// building the UI.
 pub struct Fynix {
-    // pub tree: Rectree,
     pub elements: Elements,
     pub styles: Styles,
 }
@@ -31,13 +31,18 @@ pub struct Fynix {
 impl Fynix {
     pub fn new() -> Self {
         Self {
-            // tree: Rectree::new(),
             elements: Elements::new(),
             styles: Styles::new(),
         }
     }
 
-    /// Returns a [`BuildCtx`] rooted at the top of the style hierarchy.
+    /// Runs a full layout cycle on the subtree rooted at `id`.
+    pub fn layout(&mut self, id: &ElementId) {
+        self.elements.layout(id);
+    }
+
+    /// Returns a [`BuildCtx`] rooted at the top of the style
+    /// hierarchy.
     #[inline]
     pub fn root_ctx<'a, W>(
         &'a mut self,
@@ -48,8 +53,8 @@ impl Fynix {
 
     /// Returns a [`BuildCtx`] starting at the given style scope.
     ///
-    /// Use [`root_ctx`](Fynix::root_ctx) unless you need to resume building
-    /// from a previously committed [`StyleId`].
+    /// Use [`root_ctx`](Fynix::root_ctx) unless you need to resume
+    /// building from a previously committed [`StyleId`].
     #[inline]
     pub fn create_ctx<'a, W>(
         &'a mut self,
@@ -65,23 +70,3 @@ impl Default for Fynix {
         Self::new()
     }
 }
-
-// impl LayoutWorld for Fynix {
-//     fn constraint(
-//         &self,
-//         id: &NodeId,
-//         parent: rectree::layout::Constraint,
-//     ) -> rectree::layout::Constraint {
-//         todo!()
-//     }
-
-//     fn build(
-//         &self,
-//         id: &NodeId,
-//         node: &rectree::RectNode,
-//         tree: &Rectree,
-//         pos: &mut rectree::layout::Positioner,
-//     ) -> rectree::kurbo::Size {
-//         todo!()
-//     }
-// }

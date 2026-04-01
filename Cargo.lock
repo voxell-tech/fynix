@@ -810,8 +810,6 @@ name = "rectree"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.11.0",
- "hashbrown 0.16.1",
- "sparse_map",
 ]
 
 [[package]]
