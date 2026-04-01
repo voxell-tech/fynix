@@ -1,0 +1,20 @@
+[package]
+name = "fynix_composer_examples"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+fynix.workspace = true
+fynix_elements.workspace = true
+fynix_vello.workspace = true
+rectree.workspace = true
+field_path = { git = "https://github.com/voxell-tech/field_path", rev = "1e8f41c" }
+sparse_map = "0.1.2"
+parley = { version = "0.7.0", default-features = false, features = ["libm"] }
+vello = "0.7.0"
+hashbrown = "0.16.1"
+linkme.workspace = true
+

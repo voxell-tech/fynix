@@ -3,12 +3,16 @@
 
 extern crate alloc;
 
+pub use fynix_macros::fynix;
+pub use rectree;
+
 use crate::ctx::FynixCtx;
 use crate::element::Elements;
 pub use crate::element::ElementId;
 use crate::style::{StyleId, Styles};
 
-pub use rectree;
+pub use crate::element::composer::ELEMENT_COMPOSERS;
+pub use crate::element::composer::UntypedElementComposer;
 
 pub mod any_wrapper;
 pub mod ctx;

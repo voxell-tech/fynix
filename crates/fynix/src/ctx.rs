@@ -1,7 +1,7 @@
 use field_path::field_accessor::FieldAccessor;
 
 use crate::Fynix;
-use crate::element::{Element, ElementId};
+use crate::element::{Element, ElementId, Elements};
 use crate::style::{StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -20,13 +20,13 @@ use crate::style::{StyleId, StyleValue};
 /// not leak outward.
 ///
 /// [`Style`]: crate::style::Style
-pub struct FynixCtx<'a, W> {
+pub struct FynixCtx<'a, W: 'static> {
     parent_style_id: Option<StyleId>,
     fynix: &'a mut Fynix,
     pub world: &'a mut W,
 }
 
-impl<W> FynixCtx<'_, W> {
+impl<W: 'static> FynixCtx<'_, W> {
     pub(crate) fn new<'a>(
         parent_style_id: Option<StyleId>,
         fynix: &'a mut Fynix,
@@ -46,8 +46,18 @@ impl<W> FynixCtx<'_, W> {
     where
         E: Element,
     {
-        let element = self.create_element::<E>();
-        self.fynix.elements.add(element)
+        let mut element = self.create_element::<E>();
+
+        // FIXME!
+        // We are not proceeding with this unsafe code.
+        // This is merely a temporary workaround
+        let elements_ptr: *const Elements = &self.fynix.elements;
+        unsafe {
+            (*elements_ptr).execute_composer(&mut element, self);
+        }
+        let id = self.fynix.elements.add(element);
+
+        id
     }
 
     /// Like [`Self::add`], but also runs `f` for inline mutations and

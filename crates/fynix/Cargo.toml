@@ -14,3 +14,5 @@ rectree.workspace = true
 hashbrown.workspace = true
 field_path.workspace = true
 sparse_map.workspace = true
+linkme.workspace = true
+fynix_macros.workspace = true

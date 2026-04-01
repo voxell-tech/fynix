@@ -1,9 +1,12 @@
 use rectree::{Constraint, Rectree, Size};
 
+use crate::ctx::FynixCtx;
+use crate::element::composer::ElementComposers;
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
+pub mod composer;
 pub mod meta;
 
 /// Type-erased storage for all element instances.
@@ -17,6 +20,7 @@ pub struct Elements {
     elements: TypeTable<ElementId>,
     metas: ElementMetas,
     type_metas: ElementTypeMetas,
+    composers: ElementComposers,
 }
 
 impl Elements {
@@ -26,6 +30,7 @@ impl Elements {
             elements: TypeTable::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
+            composers: ElementComposers::construct_from_slice(),
         }
     }
 
@@ -60,6 +65,19 @@ impl Elements {
         id: &ElementId,
     ) -> Option<&E> {
         self.elements.get::<E>(id)
+    }
+
+    /// Executes the composer associated with Element E
+    ///
+    /// Does nothing if no composer is associated.
+    pub fn execute_composer<E: Element, W: 'static>(
+        &self,
+        element: &mut E,
+        world: &mut FynixCtx<W>,
+    ) {
+        if let Some(c) = self.composers.get_composer::<E>() {
+            c.execute(element, world);
+        }
     }
 
     /// Removes the element and recycles its [`ElementId`].
@@ -184,7 +202,7 @@ pub trait Element: 'static {
     fn build(
         &self,
         constraint: Constraint,
-        metas: &mut ElementMetas,
+        layouter: &mut impl RectContext<Id = ElementId>,
     ) -> Size
     where
         Self: Sized,

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "examples/*"]
 exclude = ["vendor/"]
 resolver = "2"
 
@@ -11,6 +11,7 @@ repository = "https://github.com/voxell-tech/fynix"
 
 [workspace.dependencies]
 fynix = { path = "crates/fynix" }
+fynix_macros = { path = "crates/fynix_macros" }
 fynix_elements = { path = "crates/fynix_elements" }
 fynix_vello = { path = "crates/fynix_vello" }
 rectree = { path = "vendor/rectree/crates/rectree" }
@@ -19,3 +20,4 @@ sparse_map = "0.1.2"
 parley = { version = "0.7.0", default-features = false, features = ["libm"] }
 vello = "0.7.0"
 hashbrown = "0.16.1"
+linkme = "0.3.35"
