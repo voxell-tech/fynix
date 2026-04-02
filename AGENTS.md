@@ -92,5 +92,7 @@ cargo doc --workspace --all-features --no-deps --document-private-items
 
 ## Further Reading
 
+Please also read the following:
+
 - [`docs/VISION.md`](docs/VISION.md) - goals, philosophy, intended API
 - [`docs/PLANS.md`](docs/PLANS.md) - upcoming work and design notes
