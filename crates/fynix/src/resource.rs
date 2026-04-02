@@ -65,3 +65,95 @@ impl Default for Resources {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insert_and_get() {
+        let mut r = Resources::new();
+        r.insert(42u32);
+        assert_eq!(r.get::<u32>(), Some(&42));
+    }
+
+    #[test]
+    fn get_returns_none_when_absent() {
+        let r = Resources::new();
+        assert_eq!(r.get::<u32>(), None);
+    }
+
+    #[test]
+    fn insert_returns_previous_value() {
+        let mut r = Resources::new();
+        assert_eq!(r.insert(1u32), None);
+        assert_eq!(r.insert(2u32), Some(1));
+        assert_eq!(r.get::<u32>(), Some(&2));
+    }
+
+    #[test]
+    fn get_mut_allows_mutation() {
+        let mut r = Resources::new();
+        r.insert(10u32);
+        *r.get_mut::<u32>().unwrap() += 5;
+        assert_eq!(r.get::<u32>(), Some(&15));
+    }
+
+    #[test]
+    fn get_mut_returns_none_when_absent() {
+        let mut r = Resources::new();
+        assert!(r.get_mut::<u32>().is_none());
+    }
+
+    #[test]
+    fn remove_returns_value_and_empties() {
+        let mut r = Resources::new();
+        r.insert(99u32);
+        assert_eq!(r.remove::<u32>(), Some(99));
+        assert_eq!(r.get::<u32>(), None);
+    }
+
+    #[test]
+    fn remove_returns_none_when_absent() {
+        let mut r = Resources::new();
+        assert_eq!(r.remove::<u32>(), None);
+    }
+
+    #[test]
+    fn remove_dyn_returns_true_and_false() {
+        let mut r = Resources::new();
+        r.insert(1u32);
+        let tid = TypeId::of::<u32>();
+        assert!(r.remove_dyn(&tid));
+        assert!(!r.remove_dyn(&tid));
+    }
+
+    #[test]
+    fn contains_and_contains_type() {
+        let mut r = Resources::new();
+        assert!(!r.contains::<u32>());
+        r.insert(0u32);
+        assert!(r.contains::<u32>());
+        assert!(r.contains_type(&TypeId::of::<u32>()));
+        r.remove::<u32>();
+        assert!(!r.contains::<u32>());
+    }
+
+    #[test]
+    fn different_types_are_independent() {
+        let mut r = Resources::new();
+        r.insert(1u32);
+        r.insert(2u64);
+        assert_eq!(r.get::<u32>(), Some(&1));
+        assert_eq!(r.get::<u64>(), Some(&2));
+        r.remove::<u32>();
+        assert_eq!(r.get::<u32>(), None);
+        assert_eq!(r.get::<u64>(), Some(&2));
+    }
+
+    #[test]
+    fn default_is_empty() {
+        let r = Resources::default();
+        assert!(!r.contains::<u32>());
+    }
+}
