@@ -25,9 +25,9 @@ mod id;
 /// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building
 /// the UI.
 pub struct Fynix {
-    pub elements: Elements,
-    pub styles: Styles,
-    pub resource: Resources,
+    elements: Elements,
+    styles: Styles,
+    resource: Resources,
 }
 
 impl Fynix {
@@ -42,7 +42,7 @@ impl Fynix {
     /// Runs a full layout cycle on the subtree rooted at `id`.
     #[inline]
     pub fn layout(&mut self, id: &ElementId) {
-        self.elements.layout(id, &self.resource);
+        self.elements.layout(id, &mut self.resource);
     }
 
     /// Returns a [`FynixCtx`] rooted at the top of the style

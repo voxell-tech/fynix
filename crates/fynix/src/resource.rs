@@ -19,27 +19,29 @@ impl Resources {
         }
     }
 
-    pub fn get<R: Any>(&self) -> Option<&R> {
+    // TODO(nixon): Add insert_or, insert_or_default, scope
+
+    pub fn get<R: 'static>(&self) -> Option<&R> {
         let type_id = TypeId::of::<R>();
         self.map
             .get(&type_id)
             .map(|r| r.downcast_ref().expect("Type mismatch!"))
     }
 
-    pub fn get_mut<R: Any>(&mut self) -> Option<&mut R> {
+    pub fn get_mut<R: 'static>(&mut self) -> Option<&mut R> {
         let type_id = TypeId::of::<R>();
         self.map
             .get_mut(&type_id)
             .map(|r| r.downcast_mut().expect("Type mismatch!"))
     }
 
-    pub fn insert<R: Any>(&mut self, resource: R) -> Option<R> {
+    pub fn insert<R: 'static>(&mut self, resource: R) -> Option<R> {
         self.map
             .insert(TypeId::of::<R>(), Box::new(resource))
             .map(|r| *r.downcast().expect("Type mismatch!"))
     }
 
-    pub fn remove<R: Any>(&mut self) -> Option<R> {
+    pub fn remove<R: 'static>(&mut self) -> Option<R> {
         let type_id = TypeId::of::<R>();
         self.map
             .remove(&type_id)
@@ -54,7 +56,7 @@ impl Resources {
         self.map.contains_key(type_id)
     }
 
-    pub fn contains<R: Any>(&self) -> bool {
+    pub fn contains<R: 'static>(&self) -> bool {
         let type_id = TypeId::of::<R>();
         self.contains_type(&type_id)
     }

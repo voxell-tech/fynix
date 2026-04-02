@@ -1,10 +1,9 @@
 use core::any::TypeId;
 
 use hashbrown::HashMap;
-use rectree::{Constraint, RectNode, RectNodes, Size};
+use rectree::{Constraint, RectNode, Size};
 
-use crate::element::{Element, ElementId};
-use crate::resource::Resources;
+use crate::element::{Element, ElementId, ElementNodes};
 use crate::type_table::TypeTable;
 
 /// Per-element metadata stored alongside the layout node.
@@ -48,29 +47,22 @@ impl ElementMetas {
     pub fn remove(&mut self, id: &ElementId) -> Option<TypeId> {
         self.map.remove(id).map(|m| m.type_id)
     }
+
+    pub fn get(&self, id: &ElementId) -> Option<&ElementMeta> {
+        self.map.get(id)
+    }
+
+    pub fn get_mut(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<&mut ElementMeta> {
+        self.map.get_mut(id)
+    }
 }
 
 impl Default for ElementMetas {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl RectNodes for ElementMetas {
-    type Id = ElementId;
-
-    fn get_node(
-        &self,
-        id: &ElementId,
-    ) -> Option<&RectNode<ElementId>> {
-        self.map.get(id).map(|m| &m.node)
-    }
-
-    fn get_node_mut(
-        &mut self,
-        id: &ElementId,
-    ) -> Option<&mut RectNode<ElementId>> {
-        self.map.get_mut(id).map(|m| &mut m.node)
     }
 }
 
@@ -202,8 +194,7 @@ pub type BuildElementFn = fn(
     table: &TypeTable<ElementId>,
     id: &ElementId,
     constraint: Constraint,
-    metas: &mut ElementMetas,
-    resources: &Resources,
+    nodes: &mut ElementNodes,
 ) -> Size;
 
 #[inline]
@@ -211,11 +202,10 @@ pub fn build_element<E: Element>(
     table: &TypeTable<ElementId>,
     id: &ElementId,
     constraint: Constraint,
-    metas: &mut ElementMetas,
-    resources: &Resources,
+    nodes: &mut ElementNodes,
 ) -> Size {
     table
         .get::<E>(id)
-        .map(|e| e.build(constraint, metas, resources))
+        .map(|e| e.build(constraint, nodes))
         .unwrap_or(Size::ZERO)
 }
