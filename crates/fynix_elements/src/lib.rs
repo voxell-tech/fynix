@@ -8,6 +8,7 @@ use alloc::vec::Vec;
 use fynix::element::meta::ElementMetas;
 use fynix::element::{Element, ElementId};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
+use fynix::resource::Resources;
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {
@@ -45,6 +46,7 @@ impl Element for Horizontal {
         &self,
         _constraint: Constraint,
         metas: &mut ElementMetas,
+        _resources: &Resources,
     ) -> Size
     where
         Self: Sized,
@@ -94,6 +96,7 @@ impl Element for Vertical {
         &self,
         _constraint: Constraint,
         metas: &mut ElementMetas,
+        _resources: &Resources,
     ) -> Size
     where
         Self: Sized,
@@ -129,6 +132,7 @@ impl Element for Label {
         &self,
         constraint: Constraint,
         _metas: &mut ElementMetas,
+        _resources: &Resources,
     ) -> Size
     where
         Self: Sized,

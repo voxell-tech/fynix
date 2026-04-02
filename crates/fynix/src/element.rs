@@ -2,6 +2,7 @@ use rectree::{Constraint, Rectree, Size};
 
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
+use crate::resource::Resources;
 use crate::type_table::TypeTable;
 
 pub mod meta;
@@ -14,6 +15,9 @@ pub mod meta;
 /// work without knowing the concrete type at the call site.
 pub struct Elements {
     id_generator: ElementIdGenerator,
+    // TODO(nixon): This needs to use `TypeSlot` for fast lookups.
+    // Implication: No implication since all `Elements` are defined by
+    // us/users. So they will need to have the derive anyways.
     elements: TypeTable<ElementId>,
     metas: ElementMetas,
     type_metas: ElementTypeMetas,
@@ -82,10 +86,11 @@ impl Elements {
     /// The caller is responsible for setting the node's constraint
     /// on [`ElementMetas`] before calling this if a specific size
     /// is required.
-    pub fn layout(&mut self, id: &ElementId) {
+    pub fn layout(&mut self, id: &ElementId, resources: &Resources) {
         let tree = ElementTree {
             elements: &self.elements,
             type_metas: &self.type_metas,
+            resources,
         };
         rectree::layout(&tree, &mut self.metas, id);
     }
@@ -104,6 +109,7 @@ impl Default for Elements {
 struct ElementTree<'a> {
     elements: &'a TypeTable<ElementId>,
     type_metas: &'a ElementTypeMetas,
+    resources: &'a Resources,
 }
 
 impl Rectree for ElementTree<'_> {
@@ -151,7 +157,13 @@ impl Rectree for ElementTree<'_> {
         type_id
             .and_then(|t| self.type_metas.get(&t))
             .map(|m| {
-                (m.build_fn)(self.elements, id, constraint, metas)
+                (m.build_fn)(
+                    self.elements,
+                    id,
+                    constraint,
+                    metas,
+                    self.resources,
+                )
             })
             .unwrap_or(Size::ZERO)
     }
@@ -185,6 +197,7 @@ pub trait Element: 'static {
         &self,
         constraint: Constraint,
         metas: &mut ElementMetas,
+        resources: &Resources,
     ) -> Size
     where
         Self: Sized,

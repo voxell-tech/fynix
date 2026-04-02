@@ -20,18 +20,18 @@ use crate::style::{StyleId, StyleValue};
 /// not leak outward.
 ///
 /// [`Style`]: crate::style::Style
-pub struct FynixCtx<'a, W> {
+pub struct FynixCtx<'f, 'w, W> {
     parent_style_id: Option<StyleId>,
-    fynix: &'a mut Fynix,
-    pub world: &'a mut W,
+    fynix: &'f mut Fynix,
+    pub world: &'w mut W,
 }
 
-impl<W> FynixCtx<'_, W> {
-    pub(crate) fn new<'a>(
+impl<W> FynixCtx<'_, '_, W> {
+    pub(crate) fn new<'f, 'w>(
         parent_style_id: Option<StyleId>,
-        fynix: &'a mut Fynix,
-        world: &'a mut W,
-    ) -> FynixCtx<'a, W> {
+        fynix: &'f mut Fynix,
+        world: &'w mut W,
+    ) -> FynixCtx<'f, 'w, W> {
         FynixCtx {
             parent_style_id,
             fynix,

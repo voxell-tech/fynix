@@ -4,6 +4,7 @@ use hashbrown::HashMap;
 use rectree::{Constraint, RectNode, RectNodes, Size};
 
 use crate::element::{Element, ElementId};
+use crate::resource::Resources;
 use crate::type_table::TypeTable;
 
 /// Per-element metadata stored alongside the layout node.
@@ -164,6 +165,7 @@ pub type ChildrenElementFn = fn(
     f: &mut dyn FnMut(&ElementId),
 );
 
+#[inline]
 pub fn for_each_child<E: Element>(
     table: &TypeTable<ElementId>,
     id: &ElementId,
@@ -183,6 +185,7 @@ pub type ConstrainElementFn = fn(
     parent: Constraint,
 ) -> Constraint;
 
+#[inline]
 pub fn constrain_element<E: Element>(
     table: &TypeTable<ElementId>,
     id: &ElementId,
@@ -200,16 +203,19 @@ pub type BuildElementFn = fn(
     id: &ElementId,
     constraint: Constraint,
     metas: &mut ElementMetas,
+    resources: &Resources,
 ) -> Size;
 
+#[inline]
 pub fn build_element<E: Element>(
     table: &TypeTable<ElementId>,
     id: &ElementId,
     constraint: Constraint,
     metas: &mut ElementMetas,
+    resources: &Resources,
 ) -> Size {
     table
         .get::<E>(id)
-        .map(|e| e.build(constraint, metas))
+        .map(|e| e.build(constraint, metas, resources))
         .unwrap_or(Size::ZERO)
 }
