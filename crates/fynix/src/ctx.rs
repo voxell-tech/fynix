@@ -124,7 +124,6 @@ impl<W> FynixCtx<'_, '_, W> {
         W: 'static,
     {
         if let Some(c) = self.composers.get_composer::<E, W>() {
-            let c = c.clone();
             c.execute(element, self);
         }
     }

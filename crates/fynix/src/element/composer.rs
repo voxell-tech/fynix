@@ -14,7 +14,7 @@ pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
 /// Fully type-erased - stores TypeId for both E and W
 /// alongside a *const () function pointer.
 /// unsafe impl Sync - the pointer is always a fn pointer.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct UntypedElementComposer {
     element_id: TypeId,
     world_id: TypeId,
@@ -101,7 +101,7 @@ impl ElementComposers {
                     element_id: composer.element_id,
                     world_id: composer.world_id,
                 })
-                .or_insert(composer.clone());
+                .or_insert(*composer);
         }
 
         Self { composers }
@@ -109,10 +109,12 @@ impl ElementComposers {
 
     pub fn get_composer<E: 'static, W: 'static>(
         &self,
-    ) -> Option<&UntypedElementComposer> {
-        self.composers.get(&ComposerId::from((
-            TypeId::of::<E>(),
-            TypeId::of::<W>(),
-        )))
+    ) -> Option<UntypedElementComposer> {
+        self.composers
+            .get(&ComposerId::from((
+                TypeId::of::<E>(),
+                TypeId::of::<W>(),
+            )))
+            .copied()
     }
 }
