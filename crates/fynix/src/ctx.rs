@@ -48,8 +48,7 @@ impl<W> FynixCtx<'_, '_, W> {
         W: 'static,
     {
         let element = self.create_element::<E>();
-        let id = self.fynix.elements.add(element);
-        id
+        self.fynix.elements.add(element)
     }
 
     /// Like [`Self::add`], but also runs `f` for inline mutations and

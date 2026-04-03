@@ -49,20 +49,12 @@ fn extract_context_type(ty: &Type) -> Result<&Type> {
         elem,
         ..
     }) = ty
+        && let Type::Path(TypePath { path, .. }) = &**elem
+        && let Some(seg) = path.segments.last()
+        && let PathArguments::AngleBracketed(args) = &seg.arguments
+        && let Some(GenericArgument::Type(w)) = args.args.first()
     {
-        if let Type::Path(TypePath { path, .. }) = &**elem {
-            if let Some(seg) = path.segments.last() {
-                if let PathArguments::AngleBracketed(args) =
-                    &seg.arguments
-                {
-                    if let Some(GenericArgument::Type(w)) =
-                        args.args.first()
-                    {
-                        return Ok(w);
-                    }
-                }
-            }
-        }
+        return Ok(w);
     }
     Err(syn::Error::new_spanned(
         ty,

@@ -15,9 +15,7 @@ impl Element for Counter {
     where
         Self: Sized,
     {
-        let c = Counter { count: 0 };
-
-        c
+        Counter { count: 0 }
     }
 }
 

@@ -70,6 +70,12 @@ pub struct ComposerId {
     world_id: TypeId,
 }
 
+impl Default for ElementComposers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl From<(TypeId, TypeId)> for ComposerId {
     fn from(value: (TypeId, TypeId)) -> Self {
         Self {
