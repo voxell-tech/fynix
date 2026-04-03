@@ -80,10 +80,19 @@ cargo doc --workspace --all-features --no-deps --document-private-items
   closures - use direct field assignment (`e.field = value`).
 - Do not use "—", use normal hypens instead "-" (only when necessary).
   Use normal punctuations when possible instead.
+- Do not use banner-style section dividers. These are comment blocks
+  where a label is wrapped by lines of dashes or equals signs:
+  ```rust
+  // -----------------------------------------
+  // Section Name
+  // -----------------------------------------
+  ```
 
 ---
 
 ## Further Reading
+
+Please also read the following:
 
 - [`docs/VISION.md`](docs/VISION.md) - goals, philosophy, intended API
 - [`docs/PLANS.md`](docs/PLANS.md) - upcoming work and design notes

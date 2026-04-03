@@ -18,6 +18,8 @@ pub struct GenId<T> {
 }
 
 impl<T> GenId<T> {
+    pub const PLACEHOLDER: Self = Self::from_raw(u32::MAX, u32::MAX);
+
     const fn from_raw(id: u32, generation: u32) -> Self {
         Self {
             id,
@@ -27,7 +29,7 @@ impl<T> GenId<T> {
     }
 
     const fn next_generation(mut self) -> Self {
-        self.generation += 1;
+        self.generation = self.generation.wrapping_add(1);
         self
     }
 }

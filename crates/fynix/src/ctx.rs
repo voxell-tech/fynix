@@ -1,60 +1,61 @@
 use field_path::field_accessor::FieldAccessor;
 
-use crate::element::{Element, ElementId, Elements};
-use crate::style::{StyleId, StyleValue, Styles};
+use crate::Fynix;
+use crate::element::{Element, ElementId};
+use crate::style::{StyleId, StyleValue};
 
-/// Build-time context for constructing the element tree and declaring style
-/// defaults.
+/// Build-time context for constructing the element tree and declaring
+/// style defaults.
 ///
-/// Obtained from [`Fynix::root_ctx`](crate::Fynix::root_ctx). Tracks which
-/// style node is "current" so that defaults set via [`set`](BuildCtx::set)
-/// are inherited by subsequently added elements.
+/// Obtained from [`Fynix::root_ctx`]. Tracks which style node is
+/// "current" so that defaults set via [`Self::set`] are inherited by
+/// subsequently added elements.
 ///
 /// # Style scoping
 ///
-/// Style changes queued with [`set`](BuildCtx::set) are committed into a new [`Style`] node
-/// the next time an element is added. Inside an [`add_with`](BuildCtx::add_with)
-/// closure, the outer `parent_style_id` is saved and restored after the
-/// closure returns, so inner style changes do not leak outward.
+/// Style changes queued with [`Self::set`] are committed into a new
+/// [`Style`] node the next time an element is added. Inside an
+/// [`Self::add_with`] closure, the outer `parent_style_id` is saved
+/// and restored after the closure returns, so inner style changes do
+/// not leak outward.
 ///
 /// [`Style`]: crate::style::Style
-// TODO: Merge into FynixCtx.
-pub struct BuildCtx<'a> {
+pub struct FynixCtx<'f, 'w, W> {
     parent_style_id: Option<StyleId>,
-    pub(crate) elements: &'a mut Elements,
-    pub(crate) styles: &'a mut Styles,
+    fynix: &'f mut Fynix,
+    pub world: &'w mut W,
 }
 
-impl BuildCtx<'_> {
-    pub(crate) fn new<'a>(
+impl<W> FynixCtx<'_, '_, W> {
+    pub(crate) fn new<'f, 'w>(
         parent_style_id: Option<StyleId>,
-        elements: &'a mut Elements,
-        styles: &'a mut Styles,
-    ) -> BuildCtx<'a> {
-        BuildCtx {
+        fynix: &'f mut Fynix,
+        world: &'w mut W,
+    ) -> FynixCtx<'f, 'w, W> {
+        FynixCtx {
             parent_style_id,
-            elements,
-            styles,
+            fynix,
+            world,
         }
     }
 
-    /// Creates element `E`, applies the current style chain to it, stores it,
-    /// and returns its [`ElementId`].
+    /// Creates element `E`, applies the current style chain to it,
+    /// stores it, and returns its [`ElementId`].
     #[must_use]
     pub fn add<E>(&mut self) -> ElementId
     where
         E: Element,
     {
         let element = self.create_element::<E>();
-        self.elements.add(element)
+        self.fynix.elements.add(element)
     }
 
-    /// Like [`add`](BuildCtx::add), but also runs `f` for inline mutations
-    /// and nested element additions.
+    /// Like [`Self::add`], but also runs `f` for inline mutations and
+    /// nested element additions.
     ///
-    /// The outer `parent_style_id` is restored after `f` returns, so any
-    /// [`set`](BuildCtx::set) calls inside `f` do not affect elements added
-    /// after this call.
+    /// The outer `parent_style_id` is restored after `f` returns, so
+    /// any [`Self::set`] calls inside `f` do not affect elements
+    /// added after this call.
     #[must_use]
     pub fn add_with<E>(
         &mut self,
@@ -71,7 +72,7 @@ impl BuildCtx<'_> {
         // Restore parent style id from before the closure.
         self.parent_style_id = parent_style_id;
 
-        self.elements.add(element)
+        self.fynix.elements.add(element)
     }
 
     /// Queues a style default: field `field_accessor` on element type `E`
@@ -85,23 +86,23 @@ impl BuildCtx<'_> {
         E: Element,
         T: StyleValue,
     {
-        self.styles.set(field_accessor, value);
+        self.fynix.styles.set(field_accessor, value);
     }
 
-    /// Commits any pending style changes, constructs `E::new()`, and applies
-    /// the current style chain to it.
+    /// Commits any pending style changes, constructs `E::new()`, and
+    /// applies the current style chain to it.
     fn create_element<E>(&mut self) -> E
     where
         E: Element,
     {
-        if self.styles.should_commit() {
-            let committed_id = self.styles.current_id();
-            self.styles.commit_styles(self.parent_style_id);
+        if self.fynix.styles.should_commit() {
+            let committed_id = self.fynix.styles.current_id();
+            self.fynix.styles.commit_styles(self.parent_style_id);
             self.parent_style_id = Some(committed_id);
         }
         let mut element = E::new();
         if let Some(id) = &self.parent_style_id {
-            self.styles.apply(&mut element, id);
+            self.fynix.styles.apply(&mut element, id);
         }
         element
     }
@@ -147,9 +148,10 @@ mod tests {
 
     #[test]
     fn style_applied_after_set() {
+        let mut world = ();
         let mut fynix = Fynix::new();
         let root_id = {
-            let mut ctx = fynix.root_ctx();
+            let mut ctx = fynix.root_ctx(&mut world);
             ctx.set(
                 field_accessor!(<Label>::text),
                 "hello".to_string(),
@@ -169,9 +171,10 @@ mod tests {
 
     #[test]
     fn add_with_restores_parent_style_id() {
+        let mut world = ();
         let mut fynix = Fynix::new();
         let root_id = {
-            let mut ctx = fynix.root_ctx();
+            let mut ctx = fynix.root_ctx(&mut world);
             ctx.set(
                 field_accessor!(<Label>::text),
                 "outer".to_string(),
@@ -204,9 +207,10 @@ mod tests {
 
     #[test]
     fn child_style_wins_over_parent() {
+        let mut world = ();
         let mut fynix = Fynix::new();
         let root_id = {
-            let mut ctx = fynix.root_ctx();
+            let mut ctx = fynix.root_ctx(&mut world);
             ctx.set(
                 field_accessor!(<Label>::text),
                 "parent".to_string(),

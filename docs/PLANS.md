@@ -3,34 +3,236 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| `ctx.scope()`                        | Planned, not started              |
-| `LayoutSolver` / rectree integration | Pending rectree API change        |
-| `fynix_elements` layout impls        | Blocked on rectree                |
-| `fynix_vello` rendering              | Blocked on layout                 |
+| `#[derive(Element)]` macro           | Planned, not started              |
+| Element composers                    | Planned, not started              |
+| Interactions & Events                | Planned, not started              |
+| `fynix_elements` layout impls        | Ready to start                    |
+| `fynix_vello` rendering              | Ready to start                    |
 | Reactivity (`Signals`)               | Deferred until after first render |
+| `TypeSlot` / typed table opt.        | Deferred, post-profiling          |
 
 ---
 
-## Rectree API change (next major task)
+## `#[derive(Element)]` macro
 
-The current `LayoutWorld::get_solver() -> &dyn LayoutSolver`
-signature forces heap allocation due to lifetime constraints.
-The plan is to push the two solver methods directly onto
-`LayoutWorld`:
+A derive macro that implements the `Element` trait automatically.
+Requires the struct to implement `Default`, which provides `new()`.
 
 ```rust
-pub trait LayoutWorld {
-    fn constraint(&self, id: &NodeId, parent: Constraint) -> Constraint;
-    fn build(&self, id: &NodeId, node: &RectNode,
-             tree: &Rectree, pos: &mut Positioner) -> Size;
+#[derive(Element, Default)]
+struct Horizontal {
+    #[children]
+    children: Vec<ElementId>,
+    gap: f32,
 }
 ```
 
-`LayoutSolver` becomes a fynix-internal trait (removed from rectree).
-`Fynix` implements `LayoutWorld` by dispatching to a
-`HashMap<TypeId, Box<dyn LayoutSolver>>` keyed on element type.
-`BuildCtx` gains a `tree: &'a mut Rectree` reference so `add` also
-inserts a `RectNode`.
+### `#[children]` field attribute
+
+Fields marked `#[children]` are auto-registered as the element's
+child list. The macro implements `Element::children()` by calling
+`into_iter()` on the marked field by default.
+
+An optional method chain can be specified for types that need one
+to produce the iterator:
+
+```rust
+// Default - calls into_iter() on the field.
+#[children]
+children: Vec<ElementId>,
+
+// With method chain - calls .keys() first.
+#[children(.keys())]
+children: BTreeMap<ElementId, LayoutData>,
+```
+
+One element can have at most one `#[children]` field.
+
+---
+
+## Element composers
+
+Element compose behavior is registered externally via
+`ElementComposers`, keeping element structs as pure data and
+backends decoupled from `fynix_elements`.
+
+### Types
+
+```rust
+// Typed composer function for element E in world W.
+pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
+
+// Typed wrapper - monomorphized for (E, W).
+pub struct ElementComposer<E: Element, W> { ... }
+
+// Fully type-erased - stores TypeId for both E and W
+// alongside a *const () function pointer.
+// unsafe impl Sync - the pointer is always a fn pointer.
+pub struct UntypedElementComposer {
+    element_id: TypeId,
+    world_id: TypeId,
+    compose_fn: *const (),
+}
+
+// Non-generic registry keyed on element TypeId.
+pub struct ElementComposers {
+    composers: HashMap<TypeId, UntypedElementComposer>,
+}
+```
+
+`UntypedElementComposer::new::<E, W>(f)` is `const` - both
+`TypeId::of` calls are const-stable when `T: 'static`.
+
+### Auto-registration via `linkme`
+
+A `linkme` distributed slice collects composers across crates:
+
+```rust
+#[distributed_slice]
+pub static ELEMENT_COMPOSERS: [UntypedElementComposer] = [..];
+```
+
+At startup, `ElementComposers` is populated from the slice in
+one pass.
+
+### `#[fynix(compose)]` proc-macro
+
+A proc-macro attribute handles registration boilerplate. `E`
+is inferred from the first parameter (`&mut E`), `W` from
+`FynixCtx<W>` in the second:
+
+```rust
+#[fynix(compose)]
+fn compose_hierarchy_bevy(
+    e: &mut Hierarchy,
+    ctx: &mut FynixCtx<BevyWorld>,
+) {
+    let h = ctx.world.query(..);
+    ctx.add::<Label>();
+    // ...
+}
+
+#[fynix(compose)]
+fn compose_hierarchy_custom(
+    e: &mut Hierarchy,
+    ctx: &mut FynixCtx<CustomWorld>,
+) {
+    ctx.add::<Label>();
+    ctx.add::<Button>();
+    // ...
+}
+```
+
+Expands to the function plus:
+
+```rust
+#[linkme::distributed_slice(fynix::ELEMENT_COMPOSERS)]
+static _ELEMENT_COMPOSER_COMPOSE_HIERARCHY_BEVY:
+    UntypedElementComposer =
+    UntypedElementComposer::new::<Hierarchy, BevyWorld>(
+        compose_hierarchy_bevy,
+    );
+```
+
+Usage:
+
+```rust
+fn create_ui(ctx: FynixCtx<BevyWorld>) {
+    ctx.add::<Hierarchy>();
+}
+```
+
+The static name is derived from the function name to
+guarantee uniqueness within a module.
+
+---
+
+## Interactions & Events
+
+Incoming user interactions are handled by world-agnostic handlers
+registered via `#[fynix(interaction)]`. Outgoing messages from UI
+to world flow through a Fynix-owned `Events` queue.
+
+### `#[fynix(interaction)]` proc-macro
+
+The element type is inferred from the first parameter, and the
+interaction type from the second. No world - handlers are fully
+world-agnostic.
+
+```rust
+#[fynix(interaction)]
+fn on_click_button(
+    e: &mut Button,
+    interaction: Click,
+    events: &mut Events,
+) {
+    (e.on_click)(events);
+}
+```
+
+Registered into a `ELEMENT_INTERACTIONS` distributed slice via
+`linkme`, same pattern as `ELEMENT_COMPOSERS`.
+
+```rust
+pub struct UntypedInteractionHandler {
+    element_id: TypeId,
+    interaction_id: TypeId,
+    handler_fn: *const (),
+}
+```
+
+Registry keyed on `(TypeId<E>, TypeId<Ev>)` - one handler per
+element + interaction pair.
+
+### Per-instance behavior via fn pointer
+
+Elements store `fn(&mut Events)` set per-instance via `add_with`,
+allowing different buttons to produce different events:
+
+```rust
+struct Button {
+    label: String,
+    on_click: fn(&mut Events),
+}
+
+ctx.add_with::<Button>(|e, ctx| {
+    e.on_click = |events| events.push(SpawnEnemy::default());
+});
+```
+
+### Events queue (UI -> world)
+
+`Events` is Fynix-owned, backed by `TypeTable`. Handlers push
+typed messages; the backend drains them with full world access:
+
+```rust
+fn process(fynix: Res<Fynix>, mut commands: Commands) {
+    for _ in fynix.events.drain::<SpawnEnemy>() {
+        commands.spawn(Enemy::default());
+    }
+}
+
+// Example consumer system.
+fn system(events: Res<Events>, signals: ResMut<Signals>) {
+    for msg in events.iter::<Increment>() {}
+
+    for msg in events.iter::<Decrement>() {
+        signals.set(..);
+    }
+}
+
+pub struct Increment;
+pub struct Decrement;
+```
+
+### Registering interaction types
+
+Built-in interactions: `Click`, `Drag`, `Hover`.
+
+Custom interactions registered via a converter that maps raw input
+to `Option<MyInteraction>`. The framework only runs a converter if
+at least one element has a handler registered for that interaction
+type.
 
 ---
 
@@ -98,3 +300,50 @@ reactive_scopes: HashMap<SignalId, Vec<ScopeEntry>>
 `flush_signals()` is called by the backend each frame. It applies
 field signals in-place and re-runs any dirty scope builders, limiting
 re-layout to the affected subtree in both cases.
+
+---
+
+## `TypeSlot` - typed table optimisation
+
+`TypeTable` currently does two hashmap lookups per access: one on
+`TypeId` to find the column, one on the key to find the value.
+
+For closed, link-time-known type sets, this can be replaced with a
+direct `Vec` index using `TypeSlot`. Each type self-registers via a
+`linkme` distributed slice. At startup, each type is assigned a
+sequential index stored in a per-type `static OnceLock<usize>`. From
+then on, lookup is a static dereference + `Vec` index - no hashing.
+
+```rust
+// Generated by a #[derive(HasSlot)] proc-macro.
+static HORIZONTAL_SLOT: OnceLock<usize> = OnceLock::new();
+
+impl HasSlot for Horizontal {
+    fn slot() -> usize { *HORIZONTAL_SLOT.get().unwrap() }
+}
+
+#[distributed_slice(TYPE_SLOTS)]
+static _: TypeSlotEntry = TypeSlotEntry {
+    type_id: TypeId::of::<Horizontal>(),
+    slot: &HORIZONTAL_SLOT,
+};
+```
+
+```rust
+// Startup - assign sequential indices to all registered slots.
+for (i, slot) in TYPE_SLOTS.iter().enumerate() {
+    slot.slot.set(i);
+}
+```
+
+This enables faster specialised tables for types known at link time:
+
+- `ElementTable` - replaces `TypeTable<ElementId>` for element storage
+- `InteractionTable` - replaces the interaction handler registry
+- `EventTable` - replaces the outgoing events queue
+
+**Style values remain on `TypeTable`** - style field values are
+arbitrary user types (`f32`, `String`, custom structs) that cannot
+be required to `#[derive(HasSlot)]`. The hashmap stays there.
+
+Defer until profiling identifies `TypeTable` as a bottleneck.

@@ -11,3 +11,5 @@ repository.workspace = true
 [dependencies]
 fynix.workspace = true
 field_path.workspace = true
+parley.workspace = true
+
