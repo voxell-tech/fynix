@@ -13,27 +13,27 @@ pub mod meta;
 /// Type-erased storage for all element instances.
 ///
 /// Internally holds one [`TypeTable`] slot per element type. The
-/// [`TypeId`] of each element is stored inside [`ElementMetas`]
+/// [`core::any::TypeId`] of each element is stored inside [`ElementMetas`]
 /// so that polymorphic access (via [`Self::get_dyn`]) and removal
 /// work without knowing the concrete type at the call site.
 pub struct Elements {
-    id_generator: ElementIdGenerator,
     // TODO(nixon): This needs to use `TypeSlot` for fast lookups.
     // Implication: No implication since all `Elements` are defined by
     // us/users. So they will need to have the derive anyways.
-    elements: TypeTable<ElementId>,
-    metas: ElementMetas,
-    type_metas: ElementTypeMetas,
+    pub elements: TypeTable<ElementId>,
+    pub metas: ElementMetas,
+    pub type_metas: ElementTypeMetas,
+    id_generator: ElementIdGenerator,
     composers: ElementComposers,
 }
 
 impl Elements {
     pub fn new() -> Self {
         Self {
-            id_generator: IdGenerator::new(),
             elements: TypeTable::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
+            id_generator: IdGenerator::new(),
             composers: ElementComposers::construct_from_slice(),
         }
     }

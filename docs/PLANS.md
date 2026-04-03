@@ -3,7 +3,6 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| `ctx.scope()`                        | Planned, not started              |
 | `#[derive(Element)]` macro           | Planned, not started              |
 | Element composers                    | Planned, not started              |
 | Interactions & Events                | Planned, not started              |
@@ -104,10 +103,22 @@ is inferred from the first parameter (`&mut E`), `W` from
 
 ```rust
 #[fynix(compose)]
-fn compose_hierarchy(
+fn compose_hierarchy_bevy(
     e: &mut Hierarchy,
-    ctx: &mut FynixCtx<World>,
+    ctx: &mut FynixCtx<BevyWorld>,
 ) {
+    let h = ctx.world.query(..);
+    ctx.add::<Label>();
+    // ...
+}
+
+#[fynix(compose)]
+fn compose_hierarchy_custom(
+    e: &mut Hierarchy,
+    ctx: &mut FynixCtx<CustomWorld>,
+) {
+    ctx.add::<Label>();
+    ctx.add::<Button>();
     // ...
 }
 ```
@@ -116,11 +127,19 @@ Expands to the function plus:
 
 ```rust
 #[linkme::distributed_slice(fynix::ELEMENT_COMPOSERS)]
-static _ELEMENT_COMPOSER_COMPOSE_HIERARCHY:
+static _ELEMENT_COMPOSER_COMPOSE_HIERARCHY_BEVY:
     UntypedElementComposer =
-    UntypedElementComposer::new::<Hierarchy, World>(
-        compose_hierarchy,
+    UntypedElementComposer::new::<Hierarchy, BevyWorld>(
+        compose_hierarchy_bevy,
     );
+```
+
+Usage:
+
+```rust
+fn create_ui(ctx: FynixCtx<BevyWorld>) {
+    ctx.add::<Hierarchy>();
+}
 ```
 
 The static name is derived from the function name to
@@ -192,6 +211,18 @@ fn process(fynix: Res<Fynix>, mut commands: Commands) {
         commands.spawn(Enemy::default());
     }
 }
+
+// Example consumer system.
+fn system(events: Res<Events>, signals: ResMut<Signals>) {
+    for msg in events.iter::<Increment>() {}
+
+    for msg in events.iter::<Decrement>() {
+        signals.set(..);
+    }
+}
+
+pub struct Increment;
+pub struct Decrement;
 ```
 
 ### Registering interaction types
@@ -204,7 +235,6 @@ at least one element has a handler registered for that interaction
 type.
 
 ---
-
 
 ## Signals
 
@@ -297,6 +327,13 @@ static _: TypeSlotEntry = TypeSlotEntry {
     type_id: TypeId::of::<Horizontal>(),
     slot: &HORIZONTAL_SLOT,
 };
+```
+
+```rust
+// Startup - assign sequential indices to all registered slots.
+for (i, slot) in TYPE_SLOTS.iter().enumerate() {
+    slot.slot.set(i);
+}
 ```
 
 This enables faster specialised tables for types known at link time:

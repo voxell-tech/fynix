@@ -5,6 +5,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use fynix::Fynix;
 use fynix::element::{Element, ElementId, ElementNodes};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 use parley::style::StyleProperty;
@@ -113,7 +114,7 @@ impl Element for Vertical {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Label {
     pub text: String,
     pub font_size: f32,
@@ -124,7 +125,10 @@ impl Element for Label {
     where
         Self: Sized,
     {
-        Self::default()
+        Self {
+            text: Default::default(),
+            font_size: 16.0,
+        }
     }
 
     fn build(
@@ -159,4 +163,10 @@ impl Element for Label {
 pub struct TextContext {
     pub font_cx: FontContext,
     pub layout_cx: LayoutContext,
+}
+
+/// Initialize the resources needed for the elements in this crate to
+/// work correctly.
+pub fn init_resources(fynix: &mut Fynix) {
+    fynix.resources_mut().init::<TextContext>();
 }

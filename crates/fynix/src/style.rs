@@ -27,10 +27,10 @@ pub struct Styles {
     registry:
         HashMap<UntypedField, (UntypedAccessor, UntypedSetStyle)>,
     /// Stores the actual style values keyed by `(StyleId, T)`.
-    style_values: TypeTable<StyleId>,
+    pub style_values: TypeTable<StyleId>,
     /// Committed style nodes, each forming a singly-linked
     /// inheritance chain via their `parent_id`.
-    styles: HashMap<StyleId, Style>,
+    pub styles: HashMap<StyleId, Style>,
     /// Accumulates field changes for the *current* (open) style
     /// node until the next [`commit_styles`](Styles::commit_styles)
     /// call.

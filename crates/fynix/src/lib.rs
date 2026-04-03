@@ -31,7 +31,7 @@ mod id;
 pub struct Fynix {
     elements: Elements,
     styles: Styles,
-    resource: Resources,
+    resources: Resources,
 }
 
 impl Fynix {
@@ -39,14 +39,30 @@ impl Fynix {
         Self {
             elements: Elements::new(),
             styles: Styles::new(),
-            resource: Resources::new(),
+            resources: Resources::new(),
         }
+    }
+
+    pub fn elements(&self) -> &Elements {
+        &self.elements
+    }
+
+    pub fn styles(&self) -> &Styles {
+        &self.styles
+    }
+
+    pub fn resources(&self) -> &Resources {
+        &self.resources
+    }
+
+    pub fn resources_mut(&mut self) -> &mut Resources {
+        &mut self.resources
     }
 
     /// Runs a full layout cycle on the subtree rooted at `id`.
     #[inline]
     pub fn layout(&mut self, id: &ElementId) {
-        self.elements.layout(id, &mut self.resource);
+        self.elements.layout(id, &mut self.resources);
     }
 
     /// Returns a [`FynixCtx`] rooted at the top of the style
