@@ -114,7 +114,7 @@ impl Element for Vertical {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Label {
     pub text: String,
     pub font_size: f32,
@@ -125,7 +125,10 @@ impl Element for Label {
     where
         Self: Sized,
     {
-        Self::default()
+        Self {
+            text: Default::default(),
+            font_size: 16.0,
+        }
     }
 
     fn build(
