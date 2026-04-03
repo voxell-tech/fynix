@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use fynix::element::{Element, ElementId, ElementNodes};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 use parley::style::StyleProperty;
-use parley::{FontContext, FontFamily, LayoutContext};
+use parley::{FontContext, LayoutContext};
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {

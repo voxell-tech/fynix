@@ -6,7 +6,7 @@ use linkme::distributed_slice;
 use crate::ctx::FynixCtx;
 
 #[distributed_slice]
-pub static ELEMENT_COMPOSERS: [UntypedElementComposer] = [..];
+pub static ELEMENT_COMPOSERS: [UntypedElementComposer];
 
 /// Typed composer function for element E in world W.
 pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
@@ -14,7 +14,7 @@ pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
 /// Fully type-erased - stores TypeId for both E and W
 /// alongside a *const () function pointer.
 /// unsafe impl Sync - the pointer is always a fn pointer.
-#[allow(dead_code)]
+#[derive(Clone)]
 pub struct UntypedElementComposer {
     element_id: TypeId,
     world_id: TypeId,
@@ -50,7 +50,7 @@ impl UntypedElementComposer {
 
 /// Non-generic registry keyed on element TypeId.
 pub struct ElementComposers {
-    composers: HashMap<TypeId, UntypedElementComposer>,
+    composers: HashMap<(TypeId, TypeId), UntypedElementComposer>,
 }
 
 impl ElementComposers {
@@ -61,16 +61,20 @@ impl ElementComposers {
     }
 
     pub fn construct_from_slice() -> Self {
-        let composers = HashMap::new();
+        let mut composers = HashMap::new();
 
-        // TODO!
+        for composer in ELEMENT_COMPOSERS {
+            composers
+                .entry((composer.element_id, composer.world_id))
+                .or_insert(composer.clone());
+        }
 
         Self { composers }
     }
 
-    pub fn get_composer<E: 'static>(
+    pub fn get_composer<E: 'static, W: 'static>(
         &self,
     ) -> Option<&UntypedElementComposer> {
-        self.composers.get(&TypeId::of::<E>())
+        self.composers.get(&(TypeId::of::<E>(), TypeId::of::<W>()))
     }
 }

@@ -79,7 +79,7 @@ impl Elements {
         element: &mut E,
         world: &mut FynixCtx<W>,
     ) {
-        if let Some(c) = self.composers.get_composer::<E>() {
+        if let Some(c) = self.composers.get_composer::<E, W>() {
             c.execute(element, world);
         }
     }

@@ -45,18 +45,10 @@ impl<W> FynixCtx<'_, '_, W> {
     pub fn add<E>(&mut self) -> ElementId
     where
         E: Element,
+        W: 'static,
     {
-        let mut element = self.create_element::<E>();
-
-        // FIXME!
-        // We are not proceeding with this unsafe code.
-        // This is merely a temporary workaround
-        let elements_ptr: *const Elements = &self.fynix.elements;
-        unsafe {
-            (*elements_ptr).execute_composer(&mut element, self);
-        }
+        let element = self.create_element::<E>();
         let id = self.fynix.elements.add(element);
-
         id
     }
 
@@ -73,6 +65,7 @@ impl<W> FynixCtx<'_, '_, W> {
     ) -> ElementId
     where
         E: Element,
+        W: 'static,
     {
         let mut element = self.create_element::<E>();
         let parent_style_id = self.parent_style_id;
@@ -104,6 +97,7 @@ impl<W> FynixCtx<'_, '_, W> {
     fn create_element<E>(&mut self) -> E
     where
         E: Element,
+        W: 'static,
     {
         if self.fynix.styles.should_commit() {
             let committed_id = self.fynix.styles.current_id();
@@ -114,6 +108,14 @@ impl<W> FynixCtx<'_, '_, W> {
         if let Some(id) = &self.parent_style_id {
             self.fynix.styles.apply(&mut element, id);
         }
+
+        // Execute composer after setting styles
+        // TODO! check if this is guaranteed safe
+        let elements_ptr = &self.fynix.elements as *const Elements;
+        unsafe {
+            (*elements_ptr).execute_composer(&mut element, self);
+        }
+
         element
     }
 }
