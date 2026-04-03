@@ -7,9 +7,8 @@
 | `#[derive(Element)]` macro           | Planned, not started              |
 | Element composers                    | Planned, not started              |
 | Interactions & Events                | Planned, not started              |
-| `LayoutSolver` / rectree integration | Pending rectree API change        |
-| `fynix_elements` layout impls        | Blocked on rectree                |
-| `fynix_vello` rendering              | Blocked on layout                 |
+| `fynix_elements` layout impls        | Ready to start                    |
+| `fynix_vello` rendering              | Ready to start                    |
 | Reactivity (`Signals`)               | Deferred until after first render |
 | `TypeSlot` / typed table opt.        | Deferred, post-profiling          |
 
@@ -206,28 +205,6 @@ type.
 
 ---
 
-## Rectree API change (next major task)
-
-The current `LayoutWorld::get_solver() -> &dyn LayoutSolver`
-signature forces heap allocation due to lifetime constraints.
-The plan is to push the two solver methods directly onto
-`LayoutWorld`:
-
-```rust
-pub trait LayoutWorld {
-    fn constraint(&self, id: &NodeId, parent: Constraint) -> Constraint;
-    fn build(&self, id: &NodeId, node: &RectNode,
-             tree: &Rectree, pos: &mut Positioner) -> Size;
-}
-```
-
-`LayoutSolver` becomes a fynix-internal trait (removed from rectree).
-`Fynix` implements `LayoutWorld` by dispatching to a
-`HashMap<TypeId, Box<dyn LayoutSolver>>` keyed on element type.
-`BuildCtx` gains a `tree: &'a mut Rectree` reference so `add` also
-inserts a `RectNode`.
-
----
 
 ## Signals
 

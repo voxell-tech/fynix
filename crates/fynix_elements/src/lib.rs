@@ -5,9 +5,10 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use fynix::element::meta::ElementMetas;
-use fynix::element::{Element, ElementId};
+use fynix::element::{Element, ElementId, ElementNodes};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
+use parley::style::StyleProperty;
+use parley::{FontContext, FontFamily, LayoutContext};
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {
@@ -43,8 +44,8 @@ impl Element for Horizontal {
 
     fn build(
         &self,
-        _constraint: Constraint,
-        metas: &mut ElementMetas,
+        constraint: Constraint,
+        nodes: &mut ElementNodes,
     ) -> Size
     where
         Self: Sized,
@@ -52,14 +53,14 @@ impl Element for Horizontal {
         let mut size = Size::ZERO;
 
         for child in self.children.iter() {
-            let child_size = metas.get_size(child);
-            metas.set_translation(child, Vec2::new(size.width, 0.0));
+            let child_size = nodes.get_size(child);
+            nodes.set_translation(child, Vec2::new(size.width, 0.0));
 
             size.height = size.height.max(child_size.height);
             size.width += child_size.width;
         }
 
-        size
+        constraint.constrain(size)
     }
 }
 
@@ -92,8 +93,8 @@ impl Element for Vertical {
 
     fn build(
         &self,
-        _constraint: Constraint,
-        metas: &mut ElementMetas,
+        constraint: Constraint,
+        nodes: &mut ElementNodes,
     ) -> Size
     where
         Self: Sized,
@@ -101,20 +102,21 @@ impl Element for Vertical {
         let mut size = Size::ZERO;
 
         for child in self.children.iter() {
-            let child_size = metas.get_size(child);
-            metas.set_translation(child, Vec2::new(0.0, size.height));
+            let child_size = nodes.get_size(child);
+            nodes.set_translation(child, Vec2::new(0.0, size.height));
 
             size.width = size.width.max(child_size.width);
             size.height += child_size.height;
         }
 
-        size
+        constraint.constrain(size)
     }
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct Label {
     pub text: String,
+    pub font_size: f32,
 }
 
 impl Element for Label {
@@ -128,11 +130,33 @@ impl Element for Label {
     fn build(
         &self,
         constraint: Constraint,
-        _metas: &mut ElementMetas,
+        nodes: &mut ElementNodes,
     ) -> Size
     where
         Self: Sized,
     {
-        constraint.min
+        let size = if let Some(TextContext { font_cx, layout_cx }) =
+            nodes.get_resource_mut::<TextContext>()
+        {
+            let mut builder = layout_cx
+                .ranged_builder(font_cx, &self.text, 1.0, false);
+            builder.push_default(StyleProperty::FontSize(
+                self.font_size,
+            ));
+            // builder.push_default(parley::GenericFamily::Serif);
+            let mut layout = builder.build(&self.text);
+            layout.break_all_lines(None);
+            Size::new(layout.width(), layout.height())
+        } else {
+            Size::ZERO
+        };
+
+        constraint.constrain(size)
     }
+}
+
+#[derive(Default, Clone)]
+pub struct TextContext {
+    pub font_cx: FontContext,
+    pub layout_cx: LayoutContext,
 }

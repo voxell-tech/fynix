@@ -1,9 +1,10 @@
-use rectree::{Constraint, Rectree, Size};
+use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 
 use crate::ctx::FynixCtx;
 use crate::element::composer::ElementComposers;
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
+use crate::resource::Resources;
 use crate::type_table::TypeTable;
 
 pub mod composer;
@@ -17,6 +18,9 @@ pub mod meta;
 /// work without knowing the concrete type at the call site.
 pub struct Elements {
     id_generator: ElementIdGenerator,
+    // TODO(nixon): This needs to use `TypeSlot` for fast lookups.
+    // Implication: No implication since all `Elements` are defined by
+    // us/users. So they will need to have the derive anyways.
     elements: TypeTable<ElementId>,
     metas: ElementMetas,
     type_metas: ElementTypeMetas,
@@ -100,12 +104,21 @@ impl Elements {
     /// The caller is responsible for setting the node's constraint
     /// on [`ElementMetas`] before calling this if a specific size
     /// is required.
-    pub fn layout(&mut self, id: &ElementId) {
+    pub fn layout(
+        &mut self,
+        id: &ElementId,
+        resources: &mut Resources,
+    ) {
         let tree = ElementTree {
             elements: &self.elements,
             type_metas: &self.type_metas,
         };
-        rectree::layout(&tree, &mut self.metas, id);
+
+        let mut nodes = ElementNodes {
+            metas: &mut self.metas,
+            resources,
+        };
+        rectree::layout(&tree, &mut nodes, id);
     }
 }
 
@@ -119,29 +132,62 @@ impl Default for Elements {
 ///
 /// Borrows the type tables from [`Elements`] so that [`ElementMetas`]
 /// can be mutably borrowed separately during layout.
-struct ElementTree<'a> {
+pub struct ElementTree<'a> {
     elements: &'a TypeTable<ElementId>,
     type_metas: &'a ElementTypeMetas,
 }
 
-impl Rectree for ElementTree<'_> {
+pub struct ElementNodes<'a> {
+    metas: &'a mut ElementMetas,
+    resources: &'a mut Resources,
+}
+
+impl ElementNodes<'_> {
+    pub fn get_resource<R: 'static>(&self) -> Option<&R> {
+        self.resources.get()
+    }
+
+    pub fn get_resource_mut<R: 'static>(&mut self) -> Option<&mut R> {
+        self.resources.get_mut()
+    }
+}
+
+impl RectNodes for ElementNodes<'_> {
     type Id = ElementId;
-    type Nodes = ElementMetas;
+
+    fn get_node(
+        &self,
+        id: &ElementId,
+    ) -> Option<&RectNode<ElementId>> {
+        self.metas.get(id).map(|m| &m.node)
+    }
+
+    fn get_node_mut(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<&mut RectNode<ElementId>> {
+        self.metas.get_mut(id).map(|m| &mut m.node)
+    }
+}
+
+impl<'a> Rectree for ElementTree<'a> {
+    type Id = ElementId;
+    type Nodes = ElementNodes<'a>;
 
     fn for_each_child(
         &self,
         id: &ElementId,
-        metas: &mut ElementMetas,
-        mut f: impl FnMut(&ElementId, &mut ElementMetas),
+        nodes: &mut Self::Nodes,
+        mut f: impl FnMut(&ElementId, &mut Self::Nodes),
     ) {
-        let type_id = metas.get_type_id(id);
+        let type_id = nodes.metas.get_type_id(id);
         if let Some(type_meta) =
             type_id.and_then(|t| self.type_metas.get(&t))
         {
             (type_meta.children_fn)(
                 self.elements,
                 id,
-                &mut |child| f(child, metas),
+                &mut |child| f(child, nodes),
             );
         }
     }
@@ -149,10 +195,10 @@ impl Rectree for ElementTree<'_> {
     fn constrain(
         &self,
         id: &ElementId,
-        nodes: &ElementMetas,
+        nodes: &Self::Nodes,
         parent: Constraint,
     ) -> Constraint {
-        let type_id = nodes.get_type_id(id);
+        let type_id = nodes.metas.get_type_id(id);
         type_id
             .and_then(|t| self.type_metas.get(&t))
             .map(|m| (m.constrain_fn)(self.elements, id, parent))
@@ -163,23 +209,24 @@ impl Rectree for ElementTree<'_> {
         &self,
         id: &ElementId,
         constraint: Constraint,
-        metas: &mut ElementMetas,
+        nodes: &mut Self::Nodes,
     ) -> Size {
-        let type_id = metas.get_type_id(id);
+        let type_id = nodes.metas.get_type_id(id);
         type_id
             .and_then(|t| self.type_metas.get(&t))
             .map(|m| {
-                (m.build_fn)(self.elements, id, constraint, metas)
+                (m.build_fn)(self.elements, id, constraint, nodes)
             })
             .unwrap_or(Size::ZERO)
     }
 }
 
-/// Marker trait for widget types.
+/// Trait for element types.
 ///
 /// Implement this for any type you want to add to the element tree
-/// via [`BuildCtx::add`](crate::ctx::BuildCtx::add). The single
+/// via [`FynixCtx::add`](crate::ctx::FynixCtx::add). The single
 /// required method, `new`, must return a default (unstyled) instance.
+///
 /// Styles are applied immediately after construction by the build
 /// context.
 pub trait Element: 'static {
@@ -202,7 +249,7 @@ pub trait Element: 'static {
     fn build(
         &self,
         constraint: Constraint,
-        layouter: &mut impl RectContext<Id = ElementId>,
+        nodes: &mut ElementNodes,
     ) -> Size
     where
         Self: Sized,
