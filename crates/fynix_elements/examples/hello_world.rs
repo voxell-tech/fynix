@@ -1,9 +1,26 @@
+use std::sync::Arc;
+
 use fynix::Fynix;
-use fynix_elements::Label;
+use fynix_elements::{Label, TextContext};
+use parley::fontique::Blob;
+
+const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 
 fn main() {
     let mut fynix = Fynix::new();
     fynix_elements::init_resources(&mut fynix);
+
+    if let Some(text_cx) =
+        fynix.resources_mut().get_mut::<TextContext>()
+    {
+        let blob = Blob::new(Arc::new(FONT));
+        let ids =
+            text_cx.font_cx.collection.register_fonts(blob, None);
+        text_cx.font_cx.collection.set_generic_families(
+            parley::fontique::GenericFamily::SansSerif,
+            ids.into_iter().map(|(f, _)| f),
+        );
+    }
 
     let mut world = ();
     let label_id = {
