@@ -14,7 +14,7 @@ pub struct ElementMeta {
 
 /// Per-element layout node storage, keyed by [`ElementId`].
 ///
-/// Implements [`RectNodes`] so it can be passed directly to
+/// Implements [`rectree::RectNodes`] so it can be passed directly to
 /// rectree's layout free functions.
 pub struct ElementMetas {
     map: HashMap<ElementId, ElementMeta>,

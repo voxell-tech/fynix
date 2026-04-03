@@ -10,7 +10,7 @@ pub mod meta;
 /// Type-erased storage for all element instances.
 ///
 /// Internally holds one [`TypeTable`] slot per element type. The
-/// [`TypeId`] of each element is stored inside [`ElementMetas`]
+/// [`core::any::TypeId`] of each element is stored inside [`ElementMetas`]
 /// so that polymorphic access (via [`Self::get_dyn`]) and removal
 /// work without knowing the concrete type at the call site.
 pub struct Elements {
