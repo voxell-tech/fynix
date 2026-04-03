@@ -14,22 +14,22 @@ pub mod meta;
 /// so that polymorphic access (via [`Self::get_dyn`]) and removal
 /// work without knowing the concrete type at the call site.
 pub struct Elements {
-    id_generator: ElementIdGenerator,
     // TODO(nixon): This needs to use `TypeSlot` for fast lookups.
     // Implication: No implication since all `Elements` are defined by
     // us/users. So they will need to have the derive anyways.
-    elements: TypeTable<ElementId>,
-    metas: ElementMetas,
-    type_metas: ElementTypeMetas,
+    pub elements: TypeTable<ElementId>,
+    pub metas: ElementMetas,
+    pub type_metas: ElementTypeMetas,
+    id_generator: ElementIdGenerator,
 }
 
 impl Elements {
     pub fn new() -> Self {
         Self {
-            id_generator: IdGenerator::new(),
             elements: TypeTable::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
+            id_generator: IdGenerator::new(),
         }
     }
 

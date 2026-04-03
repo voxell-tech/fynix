@@ -12,3 +12,6 @@ repository.workspace = true
 fynix.workspace = true
 field_path.workspace = true
 parley.workspace = true
+
+[dev-dependencies]
+parley = { workspace = true, features = ["system"] }

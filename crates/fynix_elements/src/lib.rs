@@ -5,10 +5,11 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use fynix::Fynix;
 use fynix::element::{Element, ElementId, ElementNodes};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 use parley::style::StyleProperty;
-use parley::{FontContext, FontFamily, LayoutContext};
+use parley::{FontContext, LayoutContext};
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {
@@ -159,4 +160,10 @@ impl Element for Label {
 pub struct TextContext {
     pub font_cx: FontContext,
     pub layout_cx: LayoutContext,
+}
+
+/// Initialize the resources needed for the elements in this crate to
+/// work correctly.
+pub fn init_resources(fynix: &mut Fynix) {
+    fynix.resources_mut().init::<TextContext>();
 }
