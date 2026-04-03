@@ -39,12 +39,12 @@ impl UntypedElementComposer {
         element: &mut E,
         ctx: &mut FynixCtx<W>,
     ) {
-        assert_eq!(
+        debug_assert_eq!(
             TypeId::of::<E>(),
             self.element_id,
             "Element type mismatch"
         );
-        assert_eq!(
+        debug_assert_eq!(
             TypeId::of::<W>(),
             self.world_id,
             "World type mismatch"

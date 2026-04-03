@@ -4,6 +4,7 @@
 extern crate alloc;
 
 pub use fynix_macros::fynix;
+pub use linkme;
 pub use rectree;
 
 use crate::ctx::FynixCtx;

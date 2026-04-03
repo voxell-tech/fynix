@@ -10,8 +10,9 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
     FnArg, GenericArgument, Ident, ItemFn, PathArguments, Result,
-    Type, TypePath, TypeReference, parse::Parse, parse::ParseStream,
+    Type, TypePath, TypeReference
 };
+use syn::parse::{Parse, ParseStream};
 
 struct FynixAttr {
     ident: Ident,
@@ -36,7 +37,7 @@ fn extract_element_type(ty: &Type) -> Result<&Type> {
     } else {
         Err(syn::Error::new_spanned(
             ty,
-            "First parameter must be &mut E",
+            "First parameter must be `&mut E`",
         ))
     }
 }
@@ -58,7 +59,7 @@ fn extract_context_type(ty: &Type) -> Result<&Type> {
     }
     Err(syn::Error::new_spanned(
         ty,
-        "Second parameter must be &mut FynixCtx<W>",
+        "Second parameter must be `&mut FynixCtx<W>`",
     ))
 }
 
@@ -74,7 +75,7 @@ pub fn fynix(attr: TokenStream, item: TokenStream) -> TokenStream {
         },
         i => syn::Error::new_spanned(
             attr.ident,
-            format!("'{}' is not supported.", i),
+            format!("'{}' is not supported. Supported keywords include: 'compose'", i),
         )
         .to_compile_error()
         .into(),
@@ -100,7 +101,7 @@ fn process_fynix_compose(
     if params.len() != 2 {
         return Err(syn::Error::new_spanned(
             params,
-            "Expected exactly 2 parameters",
+            "Expected pattern `fn(e: &mut E, ctx: &mut FynixCtx<W>) { ... }`",
         ));
     }
 
@@ -128,12 +129,12 @@ fn process_fynix_compose(
     let output = quote! {
         #item
 
-        #[linkme::distributed_slice(
-            fynix::ELEMENT_COMPOSERS
+        #[::fynix::linkme::distributed_slice(
+            ::fynix::ELEMENT_COMPOSERS
         )]
         static #static_name:
-            fynix::UntypedElementComposer =
-            fynix::UntypedElementComposer::new::<
+            ::fynix::UntypedElementComposer =
+            ::fynix::UntypedElementComposer::new::<
                 #element_ty,
                 #context_ty
             >(#fn_name);
