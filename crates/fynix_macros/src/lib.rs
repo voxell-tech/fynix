@@ -8,11 +8,11 @@ use alloc::string::ToString;
 
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::parse::{Parse, ParseStream};
 use syn::{
     FnArg, GenericArgument, Ident, ItemFn, PathArguments, Result,
-    Type, TypePath, TypeReference
+    Type, TypePath, TypeReference,
 };
-use syn::parse::{Parse, ParseStream};
 
 struct FynixAttr {
     ident: Ident,

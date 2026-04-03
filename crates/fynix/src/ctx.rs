@@ -1,7 +1,8 @@
 use field_path::field_accessor::FieldAccessor;
 
 use crate::Fynix;
-use crate::element::{Element, ElementId, Elements};
+use crate::element::composer::ElementComposers;
+use crate::element::{Element, ElementId};
 use crate::style::{StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -24,6 +25,7 @@ pub struct FynixCtx<'f, 'w, W> {
     parent_style_id: Option<StyleId>,
     fynix: &'f mut Fynix,
     pub world: &'w mut W,
+    composers: ElementComposers,
 }
 
 impl<W> FynixCtx<'_, '_, W> {
@@ -36,6 +38,7 @@ impl<W> FynixCtx<'_, '_, W> {
             parent_style_id,
             fynix,
             world,
+            composers: ElementComposers::construct_from_slice(),
         }
     }
 
@@ -108,14 +111,22 @@ impl<W> FynixCtx<'_, '_, W> {
             self.fynix.styles.apply(&mut element, id);
         }
 
-        // Execute composer after setting styles
-        // TODO! check if this is guaranteed safe
-        let elements_ptr = &self.fynix.elements as *const Elements;
-        unsafe {
-            (*elements_ptr).execute_composer(&mut element, self);
-        }
+        self.execute_composer(&mut element);
 
         element
+    }
+
+    /// Executes the composer associated with Element E
+    ///
+    /// Does nothing if no composer is associated.
+    pub fn execute_composer<E: Element>(&mut self, element: &mut E)
+    where
+        W: 'static,
+    {
+        if let Some(c) = self.composers.get_composer::<E, W>() {
+            let c = c.clone();
+            c.execute(element, self);
+        }
     }
 }
 
