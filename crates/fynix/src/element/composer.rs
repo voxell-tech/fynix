@@ -33,35 +33,11 @@ impl UntypedElementComposer {
             compose_fn: f as *const (),
         }
     }
-
-    pub fn execute<E: 'static, W: 'static>(
-        &self,
-        element: &mut E,
-        ctx: &mut FynixCtx<W>,
-    ) {
-        debug_assert_eq!(
-            TypeId::of::<E>(),
-            self.element_id,
-            "Element type mismatch"
-        );
-        debug_assert_eq!(
-            TypeId::of::<W>(),
-            self.world_id,
-            "World type mismatch"
-        );
-
-        let f = unsafe {
-            core::mem::transmute::<*const (), ElementComposerFn<E, W>>(
-                self.compose_fn,
-            )
-        };
-        f(element, ctx);
-    }
 }
 
 /// Non-generic registry keyed on element TypeId.
 pub struct ElementComposers {
-    composers: HashMap<ComposerId, UntypedElementComposer>,
+    composers: HashMap<ComposerId, *const ()>,
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -101,7 +77,7 @@ impl ElementComposers {
                     element_id: composer.element_id,
                     world_id: composer.world_id,
                 })
-                .or_insert(*composer);
+                .or_insert(composer.compose_fn);
         }
 
         Self { composers }
@@ -109,12 +85,18 @@ impl ElementComposers {
 
     pub fn get_composer<E: 'static, W: 'static>(
         &self,
-    ) -> Option<UntypedElementComposer> {
+    ) -> Option<ElementComposerFn<E, W>> {
         self.composers
             .get(&ComposerId::from((
                 TypeId::of::<E>(),
                 TypeId::of::<W>(),
             )))
             .copied()
+            .map(|c| unsafe {
+                core::mem::transmute::<
+                    *const (),
+                    ElementComposerFn<E, W>,
+                >(c)
+            })
     }
 }
