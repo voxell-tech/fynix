@@ -2,6 +2,7 @@
 name = "fynix"
 description = "A composable, declarative UI framework."
 keywords = ["ui", "gui", "declarative", "style", "reactive"]
+members = ["examples/*"]
 categories = ["gui"]
 readme = "README.md"
 version.workspace = true

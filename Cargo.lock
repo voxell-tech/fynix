@@ -365,22 +365,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fynix_composer_examples"
-version = "0.1.0"
-dependencies = [
- "field_path",
- "fynix",
- "fynix_elements",
- "fynix_vello",
- "hashbrown 0.16.1",
- "linkme",
- "parley",
- "rectree",
- "sparse_map",
- "vello",
-]
-
-[[package]]
 name = "fynix_elements"
 version = "0.1.0"
 dependencies = [
