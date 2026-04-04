@@ -1,6 +1,7 @@
 use field_path::field_accessor::FieldAccessor;
 
 use crate::Fynix;
+use crate::element::composer::ElementComposers;
 use crate::element::{Element, ElementId};
 use crate::style::{StyleId, StyleValue};
 
@@ -24,6 +25,7 @@ pub struct FynixCtx<'f, 'w, W> {
     parent_style_id: Option<StyleId>,
     fynix: &'f mut Fynix,
     pub world: &'w mut W,
+    composers: ElementComposers,
 }
 
 impl<W> FynixCtx<'_, '_, W> {
@@ -36,6 +38,7 @@ impl<W> FynixCtx<'_, '_, W> {
             parent_style_id,
             fynix,
             world,
+            composers: ElementComposers::construct_from_slice(),
         }
     }
 
@@ -45,6 +48,7 @@ impl<W> FynixCtx<'_, '_, W> {
     pub fn add<E>(&mut self) -> ElementId
     where
         E: Element,
+        W: 'static,
     {
         let element = self.create_element::<E>();
         self.fynix.elements.add(element)
@@ -63,6 +67,7 @@ impl<W> FynixCtx<'_, '_, W> {
     ) -> ElementId
     where
         E: Element,
+        W: 'static,
     {
         let mut element = self.create_element::<E>();
         let parent_style_id = self.parent_style_id;
@@ -94,6 +99,7 @@ impl<W> FynixCtx<'_, '_, W> {
     fn create_element<E>(&mut self) -> E
     where
         E: Element,
+        W: 'static,
     {
         if self.fynix.styles.should_commit() {
             let committed_id = self.fynix.styles.current_id();
@@ -104,7 +110,22 @@ impl<W> FynixCtx<'_, '_, W> {
         if let Some(id) = &self.parent_style_id {
             self.fynix.styles.apply(&mut element, id);
         }
+
+        self.execute_composer(&mut element);
+
         element
+    }
+
+    /// Executes the composer associated with Element E
+    ///
+    /// Does nothing if no composer is associated.
+    pub fn execute_composer<E: Element>(&mut self, element: &mut E)
+    where
+        W: 'static,
+    {
+        if let Some(c) = self.composers.get_composer::<E, W>() {
+            c(element, self);
+        }
     }
 }
 

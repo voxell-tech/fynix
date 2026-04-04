@@ -5,6 +5,7 @@ use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
 use crate::type_table::TypeTable;
 
+pub mod composer;
 pub mod meta;
 
 /// Type-erased storage for all element instances.
