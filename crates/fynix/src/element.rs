@@ -227,17 +227,14 @@ pub trait Element: 'static {
         parent_constraint
     }
 
-    #[expect(unused_variables)]
+    // #[expect(unused_variables)]
     fn build(
         &self,
         constraint: Constraint,
         nodes: &mut ElementNodes,
     ) -> Size
     where
-        Self: Sized,
-    {
-        constraint.min
-    }
+        Self: Sized;
 }
 
 /// Generational ID for element instances.
