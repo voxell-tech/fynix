@@ -1,7 +1,8 @@
 use core::any::TypeId;
 
 use hashbrown::HashMap;
-use rectree::{Constraint, RectNode, Size};
+use imaging::PaintSink;
+use rectree::{Constraint, RectNode, Size, Vec2};
 
 use crate::element::{Element, ElementId, ElementNodes};
 use crate::type_table::TypeTable;
@@ -106,6 +107,7 @@ pub struct ElementTypeMeta {
     pub children_fn: ChildrenElementFn,
     pub constrain_fn: ConstrainElementFn,
     pub build_fn: BuildElementFn,
+    pub render_fn: RenderElementFn,
 }
 
 impl ElementTypeMeta {
@@ -115,6 +117,7 @@ impl ElementTypeMeta {
             children_fn: for_each_child::<E>,
             constrain_fn: constrain_element::<E>,
             build_fn: build_element::<E>,
+            render_fn: render_element::<E>,
         }
     }
 
@@ -208,4 +211,26 @@ pub fn build_element<E: Element>(
         .get::<E>(id)
         .map(|e| e.build(constraint, nodes))
         .unwrap_or(Size::ZERO)
+}
+
+/// Calls [`Element::render`] without knowing the concrete type.
+pub type RenderElementFn = fn(
+    table: &TypeTable<ElementId>,
+    id: &ElementId,
+    painter: &mut dyn PaintSink,
+    pos: Vec2,
+    size: Size,
+);
+
+#[inline]
+pub fn render_element<E: Element>(
+    table: &TypeTable<ElementId>,
+    id: &ElementId,
+    painter: &mut dyn PaintSink,
+    pos: Vec2,
+    size: Size,
+) {
+    if let Some(element) = table.get::<E>(id) {
+        element.render(painter, pos, size);
+    }
 }

@@ -3,6 +3,8 @@
 
 extern crate alloc;
 
+use imaging::PaintSink;
+
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
 use crate::resource::Resources;
@@ -59,6 +61,14 @@ impl Fynix {
     #[inline]
     pub fn layout(&mut self, id: &ElementId) {
         self.elements.layout(id, &mut self.resources);
+    }
+
+    /// Renders the subtree rooted at `id` into `sink`.
+    ///
+    /// Layout must be complete before calling this.
+    #[inline]
+    pub fn render(&self, id: &ElementId, sink: &mut impl PaintSink) {
+        self.elements.render(id, sink);
     }
 
     /// Returns a [`FynixCtx`] rooted at the top of the style

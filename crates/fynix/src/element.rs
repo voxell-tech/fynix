@@ -1,4 +1,5 @@
-use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
+use imaging::PaintSink;
+use rectree::{Constraint, RectNode, RectNodes, Rectree, Size, Vec2};
 
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
@@ -80,6 +81,42 @@ impl Elements {
         false
     }
 
+    /// Renders the subtree rooted at `id` into `sink`.
+    ///
+    /// Each element's own visual layer is painted via
+    /// [`Element::render`] before its children are visited, so
+    /// parents always draw behind their children.
+    ///
+    /// Layout must be complete before calling this - positions come
+    /// from [`rectree::RectNode::world_translation`].
+    pub fn render(
+        &self,
+        id: &ElementId,
+        painter: &mut impl PaintSink,
+    ) {
+        let Some(meta) = self.metas.get(id) else {
+            return;
+        };
+        let pos = meta.node.world_translation;
+        let size = meta.node.size;
+        let type_id = meta.type_id;
+
+        if let Some(type_meta) = self.type_metas.get(&type_id) {
+            (type_meta.render_fn)(
+                &self.elements,
+                id,
+                painter,
+                pos,
+                size,
+            );
+            (type_meta.children_fn)(
+                &self.elements,
+                id,
+                &mut |child| self.render(child, painter),
+            );
+        }
+    }
+
     /// Runs a full three-pass layout cycle on the subtree rooted at
     /// `id`.
     ///
@@ -134,6 +171,8 @@ impl ElementNodes<'_> {
     }
 }
 
+// TODO: Hide this implementation to the `build` fn. Maybe add a
+// `ElementNodesBuilder` wrapper struct.
 impl RectNodes for ElementNodes<'_> {
     type Id = ElementId;
 
@@ -197,7 +236,11 @@ impl<'a> Rectree for ElementTree<'a> {
         type_id
             .and_then(|t| self.type_metas.get(&t))
             .map(|m| {
-                (m.build_fn)(self.elements, id, constraint, nodes)
+                m.get_dyn(self.elements, id)
+                    .map(|e| e.build(constraint, nodes))
+                    .unwrap_or_default()
+
+                // (m.build_fn)(self.elements, id, constraint, nodes)
             })
             .unwrap_or(Size::ZERO)
     }
@@ -227,14 +270,31 @@ pub trait Element: 'static {
         parent_constraint
     }
 
-    // #[expect(unused_variables)]
     fn build(
         &self,
         constraint: Constraint,
         nodes: &mut ElementNodes,
-    ) -> Size
-    where
-        Self: Sized;
+    ) -> Size;
+
+    /// Paints the element's own visual layer into `painter`.
+    ///
+    /// `pos` is the element's absolute world-space origin and `size`
+    /// is its resolved layout size. Both values come from the layout
+    /// pass and are safe to use for rendering coordinates.
+    ///
+    /// Child elements are rendered by the tree walker after this
+    /// method returns - do not recurse into children here.
+    ///
+    /// The default implementation is a no-op, suitable for purely
+    /// structural elements that have no visual of their own.
+    #[expect(unused_variables)]
+    fn render(
+        &self,
+        painter: &mut dyn PaintSink,
+        pos: Vec2,
+        size: Size,
+    ) {
+    }
 }
 
 /// Generational ID for element instances.

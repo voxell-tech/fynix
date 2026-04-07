@@ -48,6 +48,38 @@ children: BTreeMap<ElementId, LayoutData>,
 
 One element can have at most one `#[children]` field.
 
+### `#[child]` field attribute
+
+Fields marked `#[child]` hold a single `ElementId`. Use this for
+wrapper elements that contain exactly one child and need no custom
+layout logic. The macro implements both `Element::children()` and
+`Element::build()` automatically.
+
+```rust
+#[derive(Element, Default)]
+struct Button {
+    pub label: String,
+    #[child]
+    child: ElementId,
+}
+```
+
+Generated `build` delegates sizing to the child:
+
+```rust
+fn build(&self, constraint: Constraint, nodes: &mut ElementNodes) -> Size {
+    nodes.get_size(&self.child)
+        .map(|s| constraint.constrain(s))
+        .unwrap_or(constraint.min)
+}
+```
+
+Override `build` manually when the wrapper needs custom sizing on
+top of its child.
+
+One element can have at most one `#[child]` or `#[children]` field,
+not both.
+
 ---
 
 ## Element composers
