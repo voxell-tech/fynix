@@ -10,6 +10,7 @@ use crate::element::{ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
+pub use imaging;
 pub use rectree;
 
 pub mod any_wrapper;

@@ -132,6 +132,7 @@ mod tests {
 
         fn build(
             &self,
+            _id: &ElementId,
             constraint: Constraint,
             _nodes: &mut ElementNodes,
         ) -> rectree::Size
@@ -160,6 +161,7 @@ mod tests {
 
         fn build(
             &self,
+            _id: &ElementId,
             constraint: Constraint,
             nodes: &mut ElementNodes,
         ) -> Size

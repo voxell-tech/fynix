@@ -4,23 +4,20 @@ extern crate alloc;
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::cell::RefCell;
 
 use fynix::Fynix;
+use fynix::element::meta::ElementMetas;
 use fynix::element::{Element, ElementId, ElementNodes};
+use fynix::imaging::record::{Glyph, Scene, replay_transformed};
+use fynix::imaging::{Composite, GlyphRunRef, PaintSink};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
-use imaging::Composite;
-use imaging::GlyphRunRef;
-use imaging::PaintSink;
-use imaging::record::Glyph as ImagingGlyph;
 use kurbo::Affine;
-use parley::PositionedLayoutItem;
 use parley::style::StyleProperty;
-use parley::{FontContext, Layout, LayoutContext};
-use peniko::BrushRef;
-use peniko::Color;
-use peniko::Fill;
-use peniko::Style;
+use parley::{
+    Alignment, AlignmentOptions, FontStyle, PositionedLayoutItem,
+};
+use parley::{FontContext, LayoutContext};
+use peniko::{Brush, BrushRef, Color, Fill, Style};
 
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {
@@ -56,6 +53,7 @@ impl Element for Horizontal {
 
     fn build(
         &self,
+        _id: &ElementId,
         constraint: Constraint,
         nodes: &mut ElementNodes,
     ) -> Size {
@@ -102,6 +100,7 @@ impl Element for Vertical {
 
     fn build(
         &self,
+        _id: &ElementId,
         constraint: Constraint,
         nodes: &mut ElementNodes,
     ) -> Size {
@@ -119,28 +118,13 @@ impl Element for Vertical {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Label {
     pub text: String,
+    pub fill: Brush,
     pub font_size: f32,
-    pub color: Color,
-    // Parley's default brush type is `[u8; 4]` (RGBA). We only use
-    // the layout for glyph positions; the actual color comes from
-    // `self.color` at render time via imaging.
-    layout_cache: RefCell<Option<Layout<[u8; 4]>>>,
-}
-
-impl core::fmt::Debug for Label {
-    fn fmt(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        f.debug_struct("Label")
-            .field("text", &self.text)
-            .field("font_size", &self.font_size)
-            .field("color", &self.color)
-            .finish_non_exhaustive()
-    }
+    pub font_style: FontStyle,
+    pub alignment: Alignment,
 }
 
 impl Element for Label {
@@ -150,14 +134,16 @@ impl Element for Label {
     {
         Self {
             text: String::new(),
+            fill: Brush::Solid(Color::WHITE),
             font_size: 16.0,
-            color: Color::BLACK,
-            layout_cache: RefCell::new(None),
+            font_style: Default::default(),
+            alignment: Default::default(),
         }
     }
 
     fn build(
         &self,
+        id: &ElementId,
         constraint: Constraint,
         nodes: &mut ElementNodes,
     ) -> Size {
@@ -169,11 +155,66 @@ impl Element for Label {
             builder.push_default(StyleProperty::FontSize(
                 self.font_size,
             ));
+            builder.push_default(StyleProperty::FontStyle(
+                self.font_style,
+            ));
+            builder.push_default(StyleProperty::Brush(
+                self.fill.clone(),
+            ));
+
             let mut layout = builder.build(&self.text);
-            layout.break_all_lines(None);
-            let size = Size::new(layout.width(), layout.height());
-            *self.layout_cache.borrow_mut() = Some(layout);
-            size
+            let max_width = constraint
+                .max
+                .width
+                .is_finite()
+                .then_some(constraint.max.width);
+            layout.break_all_lines(max_width);
+            layout.align(
+                max_width,
+                self.alignment,
+                AlignmentOptions::default(),
+            );
+
+            let mut scene = Scene::new();
+
+            for line in layout.lines() {
+                for item in line.items() {
+                    let PositionedLayoutItem::GlyphRun(glyph_run) =
+                        item
+                    else {
+                        continue;
+                    };
+
+                    let style = glyph_run.style();
+                    let run = glyph_run.run();
+                    let mut glyphs = glyph_run
+                        .positioned_glyphs()
+                        .map(|g| Glyph {
+                            id: g.id,
+                            x: g.x,
+                            y: g.y,
+                        });
+
+                    scene.glyph_run(
+                        GlyphRunRef {
+                            font: run.font(),
+                            transform: Affine::IDENTITY,
+                            glyph_transform: None,
+                            font_size: run.font_size(),
+                            hint: false,
+                            normalized_coords: run
+                                .normalized_coords(),
+                            style: &Style::Fill(Fill::NonZero),
+                            brush: BrushRef::from(&style.brush),
+                            composite: Composite::default(),
+                        },
+                        &mut glyphs,
+                    );
+                }
+            }
+
+            nodes.cache_scene(id, scene);
+            Size::new(layout.width(), layout.height())
         } else {
             Size::ZERO
         };
@@ -183,55 +224,25 @@ impl Element for Label {
 
     fn render(
         &self,
+        id: &ElementId,
         painter: &mut dyn PaintSink,
-        pos: Vec2,
-        _size: Size,
+        metas: &ElementMetas,
     ) {
-        let cache = self.layout_cache.borrow();
-        let Some(layout) = cache.as_ref() else { return };
-
+        let Some(meta) = metas.get(id) else { return };
+        let Some(scene) = meta.cached_scene.as_ref() else {
+            return;
+        };
+        let pos = meta.node.world_translation;
         let transform =
             Affine::translate((pos.x as f64, pos.y as f64));
-        let style = Style::Fill(Fill::NonZero);
-
-        for line in layout.lines() {
-            for item in line.items() {
-                let PositionedLayoutItem::GlyphRun(glyph_run) = item
-                else {
-                    continue;
-                };
-                let run = glyph_run.run();
-                let mut glyphs =
-                    glyph_run.positioned_glyphs().map(|g| {
-                        ImagingGlyph {
-                            id: g.id,
-                            x: g.x,
-                            y: g.y,
-                        }
-                    });
-                painter.glyph_run(
-                    GlyphRunRef {
-                        font: run.font(),
-                        transform,
-                        glyph_transform: None,
-                        font_size: run.font_size(),
-                        hint: false,
-                        normalized_coords: run.normalized_coords(),
-                        style: &style,
-                        brush: BrushRef::Solid(self.color),
-                        composite: Composite::default(),
-                    },
-                    &mut glyphs,
-                );
-            }
-        }
+        replay_transformed(scene, painter, transform);
     }
 }
 
 #[derive(Default, Clone)]
 pub struct TextContext {
     pub font_cx: FontContext,
-    pub layout_cx: LayoutContext,
+    pub layout_cx: LayoutContext<Brush>,
 }
 
 /// Initialize the resources needed for the elements in this crate to

@@ -7,7 +7,9 @@ use fynix::element::ElementId;
 use fynix_elements::{Horizontal, Label, TextContext, Vertical};
 use imaging_vello::VelloSceneSink;
 use kurbo::Rect;
+use parley::FontStyle;
 use parley::fontique::{Blob, GenericFamily};
+use peniko::color::palette::css;
 use pollster::block_on;
 use vello::peniko::Color;
 use vello::util::{RenderContext, RenderSurface};
@@ -69,8 +71,8 @@ impl HelloWorldApp<'_> {
             ctx.add_with::<Vertical>(|v, ctx| {
                 ctx.set(field_accessor!(<Label>::font_size), 24.0);
                 ctx.set(
-                    field_accessor!(<Label>::color),
-                    Color::WHITE,
+                    field_accessor!(<Label>::fill),
+                    Color::WHITE.into(),
                 );
 
                 v.add(ctx.add_with::<Label>(|label, _ctx| {
@@ -86,16 +88,22 @@ impl HelloWorldApp<'_> {
                 v.add(ctx.add_with::<Horizontal>(|v, ctx| {
                     ctx.set(
                         field_accessor!(<Label>::font_size),
-                        24.0,
+                        16.0,
                     );
                     ctx.set(
-                        field_accessor!(<Label>::color),
-                        Color::WHITE,
+                        field_accessor!(<Label>::fill),
+                        css::AQUA.into(),
                     );
 
                     v.add(ctx.add_with::<Label>(|label, _ctx| {
                         label.text = "Hello, Fynix!".into();
                     }));
+
+                    ctx.set(
+                        field_accessor!(<Label>::font_style),
+                        FontStyle::Italic,
+                    );
+
                     v.add(ctx.add_with::<Label>(|label, _ctx| {
                         label.text = "One".into();
                     }));

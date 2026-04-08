@@ -2,7 +2,8 @@ use core::any::TypeId;
 
 use hashbrown::HashMap;
 use imaging::PaintSink;
-use rectree::{Constraint, RectNode, Size, Vec2};
+use imaging::record::Scene;
+use rectree::{Constraint, RectNode, Size};
 
 use crate::element::{Element, ElementId, ElementNodes};
 use crate::type_table::TypeTable;
@@ -11,6 +12,7 @@ use crate::type_table::TypeTable;
 pub struct ElementMeta {
     pub type_id: TypeId,
     pub node: RectNode<ElementId>,
+    pub cached_scene: Option<Scene>,
 }
 
 /// Per-element layout node storage, keyed by [`ElementId`].
@@ -34,6 +36,7 @@ impl ElementMetas {
             ElementMeta {
                 type_id: TypeId::of::<E>(),
                 node: RectNode::new(None),
+                cached_scene: None,
             },
         );
     }
@@ -209,7 +212,7 @@ pub fn build_element<E: Element>(
 ) -> Size {
     table
         .get::<E>(id)
-        .map(|e| e.build(constraint, nodes))
+        .map(|e| e.build(id, constraint, nodes))
         .unwrap_or(Size::ZERO)
 }
 
@@ -218,8 +221,7 @@ pub type RenderElementFn = fn(
     table: &TypeTable<ElementId>,
     id: &ElementId,
     painter: &mut dyn PaintSink,
-    pos: Vec2,
-    size: Size,
+    metas: &ElementMetas,
 );
 
 #[inline]
@@ -227,10 +229,9 @@ pub fn render_element<E: Element>(
     table: &TypeTable<ElementId>,
     id: &ElementId,
     painter: &mut dyn PaintSink,
-    pos: Vec2,
-    size: Size,
+    metas: &ElementMetas,
 ) {
     if let Some(element) = table.get::<E>(id) {
-        element.render(painter, pos, size);
+        element.render(id, painter, metas);
     }
 }

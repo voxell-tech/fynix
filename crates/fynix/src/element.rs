@@ -1,5 +1,6 @@
 use imaging::PaintSink;
-use rectree::{Constraint, RectNode, RectNodes, Rectree, Size, Vec2};
+use imaging::record::Scene;
+use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
@@ -97,8 +98,6 @@ impl Elements {
         let Some(meta) = self.metas.get(id) else {
             return;
         };
-        let pos = meta.node.world_translation;
-        let size = meta.node.size;
         let type_id = meta.type_id;
 
         if let Some(type_meta) = self.type_metas.get(&type_id) {
@@ -106,8 +105,7 @@ impl Elements {
                 &self.elements,
                 id,
                 painter,
-                pos,
-                size,
+                &self.metas,
             );
             (type_meta.children_fn)(
                 &self.elements,
@@ -169,6 +167,19 @@ impl ElementNodes<'_> {
     pub fn get_resource_mut<R: 'static>(&mut self) -> Option<&mut R> {
         self.resources.get_mut()
     }
+
+    pub fn cache_scene(
+        &mut self,
+        id: &ElementId,
+        scene: Scene,
+    ) -> bool {
+        if let Some(meta) = self.metas.get_mut(id) {
+            meta.cached_scene = Some(scene);
+            return true;
+        }
+
+        false
+    }
 }
 
 // TODO: Hide this implementation to the `build` fn. Maybe add a
@@ -222,7 +233,13 @@ impl<'a> Rectree for ElementTree<'a> {
         let type_id = nodes.metas.get_type_id(id);
         type_id
             .and_then(|t| self.type_metas.get(&t))
-            .map(|m| (m.constrain_fn)(self.elements, id, parent))
+            .map(|m| {
+                m.get_dyn(self.elements, id)
+                    .map(|e| e.constrain(parent))
+                    .unwrap_or(parent)
+
+                // (m.constrain_fn)(self.elements, id, parent)
+            })
             .unwrap_or(parent)
     }
 
@@ -237,7 +254,7 @@ impl<'a> Rectree for ElementTree<'a> {
             .and_then(|t| self.type_metas.get(&t))
             .map(|m| {
                 m.get_dyn(self.elements, id)
-                    .map(|e| e.build(constraint, nodes))
+                    .map(|e| e.build(id, constraint, nodes))
                     .unwrap_or_default()
 
                 // (m.build_fn)(self.elements, id, constraint, nodes)
@@ -272,6 +289,7 @@ pub trait Element: 'static {
 
     fn build(
         &self,
+        id: &ElementId,
         constraint: Constraint,
         nodes: &mut ElementNodes,
     ) -> Size;
@@ -290,9 +308,9 @@ pub trait Element: 'static {
     #[expect(unused_variables)]
     fn render(
         &self,
+        id: &ElementId,
         painter: &mut dyn PaintSink,
-        pos: Vec2,
-        size: Size,
+        metas: &ElementMetas,
     ) {
     }
 }
