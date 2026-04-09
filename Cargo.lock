@@ -606,9 +606,7 @@ dependencies = [
  "field_path",
  "fynix",
  "imaging_vello",
- "kurbo",
  "parley",
- "peniko",
  "pollster",
  "vello",
  "winit",
@@ -794,7 +792,7 @@ dependencies = [
 [[package]]
 name = "imaging"
 version = "0.0.1"
-source = "git+https://github.com/forest-rs/imaging?rev=0a6a6e3#0a6a6e3c5561f9e3b411b7ae1018493401c90485"
+source = "git+https://github.com/forest-rs/imaging?rev=e18778f#e18778fd1951c75bde56e2cf2e97ade01dc16292"
 dependencies = [
  "kurbo",
  "peniko",
@@ -803,7 +801,7 @@ dependencies = [
 [[package]]
 name = "imaging_vello"
 version = "0.0.1"
-source = "git+https://github.com/forest-rs/imaging?rev=0a6a6e3#0a6a6e3c5561f9e3b411b7ae1018493401c90485"
+source = "git+https://github.com/forest-rs/imaging?rev=e18778f#e18778fd1951c75bde56e2cf2e97ade01dc16292"
 dependencies = [
  "imaging",
  "kurbo",

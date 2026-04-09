@@ -9,12 +9,12 @@ use fynix_elements::{
     Horizontal, Label, TextContext, Vertical, WindowSize,
 };
 use imaging_vello::VelloSceneSink;
-use kurbo::Rect;
 use parley::FontStyle;
 use parley::fontique::{Blob, GenericFamily};
-use peniko::color::palette::css;
 use pollster::block_on;
+use vello::kurbo::Rect;
 use vello::peniko::Color;
+use vello::peniko::color::palette::css;
 use vello::util::{RenderContext, RenderSurface};
 use vello::wgpu;
 use vello::{

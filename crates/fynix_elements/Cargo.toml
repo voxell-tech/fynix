@@ -11,9 +11,7 @@ repository.workspace = true
 [dependencies]
 fynix.workspace = true
 field_path.workspace = true
-kurbo.workspace = true
 parley.workspace = true
-peniko.workspace = true
 
 [dev-dependencies]
 imaging_vello.workspace = true

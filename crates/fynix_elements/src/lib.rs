@@ -8,16 +8,16 @@ use alloc::vec::Vec;
 use fynix::Fynix;
 use fynix::element::meta::ElementMetas;
 use fynix::element::{Element, ElementId, ElementNodes};
+use fynix::imaging::kurbo::Affine;
+use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
-use fynix::imaging::{Composite, GlyphRunRef, PaintSink};
+use fynix::imaging::{Composite, GlyphRunRef, PaintSink, kurbo};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
-use kurbo::Affine;
 use parley::style::StyleProperty;
 use parley::{
     Alignment, AlignmentOptions, FontStyle, PositionedLayoutItem,
 };
 use parley::{FontContext, LayoutContext};
-use peniko::{Brush, BrushRef, Color, Fill, Style};
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct WindowSize {
@@ -245,6 +245,7 @@ impl Element for Label {
                             transform: Affine::IDENTITY,
                             glyph_transform: None,
                             font_size: run.font_size(),
+                            font_embolden: kurbo::Vec2::ZERO,
                             hint: false,
                             normalized_coords: run
                                 .normalized_coords(),
