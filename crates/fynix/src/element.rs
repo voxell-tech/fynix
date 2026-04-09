@@ -68,6 +68,17 @@ impl Elements {
         self.elements.get::<E>(id)
     }
 
+    /// Returns a mutable typed reference to the element.
+    ///
+    /// Returns `None` if `id` does not exist or does not hold a
+    /// value of type `E`.
+    pub fn get_typed_mut<E: Element>(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<&mut E> {
+        self.elements.get_mut::<E>(id)
+    }
+
     /// Removes the element and recycles its [`ElementId`].
     ///
     /// Returns `true` if the element was present and removed.

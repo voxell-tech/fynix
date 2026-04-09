@@ -19,6 +19,50 @@ use parley::{
 use parley::{FontContext, LayoutContext};
 use peniko::{Brush, BrushRef, Color, Fill, Style};
 
+#[derive(Default, Debug, Clone, Copy)]
+pub struct WindowSize {
+    pub size: Size,
+    child: Option<ElementId>,
+}
+
+impl WindowSize {
+    pub fn set_child(&mut self, id: ElementId) {
+        self.child = Some(id);
+    }
+}
+
+impl Element for WindowSize {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        Self::default()
+    }
+
+    fn children(&self) -> impl IntoIterator<Item = &ElementId>
+    where
+        Self: Sized,
+    {
+        self.child.iter()
+    }
+
+    fn constrain(
+        &self,
+        _parent_constraint: Constraint,
+    ) -> Constraint {
+        Constraint::loose(self.size)
+    }
+
+    fn build(
+        &self,
+        _id: &ElementId,
+        _constraint: Constraint,
+        _nodes: &mut ElementNodes,
+    ) -> Size {
+        self.size
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct Horizontal {
     children: Vec<ElementId>,
@@ -248,5 +292,5 @@ pub struct TextContext {
 /// Initialize the resources needed for the elements in this crate to
 /// work correctly.
 pub fn init_resources(fynix: &mut Fynix) {
-    fynix.resources_mut().init::<TextContext>();
+    fynix.resources.init::<TextContext>();
 }

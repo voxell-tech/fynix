@@ -28,9 +28,10 @@ mod id;
 /// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building
 /// the UI.
 pub struct Fynix {
-    elements: Elements,
-    styles: Styles,
-    resources: Resources,
+    // TODO(nixon): Make these private and provide a more elegant API!
+    pub elements: Elements,
+    pub styles: Styles,
+    pub resources: Resources,
 }
 
 impl Fynix {
@@ -40,22 +41,6 @@ impl Fynix {
             styles: Styles::new(),
             resources: Resources::new(),
         }
-    }
-
-    pub fn elements(&self) -> &Elements {
-        &self.elements
-    }
-
-    pub fn styles(&self) -> &Styles {
-        &self.styles
-    }
-
-    pub fn resources(&self) -> &Resources {
-        &self.resources
-    }
-
-    pub fn resources_mut(&mut self) -> &mut Resources {
-        &mut self.resources
     }
 
     /// Runs a full layout cycle on the subtree rooted at `id`.

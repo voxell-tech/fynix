@@ -69,6 +69,16 @@ where
             .and_then(|m| m.get(key))
     }
 
+    /// Returns a mutable reference to the `T`-typed value
+    /// stored under `key`, or `None` if no such entry exists.
+    pub fn get_mut<T: 'static>(&mut self, key: &K) -> Option<&mut T> {
+        let type_id = TypeId::of::<T>();
+        self.table
+            .get_mut(&type_id)
+            .and_then(|m| m.any_mut().downcast_mut())
+            .and_then(|m| m.get_mut(key))
+    }
+
     /// Removes and returns the `T`-typed value stored under
     /// `key`, or `None` if none exists.
     pub fn remove<T: 'static>(&mut self, key: &K) -> Option<T> {
@@ -165,6 +175,12 @@ where
     /// or `None` if absent.
     pub fn get(&self, key: &K) -> Option<&T> {
         self.map.get(key).and_then(|k| self.values.get(k))
+    }
+
+    /// Returns a mutable reference to the value stored under
+    /// `key`, or `None` if absent.
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut T> {
+        self.map.get(key).and_then(|k| self.values.get_mut(k))
     }
 
     /// Removes and returns the value stored under `key`,

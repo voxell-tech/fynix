@@ -4,7 +4,10 @@ use std::sync::Arc;
 use field_path::field_accessor;
 use fynix::Fynix;
 use fynix::element::ElementId;
-use fynix_elements::{Horizontal, Label, TextContext, Vertical};
+use fynix::rectree;
+use fynix_elements::{
+    Horizontal, Label, TextContext, Vertical, WindowSize,
+};
 use imaging_vello::VelloSceneSink;
 use kurbo::Rect;
 use parley::FontStyle;
@@ -54,7 +57,7 @@ impl HelloWorldApp<'_> {
         fynix_elements::init_resources(&mut fynix);
 
         if let Some(text_cx) =
-            fynix.resources_mut().get_mut::<TextContext>()
+            fynix.resources.get_mut::<TextContext>()
         {
             let blob = Blob::new(Arc::new(FONT));
             let ids =
@@ -68,7 +71,7 @@ impl HelloWorldApp<'_> {
         let mut world = ();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.add_with::<Vertical>(|v, ctx| {
+            let content = ctx.add_with::<Vertical>(|v, ctx| {
                 ctx.set(field_accessor!(<Label>::font_size), 24.0);
                 ctx.set(
                     field_accessor!(<Label>::fill),
@@ -79,10 +82,7 @@ impl HelloWorldApp<'_> {
                     label.text = "Hello, Fynix!".into();
                 }));
                 v.add(ctx.add_with::<Label>(|label, _ctx| {
-                    label.text = "One".into();
-                }));
-                v.add(ctx.add_with::<Label>(|label, _ctx| {
-                    label.text = "Two".into();
+                    label.text = "Lorem ipsum dolor sit amet consectetur adipiscing elit. Placerat in id cursus mi pretium tellus duis. Urna tempor pulvinar vivamus fringilla lacus nec metus. Integer nunc posuere ut hendrerit semper vel class. Conubia nostra inceptos himenaeos orci varius natoque penatibus. Mus donec rhoncus eros lobortis nulla molestie mattis. Purus est efficitur laoreet mauris pharetra vestibulum fusce. Sodales consequat magna ante condimentum neque at luctus. Ligula congue sollicitudin erat viverra ac tincidunt nam. Lectus commodo augue arcu dignissim velit aliquam imperdiet.".into();
                 }));
 
                 v.add(ctx.add_with::<Horizontal>(|v, ctx| {
@@ -105,12 +105,16 @@ impl HelloWorldApp<'_> {
                     );
 
                     v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "One".into();
+                        label.text = "Horizontal continuation.".into();
                     }));
                     v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "Two".into();
+                        label.text = "Another label!".into();
                     }));
                 }));
+            });
+
+            ctx.add_with::<WindowSize>(|f, _ctx| {
+                f.set_child(content);
             })
         };
 
@@ -147,6 +151,24 @@ impl HelloWorldApp<'_> {
                 phys.width,
                 phys.height,
             );
+        }
+
+        // TODO(nixon): This should be mutated via signals!
+        if let Some(fixed) = self
+            .fynix
+            .elements
+            .get_typed_mut::<WindowSize>(&self.root_id)
+        {
+            fixed.size = rectree::Size::new(
+                phys.width as f32,
+                phys.height as f32,
+            );
+        }
+
+        if let Some(meta) =
+            self.fynix.elements.metas.get_mut(&self.root_id)
+        {
+            meta.node.state.reset();
         }
 
         self.fynix.layout(&self.root_id);
