@@ -6,8 +6,6 @@
 | `#[derive(Element)]` macro           | Planned, not started              |
 | Element composers                    | Planned, not started              |
 | Interactions & Events                | Planned, not started              |
-| `fynix_elements` layout impls        | Ready to start                    |
-| `fynix_vello` rendering              | Ready to start                    |
 | Reactivity (`Signals`)               | Deferred until after first render |
 | `TypeSlot` / typed table opt.        | Deferred, post-profiling          |
 
@@ -67,7 +65,7 @@ struct Button {
 Generated `build` delegates sizing to the child:
 
 ```rust
-fn build(&self, constraint: Constraint, nodes: &mut ElementNodes) -> Size {
+fn build(&self, id: &ElementId, constraint: Constraint, nodes: &mut ElementNodes) -> Size {
     nodes.get_size(&self.child)
         .map(|s| constraint.constrain(s))
         .unwrap_or(constraint.min)

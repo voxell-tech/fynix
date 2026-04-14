@@ -248,8 +248,6 @@ impl<'a> Rectree for ElementTree<'a> {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.constrain(parent))
                     .unwrap_or(parent)
-
-                // (m.constrain_fn)(self.elements, id, parent)
             })
             .unwrap_or(parent)
     }
@@ -267,8 +265,6 @@ impl<'a> Rectree for ElementTree<'a> {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.build(id, constraint, nodes))
                     .unwrap_or_default()
-
-                // (m.build_fn)(self.elements, id, constraint, nodes)
             })
             .unwrap_or(Size::ZERO)
     }
@@ -307,9 +303,9 @@ pub trait Element: 'static {
 
     /// Paints the element's own visual layer into `painter`.
     ///
-    /// `pos` is the element's absolute world-space origin and `size`
-    /// is its resolved layout size. Both values come from the layout
-    /// pass and are safe to use for rendering coordinates.
+    /// The element's world-space position and layout size can be read
+    /// from `metas` using `id`. Both are set by the layout pass and
+    /// are safe to use for rendering coordinates.
     ///
     /// Child elements are rendered by the tree walker after this
     /// method returns - do not recurse into children here.

@@ -313,7 +313,11 @@ impl ApplicationHandler for HelloWorldApp<'_> {
                 }
             }
             WindowEvent::Resized(_) => {
-                self.render_frame();
+                if let RenderState::Active { window, .. } =
+                    &self.state
+                {
+                    window.request_redraw();
+                }
             }
             _ => {}
         }
