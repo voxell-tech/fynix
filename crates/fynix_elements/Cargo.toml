@@ -13,3 +13,9 @@ fynix.workspace = true
 field_path.workspace = true
 parley.workspace = true
 
+[dev-dependencies]
+imaging_vello.workspace = true
+vello.workspace = true
+winit.workspace = true
+pollster.workspace = true
+

@@ -114,9 +114,11 @@ mod tests {
     use alloc::vec::Vec;
 
     use field_path::field_accessor;
+    use rectree::{Constraint, NodeContext, Size, Vec2};
 
-    use crate::Fynix;
-    use crate::element::{Element, ElementId};
+    use crate::element::ElementNodes;
+
+    use super::*;
 
     #[derive(Default, Clone)]
     struct Label {
@@ -126,6 +128,18 @@ mod tests {
     impl Element for Label {
         fn new() -> Self {
             Self::default()
+        }
+
+        fn build(
+            &self,
+            _id: &ElementId,
+            constraint: Constraint,
+            _nodes: &mut ElementNodes,
+        ) -> rectree::Size
+        where
+            Self: Sized,
+        {
+            constraint.min
         }
     }
 
@@ -143,6 +157,31 @@ mod tests {
     impl Element for Vertical {
         fn new() -> Self {
             Self::default()
+        }
+
+        fn build(
+            &self,
+            _id: &ElementId,
+            constraint: Constraint,
+            nodes: &mut ElementNodes,
+        ) -> Size
+        where
+            Self: Sized,
+        {
+            let mut size = Size::ZERO;
+
+            for child in self.children.iter() {
+                let child_size = nodes.get_size(child);
+                nodes.set_translation(
+                    child,
+                    Vec2::new(0.0, size.height),
+                );
+
+                size.width = size.width.max(child_size.width);
+                size.height += child_size.height;
+            }
+
+            constraint.constrain(size)
         }
     }
 

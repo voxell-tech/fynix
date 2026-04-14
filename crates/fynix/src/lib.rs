@@ -3,11 +3,14 @@
 
 extern crate alloc;
 
+use imaging::PaintSink;
+
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
+pub use imaging;
 pub use rectree;
 
 pub mod any_wrapper;
@@ -25,9 +28,10 @@ mod id;
 /// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building
 /// the UI.
 pub struct Fynix {
-    elements: Elements,
-    styles: Styles,
-    resources: Resources,
+    // TODO(nixon): Make these private and provide a more elegant API!
+    pub elements: Elements,
+    pub styles: Styles,
+    pub resources: Resources,
 }
 
 impl Fynix {
@@ -39,26 +43,18 @@ impl Fynix {
         }
     }
 
-    pub fn elements(&self) -> &Elements {
-        &self.elements
-    }
-
-    pub fn styles(&self) -> &Styles {
-        &self.styles
-    }
-
-    pub fn resources(&self) -> &Resources {
-        &self.resources
-    }
-
-    pub fn resources_mut(&mut self) -> &mut Resources {
-        &mut self.resources
-    }
-
     /// Runs a full layout cycle on the subtree rooted at `id`.
     #[inline]
     pub fn layout(&mut self, id: &ElementId) {
         self.elements.layout(id, &mut self.resources);
+    }
+
+    /// Renders the subtree rooted at `id` into `sink`.
+    ///
+    /// Layout must be complete before calling this.
+    #[inline]
+    pub fn render(&self, id: &ElementId, sink: &mut impl PaintSink) {
+        self.elements.render(id, sink);
     }
 
     /// Returns a [`FynixCtx`] rooted at the top of the style

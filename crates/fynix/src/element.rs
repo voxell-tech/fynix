@@ -1,3 +1,5 @@
+use imaging::PaintSink;
+use imaging::record::Scene;
 use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
@@ -66,6 +68,17 @@ impl Elements {
         self.elements.get::<E>(id)
     }
 
+    /// Returns a mutable typed reference to the element.
+    ///
+    /// Returns `None` if `id` does not exist or does not hold a
+    /// value of type `E`.
+    pub fn get_typed_mut<E: Element>(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<&mut E> {
+        self.elements.get_mut::<E>(id)
+    }
+
     /// Removes the element and recycles its [`ElementId`].
     ///
     /// Returns `true` if the element was present and removed.
@@ -78,6 +91,38 @@ impl Elements {
         }
 
         false
+    }
+
+    /// Renders the subtree rooted at `id` into `sink`.
+    ///
+    /// Each element's own visual layer is painted via
+    /// [`Element::render`] before its children are visited, so
+    /// parents always draw behind their children.
+    ///
+    /// Layout must be complete before calling this - positions come
+    /// from [`rectree::RectNode::world_translation`].
+    pub fn render(
+        &self,
+        id: &ElementId,
+        painter: &mut impl PaintSink,
+    ) {
+        let Some(meta) = self.metas.get(id) else {
+            return;
+        };
+        let type_id = meta.type_id;
+
+        if let Some(type_meta) = self.type_metas.get(&type_id) {
+            if let Some(element) =
+                type_meta.get_dyn(&self.elements, id)
+            {
+                element.render(id, painter, &self.metas);
+            }
+            (type_meta.children_fn)(
+                &self.elements,
+                id,
+                &mut |child| self.render(child, painter),
+            );
+        }
     }
 
     /// Runs a full three-pass layout cycle on the subtree rooted at
@@ -132,8 +177,23 @@ impl ElementNodes<'_> {
     pub fn get_resource_mut<R: 'static>(&mut self) -> Option<&mut R> {
         self.resources.get_mut()
     }
+
+    pub fn cache_scene(
+        &mut self,
+        id: &ElementId,
+        scene: Scene,
+    ) -> bool {
+        if let Some(meta) = self.metas.get_mut(id) {
+            meta.cached_scene = Some(scene);
+            return true;
+        }
+
+        false
+    }
 }
 
+// TODO: Hide this implementation to the `build` fn. Maybe add a
+// `ElementNodesBuilder` wrapper struct.
 impl RectNodes for ElementNodes<'_> {
     type Id = ElementId;
 
@@ -183,7 +243,11 @@ impl<'a> Rectree for ElementTree<'a> {
         let type_id = nodes.metas.get_type_id(id);
         type_id
             .and_then(|t| self.type_metas.get(&t))
-            .map(|m| (m.constrain_fn)(self.elements, id, parent))
+            .map(|m| {
+                m.get_dyn(self.elements, id)
+                    .map(|e| e.constrain(parent))
+                    .unwrap_or(parent)
+            })
             .unwrap_or(parent)
     }
 
@@ -197,7 +261,9 @@ impl<'a> Rectree for ElementTree<'a> {
         type_id
             .and_then(|t| self.type_metas.get(&t))
             .map(|m| {
-                (m.build_fn)(self.elements, id, constraint, nodes)
+                m.get_dyn(self.elements, id)
+                    .map(|e| e.build(id, constraint, nodes))
+                    .unwrap_or_default()
             })
             .unwrap_or(Size::ZERO)
     }
@@ -227,16 +293,31 @@ pub trait Element: 'static {
         parent_constraint
     }
 
-    #[expect(unused_variables)]
     fn build(
         &self,
+        id: &ElementId,
         constraint: Constraint,
         nodes: &mut ElementNodes,
-    ) -> Size
-    where
-        Self: Sized,
-    {
-        constraint.min
+    ) -> Size;
+
+    /// Paints the element's own visual layer into `painter`.
+    ///
+    /// The element's world-space position and layout size can be read
+    /// from `metas` using `id`. Both are set by the layout pass and
+    /// are safe to use for rendering coordinates.
+    ///
+    /// Child elements are rendered by the tree walker after this
+    /// method returns - do not recurse into children here.
+    ///
+    /// The default implementation is a no-op, suitable for purely
+    /// structural elements that have no visual of their own.
+    #[expect(unused_variables)]
+    fn render(
+        &self,
+        id: &ElementId,
+        painter: &mut dyn PaintSink,
+        metas: &ElementMetas,
+    ) {
     }
 }
 

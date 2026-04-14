@@ -1,15 +1,17 @@
 use core::any::TypeId;
 
 use hashbrown::HashMap;
-use rectree::{Constraint, RectNode, Size};
+use imaging::record::Scene;
+use rectree::RectNode;
 
-use crate::element::{Element, ElementId, ElementNodes};
+use crate::element::{Element, ElementId};
 use crate::type_table::TypeTable;
 
 /// Per-element metadata stored alongside the layout node.
 pub struct ElementMeta {
     pub type_id: TypeId,
     pub node: RectNode<ElementId>,
+    pub cached_scene: Option<Scene>,
 }
 
 /// Per-element layout node storage, keyed by [`ElementId`].
@@ -33,6 +35,7 @@ impl ElementMetas {
             ElementMeta {
                 type_id: TypeId::of::<E>(),
                 node: RectNode::new(None),
+                cached_scene: None,
             },
         );
     }
@@ -104,8 +107,6 @@ impl Default for ElementTypeMetas {
 pub struct ElementTypeMeta {
     pub get_dyn_fn: GetDynElementFn,
     pub children_fn: ChildrenElementFn,
-    pub constrain_fn: ConstrainElementFn,
-    pub build_fn: BuildElementFn,
 }
 
 impl ElementTypeMeta {
@@ -113,8 +114,6 @@ impl ElementTypeMeta {
         Self {
             get_dyn_fn: get_dyn_element::<E>,
             children_fn: for_each_child::<E>,
-            constrain_fn: constrain_element::<E>,
-            build_fn: build_element::<E>,
         }
     }
 
@@ -168,44 +167,4 @@ pub fn for_each_child<E: Element>(
             f(child);
         }
     }
-}
-
-/// Calls [`Element::constrain`] without knowing the concrete type.
-pub type ConstrainElementFn = fn(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    parent: Constraint,
-) -> Constraint;
-
-#[inline]
-pub fn constrain_element<E: Element>(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    parent: Constraint,
-) -> Constraint {
-    table
-        .get::<E>(id)
-        .map(|e| e.constrain(parent))
-        .unwrap_or(parent)
-}
-
-/// Calls [`Element::build`] without knowing the concrete type.
-pub type BuildElementFn = fn(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    constraint: Constraint,
-    nodes: &mut ElementNodes,
-) -> Size;
-
-#[inline]
-pub fn build_element<E: Element>(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    constraint: Constraint,
-    nodes: &mut ElementNodes,
-) -> Size {
-    table
-        .get::<E>(id)
-        .map(|e| e.build(constraint, nodes))
-        .unwrap_or(Size::ZERO)
 }
