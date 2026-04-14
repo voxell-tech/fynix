@@ -112,12 +112,11 @@ impl Elements {
         let type_id = meta.type_id;
 
         if let Some(type_meta) = self.type_metas.get(&type_id) {
-            (type_meta.render_fn)(
-                &self.elements,
-                id,
-                painter,
-                &self.metas,
-            );
+            if let Some(element) =
+                type_meta.get_dyn(&self.elements, id)
+            {
+                element.render(id, painter, &self.metas);
+            }
             (type_meta.children_fn)(
                 &self.elements,
                 id,

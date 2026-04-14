@@ -1,7 +1,6 @@
 use core::any::TypeId;
 
 use hashbrown::HashMap;
-use imaging::PaintSink;
 use imaging::record::Scene;
 use rectree::RectNode;
 
@@ -108,7 +107,6 @@ impl Default for ElementTypeMetas {
 pub struct ElementTypeMeta {
     pub get_dyn_fn: GetDynElementFn,
     pub children_fn: ChildrenElementFn,
-    pub render_fn: RenderElementFn,
 }
 
 impl ElementTypeMeta {
@@ -116,7 +114,6 @@ impl ElementTypeMeta {
         Self {
             get_dyn_fn: get_dyn_element::<E>,
             children_fn: for_each_child::<E>,
-            render_fn: render_element::<E>,
         }
     }
 
@@ -169,25 +166,5 @@ pub fn for_each_child<E: Element>(
         for child in element.children() {
             f(child);
         }
-    }
-}
-
-/// Calls [`Element::render`] without knowing the concrete type.
-pub type RenderElementFn = fn(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    painter: &mut dyn PaintSink,
-    metas: &ElementMetas,
-);
-
-#[inline]
-pub fn render_element<E: Element>(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    painter: &mut dyn PaintSink,
-    metas: &ElementMetas,
-) {
-    if let Some(element) = table.get::<E>(id) {
-        element.render(id, painter, metas);
     }
 }
