@@ -256,8 +256,8 @@ where
         previous
     }
 
-    /// Returns a reference to the value stored under `key`,
-    /// or `None` if absent.
+    /// Returns an immutable reference to the value stored under
+    /// `key`, or `None` if absent.
     pub fn get(&self, key: &K) -> Option<&T> {
         self.map.get(key).and_then(|k| self.values.get(k))
     }

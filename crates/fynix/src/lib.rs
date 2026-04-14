@@ -22,6 +22,7 @@ pub mod ctx;
 pub mod element;
 pub mod init;
 pub mod resource;
+pub mod signal;
 pub mod style;
 pub mod type_table;
 
