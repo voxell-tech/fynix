@@ -6,14 +6,13 @@ extern crate alloc;
 use imaging::PaintSink;
 
 use crate::ctx::FynixCtx;
-use crate::element::{ElementId, Elements};
+use crate::element::{ElementId, Elements, init_elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
 pub use imaging;
 pub use rectree;
 
-pub mod any_wrapper;
 pub mod ctx;
 pub mod element;
 pub mod resource;
@@ -21,6 +20,15 @@ pub mod style;
 pub mod type_table;
 
 mod id;
+
+/// Initializes the Fynix framework.
+///
+/// Must be called once before any element is added to a
+/// [`Fynix`] instance. Safe to call multiple times - only
+/// the first call has any effect.
+pub fn init() {
+    init_elements();
+}
 
 /// Root application context. Owns the element tree, layout state,
 /// and style state.

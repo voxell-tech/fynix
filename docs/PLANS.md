@@ -376,4 +376,45 @@ This enables faster specialised tables for types known at link time:
 arbitrary user types (`f32`, `String`, custom structs) that cannot
 be required to `#[derive(HasSlot)]`. The hashmap stays there.
 
-Defer until profiling identifies `TypeTable` as a bottleneck.
+```rust
+#[derive(SlotGroup)]
+struct ResourceGroup;
+
+trait SlotGroup {
+    fn init() -> usize;
+
+    fn try_len() -> Option<usize>;
+
+    fn len() -> usize;
+
+    fn slot_of<T: TypeSlot<Self>>() {
+        ..
+    }
+}
+
+// Expands to
+const _: () = {
+    static __GROUP_LEN: ::typeslot::AtomicSlot = ::typeslot::AtomicSlot::new();
+    
+
+    impl ::typeslot::SlotGroup for ResourceGroup {
+        #[inline]
+        fn init() -> usize {
+            let len = ::typeslot::init_slot::<Self>();
+            __GROUP_LEN.set(len);
+            len
+        }
+
+        #[inline]
+        fn try_len() -> Option<usize> {
+            __GROUP_LEN.get()
+        }
+
+        #[inline]
+        fn len() -> usize {
+            __GROUP_LEN.get().expect("some error message!")
+        }
+    }
+}
+```
+

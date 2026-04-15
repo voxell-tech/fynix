@@ -20,6 +20,7 @@ parley = { version = "0.7.0", default-features = false, features = ["libm"] }
 imaging = { git = "https://github.com/forest-rs/imaging", rev = "e18778f", features = ["libm"] }
 imaging_vello = { git = "https://github.com/forest-rs/imaging", rev = "e18778f" }
 
+typeslot = "0.2.1"
 sparse_map = "0.1.2"
 vello = "0.8.0"
 winit = "0.30"

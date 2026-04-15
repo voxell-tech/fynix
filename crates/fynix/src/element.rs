@@ -1,25 +1,149 @@
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use imaging::PaintSink;
 use imaging::record::Scene;
 use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
+use typeslot::{AtomicSlot, SlotGroup, TypeSlot};
 
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
-use crate::type_table::TypeTable;
+use crate::type_table::DynTypeMap;
+use crate::type_table::TypeMap;
 
 pub mod meta;
 
+/// Marker type for the element slot group.
+///
+/// See [`TypeSlot`].
+pub struct ElementGroup;
+
+pub static ELEMENT_COUNT: AtomicSlot = AtomicSlot::new();
+
+pub(super) fn init_elements() {
+    if ELEMENT_COUNT.get().is_none() {
+        let count = typeslot::init_slot::<ElementGroup>();
+        ELEMENT_COUNT.set(count);
+    }
+}
+
+/// Slot-indexed element storage, keyed by [`ElementId`].
+///
+/// Each element type is assigned a unique slot index at
+/// startup by [`crate::init_elements`]. Typed access is then
+/// a direct [`Vec`] index - no hashing on the hot path.
+pub struct ElementTable {
+    columns: Vec<Option<DynTypeMap<ElementId>>>,
+    slot_group: SlotGroup<ElementGroup>,
+}
+
+impl ElementTable {
+    pub fn new() -> Self {
+        let mut columns = Vec::new();
+        columns.resize_with(
+            ELEMENT_COUNT
+                .get()
+                .expect("`fynix::init()` should be ran once."),
+            || None,
+        );
+        Self {
+            columns,
+            slot_group: SlotGroup::new(),
+        }
+    }
+
+    /// Inserts `value` under `key`.
+    ///
+    /// Creates the column on first use. Returns the displaced
+    /// value if one was already present.
+    pub fn insert<E: Element>(
+        &mut self,
+        key: ElementId,
+        value: E,
+    ) -> Option<E> {
+        let slot = self.slot_group.get::<E>();
+
+        if self.columns[slot].is_none() {
+            self.columns[slot] =
+                Some(Box::new(TypeMap::<ElementId, E>::new()));
+        }
+
+        // SAFETY: the column at `slot` was created as
+        // `TypeMap<ElementId, E>`. TypeSlot guarantees each
+        // type gets a unique slot, so no other type shares
+        // this column.
+        let col = self.columns[slot].as_mut().unwrap();
+        let map = unsafe { col.downcast_unchecked_mut::<E>() };
+        map.insert(key, value)
+    }
+
+    /// Returns a reference to the value stored under `key`.
+    pub fn get<E: Element>(&self, key: &ElementId) -> Option<&E> {
+        let slot = self.slot_group.get::<E>();
+        let col = self.columns.get(slot)?.as_ref()?;
+        // SAFETY: see [`Self::insert`].
+        let map = unsafe { col.downcast_unchecked_ref::<E>() };
+        map.get(key)
+    }
+
+    /// Returns a mutable reference to the value stored under
+    /// `key`.
+    pub fn get_mut<E: Element>(
+        &mut self,
+        key: &ElementId,
+    ) -> Option<&mut E> {
+        let slot = self.slot_group.get::<E>();
+        let col = self.columns.get_mut(slot)?.as_mut()?;
+        // SAFETY: see [`Self::insert`].
+        let map = unsafe { col.downcast_unchecked_mut::<E>() };
+        map.get_mut(key)
+    }
+
+    /// Removes and returns the value stored under `key`.
+    pub fn remove<E: Element>(
+        &mut self,
+        key: &ElementId,
+    ) -> Option<E> {
+        let slot = self.slot_group.get::<E>();
+        let col = self.columns.get_mut(slot)?.as_mut()?;
+        // SAFETY: see [`Self::insert`].
+        let map = unsafe { col.downcast_unchecked_mut::<E>() };
+        map.remove(key)
+    }
+
+    /// Removes `key` from the column at `slot`.
+    ///
+    /// Returns `true` if the key was present and removed.
+    pub fn dyn_remove_by_slot(
+        &mut self,
+        slot: usize,
+        key: &ElementId,
+    ) -> bool {
+        let Some(Some(col)) = self.columns.get_mut(slot) else {
+            return false;
+        };
+        col.dyn_remove(key)
+    }
+}
+
+impl Default for ElementTable {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Type-erased storage for all element instances.
 ///
-/// Internally holds one [`TypeTable`] slot per element type. The
-/// [`core::any::TypeId`] of each element is stored inside [`ElementMetas`]
-/// so that polymorphic access (via [`Self::get_dyn`]) and removal
-/// work without knowing the concrete type at the call site.
+/// Internally holds one [`ElementTable`] column per element
+/// type. The [`core::any::TypeId`] of each element is stored
+/// inside [`ElementMetas`] so that polymorphic access (via
+/// [`Self::get_dyn`]) and removal work without knowing the
+/// concrete type at the call site.
 pub struct Elements {
-    // TODO(nixon): This needs to use `TypeSlot` for fast lookups.
-    // Implication: No implication since all `Elements` are defined by
-    // us/users. So they will need to have the derive anyways.
-    pub elements: TypeTable<ElementId>,
+    // TODO(nixon): Make these private and provide a more
+    // elegant API!
+    pub elements: ElementTable,
     pub metas: ElementMetas,
     pub type_metas: ElementTypeMetas,
     id_generator: ElementIdGenerator,
@@ -28,15 +152,15 @@ pub struct Elements {
 impl Elements {
     pub fn new() -> Self {
         Self {
-            elements: TypeTable::new(),
+            elements: ElementTable::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
             id_generator: IdGenerator::new(),
         }
     }
 
-    /// Stores `element`, registers its type getter if needed, and
-    /// returns a fresh [`ElementId`].
+    /// Stores `element`, registers its type getter if needed,
+    /// and returns a fresh [`ElementId`].
     pub fn add<E: Element>(&mut self, element: E) -> ElementId {
         self.type_metas.register::<E>();
 
@@ -49,8 +173,8 @@ impl Elements {
 
     /// Returns a type-erased reference to the element.
     ///
-    /// Prefer [`get_typed`](Elements::get_typed) when the concrete
-    /// type is known, it avoids the getter dispatch.
+    /// Prefer [`get_typed`](Elements::get_typed) when the
+    /// concrete type is known, it avoids the getter dispatch.
     pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
         let type_id = self.metas.get_type_id(id)?;
         let type_meta = self.type_metas.get(&type_id)?;
@@ -59,8 +183,8 @@ impl Elements {
 
     /// Returns a typed reference to the element.
     ///
-    /// Returns `None` if `id` does not exist or does not hold a
-    /// value of type `E`.
+    /// Returns `None` if `id` does not exist or does not
+    /// hold a value of type `E`.
     pub fn get_typed<E: Element>(
         &self,
         id: &ElementId,
@@ -70,8 +194,8 @@ impl Elements {
 
     /// Returns a mutable typed reference to the element.
     ///
-    /// Returns `None` if `id` does not exist or does not hold a
-    /// value of type `E`.
+    /// Returns `None` if `id` does not exist or does not
+    /// hold a value of type `E`.
     pub fn get_typed_mut<E: Element>(
         &mut self,
         id: &ElementId,
@@ -83,8 +207,8 @@ impl Elements {
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
-        if let Some(type_id) = self.metas.remove(id)
-            && self.elements.dyn_remove(&type_id, id)
+        if let Some(slot) = self.metas.remove(id)
+            && self.elements.dyn_remove_by_slot(slot, id)
         {
             self.id_generator.recycle(*id);
             return true;
@@ -96,11 +220,12 @@ impl Elements {
     /// Renders the subtree rooted at `id` into `sink`.
     ///
     /// Each element's own visual layer is painted via
-    /// [`Element::render`] before its children are visited, so
-    /// parents always draw behind their children.
+    /// [`Element::render`] before its children are visited,
+    /// so parents always draw behind their children.
     ///
-    /// Layout must be complete before calling this - positions come
-    /// from [`rectree::RectNode::world_translation`].
+    /// Layout must be complete before calling this -
+    /// positions come from
+    /// [`rectree::RectNode::world_translation`].
     pub fn render(
         &self,
         id: &ElementId,
@@ -125,12 +250,12 @@ impl Elements {
         }
     }
 
-    /// Runs a full three-pass layout cycle on the subtree rooted at
-    /// `id`.
+    /// Runs a full three-pass layout cycle on the subtree
+    /// rooted at `id`.
     ///
-    /// The caller is responsible for setting the node's constraint
-    /// on [`ElementMetas`] before calling this if a specific size
-    /// is required.
+    /// The caller is responsible for setting the node's
+    /// constraint on [`ElementMetas`] before calling this if
+    /// a specific size is required.
     pub fn layout(
         &mut self,
         id: &ElementId,
@@ -155,12 +280,14 @@ impl Default for Elements {
     }
 }
 
-/// Immutable view of the element tree used to implement [`Rectree`].
+/// Immutable view of the element tree used to implement
+/// [`Rectree`].
 ///
-/// Borrows the type tables from [`Elements`] so that [`ElementMetas`]
-/// can be mutably borrowed separately during layout.
+/// Borrows the type tables from [`Elements`] so that
+/// [`ElementMetas`] can be mutably borrowed separately
+/// during layout.
 pub struct ElementTree<'a> {
-    elements: &'a TypeTable<ElementId>,
+    elements: &'a ElementTable,
     type_metas: &'a ElementTypeMetas,
 }
 
@@ -192,8 +319,8 @@ impl ElementNodes<'_> {
     }
 }
 
-// TODO: Hide this implementation to the `build` fn. Maybe add a
-// `ElementNodesBuilder` wrapper struct.
+// TODO: Hide this implementation to the `build` fn. Maybe
+// add a `ElementNodesBuilder` wrapper struct.
 impl RectNodes for ElementNodes<'_> {
     type Id = ElementId;
 
@@ -271,13 +398,15 @@ impl<'a> Rectree for ElementTree<'a> {
 
 /// Trait for element types.
 ///
-/// Implement this for any type you want to add to the element tree
-/// via [`FynixCtx::add`](crate::ctx::FynixCtx::add). The single
-/// required method, `new`, must return a default (unstyled) instance.
+/// Implement this for any type you want to add to the
+/// element tree via
+/// [`FynixCtx::add`](crate::ctx::FynixCtx::add). The single
+/// required method, `new`, must return a default (unstyled)
+/// instance.
 ///
-/// Styles are applied immediately after construction by the build
-/// context.
-pub trait Element: 'static {
+/// Styles are applied immediately after construction by the
+/// build context.
+pub trait Element: TypeSlot<ElementGroup> + 'static {
     fn new() -> Self
     where
         Self: Sized;
@@ -302,15 +431,18 @@ pub trait Element: 'static {
 
     /// Paints the element's own visual layer into `painter`.
     ///
-    /// The element's world-space position and layout size can be read
-    /// from `metas` using `id`. Both are set by the layout pass and
-    /// are safe to use for rendering coordinates.
+    /// The element's world-space position and layout size can
+    /// be read from `metas` using `id`. Both are set by the
+    /// layout pass and are safe to use for rendering
+    /// coordinates.
     ///
-    /// Child elements are rendered by the tree walker after this
-    /// method returns - do not recurse into children here.
+    /// Child elements are rendered by the tree walker after
+    /// this method returns - do not recurse into children
+    /// here.
     ///
-    /// The default implementation is a no-op, suitable for purely
-    /// structural elements that have no visual of their own.
+    /// The default implementation is a no-op, suitable for
+    /// purely structural elements that have no visual of
+    /// their own.
     #[expect(unused_variables)]
     fn render(
         &self,

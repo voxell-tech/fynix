@@ -1,7 +1,8 @@
 use field_path::field_accessor::FieldAccessor;
+use typeslot::TypeSlot;
 
 use crate::Fynix;
-use crate::element::{Element, ElementId};
+use crate::element::{Element, ElementGroup, ElementId};
 use crate::style::{StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -44,7 +45,7 @@ impl<W> FynixCtx<'_, '_, W> {
     #[must_use]
     pub fn add<E>(&mut self) -> ElementId
     where
-        E: Element,
+        E: Element + TypeSlot<ElementGroup>,
     {
         let element = self.create_element::<E>();
         self.fynix.elements.add(element)
@@ -62,7 +63,7 @@ impl<W> FynixCtx<'_, '_, W> {
         f: impl FnOnce(&mut E, &mut Self),
     ) -> ElementId
     where
-        E: Element,
+        E: Element + TypeSlot<ElementGroup>,
     {
         let mut element = self.create_element::<E>();
         let parent_style_id = self.parent_style_id;
@@ -115,12 +116,14 @@ mod tests {
 
     use field_path::field_accessor;
     use rectree::{Constraint, NodeContext, Size, Vec2};
+    use typeslot::TypeSlot;
 
-    use crate::element::ElementNodes;
+    use crate::element::{ElementGroup, ElementNodes};
 
     use super::*;
 
-    #[derive(Default, Clone)]
+    #[derive(Default, Clone, TypeSlot)]
+    #[slot(ElementGroup)]
     struct Label {
         pub text: String,
     }
@@ -143,7 +146,8 @@ mod tests {
         }
     }
 
-    #[derive(Default, Clone)]
+    #[derive(Default, Clone, TypeSlot)]
+    #[slot(ElementGroup)]
     struct Vertical {
         children: Vec<ElementId>,
     }
@@ -187,6 +191,7 @@ mod tests {
 
     #[test]
     fn style_applied_after_set() {
+        crate::init();
         let mut world = ();
         let mut fynix = Fynix::new();
         let root_id = {
@@ -210,6 +215,7 @@ mod tests {
 
     #[test]
     fn add_with_restores_parent_style_id() {
+        crate::init();
         let mut world = ();
         let mut fynix = Fynix::new();
         let root_id = {
@@ -228,7 +234,8 @@ mod tests {
                     v.add(ctx.add::<Label>());
                 });
 
-                // After the inner closure, "outer" style is restored.
+                // After the inner closure, "outer" style is
+                // restored.
                 v.add(inner_id);
                 v.add(ctx.add::<Label>());
             })
@@ -246,6 +253,7 @@ mod tests {
 
     #[test]
     fn child_style_wins_over_parent() {
+        crate::init();
         let mut world = ();
         let mut fynix = Fynix::new();
         let root_id = {

@@ -21,7 +21,7 @@ use sparse_map::{Key, SparseMap};
 /// | k2  | -     | -     | -24   |
 /// | k3  | 3.14  | -     | -     |
 pub struct TypeTable<K> {
-    table: HashMap<TypeId, Box<dyn DynTypeMap<K>>>,
+    table: HashMap<TypeId, DynTypeMap<K>>,
 }
 
 impl<K> TypeTable<K> {
@@ -45,13 +45,15 @@ where
         &mut self,
         key: K,
         value: T,
-    ) -> Option<T> {
+    ) -> Option<T>
+    where
+        K: Clone,
+    {
         let type_id = TypeId::of::<T>();
         let m = unsafe {
             self.table
                 .entry(type_id)
                 .or_insert_with(|| Box::new(TypeMap::<K, T>::new()))
-                .any_mut()
                 // SAFETY: Type garuanteed on creation.
                 .downcast_unchecked_mut()
         };
@@ -65,7 +67,7 @@ where
         let type_id = TypeId::of::<T>();
         self.table
             .get(&type_id)
-            .and_then(|m| m.any_ref().downcast_ref())
+            .and_then(|m| m.downcast_ref())
             .and_then(|m| m.get(key))
     }
 
@@ -75,7 +77,7 @@ where
         let type_id = TypeId::of::<T>();
         self.table
             .get_mut(&type_id)
-            .and_then(|m| m.any_mut().downcast_mut())
+            .and_then(|m| m.downcast_mut())
             .and_then(|m| m.get_mut(key))
     }
 
@@ -85,11 +87,7 @@ where
         let type_id = TypeId::of::<T>();
         self.table
             .get_mut(&type_id)
-            // .and_then(|m| m.remove(id))
-            .and_then(|m| {
-                m.any_mut().downcast_mut()
-                // (&mut **m as &mut dyn AnyTypeMap<K>).downcast_mut()
-            })
+            .and_then(|m| m.downcast_mut())
             .and_then(|m| m.remove(key))
     }
 
@@ -126,6 +124,93 @@ impl<K> Default for TypeTable<K> {
         Self::new()
     }
 }
+
+// NOTE: This is useful only if we need to perform iteration like operations.
+//
+// pub struct TypeMap<K, T> {
+//     values: Vec<TypeMapValue<K, T>>,
+//     map: HashMap<K, usize>,
+// }
+
+// impl<K, T> TypeMap<K, T> {
+//     /// Creates an empty [`TypeMap`].
+//     pub fn new() -> Self {
+//         Self {
+//             values: Vec::new(),
+//             map: HashMap::new(),
+//         }
+//     }
+// }
+
+// impl<K, T> TypeMap<K, T>
+// where
+//     K: Hash + Eq,
+// {
+//     /// Inserts `value` under `key`.
+//     ///
+//     /// Returns the displaced value if one was already
+//     /// present.
+//     pub fn insert(&mut self, key: K, mut value: T) -> Option<T>
+//     where
+//         K: Clone,
+//     {
+//         match self.map.entry(key) {
+//             Entry::Occupied(occupied) => {
+//                 let mem_value =
+//                     &mut self.values[*occupied.get()].value;
+//                 core::mem::swap(mem_value, &mut value);
+
+//                 Some(value)
+//             }
+//             Entry::Vacant(vacant) => {
+//                 let entry = vacant.insert_entry(self.values.len());
+
+//                 self.values.push(TypeMapValue {
+//                     key: entry.key().clone(),
+//                     value,
+//                 });
+
+//                 None
+//             }
+//         }
+//     }
+
+//     /// Returns a reference to the value stored under `key`,
+//     /// or `None` if absent.
+//     pub fn get(&self, key: &K) -> Option<&T> {
+//         self.map.get(key).map(|k| &self.values[*k].value)
+//     }
+
+//     /// Returns a mutable reference to the value stored under
+//     /// `key`, or `None` if absent.
+//     pub fn get_mut(&mut self, key: &K) -> Option<&mut T> {
+//         self.map.get(key).map(|k| &mut self.values[*k].value)
+//     }
+
+//     /// Removes and returns the value stored under `key`,
+//     /// or `None` if absent.
+//     pub fn remove(&mut self, key: &K) -> Option<T> {
+//         let index = self.map.remove(key)?;
+
+//         // Update the swap index.
+//         let swap_key = &self.values.last()?.key;
+//         *self.map.get_mut(swap_key)? = index;
+
+//         // Perform the removal.
+//         Some(self.values.swap_remove(index).value)
+//     }
+// }
+
+// impl<K, T> Default for TypeMap<K, T> {
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }
+
+// pub struct TypeMapValue<K, T> {
+//     key: K,
+//     value: T,
+// }
 
 /// Typed column inside a [`TypeTable`]: maps keys of type
 /// `K` to values of type `T`, backed by a [`SparseMap`]
@@ -190,47 +275,128 @@ where
     }
 }
 
-/// Object-safe extension of [`AnyTypeMap`] with a
-/// type-erased remove method.
-///
-/// Stored as `Box<dyn DynTypeMap<K>>` inside [`TypeTable`]
-/// so entries can be removed without knowing the value
-/// type `T`.
-pub trait DynTypeMap<K>: AnyTypeMap<K> {
-    /// Removes `key` from the map.
-    ///
-    /// Returns `true` if an entry was present and removed.
-    fn dyn_remove(&mut self, key: &K) -> bool;
+// /// Object-safe extension of [`AnyTypeMap`] with a
+// /// type-erased remove method.
+// ///
+// /// Stored as `Box<dyn DynTypeMap<K>>` inside [`TypeTable`]
+// /// so entries can be removed without knowing the value
+// /// type `T`.
+// pub trait DynTypeMap<K>: AnyTypeMap<K> {
+//     /// Removes `key` from the map.
+//     ///
+//     /// Returns `true` if an entry was present and removed.
+//     fn dyn_remove(&mut self, key: &K) -> bool;
+// }
+
+// impl<K> dyn DynTypeMap<K> {
+//     /// Upcasts to `&dyn AnyTypeMap<K>` for downcasting.
+//     pub fn any_ref<'a>(&self) -> &(dyn AnyTypeMap<K> + 'a) {
+//         self as &dyn AnyTypeMap<K>
+//     }
+
+//     /// Upcasts to `&mut dyn AnyTypeMap<K>` for downcasting.
+//     pub fn any_mut<'a>(&mut self) -> &mut (dyn AnyTypeMap<K> + 'a) {
+//         self as &mut dyn AnyTypeMap<K>
+//     }
+// }
+
+// impl<K, T> DynTypeMap<K> for TypeMap<K, T>
+// where
+//     K: Hash + Eq,
+//     T: 'static,
+// {
+//     fn dyn_remove(&mut self, id: &K) -> bool {
+//         self.remove(id).is_some()
+//     }
+// }
+
+mod any_type_map {
+    use super::*;
+    use core::any::TypeId;
+
+    /// Private trait to prevent other types from implementing
+    /// the [`AnyTypeMap`] trait.
+    trait Seal {}
+    impl<K, T: 'static> Seal for TypeMap<K, T> {}
+
+    #[expect(private_bounds)]
+    pub trait AnyTypeMap<K>: Seal {
+        fn element_type_id(&self) -> TypeId;
+
+        /// Removes `key` from the map.
+        ///
+        /// Returns `true` if an entry was present and removed.
+        fn dyn_remove(&mut self, key: &K) -> bool
+        where
+            K: Hash + Eq;
+    }
+
+    impl<K, T: 'static> AnyTypeMap<K> for TypeMap<K, T> {
+        fn element_type_id(&self) -> TypeId {
+            TypeId::of::<T>()
+        }
+
+        fn dyn_remove(&mut self, id: &K) -> bool
+        where
+            K: Hash + Eq,
+        {
+            self.remove(id).is_some()
+        }
+    }
+
+    impl<K> dyn AnyTypeMap<K> {
+        #[inline]
+        pub fn element_is<T: 'static>(&self) -> bool {
+            self.element_type_id() == TypeId::of::<T>()
+        }
+        #[allow(unused)]
+        #[inline]
+        pub fn downcast_ref<T: 'static>(
+            &self,
+        ) -> Option<&TypeMap<K, T>> {
+            if self.element_is::<T>() {
+                unsafe { Some(self.downcast_unchecked_ref()) }
+            } else {
+                None
+            }
+        }
+        #[allow(unused)]
+        #[inline]
+        pub fn downcast_mut<T: 'static>(
+            &mut self,
+        ) -> Option<&mut TypeMap<K, T>> {
+            if self.element_is::<T>() {
+                unsafe { Some(self.downcast_unchecked_mut()) }
+            } else {
+                None
+            }
+        }
+        /// # Safety
+        ///
+        /// Calling this method with the incorrect type is
+        /// *undefined behavior*.
+        #[inline]
+        pub unsafe fn downcast_unchecked_ref<T: 'static>(
+            &self,
+        ) -> &TypeMap<K, T> {
+            debug_assert!(self.element_is::<T>());
+            unsafe { &*(self as *const Self as *const TypeMap<K, T>) }
+        }
+        /// # Safety
+        ///
+        /// Calling this method with the incorrect type is
+        /// *undefined behavior*.
+        #[inline]
+        pub unsafe fn downcast_unchecked_mut<T: 'static>(
+            &mut self,
+        ) -> &mut TypeMap<K, T> {
+            debug_assert!(self.element_is::<T>());
+            unsafe { &mut *(self as *mut Self as *mut TypeMap<K, T>) }
+        }
+    }
 }
 
-impl<K> dyn DynTypeMap<K> {
-    /// Upcasts to `&dyn AnyTypeMap<K>` for downcasting.
-    pub fn any_ref<'a>(&self) -> &(dyn AnyTypeMap<K> + 'a) {
-        self as &dyn AnyTypeMap<K>
-    }
-
-    /// Upcasts to `&mut dyn AnyTypeMap<K>` for downcasting.
-    pub fn any_mut<'a>(&mut self) -> &mut (dyn AnyTypeMap<K> + 'a) {
-        self as &mut dyn AnyTypeMap<K>
-    }
-}
-
-impl<K, T> DynTypeMap<K> for TypeMap<K, T>
-where
-    K: Hash + Eq,
-    T: 'static,
-{
-    fn dyn_remove(&mut self, id: &K) -> bool {
-        self.remove(id).is_some()
-    }
-}
-
-// TODO(nixon): Inline this?
-crate::any_wrapper!({
-    mod any_type_map {
-        pub trait AnyTypeMap: TypeMap<K> {}
-    }
-});
+pub type DynTypeMap<K> = Box<dyn any_type_map::AnyTypeMap<K>>;
 
 #[cfg(test)]
 mod tests {
