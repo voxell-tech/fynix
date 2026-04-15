@@ -4,12 +4,16 @@ use hashbrown::HashMap;
 use rectree::{Constraint, RectNode, Size};
 
 use crate::element::{Element, ElementId, ElementNodes};
+use crate::style::StyleId;
 use crate::type_table::TypeTable;
 
 /// Per-element metadata stored alongside the layout node.
 pub struct ElementMeta {
     pub type_id: TypeId,
     pub node: RectNode<ElementId>,
+    /// When this element is removed, this style and all its
+    /// descendants in the style tree are also removed
+    pub primary_style: Option<StyleId>,
 }
 
 /// Per-element layout node storage, keyed by [`ElementId`].
@@ -33,6 +37,7 @@ impl ElementMetas {
             ElementMeta {
                 type_id: TypeId::of::<E>(),
                 node: RectNode::new(None),
+                primary_style: None,
             },
         );
     }
