@@ -290,7 +290,7 @@ impl StyleBuilder {
             parent_id,
             index_map,
             fields: all_fields.into_boxed_slice(),
-            children: [None, None],
+            children: [None; 2],
         }
     }
 }
