@@ -20,8 +20,8 @@ pub struct ElementGroup;
 /// Slot-indexed element storage, keyed by [`ElementId`].
 ///
 /// Each element type is assigned a unique slot index at
-/// startup by [`crate::init_elements`]. Typed access is then
-/// a direct [`Vec`] index - no hashing on the hot path.
+/// startup by [`crate::init`]. Typed access is then a direct
+/// [`Vec`] index.
 pub struct ElementTable {
     columns: Vec<Option<DynTypeMap<ElementId>>>,
 }
@@ -157,7 +157,7 @@ impl Elements {
     /// concrete type is known, it avoids the getter dispatch.
     pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
         let slot = self.metas.get(id)?.slot;
-        let type_meta = self.type_metas.get(slot)?;
+        let type_meta = self.type_metas.get_slot(slot)?;
         type_meta.get_dyn(&self.elements, id)
     }
 
@@ -214,7 +214,7 @@ impl Elements {
         let Some(meta) = self.metas.get(id) else {
             return;
         };
-        if let Some(type_meta) = self.type_metas.get(meta.slot) {
+        if let Some(type_meta) = self.type_metas.get_slot(meta.slot) {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
             {
@@ -330,7 +330,7 @@ impl<'a> Rectree for ElementTree<'a> {
         if let Some(type_meta) = nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get(m.slot))
+            .and_then(|m| self.type_metas.get_slot(m.slot))
         {
             (type_meta.children_fn)(
                 self.elements,
@@ -349,7 +349,7 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get(m.slot))
+            .and_then(|m| self.type_metas.get_slot(m.slot))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.constrain(parent))
@@ -367,7 +367,7 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get(m.slot))
+            .and_then(|m| self.type_metas.get_slot(m.slot))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.build(id, constraint, nodes))

@@ -8,17 +8,14 @@ use typeslot::{SlotGroup, TypeSlot};
 use crate::element::ElementTable;
 use crate::element::{Element, ElementGroup, ElementId};
 
-/// Per-element metadata stored alongside the layout node.
+/// Per-element metadata.
 pub struct ElementMeta {
     pub slot: usize,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
 }
 
-/// Per-element layout node storage, keyed by [`ElementId`].
-///
-/// Implements [`rectree::RectNodes`] so it can be passed
-/// directly to rectree's layout free functions.
+/// Per-element metadata storage, keyed by [`ElementId`].
 pub struct ElementMetas {
     map: HashMap<ElementId, ElementMeta>,
 }
@@ -85,15 +82,19 @@ impl ElementTypeMetas {
         Self { slots }
     }
 
-    pub fn register<E: Element + TypeSlot<ElementGroup>>(&mut self) {
+    pub fn register<E: Element>(&mut self) {
         let slot = ElementGroup::slot::<E>();
         if self.slots[slot].is_none() {
             self.slots[slot] = Some(ElementTypeMeta::new::<E>());
         }
     }
 
-    pub fn get(&self, slot: usize) -> Option<&ElementTypeMeta> {
+    pub fn get_slot(&self, slot: usize) -> Option<&ElementTypeMeta> {
         self.slots.get(slot)?.as_ref()
+    }
+
+    pub fn get<E: Element>(&self) -> Option<&ElementTypeMeta> {
+        self.slots.get(ElementGroup::slot::<E>())?.as_ref()
     }
 }
 
