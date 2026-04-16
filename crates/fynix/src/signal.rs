@@ -2,6 +2,8 @@ use core::marker::PhantomData;
 
 use hashbrown::HashSet;
 
+use crate::ctx::FynixCtx;
+use crate::element::ElementId;
 use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
@@ -41,19 +43,19 @@ impl Signals {
     /// Returns a reference to the current value of `signal`.
     pub fn get<T: 'static>(
         &self,
-        signal: SignalHandle<T>,
+        handle: SignalHandle<T>,
     ) -> Option<&T> {
-        self.values.get::<T>(&signal.id)
+        self.values.get::<T>(&handle.id)
     }
 
     /// Updates the value of `signal` and marks it dirty.
     pub fn set<T: 'static>(
         &mut self,
-        signal: SignalHandle<T>,
+        handle: SignalHandle<T>,
         value: T,
     ) {
-        self.values.insert(signal.id, value);
-        self.dirty.insert(signal.id);
+        self.values.insert(handle.id, value);
+        self.dirty.insert(handle.id);
     }
 
     /// Drains and returns the set of signals that have been mutated
