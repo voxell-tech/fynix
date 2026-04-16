@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use imaging::PaintSink;
 use imaging::record::Scene;
 use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
-use typeslot::{AtomicSlot, SlotGroup, TypeSlot};
+use typeslot::{SlotGroup, TypeSlot};
 
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::id::{GenId, IdGenerator};
@@ -14,18 +14,8 @@ use crate::type_table::TypeMap;
 pub mod meta;
 
 /// Marker type for the element slot group.
-///
-/// See [`TypeSlot`].
+#[derive(SlotGroup)]
 pub struct ElementGroup;
-
-pub static ELEMENT_COUNT: AtomicSlot = AtomicSlot::new();
-
-pub(super) fn init_elements() {
-    if ELEMENT_COUNT.get().is_none() {
-        let count = typeslot::init_slot::<ElementGroup>();
-        ELEMENT_COUNT.set(count);
-    }
-}
 
 /// Slot-indexed element storage, keyed by [`ElementId`].
 ///
@@ -34,22 +24,13 @@ pub(super) fn init_elements() {
 /// a direct [`Vec`] index - no hashing on the hot path.
 pub struct ElementTable {
     columns: Vec<Option<DynTypeMap<ElementId>>>,
-    slot_group: SlotGroup<ElementGroup>,
 }
 
 impl ElementTable {
     pub fn new() -> Self {
         let mut columns = Vec::new();
-        columns.resize_with(
-            ELEMENT_COUNT
-                .get()
-                .expect("`fynix::init()` should be ran once."),
-            || None,
-        );
-        Self {
-            columns,
-            slot_group: SlotGroup::new(),
-        }
+        columns.resize_with(ElementGroup::len(), || None);
+        Self { columns }
     }
 
     /// Inserts `value` under `key`.
@@ -61,8 +42,7 @@ impl ElementTable {
         key: ElementId,
         value: E,
     ) -> Option<E> {
-        let slot = self.slot_group.get::<E>();
-
+        let slot = ElementGroup::slot::<E>();
         if self.columns[slot].is_none() {
             self.columns[slot] =
                 Some(Box::new(TypeMap::<ElementId, E>::new()));
@@ -79,7 +59,7 @@ impl ElementTable {
 
     /// Returns a reference to the value stored under `key`.
     pub fn get<E: Element>(&self, key: &ElementId) -> Option<&E> {
-        let slot = self.slot_group.get::<E>();
+        let slot = ElementGroup::slot::<E>();
         let col = self.columns.get(slot)?.as_ref()?;
         // SAFETY: see [`Self::insert`].
         let map = unsafe { col.downcast_unchecked_ref::<E>() };
@@ -92,7 +72,7 @@ impl ElementTable {
         &mut self,
         key: &ElementId,
     ) -> Option<&mut E> {
-        let slot = self.slot_group.get::<E>();
+        let slot = ElementGroup::slot::<E>();
         let col = self.columns.get_mut(slot)?.as_mut()?;
         // SAFETY: see [`Self::insert`].
         let map = unsafe { col.downcast_unchecked_mut::<E>() };
@@ -104,7 +84,7 @@ impl ElementTable {
         &mut self,
         key: &ElementId,
     ) -> Option<E> {
-        let slot = self.slot_group.get::<E>();
+        let slot = ElementGroup::slot::<E>();
         let col = self.columns.get_mut(slot)?.as_mut()?;
         // SAFETY: see [`Self::insert`].
         let map = unsafe { col.downcast_unchecked_mut::<E>() };
@@ -136,8 +116,8 @@ impl Default for ElementTable {
 /// Type-erased storage for all element instances.
 ///
 /// Internally holds one [`ElementTable`] column per element
-/// type. The [`core::any::TypeId`] of each element is stored
-/// inside [`ElementMetas`] so that polymorphic access (via
+/// type. The slot index of each element is stored inside
+/// [`ElementMetas`] so that polymorphic access (via
 /// [`Self::get_dyn`]) and removal work without knowing the
 /// concrete type at the call site.
 pub struct Elements {
@@ -176,8 +156,8 @@ impl Elements {
     /// Prefer [`get_typed`](Elements::get_typed) when the
     /// concrete type is known, it avoids the getter dispatch.
     pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
-        let type_id = self.metas.get_type_id(id)?;
-        let type_meta = self.type_metas.get(&type_id)?;
+        let slot = self.metas.get(id)?.slot;
+        let type_meta = self.type_metas.get(slot)?;
         type_meta.get_dyn(&self.elements, id)
     }
 
@@ -234,9 +214,7 @@ impl Elements {
         let Some(meta) = self.metas.get(id) else {
             return;
         };
-        let type_id = meta.type_id;
-
-        if let Some(type_meta) = self.type_metas.get(&type_id) {
+        if let Some(type_meta) = self.type_metas.get(meta.slot) {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
             {
@@ -349,9 +327,10 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes: &mut Self::Nodes,
         mut f: impl FnMut(&ElementId, &mut Self::Nodes),
     ) {
-        let type_id = nodes.metas.get_type_id(id);
-        if let Some(type_meta) =
-            type_id.and_then(|t| self.type_metas.get(&t))
+        if let Some(type_meta) = nodes
+            .metas
+            .get(id)
+            .and_then(|m| self.type_metas.get(m.slot))
         {
             (type_meta.children_fn)(
                 self.elements,
@@ -367,9 +346,10 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes: &Self::Nodes,
         parent: Constraint,
     ) -> Constraint {
-        let type_id = nodes.metas.get_type_id(id);
-        type_id
-            .and_then(|t| self.type_metas.get(&t))
+        nodes
+            .metas
+            .get(id)
+            .and_then(|m| self.type_metas.get(m.slot))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.constrain(parent))
@@ -384,9 +364,10 @@ impl<'a> Rectree for ElementTree<'a> {
         constraint: Constraint,
         nodes: &mut Self::Nodes,
     ) -> Size {
-        let type_id = nodes.metas.get_type_id(id);
-        type_id
-            .and_then(|t| self.type_metas.get(&t))
+        nodes
+            .metas
+            .get(id)
+            .and_then(|m| self.type_metas.get(m.slot))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.build(id, constraint, nodes))

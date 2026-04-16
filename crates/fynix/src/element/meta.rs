@@ -1,16 +1,15 @@
-use core::any::TypeId;
+use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use imaging::record::Scene;
 use rectree::RectNode;
-use typeslot::TypeSlot;
+use typeslot::{SlotGroup, TypeSlot};
 
 use crate::element::ElementTable;
 use crate::element::{Element, ElementGroup, ElementId};
 
 /// Per-element metadata stored alongside the layout node.
 pub struct ElementMeta {
-    pub type_id: TypeId,
     pub slot: usize,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
@@ -38,17 +37,11 @@ impl ElementMetas {
         self.map.insert(
             id,
             ElementMeta {
-                type_id: TypeId::of::<E>(),
-                slot: typeslot::slot::<E, ElementGroup>(),
+                slot: ElementGroup::slot::<E>(),
                 node: RectNode::new(None),
                 cached_scene: None,
             },
         );
-    }
-
-    /// Returns the [`TypeId`] of the element stored at `id`.
-    pub fn get_type_id(&self, id: &ElementId) -> Option<TypeId> {
-        self.map.get(id).map(|m| m.type_id)
     }
 
     /// Removes the element meta and returns its slot index
@@ -77,26 +70,30 @@ impl Default for ElementMetas {
 
 /// Registry of per-type dispatch tables, one entry per
 /// element type.
+///
+/// Slot-indexed parallel to [`ElementTable`]: the column at
+/// index `ElementGroup::slot::<E>()` holds the
+/// [`ElementTypeMeta`] for `E`.
 pub struct ElementTypeMetas {
-    map: HashMap<TypeId, ElementTypeMeta>,
+    slots: Vec<Option<ElementTypeMeta>>,
 }
 
 impl ElementTypeMetas {
     pub fn new() -> Self {
-        Self {
-            map: HashMap::new(),
-        }
+        let mut slots = Vec::new();
+        slots.resize_with(ElementGroup::len(), || None);
+        Self { slots }
     }
 
     pub fn register<E: Element + TypeSlot<ElementGroup>>(&mut self) {
-        let type_id = TypeId::of::<E>();
-        if !self.map.contains_key(&type_id) {
-            self.map.insert(type_id, ElementTypeMeta::new::<E>());
+        let slot = ElementGroup::slot::<E>();
+        if self.slots[slot].is_none() {
+            self.slots[slot] = Some(ElementTypeMeta::new::<E>());
         }
     }
 
-    pub fn get(&self, id: &TypeId) -> Option<&ElementTypeMeta> {
-        self.map.get(id)
+    pub fn get(&self, slot: usize) -> Option<&ElementTypeMeta> {
+        self.slots.get(slot)?.as_ref()
     }
 }
 

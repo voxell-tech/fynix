@@ -3,10 +3,13 @@
 
 extern crate alloc;
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
 use imaging::PaintSink;
+use typeslot::SlotGroup;
 
 use crate::ctx::FynixCtx;
-use crate::element::{ElementId, Elements, init_elements};
+use crate::element::{ElementGroup, ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
@@ -23,11 +26,22 @@ mod id;
 
 /// Initializes the Fynix framework.
 ///
-/// Must be called once before any element is added to a
-/// [`Fynix`] instance. Safe to call multiple times - only
-/// the first call has any effect.
+/// Must be called before any element is added to a [`Fynix`]
+/// instance. Safe to call more than once — subsequent calls
+/// are no-ops.
 pub fn init() {
-    init_elements();
+    static INITIALIZED: AtomicBool = AtomicBool::new(false);
+    if INITIALIZED
+        .compare_exchange(
+            false,
+            true,
+            Ordering::AcqRel,
+            Ordering::Relaxed,
+        )
+        .is_ok()
+    {
+        ElementGroup::init();
+    }
 }
 
 /// Root application context. Owns the element tree, layout state,
