@@ -71,17 +71,9 @@ impl Styles {
     /// `parent_id` links the new node into the inheritance chain so that
     /// [`apply`](Styles::apply) can walk up to ancestor defaults.
     ///
-    /// TODO: come up with a better explanation
-    /// `is_deeper` indicates whether this style is one level deeper than
-    /// its parent or at the same level.
-    ///
     /// The parent's children is also updated accordingly, where the newly
     /// committed style is added as the parent's child
-    pub fn commit_styles(
-        &mut self,
-        parent_id: Option<StyleId>,
-        is_deeper: bool,
-    ) {
+    pub fn commit_styles(&mut self, parent_id: Option<StyleId>) {
         let committed_id = self.current_id;
         let style =
             core::mem::take(&mut self.style_builder).build(parent_id);
@@ -89,28 +81,26 @@ impl Styles {
         self.styles.insert(committed_id, style);
 
         if let Some(parent) = parent_id {
-            self.add_child_to_style(parent, committed_id, is_deeper);
+            self.add_child_to_style(parent, committed_id);
         }
 
         self.current_id = self.id_generator.new_id();
     }
 
     /// Adds `child_id` to the children of `parent_id`.
-    ///
-    /// If `is_deeper` is true, the child goes into `children[0]`
-    /// (one level deeper). Otherwise, it goes into `children[1]`
-    /// (sibling at the same level).
     fn add_child_to_style(
         &mut self,
         parent_id: StyleId,
         child_id: StyleId,
-        is_deeper: bool,
     ) {
         let Some(parent) = self.styles.get_mut(&parent_id) else {
             return;
         };
 
-        if is_deeper {
+        // Should be deterministic
+        // [0] -> deeper depth
+        // [1] -> sibling style
+        if parent.children[0].is_none() {
             parent.children[0] = Some(child_id);
         } else {
             parent.children[1] = Some(child_id);

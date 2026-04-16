@@ -22,10 +22,6 @@ use crate::style::{StyleId, StyleValue};
 /// [`Style`]: crate::style::Style
 pub struct FynixCtx<'f, 'w, W> {
     parent_style_id: Option<StyleId>,
-    // Used for building styles
-    // Determins whether the current style is in a new scope
-    // (lower depth), or continues the previous scope (same depth)
-    continuing_scope: bool,
     fynix: &'f mut Fynix,
     pub world: &'w mut W,
 }
@@ -38,7 +34,6 @@ impl<W> FynixCtx<'_, '_, W> {
     ) -> FynixCtx<'f, 'w, W> {
         FynixCtx {
             parent_style_id,
-            continuing_scope: false,
             fynix,
             world,
         }
@@ -80,9 +75,6 @@ impl<W> FynixCtx<'_, '_, W> {
     {
         let mut element = self.create_element::<E>();
         let parent_style_id_before = self.parent_style_id;
-        let continuing_scope_before = self.continuing_scope;
-
-        self.continuing_scope = false;
 
         // ID of either the uncommited style, or current parent style
         let first_inner_style_id = self.fynix.styles.current_id();
@@ -102,15 +94,13 @@ impl<W> FynixCtx<'_, '_, W> {
 
         // restore to old value
         self.parent_style_id = parent_style_id_before;
-        self.continuing_scope = continuing_scope_before;
 
         let id = self.fynix.elements.add(element);
 
-        if let Some(style_id) = primary_style {
-            if let Some(meta) = self.fynix.elements.metas.get_mut(&id)
-            {
-                meta.primary_style = Some(style_id);
-            }
+        if let Some(style_id) = primary_style
+            && let Some(meta) = self.fynix.elements.metas.get_mut(&id)
+        {
+            meta.primary_style = Some(style_id);
         }
 
         id
@@ -139,21 +129,8 @@ impl<W> FynixCtx<'_, '_, W> {
         if self.fynix.styles.should_commit() {
             let committed_id = self.fynix.styles.current_id();
 
-            // Determine if this style should go in children[0] (first
-            // child, deeper scope) or children[1] (sibling, same depth)
-            //
-            // If continuing_scope is false, this is the first style in
-            // a new scope, so is_deeper = true
-            //
-            // Otherwise, this is a sibling style at the same level, so
-            // is_deeper = false
-            let is_deeper = !self.continuing_scope;
-
-            self.fynix
-                .styles
-                .commit_styles(self.parent_style_id, is_deeper);
+            self.fynix.styles.commit_styles(self.parent_style_id);
             self.parent_style_id = Some(committed_id);
-            self.continuing_scope = true;
         }
 
         let mut element = E::new();
