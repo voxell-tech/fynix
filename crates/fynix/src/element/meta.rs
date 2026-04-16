@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 use imaging::record::Scene;
 use rectree::RectNode;
-use typeslot::{SlotGroup, TypeSlot};
+use typeslot::SlotGroup;
 
 use crate::element::ElementTable;
 use crate::element::{Element, ElementGroup, ElementId};
@@ -119,7 +119,7 @@ pub struct ElementTypeMeta {
 }
 
 impl ElementTypeMeta {
-    pub fn new<E: Element + TypeSlot<ElementGroup>>() -> Self {
+    pub fn new<E: Element>() -> Self {
         Self {
             get_dyn_fn: get_dyn_element::<E>,
             children_fn: for_each_child::<E>,
@@ -145,7 +145,7 @@ pub type GetDynElementFn = for<'a> fn(
 /// Monomorphized implementation of [`GetDynElementFn`] for
 /// element type `E`.
 #[inline]
-pub fn get_dyn_element<'a, E: Element + TypeSlot<ElementGroup>>(
+pub fn get_dyn_element<'a, E: Element>(
     table: &'a ElementTable,
     id: &ElementId,
 ) -> Option<&'a dyn Element> {
@@ -167,7 +167,7 @@ pub type ChildrenElementFn = fn(
 );
 
 #[inline]
-pub fn for_each_child<E: Element + TypeSlot<ElementGroup>>(
+pub fn for_each_child<E: Element>(
     table: &ElementTable,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),

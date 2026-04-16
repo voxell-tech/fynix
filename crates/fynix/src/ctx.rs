@@ -1,8 +1,7 @@
 use field_path::field_accessor::FieldAccessor;
-use typeslot::TypeSlot;
 
 use crate::Fynix;
-use crate::element::{Element, ElementGroup, ElementId};
+use crate::element::{Element, ElementId};
 use crate::style::{StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -43,10 +42,7 @@ impl<W> FynixCtx<'_, '_, W> {
     /// Creates element `E`, applies the current style chain to it,
     /// stores it, and returns its [`ElementId`].
     #[must_use]
-    pub fn add<E>(&mut self) -> ElementId
-    where
-        E: Element + TypeSlot<ElementGroup>,
-    {
+    pub fn add<E: Element>(&mut self) -> ElementId {
         let element = self.create_element::<E>();
         self.fynix.elements.add(element)
     }
@@ -58,13 +54,10 @@ impl<W> FynixCtx<'_, '_, W> {
     /// any [`Self::set`] calls inside `f` do not affect elements
     /// added after this call.
     #[must_use]
-    pub fn add_with<E>(
+    pub fn add_with<E: Element>(
         &mut self,
         f: impl FnOnce(&mut E, &mut Self),
-    ) -> ElementId
-    where
-        E: Element + TypeSlot<ElementGroup>,
-    {
+    ) -> ElementId {
         let mut element = self.create_element::<E>();
         let parent_style_id = self.parent_style_id;
 
@@ -79,23 +72,17 @@ impl<W> FynixCtx<'_, '_, W> {
     /// Queues a style default: field `field_accessor` on element type `E`
     /// will be set to `value` for all elements added after this call (within
     /// the current scope).
-    pub fn set<E, T>(
+    pub fn set<E: Element, T: StyleValue>(
         &mut self,
         field_accessor: FieldAccessor<E, T>,
         value: T,
-    ) where
-        E: Element,
-        T: StyleValue,
-    {
+    ) {
         self.fynix.styles.set(field_accessor, value);
     }
 
     /// Commits any pending style changes, constructs `E::new()`, and
     /// applies the current style chain to it.
-    fn create_element<E>(&mut self) -> E
-    where
-        E: Element,
-    {
+    fn create_element<E: Element>(&mut self) -> E {
         if self.fynix.styles.should_commit() {
             let committed_id = self.fynix.styles.current_id();
             self.fynix.styles.commit_styles(self.parent_style_id);
