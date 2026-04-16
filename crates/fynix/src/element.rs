@@ -66,8 +66,7 @@ impl ElementTable {
         map.get(key)
     }
 
-    /// Returns a mutable reference to the value stored under
-    /// `key`.
+    /// Returns a mutable reference to the value stored under `key`.
     pub fn get_mut<E: Element>(
         &mut self,
         key: &ElementId,

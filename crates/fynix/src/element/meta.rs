@@ -27,10 +27,7 @@ impl ElementMetas {
         }
     }
 
-    pub fn init_element<E: 'static + TypeSlot<ElementGroup>>(
-        &mut self,
-        id: ElementId,
-    ) {
+    pub fn init_element<E: Element>(&mut self, id: ElementId) {
         self.map.insert(
             id,
             ElementMeta {
@@ -76,12 +73,14 @@ pub struct ElementTypeMetas {
 }
 
 impl ElementTypeMetas {
+    /// Creates an empty registry sized for all element types.
     pub fn new() -> Self {
         let mut slots = Vec::new();
         slots.resize_with(ElementGroup::len(), || None);
         Self { slots }
     }
 
+    /// Registers `E` if it has not been registered yet.
     pub fn register<E: Element>(&mut self) {
         let slot = ElementGroup::slot::<E>();
         if self.slots[slot].is_none() {
@@ -89,12 +88,16 @@ impl ElementTypeMetas {
         }
     }
 
-    pub fn get_slot(&self, slot: usize) -> Option<&ElementTypeMeta> {
-        self.slots.get(slot)?.as_ref()
+    /// Returns the [`ElementTypeMeta`] for `E`, or `None` if
+    /// `E` has not been registered.
+    pub fn get<E: Element>(&self) -> Option<&ElementTypeMeta> {
+        self.get_slot(ElementGroup::slot::<E>())
     }
 
-    pub fn get<E: Element>(&self) -> Option<&ElementTypeMeta> {
-        self.slots.get(ElementGroup::slot::<E>())?.as_ref()
+    /// Returns the [`ElementTypeMeta`] for `slot`, or `None`
+    /// if that slot has not been registered.
+    pub fn get_slot(&self, slot: usize) -> Option<&ElementTypeMeta> {
+        self.slots.get(slot)?.as_ref()
     }
 }
 
