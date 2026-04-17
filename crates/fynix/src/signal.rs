@@ -1,3 +1,4 @@
+use core::any::TypeId;
 use core::marker::PhantomData;
 
 use hashbrown::HashSet;
@@ -40,15 +41,15 @@ impl Signals {
         }
     }
 
-    /// Returns a reference to the current value of `signal`.
-    pub fn get<T: 'static>(
+    /// Returns a reference to the current value of the signal.
+    pub fn read<T: 'static>(
         &self,
         handle: SignalHandle<T>,
     ) -> Option<&T> {
         self.values.get::<T>(&handle.id)
     }
 
-    /// Updates the value of `signal` and marks it dirty.
+    /// Updates the value of the signal and marks it dirty.
     pub fn set<T: 'static>(
         &mut self,
         handle: SignalHandle<T>,
@@ -61,7 +62,7 @@ impl Signals {
     /// Drains and returns the set of signals that have been mutated
     /// since the last call to this method.
     pub fn take_dirty(&mut self) -> HashSet<SignalId> {
-        self.dirty.drain().collect()
+        core::mem::take(&mut self.dirty)
     }
 }
 
@@ -70,6 +71,73 @@ impl Default for Signals {
         Self::new()
     }
 }
+
+pub struct UntypedScope {
+    value_id: TypeId,
+    world_id: TypeId,
+    scope_fn: *const (),
+}
+
+impl UntypedScope {
+    pub fn typed<V: 'static, W: 'static>(
+        &self,
+    ) -> Option<Scope<V, W>> {
+        if self.value_id == TypeId::of::<V>()
+            && self.world_id == TypeId::of::<W>()
+        {
+            return Some(unsafe { self.typed_unchecked() });
+        }
+
+        None
+    }
+
+    /// Recovers the typed [`Scope<V, W>`] without a type check.
+    ///
+    /// # Safety
+    ///
+    /// `V` must be the signal value type and `W` must be t= world
+    /// type this scope was created for.
+    pub unsafe fn typed_unchecked<V: 'static, W: 'static>(
+        &self,
+    ) -> Scope<V, W> {
+        Scope {
+            scope_fn: unsafe {
+                core::mem::transmute::<*const (), ScopeFn<V, W>>(
+                    self.scope_fn,
+                )
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Scope<V: 'static, W: 'static> {
+    scope_fn: ScopeFn<V, W>,
+}
+
+impl<V: 'static, W: 'static> Scope<V, W> {
+    pub fn new(scope_fn: ScopeFn<V, W>) -> Self {
+        Self { scope_fn }
+    }
+
+    pub fn untyped(&self) -> UntypedScope {
+        UntypedScope {
+            value_id: TypeId::of::<V>(),
+            world_id: TypeId::of::<W>(),
+            scope_fn: self.scope_fn as *const (),
+        }
+    }
+
+    pub fn compute_scope(
+        &self,
+        value: &V,
+        ctx: &mut FynixCtx<W>,
+    ) -> ElementId {
+        (self.scope_fn)(value, ctx)
+    }
+}
+
+pub type ScopeFn<V, W> = fn(&V, &mut FynixCtx<W>) -> ElementId;
 
 /// A typed handle to a signal value stored in [`Signals`].
 ///
