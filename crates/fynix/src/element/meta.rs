@@ -10,7 +10,7 @@ use crate::element::{Element, ElementGroup, ElementId};
 
 /// Per-element metadata.
 pub struct ElementMeta {
-    pub slot: usize,
+    pub(super) slot: usize,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
 }
@@ -27,7 +27,7 @@ impl ElementMetas {
         }
     }
 
-    pub fn init_element<E: Element>(&mut self, id: ElementId) {
+    pub fn init<E: Element>(&mut self, id: ElementId) {
         self.map.insert(
             id,
             ElementMeta {
@@ -38,8 +38,6 @@ impl ElementMetas {
         );
     }
 
-    /// Removes the element meta and returns its slot index
-    /// for type-erased element storage cleanup.
     pub fn remove(&mut self, id: &ElementId) -> Option<ElementMeta> {
         self.map.remove(id)
     }

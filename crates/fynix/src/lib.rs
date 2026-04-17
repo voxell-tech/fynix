@@ -6,11 +6,12 @@ extern crate alloc;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use imaging::PaintSink;
-use typeslot::SlotGroup;
+use typeslot::{SlotGroup, TypeSlot};
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementGroup, ElementId, Elements};
 use crate::resource::Resources;
+use crate::signal::Signals;
 use crate::style::{StyleId, Styles};
 
 pub use imaging;
@@ -24,6 +25,13 @@ pub mod style;
 pub mod type_table;
 
 mod id;
+
+#[derive(SlotGroup)]
+pub struct WorldGroup;
+
+pub trait World: TypeSlot<WorldGroup> {}
+
+impl<T: TypeSlot<WorldGroup>> World for T {}
 
 /// Initializes the Fynix framework.
 ///
@@ -55,6 +63,7 @@ pub struct Fynix {
     pub elements: Elements,
     pub styles: Styles,
     pub resources: Resources,
+    pub signals: Signals,
 }
 
 impl Fynix {
@@ -63,6 +72,7 @@ impl Fynix {
             elements: Elements::new(),
             styles: Styles::new(),
             resources: Resources::new(),
+            signals: Signals::new(),
         }
     }
 
