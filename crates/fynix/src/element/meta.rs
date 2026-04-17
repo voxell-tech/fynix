@@ -91,7 +91,8 @@ impl ElementTypeMetas {
     /// Returns the [`ElementTypeMeta`] for `E`, or `None` if
     /// `E` has not been registered.
     pub fn get<E: Element>(&self) -> Option<&ElementTypeMeta> {
-        self.get_slot(ElementGroup::slot::<E>())
+        let slot = ElementGroup::slot::<E>();
+        self.slots[slot].as_ref()
     }
 
     /// Returns the [`ElementTypeMeta`] for `slot`, or `None`

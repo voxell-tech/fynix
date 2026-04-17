@@ -47,7 +47,7 @@ impl ElementTable {
     /// Returns a reference to the value stored under `key`.
     pub fn get<E: Element>(&self, key: &ElementId) -> Option<&E> {
         let slot = ElementGroup::slot::<E>();
-        let col = self.columns.get(slot)?.as_ref()?;
+        let col = self.columns[slot].as_ref()?;
         // SAFETY: see [`Self::insert`].
         let map = unsafe { col.downcast_unchecked_ref::<E>() };
         map.get(key)
@@ -59,7 +59,7 @@ impl ElementTable {
         key: &ElementId,
     ) -> Option<&mut E> {
         let slot = ElementGroup::slot::<E>();
-        let col = self.columns.get_mut(slot)?.as_mut()?;
+        let col = self.columns[slot].as_mut()?;
         // SAFETY: see [`Self::insert`].
         let map = unsafe { col.downcast_unchecked_mut::<E>() };
         map.get_mut(key)
@@ -71,7 +71,7 @@ impl ElementTable {
         key: &ElementId,
     ) -> Option<E> {
         let slot = ElementGroup::slot::<E>();
-        let col = self.columns.get_mut(slot)?.as_mut()?;
+        let col = self.columns[slot].as_mut()?;
         // SAFETY: see [`Self::insert`].
         let map = unsafe { col.downcast_unchecked_mut::<E>() };
         map.remove(key)
