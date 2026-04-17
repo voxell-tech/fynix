@@ -89,8 +89,8 @@ impl Elements {
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
-        if let Some(slot) = self.metas.remove(id)
-            && self.elements.dyn_remove_by_slot(slot, id)
+        if let Some(meta) = self.metas.remove(id)
+            && self.elements.dyn_remove_by_slot(meta.slot, id)
         {
             self.id_generator.recycle(*id);
             return true;

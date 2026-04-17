@@ -40,8 +40,8 @@ impl ElementMetas {
 
     /// Removes the element meta and returns its slot index
     /// for type-erased element storage cleanup.
-    pub fn remove(&mut self, id: &ElementId) -> Option<usize> {
-        self.map.remove(id).map(|m| m.slot)
+    pub fn remove(&mut self, id: &ElementId) -> Option<ElementMeta> {
+        self.map.remove(id)
     }
 
     pub fn get(&self, id: &ElementId) -> Option<&ElementMeta> {
