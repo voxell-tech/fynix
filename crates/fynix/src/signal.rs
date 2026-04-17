@@ -1,19 +1,28 @@
 use core::any::TypeId;
 use core::marker::PhantomData;
 
-use hashbrown::HashSet;
+use alloc::vec;
+use alloc::vec::Vec;
+use hashbrown::{HashMap, HashSet};
+use typeslot::SlotGroup;
 
 use crate::ctx::FynixCtx;
 use crate::element::ElementId;
 use crate::id::{GenId, IdGenerator};
+use crate::signal::meta::SignalMetas;
 use crate::type_table::TypeTable;
+use crate::{World, WorldGroup};
+
+pub mod meta;
 
 /// Reactive signal store.
 ///
 /// Holds typed signal values and tracks which signals have been
 /// mutated since the last call to [`Self::take_dirty`].
 pub struct Signals {
-    values: TypeTable<SignalId>,
+    signals: TypeTable<SignalId>,
+    metas: SignalMetas,
+    scopes: Vec<HashMap<SignalId, UntypedScope>>,
     dirty: HashSet<SignalId>,
     id_gen: SignalIdGenerator,
 }
@@ -21,7 +30,9 @@ pub struct Signals {
 impl Signals {
     pub fn new() -> Self {
         Self {
-            values: TypeTable::new(),
+            signals: TypeTable::new(),
+            metas: SignalMetas::new(),
+            scopes: vec![HashMap::new(); WorldGroup::len()],
             dirty: HashSet::new(),
             id_gen: IdGenerator::new(),
         }
@@ -29,16 +40,40 @@ impl Signals {
 
     /// Creates a new signal with `initial` as its starting value and
     /// returns a typed handle to it.
-    pub fn create<T: 'static>(
-        &mut self,
-        initial: T,
-    ) -> SignalHandle<T> {
+    pub fn add<T: 'static>(&mut self, initial: T) -> SignalHandle<T> {
         let id = self.id_gen.new_id();
-        self.values.insert(id, initial);
+        self.signals.insert(id, initial);
+        self.metas.init::<T>(id);
         SignalHandle {
             id,
             _marker: PhantomData,
         }
+    }
+
+    pub fn remove(&mut self, id: impl Into<SignalId>) -> bool {
+        let id = id.into();
+
+        if let Some(meta) = self.metas.get(&id) {
+            self.signals.dyn_remove(&meta.signal_id, &id);
+            self.dirty.remove(&id);
+            for s in self.scopes.iter_mut() {
+                s.remove(&id);
+            }
+
+            self.id_gen.recycle(id);
+            return true;
+        }
+
+        false
+    }
+
+    pub fn set_scope<T: 'static, W: World>(
+        &mut self,
+        handle: SignalHandle<T>,
+        scope: Scope<T, W>,
+    ) {
+        let slot = WorldGroup::slot::<W>();
+        self.scopes[slot].insert(handle.id, scope.untyped());
     }
 
     /// Returns a reference to the current value of the signal.
@@ -46,7 +81,7 @@ impl Signals {
         &self,
         handle: SignalHandle<T>,
     ) -> Option<&T> {
-        self.values.get::<T>(&handle.id)
+        self.signals.get::<T>(&handle.id)
     }
 
     /// Updates the value of the signal and marks it dirty.
@@ -55,7 +90,7 @@ impl Signals {
         handle: SignalHandle<T>,
         value: T,
     ) {
-        self.values.insert(handle.id, value);
+        self.signals.insert(handle.id, value);
         self.dirty.insert(handle.id);
     }
 
@@ -72,6 +107,7 @@ impl Default for Signals {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct UntypedScope {
     value_id: TypeId,
     world_id: TypeId,
@@ -110,17 +146,21 @@ impl UntypedScope {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Scope<V: 'static, W: 'static> {
+#[derive(Debug)]
+pub struct Scope<V, W> {
     scope_fn: ScopeFn<V, W>,
 }
 
-impl<V: 'static, W: 'static> Scope<V, W> {
+impl<V, W> Scope<V, W> {
     pub fn new(scope_fn: ScopeFn<V, W>) -> Self {
         Self { scope_fn }
     }
 
-    pub fn untyped(&self) -> UntypedScope {
+    pub fn untyped(&self) -> UntypedScope
+    where
+        V: 'static,
+        W: 'static,
+    {
         UntypedScope {
             value_id: TypeId::of::<V>(),
             world_id: TypeId::of::<W>(),
@@ -137,15 +177,26 @@ impl<V: 'static, W: 'static> Scope<V, W> {
     }
 }
 
+impl<V, W> Copy for Scope<V, W> {}
+
+impl<V, W> Clone for Scope<V, W> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 pub type ScopeFn<V, W> = fn(&V, &mut FynixCtx<W>) -> ElementId;
 
 /// A typed handle to a signal value stored in [`Signals`].
-///
-/// `SignalHandle<T>` is `Copy`, so it can be freely moved into
-/// closures or stored on elements without cloning.
 pub struct SignalHandle<T> {
     id: SignalId,
     _marker: PhantomData<T>,
+}
+
+impl<T> From<SignalHandle<T>> for SignalId {
+    fn from(value: SignalHandle<T>) -> Self {
+        value.id
+    }
 }
 
 impl<T> Copy for SignalHandle<T> {}

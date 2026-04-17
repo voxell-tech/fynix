@@ -12,7 +12,7 @@ use crate::style::StyleId;
 
 /// Per-element metadata.
 pub struct ElementMeta {
-    pub slot: usize,
+    pub(super) slot: usize,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
     /// When this element is removed, this style and all its
@@ -32,7 +32,7 @@ impl ElementMetas {
         }
     }
 
-    pub fn init_element<E: Element>(
+    pub fn init<E: Element>(
         &mut self,
         id: ElementId,
         primary_style: Option<StyleId>,
@@ -48,8 +48,6 @@ impl ElementMetas {
         );
     }
 
-    /// Removes the element meta and returns its slot index
-    /// for type-erased element storage cleanup.
     pub fn remove(&mut self, id: &ElementId) -> Option<ElementMeta> {
         self.map.remove(id)
     }

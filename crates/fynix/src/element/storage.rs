@@ -45,7 +45,7 @@ impl Elements {
 
         let id = self.id_generator.new_id();
 
-        self.metas.init_element::<E>(id, primary_style);
+        self.metas.init::<E>(id, primary_style);
         self.elements.insert(id, element);
         id
     }
