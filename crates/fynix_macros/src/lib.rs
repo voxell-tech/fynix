@@ -1,20 +1,37 @@
 use proc_macro::TokenStream;
+use proc_macro_crate::FoundCrate;
+use proc_macro_crate::crate_name;
+use proc_macro2::Ident;
+use proc_macro2::Span;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::Data;
 use syn::DeriveInput;
 use syn::Fields;
-use syn::Ident;
 use syn::parse_macro_input;
 
-fn element_slot_tokens(name: &Ident) -> TokenStream2 {
+fn fynix_crate() -> TokenStream2 {
+    match crate_name("fynix") {
+        Ok(FoundCrate::Itself) => quote!(crate),
+        Ok(FoundCrate::Name(name)) => {
+            let ident = Ident::new(&name, Span::call_site());
+            quote!(::#ident)
+        }
+        Err(_) => quote!(::fynix),
+    }
+}
+
+fn element_slot_tokens(
+    name: &Ident,
+    fynix: &TokenStream2,
+) -> TokenStream2 {
     quote! {
         const _: () = {
-            static __SLOT: ::typeslot::AtomicSlot =
-                ::typeslot::AtomicSlot::new();
+            static __SLOT: #fynix::typeslot::AtomicSlot =
+                #fynix::typeslot::AtomicSlot::new();
 
-            impl ::typeslot::TypeSlot<
-                ::fynix::element::ElementGroup,
+            impl #fynix::typeslot::TypeSlot<
+                #fynix::element::ElementGroup,
             > for #name {
                 #[inline]
                 fn try_slot() -> ::core::option::Option<usize> {
@@ -29,11 +46,11 @@ fn element_slot_tokens(name: &Ident) -> TokenStream2 {
                 }
             }
 
-            ::typeslot::inventory::submit! {
-                ::typeslot::TypeSlotEntry {
+            #fynix::typeslot::inventory::submit! {
+                #fynix::typeslot::TypeSlotEntry {
                     type_id: ::core::any::TypeId::of::<#name>(),
                     group_id: ::core::any::TypeId::of::<
-                        ::fynix::element::ElementGroup,
+                        #fynix::element::ElementGroup,
                     >(),
                     slot: &__SLOT,
                 }
@@ -54,7 +71,8 @@ fn element_slot_tokens(name: &Ident) -> TokenStream2 {
 #[proc_macro_derive(ElementSlot)]
 pub fn derive_element_slot(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    element_slot_tokens(&input.ident).into()
+    let fynix = fynix_crate();
+    element_slot_tokens(&input.ident, &fynix).into()
 }
 
 /// Derives a default `fynix::element::Element` implementation
@@ -81,6 +99,7 @@ pub fn derive_element_slot(input: TokenStream) -> TokenStream {
 pub fn derive_element(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
+    let fynix = fynix_crate();
 
     let fields = match &input.data {
         Data::Struct(s) => &s.fields,
@@ -136,12 +155,12 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
     };
 
     let child_ident = child_field.ident.as_ref().unwrap();
-    let slot_tokens = element_slot_tokens(name);
+    let slot_tokens = element_slot_tokens(name, &fynix);
 
     quote! {
         #slot_tokens
 
-        impl ::fynix::element::Element for #name {
+        impl #fynix::element::Element for #name {
             fn new() -> Self
             where
                 Self: Sized,
@@ -152,25 +171,26 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
             fn children(
                 &self,
             ) -> impl ::core::iter::IntoIterator<
-                Item = &::fynix::element::ElementId,
+                Item = &(#fynix::element::ElementId),
             >
             where
                 Self: Sized,
             {
-                self.#child_ident.iter()
+                (&self.#child_ident).into_iter()
             }
 
             fn build(
                 &self,
-                _id: &::fynix::element::ElementId,
-                constraint: ::fynix::rectree::Constraint,
-                nodes: &mut ::fynix::element::ElementNodes,
-            ) -> ::fynix::rectree::Size {
-                use ::fynix::rectree::NodeContext as _;
-                self.#child_ident
-                    .as_ref()
+                _id: &(#fynix::element::ElementId),
+                constraint: #fynix::rectree::Constraint,
+                nodes: &mut #fynix::element::ElementNodes,
+            ) -> #fynix::rectree::Size {
+                use #fynix::rectree::NodeContext as _;
+                (&self.#child_ident)
+                    .into_iter()
                     .map(|c| nodes.get_size(c))
-                    .unwrap_or(::fynix::rectree::Size::ZERO)
+                    .next()
+                    .unwrap_or(#fynix::rectree::Size::ZERO)
             }
         }
     }

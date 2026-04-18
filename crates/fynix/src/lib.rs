@@ -15,6 +15,7 @@ use crate::style::{StyleId, Styles};
 
 pub use imaging;
 pub use rectree;
+pub use typeslot;
 
 pub mod ctx;
 pub mod element;
