@@ -29,22 +29,21 @@ consumed to build the subtree.
 ### Usage
 
 ```rust
-struct Hierarchy {
-    filter: String,
-    child: ElementId,
+struct Hierarchy<'a> {
+    filter: &'a str,
 }
 
 // In fynix_bevy (or any backend crate):
-impl Composer<BevyWorld> for Hierarchy {
+impl Composer<BevyWorld> for Hierarchy<'_> {
     fn compose(self, ctx: &mut FynixCtx<BevyWorld>) -> ElementId {
-        let items = ctx.world.query_filtered(&self.filter);
+        let items = ctx.world.query_filtered(self.filter);
         // ...
         ctx.add::<Label>()
     }
 }
 
 // In fynix_custom:
-impl Composer<CustomWorld> for Hierarchy {
+impl Composer<CustomWorld> for Hierarchy<'_> {
     fn compose(self, ctx: &mut FynixCtx<CustomWorld>) -> ElementId {
         ctx.add::<Label>()
     }
@@ -53,10 +52,7 @@ impl Composer<CustomWorld> for Hierarchy {
 
 ```rust
 fn create_ui(ctx: &mut FynixCtx<BevyWorld>) {
-    ctx.compose(Hierarchy {
-        filter: "enemy".into(),
-        child: ctx.add::<Label>(),
-    });
+    ctx.compose(Hierarchy { filter: "enemy" });
 }
 ```
 
