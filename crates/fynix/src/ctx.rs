@@ -103,23 +103,17 @@ mod tests {
 
     use field_path::field_accessor;
     use rectree::{Constraint, NodeContext, Size, Vec2};
-    use typeslot::TypeSlot;
 
-    use crate::element::{ElementGroup, ElementNodes};
+    use crate::element::ElementNodes;
 
     use super::*;
 
-    #[derive(Default, Clone, TypeSlot)]
-    #[slot(ElementGroup)]
+    #[derive(Element, Default, Clone)]
     struct Label {
         pub text: String,
     }
 
     impl Element for Label {
-        fn new() -> Self {
-            Self::default()
-        }
-
         fn build(
             &self,
             _id: &ElementId,
@@ -133,9 +127,9 @@ mod tests {
         }
     }
 
-    #[derive(Default, Clone, TypeSlot)]
-    #[slot(ElementGroup)]
+    #[derive(Element, Default, Clone)]
     struct Vertical {
+        #[children]
         children: Vec<ElementId>,
     }
 
@@ -146,10 +140,6 @@ mod tests {
     }
 
     impl Element for Vertical {
-        fn new() -> Self {
-            Self::default()
-        }
-
         fn build(
             &self,
             _id: &ElementId,

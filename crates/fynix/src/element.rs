@@ -17,28 +17,41 @@ pub mod table;
 #[derive(SlotGroup)]
 pub struct ElementGroup;
 
-/// Trait for element types.
+/// Constructs a default (unstyled) instance of an element.
 ///
-/// Implement this for any type you want to add to the
-/// element tree via
-/// [`FynixCtx::add`](crate::ctx::FynixCtx::add). The single
-/// required method, `new`, must return a default (unstyled)
-/// instance.
-///
-/// Styles are applied immediately after construction by the
-/// build context.
-pub trait Element: TypeSlot<ElementGroup> + 'static {
+/// Implement this alongside [`Element`]. Styles are applied
+/// immediately after construction by the build context.
+pub trait ElementNew {
     fn new() -> Self
     where
         Self: Sized;
+}
 
+/// Enumerates the children of an element.
+///
+/// The default implementation yields no children, suitable
+/// for leaf elements.
+pub trait ElementChildren {
     fn children(&self) -> impl IntoIterator<Item = &ElementId>
     where
         Self: Sized,
     {
         []
     }
+}
 
+/// Trait for element types.
+///
+/// Implement this for any type you want to add to the
+/// element tree via
+/// [`FynixCtx::add`](crate::ctx::FynixCtx::add).
+///
+/// Use `#[derive(Element)]` to derive [`ElementNew`] and
+/// [`ElementChildren`] automatically; implement `build`
+/// manually.
+pub trait Element:
+    ElementNew + ElementChildren + TypeSlot<ElementGroup> + 'static
+{
     fn constrain(&self, parent_constraint: Constraint) -> Constraint {
         parent_constraint
     }

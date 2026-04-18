@@ -3,80 +3,10 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| `#[derive(Element)]` macro           | Planned, not started              |
 | Element composers                    | Planned, not started              |
 | Interactions & Events                | Planned, not started              |
 | Reactivity (`Signals`)               | Deferred until after first render |
 | `TypeSlot` / typed table opt.        | In progress...                    |
-
----
-
-## `#[derive(Element)]` macro
-
-A derive macro that implements the `Element` trait automatically.
-Requires the struct to implement `Default`, which provides `new()`.
-
-```rust
-#[derive(Element, Default)]
-struct Horizontal {
-    #[children]
-    children: Vec<ElementId>,
-    gap: f32,
-}
-```
-
-### `#[children]` field attribute
-
-Fields marked `#[children]` are auto-registered as the element's
-child list. The macro implements `Element::children()` by calling
-`into_iter()` on the marked field by default.
-
-An optional method chain can be specified for types that need one
-to produce the iterator:
-
-```rust
-// Default - calls into_iter() on the field.
-#[children]
-children: Vec<ElementId>,
-
-// With method chain - calls .keys() first.
-#[children(.keys())]
-children: BTreeMap<ElementId, LayoutData>,
-```
-
-One element can have at most one `#[children]` field.
-
-### `#[child]` field attribute
-
-Fields marked `#[child]` hold a single `ElementId`. Use this for
-wrapper elements that contain exactly one child and need no custom
-layout logic. The macro implements both `Element::children()` and
-`Element::build()` automatically.
-
-```rust
-#[derive(Element, Default)]
-struct Button {
-    pub label: String,
-    #[child]
-    child: ElementId,
-}
-```
-
-Generated `build` delegates sizing to the child:
-
-```rust
-fn build(&self, id: &ElementId, constraint: Constraint, nodes: &mut ElementNodes) -> Size {
-    nodes.get_size(&self.child)
-        .map(|s| constraint.constrain(s))
-        .unwrap_or(constraint.min)
-}
-```
-
-Override `build` manually when the wrapper needs custom sizing on
-top of its child.
-
-One element can have at most one `#[child]` or `#[children]` field,
-not both.
 
 ---
 

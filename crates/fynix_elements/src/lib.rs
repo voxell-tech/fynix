@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 use fynix::Fynix;
 use fynix::element::meta::ElementMetas;
-use fynix::element::{Element, ElementId, ElementNodes, ElementSlot};
+use fynix::element::{Element, ElementId, ElementNodes};
 use fynix::imaging::kurbo::Affine;
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
@@ -18,9 +18,11 @@ use parley::{
     Alignment, AlignmentOptions, FontStyle, PositionedLayoutItem,
 };
 use parley::{FontContext, LayoutContext};
-#[derive(ElementSlot, Default, Debug, Clone, Copy)]
+
+#[derive(Element, Default, Debug, Clone, Copy)]
 pub struct WindowSize {
     pub size: Size,
+    #[children]
     child: Option<ElementId>,
 }
 
@@ -31,20 +33,6 @@ impl WindowSize {
 }
 
 impl Element for WindowSize {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
-    }
-
-    fn children(&self) -> impl IntoIterator<Item = &ElementId>
-    where
-        Self: Sized,
-    {
-        self.child.iter()
-    }
-
     fn constrain(
         &self,
         _parent_constraint: Constraint,
@@ -62,8 +50,9 @@ impl Element for WindowSize {
     }
 }
 
-#[derive(ElementSlot, Default, Debug, Clone)]
+#[derive(Element, Default, Debug, Clone)]
 pub struct Horizontal {
+    #[children]
     children: Vec<ElementId>,
 }
 
@@ -75,25 +64,6 @@ impl Horizontal {
 }
 
 impl Element for Horizontal {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
-    }
-
-    fn children(&self) -> impl IntoIterator<Item = &ElementId>
-    where
-        Self: Sized,
-    {
-        // TODO: Refer to this when creating the #[derive(Element)]
-        // macro. And remove it after that.
-
-        // Showcasing the generic way of doing it.
-        #[allow(clippy::into_iter_on_ref)]
-        (&self.children).into_iter()
-    }
-
     fn build(
         &self,
         _id: &ElementId,
@@ -114,8 +84,9 @@ impl Element for Horizontal {
     }
 }
 
-#[derive(ElementSlot, Default, Debug, Clone)]
+#[derive(Element, Default, Debug, Clone)]
 pub struct Vertical {
+    #[children]
     children: Vec<ElementId>,
 }
 
@@ -127,20 +98,6 @@ impl Vertical {
 }
 
 impl Element for Vertical {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
-    }
-
-    fn children(&self) -> impl IntoIterator<Item = &ElementId>
-    where
-        Self: Sized,
-    {
-        self.children.iter()
-    }
-
     fn build(
         &self,
         _id: &ElementId,
@@ -161,7 +118,7 @@ impl Element for Vertical {
     }
 }
 
-#[derive(ElementSlot, Debug, Clone)]
+#[derive(Element, Debug, Clone)]
 pub struct Label {
     pub text: String,
     pub fill: Brush,
@@ -170,11 +127,8 @@ pub struct Label {
     pub alignment: Alignment,
 }
 
-impl Element for Label {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
+impl Default for Label {
+    fn default() -> Self {
         Self {
             text: String::new(),
             fill: Brush::Solid(Color::WHITE),
@@ -183,7 +137,9 @@ impl Element for Label {
             alignment: Default::default(),
         }
     }
+}
 
+impl Element for Label {
     fn build(
         &self,
         id: &ElementId,

@@ -7,6 +7,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::Data;
 use syn::DeriveInput;
+use syn::Expr;
 use syn::Fields;
 use syn::parse_macro_input;
 
@@ -75,31 +76,87 @@ pub fn derive_element_slot(input: TokenStream) -> TokenStream {
     element_slot_tokens(&input.ident, &fynix).into()
 }
 
-/// Derives a default `fynix::element::Element` implementation
-/// for a single-child element.
+struct ElementAttrs {
+    new_fn: Option<Expr>,
+    children_fn: Option<Expr>,
+}
+
+fn parse_element_attrs(
+    attrs: &[syn::Attribute],
+) -> syn::Result<ElementAttrs> {
+    let mut new_fn = None;
+    let mut children_fn = None;
+
+    for attr in attrs {
+        if attr.path().is_ident("element") {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("new") {
+                    new_fn = Some(meta.value()?.parse::<Expr>()?);
+                } else if meta.path.is_ident("children") {
+                    children_fn =
+                        Some(meta.value()?.parse::<Expr>()?);
+                }
+                Ok(())
+            })?;
+        }
+    }
+
+    Ok(ElementAttrs {
+        new_fn,
+        children_fn,
+    })
+}
+
+/// Derives `ElementNew` and `ElementChildren` for the annotated
+/// struct. Also derives `ElementSlot` — no need to add it
+/// separately.
 ///
-/// Also derives `ElementSlot` - no need to add it separately.
+/// ## `ElementNew`
 ///
-/// The struct must have exactly one field marked `#[child]`,
-/// typed as `Option<ElementId>`. The generated impl:
+/// By default calls `Default::default()`, requiring the struct to
+/// also `#[derive(Default)]`. Override with:
 ///
-/// - `new` - constructs via `Default::default`.
-/// - `children` - yields the `#[child]` field.
-/// - `build` - returns the child's computed size, or
-///   `Size::ZERO` when no child is set.
+/// ```ignore
+/// #[element(new = my_constructor_fn)]
+/// ```
+///
+/// where `my_constructor_fn` is a `fn() -> Self`.
+///
+/// ## `ElementChildren`
+///
+/// Mark one field `#[children]` for the standard iterator impl:
 ///
 /// ```ignore
 /// #[derive(Element, Default)]
 /// pub struct MyElement {
-///     #[child]
-///     child: Option<ElementId>,
+///     #[children]
+///     child: ElementId,  // or Option<ElementId>, or Vec<ElementId>
 /// }
 /// ```
-#[proc_macro_derive(Element, attributes(child))]
+///
+/// Or override entirely with:
+///
+/// ```ignore
+/// #[element(children = my_children_fn)]
+/// ```
+///
+/// where `my_children_fn` is a `fn(&Self) -> impl IntoIterator<Item = &ElementId>`.
+///
+/// If neither is present the default (no children) is used.
+///
+/// ## `build`
+///
+/// Not generated — implement `Element::build` manually.
+#[proc_macro_derive(Element, attributes(children, element))]
 pub fn derive_element(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let fynix = fynix_crate();
+
+    let attrs = match parse_element_attrs(&input.attrs) {
+        Ok(a) => a,
+        Err(e) => return e.to_compile_error().into(),
+    };
 
     let fields = match &input.data {
         Data::Struct(s) => &s.fields,
@@ -125,74 +182,89 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         }
     };
 
-    let child_fields: Vec<_> = named
+    let children_fields: Vec<_> = named
         .iter()
         .filter(|f| {
-            f.attrs.iter().any(|a| a.path().is_ident("child"))
+            f.attrs.iter().any(|a| a.path().is_ident("children"))
         })
         .collect();
 
-    let child_field = match child_fields.len() {
-        1 => child_fields[0],
-        0 => {
-            return syn::Error::new_spanned(
-                name,
-                "#[derive(Element)] requires exactly one \
-                 #[child] field",
-            )
-            .to_compile_error()
-            .into();
-        }
-        _ => {
-            return syn::Error::new_spanned(
-                child_fields[1],
-                "#[derive(Element)] found multiple #[child] \
-                 fields; only one is allowed",
-            )
-            .to_compile_error()
-            .into();
-        }
+    if children_fields.len() > 1 {
+        return syn::Error::new_spanned(
+            children_fields[1],
+            "#[derive(Element)] found multiple #[children] \
+             fields; only one is allowed",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let slot_tokens = element_slot_tokens(name, &fynix);
+
+    let new_impl = match &attrs.new_fn {
+        Some(f) => quote! {
+            impl #fynix::element::ElementNew for #name {
+                fn new() -> Self
+                where
+                    Self: ::core::marker::Sized,
+                {
+                    #f()
+                }
+            }
+        },
+        None => quote! {
+            impl #fynix::element::ElementNew for #name {
+                fn new() -> Self
+                where
+                    Self: ::core::marker::Sized,
+                {
+                    ::core::default::Default::default()
+                }
+            }
+        },
     };
 
-    let child_ident = child_field.ident.as_ref().unwrap();
-    let slot_tokens = element_slot_tokens(name, &fynix);
+    let children_impl = if let Some(f) = &attrs.children_fn {
+        Some(quote! {
+            impl #fynix::element::ElementChildren for #name {
+                fn children(
+                    &self,
+                ) -> impl ::core::iter::IntoIterator<
+                    Item = &(#fynix::element::ElementId),
+                >
+                where
+                    Self: ::core::marker::Sized,
+                {
+                    #f(self)
+                }
+            }
+        })
+    } else if let Some(field) = children_fields.first() {
+        let ident = field.ident.as_ref().unwrap();
+        Some(quote! {
+            impl #fynix::element::ElementChildren for #name {
+                fn children(
+                    &self,
+                ) -> impl ::core::iter::IntoIterator<
+                    Item = &(#fynix::element::ElementId),
+                >
+                where
+                    Self: ::core::marker::Sized,
+                {
+                    (&self.#ident).into_iter()
+                }
+            }
+        })
+    } else {
+        Some(quote! {
+            impl #fynix::element::ElementChildren for #name {}
+        })
+    };
 
     quote! {
         #slot_tokens
-
-        impl #fynix::element::Element for #name {
-            fn new() -> Self
-            where
-                Self: Sized,
-            {
-                ::core::default::Default::default()
-            }
-
-            fn children(
-                &self,
-            ) -> impl ::core::iter::IntoIterator<
-                Item = &(#fynix::element::ElementId),
-            >
-            where
-                Self: Sized,
-            {
-                (&self.#child_ident).into_iter()
-            }
-
-            fn build(
-                &self,
-                _id: &(#fynix::element::ElementId),
-                constraint: #fynix::rectree::Constraint,
-                nodes: &mut #fynix::element::ElementNodes,
-            ) -> #fynix::rectree::Size {
-                use #fynix::rectree::NodeContext as _;
-                (&self.#child_ident)
-                    .into_iter()
-                    .map(|c| nodes.get_size(c))
-                    .next()
-                    .unwrap_or(#fynix::rectree::Size::ZERO)
-            }
-        }
+        #new_impl
+        #children_impl
     }
     .into()
 }
