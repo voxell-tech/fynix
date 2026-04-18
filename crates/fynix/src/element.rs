@@ -48,8 +48,8 @@ impl Elements {
 
         let id = self.id_generator.new_id();
 
-        self.metas.init_element::<E>(id);
         self.elements.insert(id, element);
+        self.metas.init::<E>(id);
         id
     }
 
@@ -89,9 +89,9 @@ impl Elements {
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
-        if let Some(meta) = self.metas.remove(id)
-            && self.elements.dyn_remove_by_slot(meta.slot, id)
-        {
+        if let Some(meta) = self.metas.remove(id) {
+            self.elements.dyn_remove_by_slot(meta.slot, id);
+
             self.id_generator.recycle(*id);
             return true;
         }
