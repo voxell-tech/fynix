@@ -12,6 +12,7 @@ repository.workspace = true
 fynix.workspace = true
 field_path.workspace = true
 parley.workspace = true
+typeslot.workspace = true
 
 [dev-dependencies]
 imaging_vello.workspace = true

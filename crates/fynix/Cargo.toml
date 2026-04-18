@@ -15,3 +15,4 @@ hashbrown.workspace = true
 field_path.workspace = true
 sparse_map.workspace = true
 imaging.workspace = true
+typeslot.workspace = true

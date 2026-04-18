@@ -29,6 +29,7 @@ use winit::window::Window;
 const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 
 fn main() {
+    fynix::init();
     let event_loop = EventLoop::new().unwrap();
     let mut app = HelloWorldApp::new();
     event_loop.run_app(&mut app).unwrap();

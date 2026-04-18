@@ -12,7 +12,6 @@ repository = "https://github.com/voxell-tech/fynix"
 [workspace.dependencies]
 fynix = { path = "crates/fynix" }
 fynix_elements = { path = "crates/fynix_elements" }
-fynix_vello = { path = "crates/fynix_vello" }
 
 rectree = { git = "https://github.com/voxell-tech/rectree", rev = "08ddf2a" }
 field_path = { git = "https://github.com/voxell-tech/field_path", rev = "1e8f41c" }
@@ -20,6 +19,7 @@ parley = { version = "0.7.0", default-features = false, features = ["libm"] }
 imaging = { git = "https://github.com/forest-rs/imaging", rev = "e18778f", features = ["libm"] }
 imaging_vello = { git = "https://github.com/forest-rs/imaging", rev = "e18778f" }
 
+typeslot = { version = "0.3.0", git = "https://github.com/voxell-tech/typeslot", rev = "cb40def" }
 sparse_map = "0.1.2"
 vello = "0.8.0"
 winit = "0.30"
