@@ -8,12 +8,71 @@ use crate::element::table::ElementTable;
 use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
 
+pub use fynix_macros::{Element, ElementSlot};
+
 pub mod meta;
 pub mod table;
 
 /// Marker type for the element slot group.
 #[derive(SlotGroup)]
 pub struct ElementGroup;
+
+/// Trait for element types.
+///
+/// Implement this for any type you want to add to the
+/// element tree via
+/// [`FynixCtx::add`](crate::ctx::FynixCtx::add). The single
+/// required method, `new`, must return a default (unstyled)
+/// instance.
+///
+/// Styles are applied immediately after construction by the
+/// build context.
+pub trait Element: TypeSlot<ElementGroup> + 'static {
+    fn new() -> Self
+    where
+        Self: Sized;
+
+    fn children(&self) -> impl IntoIterator<Item = &ElementId>
+    where
+        Self: Sized,
+    {
+        []
+    }
+
+    fn constrain(&self, parent_constraint: Constraint) -> Constraint {
+        parent_constraint
+    }
+
+    fn build(
+        &self,
+        id: &ElementId,
+        constraint: Constraint,
+        nodes: &mut ElementNodes,
+    ) -> Size;
+
+    /// Paints the element's own visual layer into `painter`.
+    ///
+    /// The element's world-space position and layout size can
+    /// be read from `metas` using `id`. Both are set by the
+    /// layout pass and are safe to use for rendering
+    /// coordinates.
+    ///
+    /// Child elements are rendered by the tree walker after
+    /// this method returns - do not recurse into children
+    /// here.
+    ///
+    /// The default implementation is a no-op, suitable for
+    /// purely structural elements that have no visual of
+    /// their own.
+    #[expect(unused_variables)]
+    fn render(
+        &self,
+        id: &ElementId,
+        painter: &mut dyn PaintSink,
+        metas: &ElementMetas,
+    ) {
+    }
+}
 
 /// Type-erased storage for all element instances.
 ///
@@ -276,63 +335,6 @@ impl<'a> Rectree for ElementTree<'a> {
                     .unwrap_or_default()
             })
             .unwrap_or(Size::ZERO)
-    }
-}
-
-/// Trait for element types.
-///
-/// Implement this for any type you want to add to the
-/// element tree via
-/// [`FynixCtx::add`](crate::ctx::FynixCtx::add). The single
-/// required method, `new`, must return a default (unstyled)
-/// instance.
-///
-/// Styles are applied immediately after construction by the
-/// build context.
-pub trait Element: TypeSlot<ElementGroup> + 'static {
-    fn new() -> Self
-    where
-        Self: Sized;
-
-    fn children(&self) -> impl IntoIterator<Item = &ElementId>
-    where
-        Self: Sized,
-    {
-        []
-    }
-
-    fn constrain(&self, parent_constraint: Constraint) -> Constraint {
-        parent_constraint
-    }
-
-    fn build(
-        &self,
-        id: &ElementId,
-        constraint: Constraint,
-        nodes: &mut ElementNodes,
-    ) -> Size;
-
-    /// Paints the element's own visual layer into `painter`.
-    ///
-    /// The element's world-space position and layout size can
-    /// be read from `metas` using `id`. Both are set by the
-    /// layout pass and are safe to use for rendering
-    /// coordinates.
-    ///
-    /// Child elements are rendered by the tree walker after
-    /// this method returns - do not recurse into children
-    /// here.
-    ///
-    /// The default implementation is a no-op, suitable for
-    /// purely structural elements that have no visual of
-    /// their own.
-    #[expect(unused_variables)]
-    fn render(
-        &self,
-        id: &ElementId,
-        painter: &mut dyn PaintSink,
-        metas: &ElementMetas,
-    ) {
     }
 }
 
