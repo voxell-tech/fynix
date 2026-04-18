@@ -3,7 +3,7 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| Element composers                    | Planned, not started              |
+| Element composers                    | Ready to start                    |
 | Interactions & Events                | Planned, not started              |
 | Reactivity (`Signals`)               | Deferred until after first render |
 | `TypeSlot` / typed table opt.        | In progress...                    |
@@ -12,98 +12,59 @@
 
 ## Element composers
 
-Element compose behavior is registered externally via
-`ElementComposers`, keeping element structs as pure data and
-backends decoupled from `fynix_elements`.
-
-### Types
+`Composer<W>` is a trait separate from `Element`. Element structs
+remain pure data; composition logic - how children are built for a
+given world - lives in the `Composer<W>` impl. This keeps
+`fynix_elements` decoupled from any backend.
 
 ```rust
-// Typed composer function for element E in world W.
-pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
-
-// Typed wrapper - monomorphized for (E, W).
-pub struct ElementComposer<E: Element, W> { ... }
-
-// Fully type-erased - stores TypeId for both E and W
-// alongside a *const () function pointer.
-// unsafe impl Sync - the pointer is always a fn pointer.
-pub struct UntypedElementComposer {
-    element_id: TypeId,
-    world_id: TypeId,
-    compose_fn: *const (),
-}
-
-// Non-generic registry keyed on element TypeId.
-pub struct ElementComposers {
-    composers: HashMap<TypeId, UntypedElementComposer>,
+pub trait Composer<W> {
+    fn compose(self, ctx: &mut FynixCtx<W>) -> ElementId;
 }
 ```
 
-`UntypedElementComposer::new::<E, W>(f)` is `const` - both
-`TypeId::of` calls are const-stable when `T: 'static`.
+`compose` takes ownership of `self`: the struct is the input data,
+consumed to build the subtree.
 
-### Auto-registration via `linkme`
-
-A `linkme` distributed slice collects composers across crates:
+### Usage
 
 ```rust
-#[distributed_slice]
-pub static ELEMENT_COMPOSERS: [UntypedElementComposer] = [..];
-```
-
-At startup, `ElementComposers` is populated from the slice in
-one pass.
-
-### `#[fynix(compose)]` proc-macro
-
-A proc-macro attribute handles registration boilerplate. `E`
-is inferred from the first parameter (`&mut E`), `W` from
-`FynixCtx<W>` in the second:
-
-```rust
-#[fynix(compose)]
-fn compose_hierarchy_bevy(
-    e: &mut Hierarchy,
-    ctx: &mut FynixCtx<BevyWorld>,
-) {
-    let h = ctx.world.query(..);
-    ctx.add::<Label>();
-    // ...
+struct Hierarchy {
+    filter: String,
+    child: ElementId,
 }
 
-#[fynix(compose)]
-fn compose_hierarchy_custom(
-    e: &mut Hierarchy,
-    ctx: &mut FynixCtx<CustomWorld>,
-) {
-    ctx.add::<Label>();
-    ctx.add::<Button>();
-    // ...
+// In fynix_bevy (or any backend crate):
+impl Composer<BevyWorld> for Hierarchy {
+    fn compose(self, ctx: &mut FynixCtx<BevyWorld>) -> ElementId {
+        let items = ctx.world.query_filtered(&self.filter);
+        // ...
+        ctx.add::<Label>()
+    }
+}
+
+// In fynix_custom:
+impl Composer<CustomWorld> for Hierarchy {
+    fn compose(self, ctx: &mut FynixCtx<CustomWorld>) -> ElementId {
+        ctx.add::<Label>()
+    }
 }
 ```
 
-Expands to the function plus:
-
 ```rust
-#[linkme::distributed_slice(fynix::ELEMENT_COMPOSERS)]
-static _ELEMENT_COMPOSER_COMPOSE_HIERARCHY_BEVY:
-    UntypedElementComposer =
-    UntypedElementComposer::new::<Hierarchy, BevyWorld>(
-        compose_hierarchy_bevy,
-    );
-```
-
-Usage:
-
-```rust
-fn create_ui(ctx: FynixCtx<BevyWorld>) {
-    ctx.add::<Hierarchy>();
+fn create_ui(ctx: &mut FynixCtx<BevyWorld>) {
+    ctx.compose(Hierarchy {
+        filter: "enemy".into(),
+        child: ctx.add::<Label>(),
+    });
 }
 ```
 
-The static name is derived from the function name to
-guarantee uniqueness within a module.
+### Reactive re-composition
+
+When a signal that scopes a composer's subtree changes, the old
+children are removed and `compose` is re-called with fresh data.
+See the reactive scopes section under Signals.
 
 ---
 
