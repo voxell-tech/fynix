@@ -1,0 +1,17 @@
+[package]
+name = "fynix_macros"
+description = "Proc-macro derives for the Fynix UI framework."
+keywords = ["ui", "gui", "fynix", "macro"]
+categories = ["gui"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["derive"] }

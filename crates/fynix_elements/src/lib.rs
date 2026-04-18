@@ -5,11 +5,10 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use fynix::ElementSlot;
 use fynix::Fynix;
 use fynix::element::meta::ElementMetas;
-use fynix::element::{
-    Element, ElementGroup, ElementId, ElementNodes,
-};
+use fynix::element::{Element, ElementId, ElementNodes};
 use fynix::imaging::kurbo::Affine;
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
@@ -20,10 +19,7 @@ use parley::{
     Alignment, AlignmentOptions, FontStyle, PositionedLayoutItem,
 };
 use parley::{FontContext, LayoutContext};
-use typeslot::TypeSlot;
-
-#[derive(Default, Debug, Clone, Copy, TypeSlot)]
-#[slot(ElementGroup)]
+#[derive(ElementSlot, Default, Debug, Clone, Copy)]
 pub struct WindowSize {
     pub size: Size,
     child: Option<ElementId>,
@@ -67,8 +63,7 @@ impl Element for WindowSize {
     }
 }
 
-#[derive(Default, Debug, Clone, TypeSlot)]
-#[slot(ElementGroup)]
+#[derive(ElementSlot, Default, Debug, Clone)]
 pub struct Horizontal {
     children: Vec<ElementId>,
 }
@@ -120,8 +115,7 @@ impl Element for Horizontal {
     }
 }
 
-#[derive(Default, Debug, Clone, TypeSlot)]
-#[slot(ElementGroup)]
+#[derive(ElementSlot, Default, Debug, Clone)]
 pub struct Vertical {
     children: Vec<ElementId>,
 }
@@ -168,8 +162,7 @@ impl Element for Vertical {
     }
 }
 
-#[derive(Debug, Clone, TypeSlot)]
-#[slot(ElementGroup)]
+#[derive(ElementSlot, Debug, Clone)]
 pub struct Label {
     pub text: String,
     pub fill: Brush,
