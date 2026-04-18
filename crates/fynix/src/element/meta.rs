@@ -155,12 +155,14 @@ pub fn get_dyn_element<'a, E: Element>(
 
 /// Visits each child of an element by calling `f` for every
 /// [`ElementId`] the element yields from
-/// [`Element::children`].
+/// [`ElementChildren::children`].
 ///
 /// Using a visitor avoids the need to name the concrete
-/// iterator type returned by [`Element::children`], which
+/// iterator type returned by [`ElementChildren::children`], which
 /// differs per `E` and cannot be expressed in a
 /// function-pointer signature.
+///
+/// [`ElementChildren::children`]: super::ElementChildren::children
 pub type ChildrenElementFn = fn(
     table: &ElementTable,
     id: &ElementId,
