@@ -19,8 +19,8 @@ pub struct ElementGroup;
 
 /// Constructs a default (unstyled) instance of an element.
 ///
-/// Implement this alongside [`Element`]. Styles are applied
-/// immediately after construction by the build context.
+/// Derived by `#[derive(Element)]` - calls `Default::default()` unless
+/// overridden with `#[element(new = my_fn)]`.
 pub trait ElementNew {
     fn new() -> Self
     where
@@ -29,8 +29,8 @@ pub trait ElementNew {
 
 /// Enumerates the children of an element.
 ///
-/// The default implementation yields no children, suitable
-/// for leaf elements.
+/// Derived by `#[derive(Element)]` - iterates the field tagged `#[children]`,
+/// or the fn given in `#[element(children = my_fn)]`. Defaults to no children.
 pub trait ElementChildren {
     fn children(&self) -> impl IntoIterator<Item = &ElementId>
     where
@@ -42,13 +42,11 @@ pub trait ElementChildren {
 
 /// Trait for element types.
 ///
-/// Implement this for any type you want to add to the
-/// element tree via
+/// Implement this for any type you want to add to the element tree via
 /// [`FynixCtx::add`](crate::ctx::FynixCtx::add).
 ///
-/// Use `#[derive(Element)]` to derive [`ElementNew`] and
-/// [`ElementChildren`] automatically; implement `build`
-/// manually.
+/// Use `#[derive(Element)]` to derive [`ElementNew`] and [`ElementChildren`]
+/// automatically; implement `build` manually.
 pub trait Element:
     ElementNew + ElementChildren + TypeSlot<ElementGroup> + 'static
 {

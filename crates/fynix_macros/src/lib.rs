@@ -107,46 +107,7 @@ fn parse_element_attrs(
     })
 }
 
-/// Derives `ElementNew` and `ElementChildren` for the annotated
-/// struct. Also derives `ElementSlot` — no need to add it
-/// separately.
-///
-/// ## `ElementNew`
-///
-/// By default calls `Default::default()`, requiring the struct to
-/// also `#[derive(Default)]`. Override with:
-///
-/// ```ignore
-/// #[element(new = my_constructor_fn)]
-/// ```
-///
-/// where `my_constructor_fn` is a `fn() -> Self`.
-///
-/// ## `ElementChildren`
-///
-/// Mark one field `#[children]` for the standard iterator impl:
-///
-/// ```ignore
-/// #[derive(Element, Default)]
-/// pub struct MyElement {
-///     #[children]
-///     child: ElementId,  // or Option<ElementId>, or Vec<ElementId>
-/// }
-/// ```
-///
-/// Or override entirely with:
-///
-/// ```ignore
-/// #[element(children = my_children_fn)]
-/// ```
-///
-/// where `my_children_fn` is a `fn(&Self) -> impl IntoIterator<Item = &ElementId>`.
-///
-/// If neither is present the default (no children) is used.
-///
-/// ## `build`
-///
-/// Not generated — implement `Element::build` manually.
+/// Derives `ElementNew`, `ElementChildren`, and `ElementSlot` for the annotated struct.
 #[proc_macro_derive(Element, attributes(children, element))]
 pub fn derive_element(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
