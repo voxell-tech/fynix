@@ -3,177 +3,64 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| `#[derive(Element)]` macro           | Planned, not started              |
-| Element composers                    | Planned, not started              |
+| Element composers                    | Ready to start                    |
 | Interactions & Events                | Planned, not started              |
 | Reactivity (`Signals`)               | Deferred until after first render |
 | `TypeSlot` / typed table opt.        | In progress...                    |
 
 ---
 
-## `#[derive(Element)]` macro
-
-A derive macro that implements the `Element` trait automatically.
-Requires the struct to implement `Default`, which provides `new()`.
-
-```rust
-#[derive(Element, Default)]
-struct Horizontal {
-    #[children]
-    children: Vec<ElementId>,
-    gap: f32,
-}
-```
-
-### `#[children]` field attribute
-
-Fields marked `#[children]` are auto-registered as the element's
-child list. The macro implements `Element::children()` by calling
-`into_iter()` on the marked field by default.
-
-An optional method chain can be specified for types that need one
-to produce the iterator:
-
-```rust
-// Default - calls into_iter() on the field.
-#[children]
-children: Vec<ElementId>,
-
-// With method chain - calls .keys() first.
-#[children(.keys())]
-children: BTreeMap<ElementId, LayoutData>,
-```
-
-One element can have at most one `#[children]` field.
-
-### `#[child]` field attribute
-
-Fields marked `#[child]` hold a single `ElementId`. Use this for
-wrapper elements that contain exactly one child and need no custom
-layout logic. The macro implements both `Element::children()` and
-`Element::build()` automatically.
-
-```rust
-#[derive(Element, Default)]
-struct Button {
-    pub label: String,
-    #[child]
-    child: ElementId,
-}
-```
-
-Generated `build` delegates sizing to the child:
-
-```rust
-fn build(&self, id: &ElementId, constraint: Constraint, nodes: &mut ElementNodes) -> Size {
-    nodes.get_size(&self.child)
-        .map(|s| constraint.constrain(s))
-        .unwrap_or(constraint.min)
-}
-```
-
-Override `build` manually when the wrapper needs custom sizing on
-top of its child.
-
-One element can have at most one `#[child]` or `#[children]` field,
-not both.
-
----
-
 ## Element composers
 
-Element compose behavior is registered externally via
-`ElementComposers`, keeping element structs as pure data and
-backends decoupled from `fynix_elements`.
-
-### Types
+`Composer<W>` is a trait separate from `Element`. Element structs
+remain pure data; composition logic - how children are built for a
+given world - lives in the `Composer<W>` impl. This keeps
+`fynix_elements` decoupled from any backend.
 
 ```rust
-// Typed composer function for element E in world W.
-pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
-
-// Typed wrapper - monomorphized for (E, W).
-pub struct ElementComposer<E: Element, W> { ... }
-
-// Fully type-erased - stores TypeId for both E and W
-// alongside a *const () function pointer.
-// unsafe impl Sync - the pointer is always a fn pointer.
-pub struct UntypedElementComposer {
-    element_id: TypeId,
-    world_id: TypeId,
-    compose_fn: *const (),
-}
-
-// Non-generic registry keyed on element TypeId.
-pub struct ElementComposers {
-    composers: HashMap<TypeId, UntypedElementComposer>,
+pub trait Composer<W> {
+    fn compose(self, ctx: &mut FynixCtx<W>) -> ElementId;
 }
 ```
 
-`UntypedElementComposer::new::<E, W>(f)` is `const` - both
-`TypeId::of` calls are const-stable when `T: 'static`.
+`compose` takes ownership of `self`: the struct is the input data,
+consumed to build the subtree.
 
-### Auto-registration via `linkme`
-
-A `linkme` distributed slice collects composers across crates:
+### Usage
 
 ```rust
-#[distributed_slice]
-pub static ELEMENT_COMPOSERS: [UntypedElementComposer] = [..];
-```
-
-At startup, `ElementComposers` is populated from the slice in
-one pass.
-
-### `#[fynix(compose)]` proc-macro
-
-A proc-macro attribute handles registration boilerplate. `E`
-is inferred from the first parameter (`&mut E`), `W` from
-`FynixCtx<W>` in the second:
-
-```rust
-#[fynix(compose)]
-fn compose_hierarchy_bevy(
-    e: &mut Hierarchy,
-    ctx: &mut FynixCtx<BevyWorld>,
-) {
-    let h = ctx.world.query(..);
-    ctx.add::<Label>();
-    // ...
+struct Hierarchy<'a> {
+    filter: &'a str,
 }
 
-#[fynix(compose)]
-fn compose_hierarchy_custom(
-    e: &mut Hierarchy,
-    ctx: &mut FynixCtx<CustomWorld>,
-) {
-    ctx.add::<Label>();
-    ctx.add::<Button>();
-    // ...
+// In fynix_bevy (or any backend crate):
+impl Composer<BevyWorld> for Hierarchy<'_> {
+    fn compose(self, ctx: &mut FynixCtx<BevyWorld>) -> ElementId {
+        let items = ctx.world.query_filtered(self.filter);
+        // ...
+        ctx.add::<Label>()
+    }
+}
+
+// In fynix_custom:
+impl Composer<CustomWorld> for Hierarchy<'_> {
+    fn compose(self, ctx: &mut FynixCtx<CustomWorld>) -> ElementId {
+        ctx.add::<Label>()
+    }
 }
 ```
 
-Expands to the function plus:
-
 ```rust
-#[linkme::distributed_slice(fynix::ELEMENT_COMPOSERS)]
-static _ELEMENT_COMPOSER_COMPOSE_HIERARCHY_BEVY:
-    UntypedElementComposer =
-    UntypedElementComposer::new::<Hierarchy, BevyWorld>(
-        compose_hierarchy_bevy,
-    );
-```
-
-Usage:
-
-```rust
-fn create_ui(ctx: FynixCtx<BevyWorld>) {
-    ctx.add::<Hierarchy>();
+fn create_ui(ctx: &mut FynixCtx<BevyWorld>) {
+    ctx.compose(Hierarchy { filter: "enemy" });
 }
 ```
 
-The static name is derived from the function name to
-guarantee uniqueness within a module.
+### Reactive re-composition
+
+When a signal that scopes a composer's subtree changes, the old
+children are removed and `compose` is re-called with fresh data.
+See the reactive scopes section under Signals.
 
 ---
 

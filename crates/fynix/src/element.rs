@@ -8,12 +8,82 @@ use crate::element::table::ElementTable;
 use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
 
+pub use fynix_macros::{Element, ElementSlot};
+
 pub mod meta;
 pub mod table;
 
 /// Marker type for the element slot group.
 #[derive(SlotGroup)]
 pub struct ElementGroup;
+
+/// Constructs a default (unstyled) instance of an element.
+///
+/// Derived by `#[derive(Element)]` - calls `Default::default()` unless
+/// overridden with `#[element(new = my_fn)]`.
+pub trait ElementNew {
+    fn new() -> Self
+    where
+        Self: Sized;
+}
+
+/// Enumerates the children of an element.
+///
+/// Derived by `#[derive(Element)]` - iterates the field tagged `#[children]`,
+/// or the fn given in `#[element(children = my_fn)]`. Defaults to no children.
+pub trait ElementChildren {
+    fn children(&self) -> impl IntoIterator<Item = &ElementId>
+    where
+        Self: Sized,
+    {
+        []
+    }
+}
+
+/// Trait for element types.
+///
+/// Implement this for any type you want to add to the element tree via
+/// [`FynixCtx::add`](crate::ctx::FynixCtx::add).
+///
+/// Use `#[derive(Element)]` to derive [`ElementNew`] and [`ElementChildren`]
+/// automatically; implement `build` manually.
+pub trait Element:
+    ElementNew + ElementChildren + TypeSlot<ElementGroup> + 'static
+{
+    fn constrain(&self, parent_constraint: Constraint) -> Constraint {
+        parent_constraint
+    }
+
+    fn build(
+        &self,
+        id: &ElementId,
+        constraint: Constraint,
+        nodes: &mut ElementNodes,
+    ) -> Size;
+
+    /// Paints the element's own visual layer into `painter`.
+    ///
+    /// The element's world-space position and layout size can
+    /// be read from `metas` using `id`. Both are set by the
+    /// layout pass and are safe to use for rendering
+    /// coordinates.
+    ///
+    /// Child elements are rendered by the tree walker after
+    /// this method returns - do not recurse into children
+    /// here.
+    ///
+    /// The default implementation is a no-op, suitable for
+    /// purely structural elements that have no visual of
+    /// their own.
+    #[expect(unused_variables)]
+    fn render(
+        &self,
+        id: &ElementId,
+        painter: &mut dyn PaintSink,
+        metas: &ElementMetas,
+    ) {
+    }
+}
 
 /// Type-erased storage for all element instances.
 ///
@@ -276,63 +346,6 @@ impl<'a> Rectree for ElementTree<'a> {
                     .unwrap_or_default()
             })
             .unwrap_or(Size::ZERO)
-    }
-}
-
-/// Trait for element types.
-///
-/// Implement this for any type you want to add to the
-/// element tree via
-/// [`FynixCtx::add`](crate::ctx::FynixCtx::add). The single
-/// required method, `new`, must return a default (unstyled)
-/// instance.
-///
-/// Styles are applied immediately after construction by the
-/// build context.
-pub trait Element: TypeSlot<ElementGroup> + 'static {
-    fn new() -> Self
-    where
-        Self: Sized;
-
-    fn children(&self) -> impl IntoIterator<Item = &ElementId>
-    where
-        Self: Sized,
-    {
-        []
-    }
-
-    fn constrain(&self, parent_constraint: Constraint) -> Constraint {
-        parent_constraint
-    }
-
-    fn build(
-        &self,
-        id: &ElementId,
-        constraint: Constraint,
-        nodes: &mut ElementNodes,
-    ) -> Size;
-
-    /// Paints the element's own visual layer into `painter`.
-    ///
-    /// The element's world-space position and layout size can
-    /// be read from `metas` using `id`. Both are set by the
-    /// layout pass and are safe to use for rendering
-    /// coordinates.
-    ///
-    /// Child elements are rendered by the tree walker after
-    /// this method returns - do not recurse into children
-    /// here.
-    ///
-    /// The default implementation is a no-op, suitable for
-    /// purely structural elements that have no visual of
-    /// their own.
-    #[expect(unused_variables)]
-    fn render(
-        &self,
-        id: &ElementId,
-        painter: &mut dyn PaintSink,
-        metas: &ElementMetas,
-    ) {
     }
 }
 
