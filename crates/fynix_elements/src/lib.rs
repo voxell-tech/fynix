@@ -5,10 +5,9 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use fynix::ElementSlot;
 use fynix::Fynix;
 use fynix::element::meta::ElementMetas;
-use fynix::element::{Element, ElementId, ElementNodes};
+use fynix::element::{Element, ElementId, ElementNodes, ElementSlot};
 use fynix::imaging::kurbo::Affine;
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};

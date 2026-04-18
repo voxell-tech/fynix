@@ -13,7 +13,6 @@ use crate::element::{ElementGroup, ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
-pub use fynix_macros::{Element, ElementSlot};
 pub use imaging;
 pub use rectree;
 

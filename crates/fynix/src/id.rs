@@ -34,6 +34,12 @@ impl<T> GenId<T> {
     }
 }
 
+impl<T> Default for GenId<T> {
+    fn default() -> Self {
+        Self::PLACEHOLDER
+    }
+}
+
 impl<T> Display for GenId<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "{}v{}", self.id, self.generation)
