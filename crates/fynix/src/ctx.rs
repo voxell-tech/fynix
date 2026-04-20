@@ -104,8 +104,7 @@ mod tests {
     use field_path::field_accessor;
     use rectree::{Constraint, NodeContext, Size, Vec2};
 
-    use crate::element::ElementBuild;
-    use crate::element::ElementNodes;
+    use crate::element::{ElementBuild, ElementNodes};
 
     use super::*;
 
@@ -120,7 +119,7 @@ mod tests {
             _id: &ElementId,
             constraint: Constraint,
             _nodes: &mut ElementNodes,
-        ) -> rectree::Size {
+        ) -> Size {
             constraint.min
         }
     }
