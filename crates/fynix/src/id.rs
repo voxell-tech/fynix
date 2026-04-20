@@ -1,7 +1,6 @@
 use core::fmt::{Debug, Display, Formatter, Result};
 use core::hash::Hash;
 use core::marker::PhantomData;
-use core::slice::Iter;
 
 use alloc::vec::Vec;
 
@@ -32,12 +31,6 @@ impl<T> GenId<T> {
     const fn next_generation(mut self) -> Self {
         self.generation = self.generation.wrapping_add(1);
         self
-    }
-}
-
-impl<T> Default for GenId<T> {
-    fn default() -> Self {
-        Self::PLACEHOLDER
     }
 }
 
@@ -93,15 +86,6 @@ impl<T> PartialOrd for GenId<T> {
 }
 
 impl<T> Copy for GenId<T> {}
-
-impl<'a, T> IntoIterator for &'a GenId<T> {
-    type Item = &'a GenId<T>;
-    type IntoIter = Iter<'a, GenId<T>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        core::slice::from_ref(self).iter()
-    }
-}
 
 impl<T> Clone for GenId<T> {
     fn clone(&self) -> Self {
