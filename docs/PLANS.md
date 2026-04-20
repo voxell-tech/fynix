@@ -12,47 +12,54 @@
 
 ## Element composers
 
-`Composer<W>` is a trait separate from `Element`. Element structs
-remain pure data; composition logic - how children are built for a
-given world - lives in the `Composer<W>` impl. This keeps
-`fynix_elements` decoupled from any backend.
+`Composer<W>` is a trait separate from `Element`. It separates
+required caller inputs from styleable element data:
+
+- The **element** (`Hierarchy`) is a normal `Element` - pure data,
+  styleable via `ctx.set`.
+- The **composer** (`HierarchyComposer`) holds required inputs and
+  builds the element. It is not an `Element` itself.
+
+`ctx.compose()` calls `compose`, applies the style chain to the
+returned element, and inserts it into the tree.
 
 ```rust
 pub trait Composer<W> {
-    fn compose(self, ctx: &mut FynixCtx<W>) -> ElementId;
+    type Element: Element;
+    fn compose(self, ctx: &mut FynixCtx<W>) -> Self::Element;
 }
 ```
-
-`compose` takes ownership of `self`: the struct is the input data,
-consumed to build the subtree.
 
 ### Usage
 
 ```rust
-struct Hierarchy<'a> {
+#[derive(Element, Default)]
+struct Hierarchy {
+    font_size: f32,
+    #[children]
+    children: Vec<ElementId>,
+}
+
+struct HierarchyComposer<'a> {
     filter: &'a str,
 }
 
-// In fynix_bevy (or any backend crate):
-impl Composer<BevyWorld> for Hierarchy<'_> {
-    fn compose(self, ctx: &mut FynixCtx<BevyWorld>) -> ElementId {
-        let items = ctx.world.query_filtered(self.filter);
-        // ...
-        ctx.add::<Label>()
-    }
-}
-
-// In fynix_custom:
-impl Composer<CustomWorld> for Hierarchy<'_> {
-    fn compose(self, ctx: &mut FynixCtx<CustomWorld>) -> ElementId {
-        ctx.add::<Label>()
+impl Composer<BevyWorld> for HierarchyComposer<'_> {
+    type Element = Hierarchy;
+    fn compose(self, ctx: &mut FynixCtx<BevyWorld>) -> Hierarchy {
+        let mut h = Hierarchy::default();
+        for _ in ctx.world.query_filtered(self.filter) {
+            h.children.push(ctx.add::<Label>());
+        }
+        h
     }
 }
 ```
 
 ```rust
 fn create_ui(ctx: &mut FynixCtx<BevyWorld>) {
-    ctx.compose(Hierarchy { filter: "enemy" });
+    ctx.set(field_accessor!(<Hierarchy>::font_size), 24.0);
+    ctx.compose(HierarchyComposer { filter: "enemy" });
 }
 ```
 
