@@ -40,16 +40,10 @@ pub trait ElementChildren {
     }
 }
 
-/// Trait for element types.
+/// Layout and rendering protocol for element types.
 ///
-/// Implement this for any type you want to add to the element tree via
-/// [`FynixCtx::add`](crate::ctx::FynixCtx::add).
-///
-/// Use `#[derive(Element)]` to derive [`ElementNew`] and [`ElementChildren`]
-/// automatically; implement `build` manually.
-pub trait Element:
-    ElementNew + ElementChildren + TypeSlot<ElementGroup> + 'static
-{
+/// Implement this manually alongside `#[derive(Element)]`.
+pub trait ElementBuild {
     fn constrain(&self, parent_constraint: Constraint) -> Constraint {
         parent_constraint
     }
@@ -83,6 +77,18 @@ pub trait Element:
         metas: &ElementMetas,
     ) {
     }
+}
+
+/// Marker trait for element types. Use `#[derive(Element)]` to implement
+/// this alongside [`ElementNew`] and [`ElementChildren`] automatically.
+/// Implement [`ElementBuild`] manually.
+pub trait Element:
+    ElementNew
+    + ElementChildren
+    + ElementBuild
+    + TypeSlot<ElementGroup>
+    + 'static
+{
 }
 
 /// Type-erased storage for all element instances.
@@ -172,7 +178,7 @@ impl Elements {
     /// Renders the subtree rooted at `id` into `sink`.
     ///
     /// Each element's own visual layer is painted via
-    /// [`Element::render`] before its children are visited,
+    /// [`ElementBuild::render`] before its children are visited,
     /// so parents always draw behind their children.
     ///
     /// Layout must be complete before calling this -

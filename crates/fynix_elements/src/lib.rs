@@ -7,7 +7,9 @@ use alloc::vec::Vec;
 
 use fynix::Fynix;
 use fynix::element::meta::ElementMetas;
-use fynix::element::{Element, ElementId, ElementNodes};
+use fynix::element::{
+    Element, ElementBuild, ElementId, ElementNodes,
+};
 use fynix::imaging::kurbo::Affine;
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
@@ -32,7 +34,7 @@ impl WindowSize {
     }
 }
 
-impl Element for WindowSize {
+impl ElementBuild for WindowSize {
     fn constrain(
         &self,
         _parent_constraint: Constraint,
@@ -63,7 +65,7 @@ impl Horizontal {
     }
 }
 
-impl Element for Horizontal {
+impl ElementBuild for Horizontal {
     fn build(
         &self,
         _id: &ElementId,
@@ -97,7 +99,7 @@ impl Vertical {
     }
 }
 
-impl Element for Vertical {
+impl ElementBuild for Vertical {
     fn build(
         &self,
         _id: &ElementId,
@@ -139,7 +141,7 @@ impl Default for Label {
     }
 }
 
-impl Element for Label {
+impl ElementBuild for Label {
     fn build(
         &self,
         id: &ElementId,

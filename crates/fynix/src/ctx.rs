@@ -104,6 +104,7 @@ mod tests {
     use field_path::field_accessor;
     use rectree::{Constraint, NodeContext, Size, Vec2};
 
+    use crate::element::ElementBuild;
     use crate::element::ElementNodes;
 
     use super::*;
@@ -113,16 +114,13 @@ mod tests {
         pub text: String,
     }
 
-    impl Element for Label {
+    impl ElementBuild for Label {
         fn build(
             &self,
             _id: &ElementId,
             constraint: Constraint,
             _nodes: &mut ElementNodes,
-        ) -> rectree::Size
-        where
-            Self: Sized,
-        {
+        ) -> rectree::Size {
             constraint.min
         }
     }
@@ -139,16 +137,13 @@ mod tests {
         }
     }
 
-    impl Element for Vertical {
+    impl ElementBuild for Vertical {
         fn build(
             &self,
             _id: &ElementId,
             constraint: Constraint,
             nodes: &mut ElementNodes,
-        ) -> Size
-        where
-            Self: Sized,
-        {
+        ) -> Size {
             let mut size = Size::ZERO;
 
             for child in self.children.iter() {

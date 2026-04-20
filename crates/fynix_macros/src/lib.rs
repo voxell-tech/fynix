@@ -107,7 +107,8 @@ fn parse_element_attrs(
     })
 }
 
-/// Derives `ElementNew`, `ElementChildren`, and `ElementSlot` for the annotated struct.
+/// Derives `ElementNew`, `ElementChildren`, `ElementSlot`, and `Element` for the annotated struct.
+/// Implement `ElementBuild` manually.
 #[proc_macro_derive(Element, attributes(children, element))]
 pub fn derive_element(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -210,10 +211,15 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         }
     };
 
+    let element_impl = quote! {
+        impl #fynix::element::Element for #name {}
+    };
+
     quote! {
         #slot_tokens
         #new_impl
         #children_impl
+        #element_impl
     }
     .into()
 }
