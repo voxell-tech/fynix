@@ -119,31 +119,26 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error().into(),
     };
 
-    let fields = match &input.data {
-        Data::Struct(s) => &s.fields,
-        _ => {
-            return syn::Error::new_spanned(
-                name,
-                "#[derive(Element)] only supports structs",
-            )
-            .to_compile_error()
-            .into();
-        }
+    let Data::Struct(s) = &input.data else {
+        return syn::Error::new_spanned(
+            name,
+            "#[derive(Element)] only supports structs",
+        )
+        .to_compile_error()
+        .into();
     };
 
-    let named = match fields {
-        Fields::Named(f) => &f.named,
-        _ => {
-            return syn::Error::new_spanned(
-                name,
-                "#[derive(Element)] requires named fields",
-            )
-            .to_compile_error()
-            .into();
-        }
+    let Fields::Named(f) = &s.fields else {
+        return syn::Error::new_spanned(
+            name,
+            "#[derive(Element)] requires named fields",
+        )
+        .to_compile_error()
+        .into();
     };
 
-    let children_fields: Vec<_> = named
+    let children_fields: Vec<_> = f
+        .named
         .iter()
         .filter(|f| {
             f.attrs.iter().any(|a| a.path().is_ident("children"))
@@ -162,32 +157,39 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
 
     let slot_tokens = element_slot_tokens(name, &fynix);
 
-    let new_impl = match &attrs.new_fn {
-        Some(f) => quote! {
-            impl #fynix::element::ElementNew for #name {
-                fn new() -> Self
-                where
-                    Self: ::core::marker::Sized,
-                {
-                    #f()
-                }
+    let new_body = attrs
+        .new_fn
+        .as_ref()
+        .map(|f| quote! { #f() })
+        .unwrap_or_else(
+            || quote! { ::core::default::Default::default() },
+        );
+
+    let new_impl = quote! {
+        impl #fynix::element::ElementNew for #name {
+            fn new() -> Self
+            where
+                Self: ::core::marker::Sized,
+            {
+                #new_body
             }
-        },
-        None => quote! {
-            impl #fynix::element::ElementNew for #name {
-                fn new() -> Self
-                where
-                    Self: ::core::marker::Sized,
-                {
-                    ::core::default::Default::default()
-                }
-            }
-        },
+        }
     };
 
-    let children_impl = if let Some(f) = &attrs.children_fn {
-        Some(quote! {
-            impl #fynix::element::ElementChildren for #name {
+    let children_body = attrs
+        .children_fn
+        .as_ref()
+        .map(|f| quote! { #f(self) })
+        .or_else(|| {
+            children_fields.first().map(|field| {
+                let ident = field.ident.as_ref().unwrap();
+                quote! { (&self.#ident).into_iter() }
+            })
+        });
+
+    let children_fn = children_body
+        .map(|body| {
+            quote! {
                 fn children(
                     &self,
                 ) -> impl ::core::iter::IntoIterator<
@@ -196,30 +198,16 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
                 where
                     Self: ::core::marker::Sized,
                 {
-                    #f(self)
+                    #body
                 }
             }
         })
-    } else if let Some(field) = children_fields.first() {
-        let ident = field.ident.as_ref().unwrap();
-        Some(quote! {
-            impl #fynix::element::ElementChildren for #name {
-                fn children(
-                    &self,
-                ) -> impl ::core::iter::IntoIterator<
-                    Item = &(#fynix::element::ElementId),
-                >
-                where
-                    Self: ::core::marker::Sized,
-                {
-                    (&self.#ident).into_iter()
-                }
-            }
-        })
-    } else {
-        Some(quote! {
-            impl #fynix::element::ElementChildren for #name {}
-        })
+        .unwrap_or_default();
+
+    let children_impl = quote! {
+        impl #fynix::element::ElementChildren for #name {
+            #children_fn
+        }
     };
 
     quote! {
