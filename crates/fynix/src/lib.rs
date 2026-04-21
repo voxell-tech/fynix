@@ -15,6 +15,7 @@ use crate::style::{StyleId, Styles};
 
 pub use imaging;
 pub use rectree;
+pub use typeslot;
 
 pub mod ctx;
 pub mod element;
@@ -27,7 +28,7 @@ mod id;
 /// Initializes the Fynix framework.
 ///
 /// Must be called before any element is added to a [`Fynix`]
-/// instance. Safe to call more than once — subsequent calls
+/// instance. Safe to call more than once - subsequent calls
 /// are no-ops.
 pub fn init() {
     static INITIALIZED: AtomicBool = AtomicBool::new(false);

@@ -11,6 +11,7 @@ repository = "https://github.com/voxell-tech/fynix"
 
 [workspace.dependencies]
 fynix = { path = "crates/fynix" }
+fynix_macros = { path = "crates/fynix_macros" }
 fynix_elements = { path = "crates/fynix_elements" }
 
 rectree = { git = "https://github.com/voxell-tech/rectree", rev = "08ddf2a" }

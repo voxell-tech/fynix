@@ -593,6 +593,7 @@ name = "fynix"
 version = "0.1.0"
 dependencies = [
  "field_path",
+ "fynix_macros",
  "hashbrown 0.16.1",
  "imaging",
  "rectree",
@@ -612,6 +613,16 @@ dependencies = [
  "typeslot",
  "vello",
  "winit",
+]
+
+[[package]]
+name = "fynix_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
