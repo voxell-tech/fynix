@@ -104,7 +104,8 @@ mod tests {
     use field_path::field_accessor;
     use rectree::{Constraint, NodeContext, Size, Vec2};
 
-    use crate::element::{ElementBuild, ElementNodes};
+    use crate::element::ElementBuild;
+    use crate::element::layout::ElementNodes;
 
     use super::*;
 
@@ -124,9 +125,9 @@ mod tests {
         }
     }
 
-    #[derive(Element, Default, Clone)]
+    #[derive(Element, Clone)]
     struct Vertical {
-        #[children]
+        #[element(children)]
         children: Vec<ElementId>,
     }
 

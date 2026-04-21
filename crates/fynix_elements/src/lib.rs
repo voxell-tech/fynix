@@ -6,10 +6,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use fynix::Fynix;
+use fynix::element::layout::ElementNodes;
 use fynix::element::meta::ElementMetas;
-use fynix::element::{
-    Element, ElementBuild, ElementId, ElementNodes,
-};
+use fynix::element::{Element, ElementBuild, ElementId};
 use fynix::imaging::kurbo::Affine;
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
@@ -21,10 +20,10 @@ use parley::{
 };
 use parley::{FontContext, LayoutContext};
 
-#[derive(Element, Default, Debug, Clone, Copy)]
+#[derive(Element, Debug, Clone, Copy)]
 pub struct WindowSize {
     pub size: Size,
-    #[children]
+    #[element(children)]
     child: Option<ElementId>,
 }
 
@@ -52,9 +51,9 @@ impl ElementBuild for WindowSize {
     }
 }
 
-#[derive(Element, Default, Debug, Clone)]
+#[derive(Element, Debug, Clone)]
 pub struct Horizontal {
-    #[children]
+    #[element(children)]
     children: Vec<ElementId>,
 }
 
@@ -86,9 +85,9 @@ impl ElementBuild for Horizontal {
     }
 }
 
-#[derive(Element, Default, Debug, Clone)]
+#[derive(Element, Debug, Clone)]
 pub struct Vertical {
-    #[children]
+    #[element(children)]
     children: Vec<ElementId>,
 }
 
@@ -123,22 +122,12 @@ impl ElementBuild for Vertical {
 #[derive(Element, Debug, Clone)]
 pub struct Label {
     pub text: String,
+    #[element(default = Brush::Solid(Color::WHITE))]
     pub fill: Brush,
+    #[element(default = 16.0)]
     pub font_size: f32,
     pub font_style: FontStyle,
     pub alignment: Alignment,
-}
-
-impl Default for Label {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-            fill: Brush::Solid(Color::WHITE),
-            font_size: 16.0,
-            font_style: Default::default(),
-            alignment: Default::default(),
-        }
-    }
 }
 
 impl ElementBuild for Label {

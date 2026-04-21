@@ -2092,7 +2092,7 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 [[package]]
 name = "typeslot"
 version = "0.3.0"
-source = "git+https://github.com/voxell-tech/typeslot?rev=cb40def#cb40def4ee1b3c1cc0025eaca885ee01f3e454ad"
+source = "git+https://github.com/voxell-tech/typeslot?rev=ead9111#ead9111b2a1c4287d7aefa70fff99d1092584373"
 dependencies = [
  "inventory",
  "typeslot_macros",
@@ -2101,7 +2101,7 @@ dependencies = [
 [[package]]
 name = "typeslot_macros"
 version = "0.3.0"
-source = "git+https://github.com/voxell-tech/typeslot?rev=cb40def#cb40def4ee1b3c1cc0025eaca885ee01f3e454ad"
+source = "git+https://github.com/voxell-tech/typeslot?rev=ead9111#ead9111b2a1c4287d7aefa70fff99d1092584373"
 dependencies = [
  "proc-macro2",
  "quote",
