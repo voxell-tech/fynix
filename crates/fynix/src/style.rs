@@ -73,7 +73,11 @@ impl Styles {
     ///
     /// The parent's children is also updated accordingly, where the newly
     /// committed style is added as the parent's child
-    pub fn commit_styles(&mut self, parent_id: Option<StyleId>) {
+    pub fn commit_styles(
+        &mut self,
+        parent_id: Option<StyleId>,
+        is_deeper: bool,
+    ) {
         let committed_id = self.current_id;
         let style =
             core::mem::take(&mut self.style_builder).build(parent_id);
@@ -81,26 +85,31 @@ impl Styles {
         self.styles.insert(committed_id, style);
 
         if let Some(parent) = parent_id {
-            self.add_child_to_style(parent, committed_id);
+            self.add_child_to_style(parent, committed_id, is_deeper);
         }
 
         self.current_id = self.id_generator.new_id();
     }
 
     /// Adds `child_id` to the children of `parent_id`.
+    ///
+    /// `is_deeper` refers to the child's scope relative to parent.
+    ///
+    /// If `is_deeper` is true, child is one scope deeper
+    /// Else, child is a sibling node (same depth in tree)
     fn add_child_to_style(
         &mut self,
         parent_id: StyleId,
         child_id: StyleId,
+        is_deeper: bool,
     ) {
         let Some(parent) = self.styles.get_mut(&parent_id) else {
             return;
         };
 
-        // Should be deterministic
         // [0] -> deeper depth
         // [1] -> sibling style
-        if parent.children[0].is_none() {
+        if is_deeper {
             parent.children[0] = Some(child_id);
         } else {
             parent.children[1] = Some(child_id);
@@ -240,6 +249,10 @@ pub struct Style {
 impl Style {
     pub fn parent_id(&self) -> Option<StyleId> {
         self.parent_id
+    }
+
+    pub fn children(&self) -> [Option<StyleId>; 2] {
+        self.children
     }
 
     fn get_fields(&self, id: &TypeId) -> Option<&[UntypedField]> {

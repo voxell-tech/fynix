@@ -49,7 +49,7 @@ impl<W> FynixCtx<'_, '_, W> {
     where
         E: Element,
     {
-        let element = self.create_element::<E>();
+        let element = self.create_element::<E>(false);
         self.fynix.elements.add(element)
     }
 
@@ -73,11 +73,16 @@ impl<W> FynixCtx<'_, '_, W> {
     where
         E: Element,
     {
-        let mut element = self.create_element::<E>();
         let parent_style_id_before = self.parent_style_id;
 
-        // ID of either the uncommited style, or current parent style
-        let first_inner_style_id = self.fynix.styles.current_id();
+        let mut element = self.create_element::<E>(true);
+
+        // styleId from create_element
+        // else, current uncomited style if is None
+        let first_inner_style_id = self
+            .parent_style_id
+            .filter(|id| Some(*id) != parent_style_id_before)
+            .unwrap_or_else(|| self.fynix.styles.current_id());
 
         f(&mut element, self);
 
@@ -122,14 +127,20 @@ impl<W> FynixCtx<'_, '_, W> {
 
     /// Commits any pending style changes, constructs `E::new()`, and
     /// applies the current style chain to it.
-    fn create_element<E>(&mut self) -> E
+    ///
+    /// `is_deeper` indicates whether the committed style should go
+    /// into children[0] (deeper scope) or children[1]
+    /// (sibling node at same scope).
+    fn create_element<E>(&mut self, is_deeper: bool) -> E
     where
         E: Element,
     {
         if self.fynix.styles.should_commit() {
             let committed_id = self.fynix.styles.current_id();
 
-            self.fynix.styles.commit_styles(self.parent_style_id);
+            self.fynix
+                .styles
+                .commit_styles(self.parent_style_id, is_deeper);
             self.parent_style_id = Some(committed_id);
         }
 
@@ -263,5 +274,97 @@ mod tests {
         let label =
             fynix.elements.get_typed::<Label>(&label_id).unwrap();
         assert_eq!(label.text, "child");
+    }
+
+    #[test]
+    fn style_tree_cleanup_on_element_removal() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let element_a = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.set(field_accessor!(<Label>::text), "a".to_string());
+            ctx.add_with::<Vertical>(|v, ctx| {
+                ctx.set(
+                    field_accessor!(<Label>::text),
+                    "b".to_string(),
+                );
+                v.add(ctx.add::<Label>());
+                ctx.set(
+                    field_accessor!(<Label>::text),
+                    "c".to_string(),
+                );
+                v.add(ctx.add::<Label>());
+            })
+        };
+
+        // Verify we have 3 styles (a, b, c).
+        assert_eq!(
+            fynix.styles.styles.len(),
+            3,
+            "Should have 3 styles before removal"
+        );
+
+        // Get the primary style for element_a.
+        let primary_style = fynix
+            .elements
+            .metas
+            .get(&element_a)
+            .and_then(|m| m.primary_style);
+        assert!(
+            primary_style.is_some(),
+            "Element should have primary style"
+        );
+
+        // Remove element_a, which should also remove its style tree.
+        fynix.remove_element(&element_a);
+
+        // After removal, all 3 styles (a, b, c) should be gone.
+        assert_eq!(
+            fynix.styles.styles.len(),
+            0,
+            "All styles should be removed with primary style"
+        );
+    }
+
+    #[test]
+    fn element_without_primary_style_no_cleanup() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let (element_a, element_b) = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.set(field_accessor!(<Label>::text), "a".to_string());
+            let a = ctx.add_with::<Vertical>(|v, ctx| {
+                ctx.set(
+                    field_accessor!(<Label>::text),
+                    "b".to_string(),
+                );
+                v.add(ctx.add::<Label>());
+            });
+            ctx.set(field_accessor!(<Label>::text), "c".to_string());
+            let b = ctx.add::<Label>();
+            (a, b)
+        };
+
+        // Should have 3 styles (a, b, c).
+        assert_eq!(fynix.styles.styles.len(), 3);
+
+        // element_b has no primary_style (created with add(), not add_with()).
+        let b_primary = fynix
+            .elements
+            .metas
+            .get(&element_b)
+            .and_then(|m| m.primary_style);
+        assert!(b_primary.is_none());
+
+        // Remove element_b - should not affect styles.
+        fynix.remove_element(&element_b);
+
+        // All 3 styles should still exist.
+        assert_eq!(fynix.styles.styles.len(), 3);
+
+        // Remove element_a - should remove its style tree (a, b).
+        fynix.remove_element(&element_a);
+        // Style c should remain (not part of element_a's tree).
+        assert_eq!(fynix.styles.styles.len(), 1);
     }
 }
