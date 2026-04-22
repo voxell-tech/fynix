@@ -77,11 +77,21 @@ fn parse_element_attrs(
     for attr in attrs {
         if attr.path().is_ident("element") {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("new") {
-                    new_body = Some(meta.value()?.parse::<Expr>()?);
-                } else if meta.path.is_ident("children") {
-                    children_fn =
-                        Some(meta.value()?.parse::<Expr>()?);
+                let key = meta.path.get_ident().map(|i| i.to_string());
+                match key.as_deref() {
+                    Some("new") => {
+                        new_body =
+                            Some(meta.value()?.parse::<Expr>()?);
+                    }
+                    Some("children") => {
+                        children_fn =
+                            Some(meta.value()?.parse::<Expr>()?);
+                    }
+                    _ => {
+                        return Err(meta.error(
+                            "unknown `element` key; expected `new` or `children`",
+                        ));
+                    }
                 }
                 Ok(())
             })?;
@@ -108,10 +118,20 @@ fn parse_field_attrs(
     for attr in attrs {
         if attr.path().is_ident("element") {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("children") {
-                    is_children = true;
-                } else if meta.path.is_ident("default") {
-                    default = Some(meta.value()?.parse::<Expr>()?);
+                let key = meta.path.get_ident().map(|i| i.to_string());
+                match key.as_deref() {
+                    Some("children") => {
+                        is_children = true;
+                    }
+                    Some("default") => {
+                        default =
+                            Some(meta.value()?.parse::<Expr>()?);
+                    }
+                    _ => {
+                        return Err(meta.error(
+                            "unknown `element` key; expected `children` or `default`",
+                        ));
+                    }
                 }
                 Ok(())
             })?;
