@@ -162,13 +162,35 @@ impl Elements {
     }
 
     /// Removes the element and recycles its [`ElementId`].
+    /// Iterates through element children and removes them as
+    /// well.
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
+        use alloc::vec;
+
         if let Some(meta) = self.metas.remove(id)
             && self.elements.dyn_remove_by_slot(meta.slot, id)
         {
+            let mut children = vec![];
+            if let Some(type_meta) =
+                self.type_metas.get_slot(meta.slot)
+            {
+                (type_meta.children_fn)(
+                    &self.elements,
+                    id,
+                    &mut |child_id| {
+                        children.push(*child_id);
+                    },
+                );
+            }
+
+            for child in children {
+                self.remove(&child);
+            }
+
             self.id_generator.recycle(*id);
+
             return true;
         }
 
