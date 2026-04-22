@@ -188,9 +188,12 @@ impl ElementBuild for Pad {
 
 #[derive(ElementTemplate)]
 pub struct Button<A: 'static> {
-    pub action: Option<A>,
+    pub on_click: Option<A>,
+    #[element(default = Brush::Solid(Color::BLACK))]
     pub fill: Brush,
     pub stroke: Stroke,
+    #[element(default = Brush::Solid(Color::WHITE))]
+    pub stroke_brush: Brush,
     pub corner_radius: f64,
     #[element(children)]
     pub child: Option<ElementId>,
@@ -231,7 +234,7 @@ impl<A> ElementBuild for Button<A> {
         painter.stroke(StrokeRef::new(
             shape,
             &self.stroke,
-            &self.fill,
+            &self.stroke_brush,
         ));
     }
 }
