@@ -3,147 +3,71 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| `#[derive(Element)]` macro           | Planned, not started              |
-| Element composers                    | Planned, not started              |
+| Element composers                    | Ready to start                    |
 | Interactions & Events                | Planned, not started              |
-| `fynix_elements` layout impls        | Ready to start                    |
-| `fynix_vello` rendering              | Ready to start                    |
 | Reactivity (`Signals`)               | Deferred until after first render |
-| `TypeSlot` / typed table opt.        | Deferred, post-profiling          |
-
----
-
-## `#[derive(Element)]` macro
-
-A derive macro that implements the `Element` trait automatically.
-Requires the struct to implement `Default`, which provides `new()`.
-
-```rust
-#[derive(Element, Default)]
-struct Horizontal {
-    #[children]
-    children: Vec<ElementId>,
-    gap: f32,
-}
-```
-
-### `#[children]` field attribute
-
-Fields marked `#[children]` are auto-registered as the element's
-child list. The macro implements `Element::children()` by calling
-`into_iter()` on the marked field by default.
-
-An optional method chain can be specified for types that need one
-to produce the iterator:
-
-```rust
-// Default - calls into_iter() on the field.
-#[children]
-children: Vec<ElementId>,
-
-// With method chain - calls .keys() first.
-#[children(.keys())]
-children: BTreeMap<ElementId, LayoutData>,
-```
-
-One element can have at most one `#[children]` field.
+| `TypeSlot` / typed table opt.        | In progress...                    |
 
 ---
 
 ## Element composers
 
-Element compose behavior is registered externally via
-`ElementComposers`, keeping element structs as pure data and
-backends decoupled from `fynix_elements`.
+`Composer<W>` is a trait separate from `Element`. It separates
+required caller inputs from styleable element data:
 
-### Types
+- The **element** (`Hierarchy`) is a normal `Element` - pure data,
+  styleable via `ctx.set`.
+- The **composer** (`HierarchyComposer`) holds required inputs and
+  builds the element. It is not an `Element` itself.
+
+`ctx.compose()` calls `compose`, applies the style chain to the
+returned element, and inserts it into the tree.
 
 ```rust
-// Typed composer function for element E in world W.
-pub type ElementComposerFn<E, W> = fn(&mut E, &mut FynixCtx<W>);
-
-// Typed wrapper - monomorphized for (E, W).
-pub struct ElementComposer<E: Element, W> { ... }
-
-// Fully type-erased - stores TypeId for both E and W
-// alongside a *const () function pointer.
-// unsafe impl Sync - the pointer is always a fn pointer.
-pub struct UntypedElementComposer {
-    element_id: TypeId,
-    world_id: TypeId,
-    compose_fn: *const (),
-}
-
-// Non-generic registry keyed on element TypeId.
-pub struct ElementComposers {
-    composers: HashMap<TypeId, UntypedElementComposer>,
+pub trait Composer<W> {
+    type Element: Element;
+    fn compose(self, ctx: &mut FynixCtx<W>) -> Self::Element;
 }
 ```
 
-`UntypedElementComposer::new::<E, W>(f)` is `const` - both
-`TypeId::of` calls are const-stable when `T: 'static`.
-
-### Auto-registration via `linkme`
-
-A `linkme` distributed slice collects composers across crates:
+### Usage
 
 ```rust
-#[distributed_slice]
-pub static ELEMENT_COMPOSERS: [UntypedElementComposer] = [..];
-```
-
-At startup, `ElementComposers` is populated from the slice in
-one pass.
-
-### `#[fynix(compose)]` proc-macro
-
-A proc-macro attribute handles registration boilerplate. `E`
-is inferred from the first parameter (`&mut E`), `W` from
-`FynixCtx<W>` in the second:
-
-```rust
-#[fynix(compose)]
-fn compose_hierarchy_bevy(
-    e: &mut Hierarchy,
-    ctx: &mut FynixCtx<BevyWorld>,
-) {
-    let h = ctx.world.query(..);
-    ctx.add::<Label>();
-    // ...
+#[derive(Element, Default)]
+struct Hierarchy {
+    font_size: f32,
+    #[children]
+    children: Vec<ElementId>,
 }
 
-#[fynix(compose)]
-fn compose_hierarchy_custom(
-    e: &mut Hierarchy,
-    ctx: &mut FynixCtx<CustomWorld>,
-) {
-    ctx.add::<Label>();
-    ctx.add::<Button>();
-    // ...
+struct HierarchyComposer<'a> {
+    filter: &'a str,
+}
+
+impl Composer<BevyWorld> for HierarchyComposer<'_> {
+    type Element = Hierarchy;
+    fn compose(self, ctx: &mut FynixCtx<BevyWorld>) -> Hierarchy {
+        let mut h = Hierarchy::default();
+        for _ in ctx.world.query_filtered(self.filter) {
+            h.children.push(ctx.add::<Label>());
+        }
+        h
+    }
 }
 ```
 
-Expands to the function plus:
-
 ```rust
-#[linkme::distributed_slice(fynix::ELEMENT_COMPOSERS)]
-static _ELEMENT_COMPOSER_COMPOSE_HIERARCHY_BEVY:
-    UntypedElementComposer =
-    UntypedElementComposer::new::<Hierarchy, BevyWorld>(
-        compose_hierarchy_bevy,
-    );
-```
-
-Usage:
-
-```rust
-fn create_ui(ctx: FynixCtx<BevyWorld>) {
-    ctx.add::<Hierarchy>();
+fn create_ui(ctx: &mut FynixCtx<BevyWorld>) {
+    ctx.set(field_accessor!(<Hierarchy>::font_size), 24.0);
+    ctx.compose(HierarchyComposer { filter: "enemy" });
 }
 ```
 
-The static name is derived from the function name to
-guarantee uniqueness within a module.
+### Reactive re-composition
+
+When a signal that scopes a composer's subtree changes, the old
+children are removed and `compose` is re-called with fresh data.
+See the reactive scopes section under Signals.
 
 ---
 
@@ -305,37 +229,6 @@ re-layout to the affected subtree in both cases.
 
 ## `TypeSlot` - typed table optimisation
 
-`TypeTable` currently does two hashmap lookups per access: one on
-`TypeId` to find the column, one on the key to find the value.
-
-For closed, link-time-known type sets, this can be replaced with a
-direct `Vec` index using `TypeSlot`. Each type self-registers via a
-`linkme` distributed slice. At startup, each type is assigned a
-sequential index stored in a per-type `static OnceLock<usize>`. From
-then on, lookup is a static dereference + `Vec` index - no hashing.
-
-```rust
-// Generated by a #[derive(HasSlot)] proc-macro.
-static HORIZONTAL_SLOT: OnceLock<usize> = OnceLock::new();
-
-impl HasSlot for Horizontal {
-    fn slot() -> usize { *HORIZONTAL_SLOT.get().unwrap() }
-}
-
-#[distributed_slice(TYPE_SLOTS)]
-static _: TypeSlotEntry = TypeSlotEntry {
-    type_id: TypeId::of::<Horizontal>(),
-    slot: &HORIZONTAL_SLOT,
-};
-```
-
-```rust
-// Startup - assign sequential indices to all registered slots.
-for (i, slot) in TYPE_SLOTS.iter().enumerate() {
-    slot.slot.set(i);
-}
-```
-
 This enables faster specialised tables for types known at link time:
 
 - `ElementTable` - replaces `TypeTable<ElementId>` for element storage
@@ -344,6 +237,5 @@ This enables faster specialised tables for types known at link time:
 
 **Style values remain on `TypeTable`** - style field values are
 arbitrary user types (`f32`, `String`, custom structs) that cannot
-be required to `#[derive(HasSlot)]`. The hashmap stays there.
-
-Defer until profiling identifies `TypeTable` as a bottleneck.
+be required to `#[derive(HasSlot)]`. The hashmap stays there. This is
+debatable, we will see for the time being..

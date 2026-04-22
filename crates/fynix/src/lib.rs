@@ -3,14 +3,20 @@
 
 extern crate alloc;
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
+use imaging::PaintSink;
+use typeslot::SlotGroup;
+
 use crate::ctx::FynixCtx;
-use crate::element::{ElementId, Elements};
+use crate::element::{ElementGroup, ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
+pub use imaging;
 pub use rectree;
+pub use typeslot;
 
-pub mod any_wrapper;
 pub mod ctx;
 pub mod element;
 pub mod resource;
@@ -19,15 +25,36 @@ pub mod type_table;
 
 mod id;
 
+/// Initializes the Fynix framework.
+///
+/// Must be called before any element is added to a [`Fynix`]
+/// instance. Safe to call more than once - subsequent calls
+/// are no-ops.
+pub fn init() {
+    static INITIALIZED: AtomicBool = AtomicBool::new(false);
+    if INITIALIZED
+        .compare_exchange(
+            false,
+            true,
+            Ordering::AcqRel,
+            Ordering::Relaxed,
+        )
+        .is_ok()
+    {
+        ElementGroup::init();
+    }
+}
+
 /// Root application context. Owns the element tree, layout state,
 /// and style state.
 ///
 /// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building
 /// the UI.
 pub struct Fynix {
-    elements: Elements,
-    styles: Styles,
-    resources: Resources,
+    // TODO(nixon): Make these private and provide a more elegant API!
+    pub elements: Elements,
+    pub styles: Styles,
+    pub resources: Resources,
 }
 
 impl Fynix {
@@ -39,26 +66,18 @@ impl Fynix {
         }
     }
 
-    pub fn elements(&self) -> &Elements {
-        &self.elements
-    }
-
-    pub fn styles(&self) -> &Styles {
-        &self.styles
-    }
-
-    pub fn resources(&self) -> &Resources {
-        &self.resources
-    }
-
-    pub fn resources_mut(&mut self) -> &mut Resources {
-        &mut self.resources
-    }
-
     /// Runs a full layout cycle on the subtree rooted at `id`.
     #[inline]
     pub fn layout(&mut self, id: &ElementId) {
         self.elements.layout(id, &mut self.resources);
+    }
+
+    /// Renders the subtree rooted at `id` into `sink`.
+    ///
+    /// Layout must be complete before calling this.
+    #[inline]
+    pub fn render(&self, id: &ElementId, sink: &mut impl PaintSink) {
+        self.elements.render(id, sink);
     }
 
     /// Removes an element and its associated primary style tree.

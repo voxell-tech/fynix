@@ -1,25 +1,25 @@
-use core::any::TypeId;
+use alloc::vec::Vec;
 
 use hashbrown::HashMap;
-use rectree::{Constraint, RectNode, Size};
+use imaging::record::Scene;
+use rectree::RectNode;
+use typeslot::SlotGroup;
 
-use crate::element::{Element, ElementId, ElementNodes};
+use crate::element::ElementTable;
+use crate::element::{Element, ElementGroup, ElementId};
 use crate::style::StyleId;
-use crate::type_table::TypeTable;
 
-/// Per-element metadata stored alongside the layout node.
+/// Per-element metadata.
 pub struct ElementMeta {
-    pub type_id: TypeId,
+    pub slot: usize,
     pub node: RectNode<ElementId>,
+    pub cached_scene: Option<Scene>,
     /// When this element is removed, this style and all its
     /// descendants in the style tree are also removed
     pub primary_style: Option<StyleId>,
 }
 
-/// Per-element layout node storage, keyed by [`ElementId`].
-///
-/// Implements [`rectree::RectNodes`] so it can be passed directly to
-/// rectree's layout free functions.
+/// Per-element metadata storage, keyed by [`ElementId`].
 pub struct ElementMetas {
     map: HashMap<ElementId, ElementMeta>,
 }
@@ -31,26 +31,22 @@ impl ElementMetas {
         }
     }
 
-    pub fn init_element<E: 'static>(&mut self, id: ElementId) {
+    pub fn init_element<E: Element>(&mut self, id: ElementId) {
         self.map.insert(
             id,
             ElementMeta {
-                type_id: TypeId::of::<E>(),
+                slot: ElementGroup::slot::<E>(),
                 node: RectNode::new(None),
+                cached_scene: None,
                 primary_style: None,
             },
         );
     }
 
-    /// Returns the [`TypeId`] of the element stored at `id`.
-    pub fn get_type_id(&self, id: &ElementId) -> Option<TypeId> {
-        self.map.get(id).map(|m| m.type_id)
-    }
-
-    /// Removes the element meta and returns its [`TypeId`] for
-    /// use in type-erased element storage cleanup.
-    pub fn remove(&mut self, id: &ElementId) -> Option<TypeId> {
-        self.map.remove(id).map(|m| m.type_id)
+    /// Removes the element meta and returns its slot index
+    /// for type-erased element storage cleanup.
+    pub fn remove(&mut self, id: &ElementId) -> Option<ElementMeta> {
+        self.map.remove(id)
     }
 
     pub fn get(&self, id: &ElementId) -> Option<&ElementMeta> {
@@ -71,27 +67,43 @@ impl Default for ElementMetas {
     }
 }
 
-/// Registry of per-type dispatch tables, one entry per element type.
+/// Registry of per-type dispatch tables, one entry per
+/// element type.
+///
+/// Slot-indexed parallel to [`ElementTable`]: the column at
+/// index `ElementGroup::slot::<E>()` holds the
+/// [`ElementTypeMeta`] for `E`.
 pub struct ElementTypeMetas {
-    map: HashMap<TypeId, ElementTypeMeta>,
+    slots: Vec<Option<ElementTypeMeta>>,
 }
 
 impl ElementTypeMetas {
+    /// Creates an empty registry sized for all element types.
     pub fn new() -> Self {
-        Self {
-            map: HashMap::new(),
-        }
+        let mut slots = Vec::new();
+        slots.resize_with(ElementGroup::len(), || None);
+        Self { slots }
     }
 
+    /// Registers `E` if it has not been registered yet.
     pub fn register<E: Element>(&mut self) {
-        let type_id = TypeId::of::<E>();
-        if !self.map.contains_key(&type_id) {
-            self.map.insert(type_id, ElementTypeMeta::new::<E>());
+        let slot = ElementGroup::slot::<E>();
+        if self.slots[slot].is_none() {
+            self.slots[slot] = Some(ElementTypeMeta::new::<E>());
         }
     }
 
-    pub fn get(&self, id: &TypeId) -> Option<&ElementTypeMeta> {
-        self.map.get(id)
+    /// Returns the [`ElementTypeMeta`] for `E`, or `None` if
+    /// `E` has not been registered.
+    pub fn get<E: Element>(&self) -> Option<&ElementTypeMeta> {
+        let slot = ElementGroup::slot::<E>();
+        self.slots[slot].as_ref()
+    }
+
+    /// Returns the [`ElementTypeMeta`] for `slot`, or `None`
+    /// if that slot has not been registered.
+    pub fn get_slot(&self, slot: usize) -> Option<&ElementTypeMeta> {
+        self.slots.get(slot)?.as_ref()
     }
 }
 
@@ -103,14 +115,13 @@ impl Default for ElementTypeMetas {
 
 /// Monomorphized function pointers for a single element type.
 ///
-/// Registered once per type via [`ElementTypeMetas::register`].
-/// Each function implements one step of the layout protocol without
-/// knowing the concrete type at the call site.
+/// Registered once per type via
+/// [`ElementTypeMetas::register`]. Each function implements
+/// one step of the layout protocol without knowing the
+/// concrete type at the call site.
 pub struct ElementTypeMeta {
     pub get_dyn_fn: GetDynElementFn,
     pub children_fn: ChildrenElementFn,
-    pub constrain_fn: ConstrainElementFn,
-    pub build_fn: BuildElementFn,
 }
 
 impl ElementTypeMeta {
@@ -118,14 +129,12 @@ impl ElementTypeMeta {
         Self {
             get_dyn_fn: get_dyn_element::<E>,
             children_fn: for_each_child::<E>,
-            constrain_fn: constrain_element::<E>,
-            build_fn: build_element::<E>,
         }
     }
 
     pub fn get_dyn<'a>(
         &self,
-        table: &'a TypeTable<ElementId>,
+        table: &'a ElementTable,
         id: &ElementId,
     ) -> Option<&'a dyn Element> {
         (self.get_dyn_fn)(table, id)
@@ -135,15 +144,15 @@ impl ElementTypeMeta {
 /// Returns `&dyn Element` from the table without knowing the
 /// concrete type at the call site.
 pub type GetDynElementFn = for<'a> fn(
-    table: &'a TypeTable<ElementId>,
+    table: &'a ElementTable,
     id: &ElementId,
 ) -> Option<&'a dyn Element>;
 
-/// Monomorphized implementation of [`GetDynElementFn`] for element
-/// type `E`.
+/// Monomorphized implementation of [`GetDynElementFn`] for
+/// element type `E`.
 #[inline]
 pub fn get_dyn_element<'a, E: Element>(
-    table: &'a TypeTable<ElementId>,
+    table: &'a ElementTable,
     id: &ElementId,
 ) -> Option<&'a dyn Element> {
     table.get::<E>(id).map(|e| e as &dyn Element)
@@ -151,20 +160,23 @@ pub fn get_dyn_element<'a, E: Element>(
 
 /// Visits each child of an element by calling `f` for every
 /// [`ElementId`] the element yields from
-/// [`Element::children`].
+/// [`ElementChildren::children`].
 ///
-/// Using a visitor avoids the need to name the concrete iterator
-/// type returned by [`Element::children`], which differs per `E`
-/// and cannot be expressed in a function-pointer signature.
+/// Using a visitor avoids the need to name the concrete
+/// iterator type returned by [`ElementChildren::children`], which
+/// differs per `E` and cannot be expressed in a
+/// function-pointer signature.
+///
+/// [`ElementChildren::children`]: super::ElementChildren::children
 pub type ChildrenElementFn = fn(
-    table: &TypeTable<ElementId>,
+    table: &ElementTable,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
 );
 
 #[inline]
 pub fn for_each_child<E: Element>(
-    table: &TypeTable<ElementId>,
+    table: &ElementTable,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
 ) {
@@ -173,44 +185,4 @@ pub fn for_each_child<E: Element>(
             f(child);
         }
     }
-}
-
-/// Calls [`Element::constrain`] without knowing the concrete type.
-pub type ConstrainElementFn = fn(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    parent: Constraint,
-) -> Constraint;
-
-#[inline]
-pub fn constrain_element<E: Element>(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    parent: Constraint,
-) -> Constraint {
-    table
-        .get::<E>(id)
-        .map(|e| e.constrain(parent))
-        .unwrap_or(parent)
-}
-
-/// Calls [`Element::build`] without knowing the concrete type.
-pub type BuildElementFn = fn(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    constraint: Constraint,
-    nodes: &mut ElementNodes,
-) -> Size;
-
-#[inline]
-pub fn build_element<E: Element>(
-    table: &TypeTable<ElementId>,
-    id: &ElementId,
-    constraint: Constraint,
-    nodes: &mut ElementNodes,
-) -> Size {
-    table
-        .get::<E>(id)
-        .map(|e| e.build(constraint, nodes))
-        .unwrap_or(Size::ZERO)
 }

@@ -10,7 +10,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+fynix_macros.workspace = true
 rectree.workspace = true
 hashbrown.workspace = true
 field_path.workspace = true
 sparse_map.workspace = true
+imaging.workspace = true
+typeslot.workspace = true
