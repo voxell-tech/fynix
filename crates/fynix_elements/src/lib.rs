@@ -138,14 +138,27 @@ impl Pad {
         self.child = Some(id);
     }
 
+    pub fn new(top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        Self { top, right, bottom, left, child: None }
+    }
+
     pub fn all(value: f32) -> Self {
-        Self {
-            top: value,
-            right: value,
-            bottom: value,
-            left: value,
-            child: None,
-        }
+        Self::new(value, value, value, value)
+    }
+
+    /// Equal padding on top/bottom (`v`) and left/right (`h`).
+    pub fn symmetric(v: f32, h: f32) -> Self {
+        Self::new(v, h, v, h)
+    }
+
+    /// Padding on left and right only.
+    pub fn horizontal(h: f32) -> Self {
+        Self::new(0.0, h, 0.0, h)
+    }
+
+    /// Padding on top and bottom only.
+    pub fn vertical(v: f32) -> Self {
+        Self::new(v, 0.0, v, 0.0)
     }
 }
 
@@ -197,6 +210,16 @@ pub struct Button<A: 'static> {
     pub corner_radius: f64,
     #[element(children)]
     pub child: Option<ElementId>,
+}
+
+impl<A> Button<A> {
+    pub fn set_child(&mut self, id: ElementId) {
+        self.child = Some(id);
+    }
+
+    pub fn set_on_click(&mut self, action: A) {
+        self.on_click = Some(action);
+    }
 }
 
 impl<A> ElementBuild for Button<A> {

@@ -607,12 +607,8 @@ version = "0.1.0"
 dependencies = [
  "field_path",
  "fynix",
- "imaging_vello",
  "parley",
- "pollster",
  "typeslot",
- "vello",
- "winit",
 ]
 
 [[package]]
@@ -2169,6 +2165,20 @@ dependencies = [
  "naga",
  "thiserror 2.0.18",
  "vello_encoding",
+]
+
+[[package]]
+name = "vello_winit_examples"
+version = "0.1.0"
+dependencies = [
+ "field_path",
+ "fynix",
+ "fynix_elements",
+ "imaging_vello",
+ "parley",
+ "pollster",
+ "vello",
+ "winit",
 ]
 
 [[package]]

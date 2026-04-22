@@ -1,17 +1,17 @@
 [package]
-name = "fynix_elements"
-description = "Default element types for the Fynix UI framework."
-keywords = ["ui", "gui", "fynix"]
-categories = ["gui"]
+name = "vello_winit_examples"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+publish = false
 
 [dependencies]
 fynix.workspace = true
+fynix_elements.workspace = true
 field_path.workspace = true
 parley.workspace = true
-typeslot.workspace = true
-
-
+imaging_vello.workspace = true
+vello.workspace = true
+winit.workspace = true
+pollster.workspace = true

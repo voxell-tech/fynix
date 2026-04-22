@@ -1,111 +1,48 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use field_path::field_accessor;
 use fynix::Fynix;
 use fynix::ctx::FynixCtx;
 use fynix::element::ElementId;
 use fynix::rectree;
-use fynix_elements::{
-    Button, Horizontal, Label, Pad, TextContext, Vertical, WindowSize,
-};
-
+use fynix_elements::WindowSize;
 use imaging_vello::VelloSceneSink;
-use parley::FontStyle;
-use parley::fontique::{Blob, GenericFamily};
-use pollster::block_on;
 use vello::kurbo::Rect;
 use vello::peniko::Color;
-use vello::peniko::color::palette::css;
 use vello::util::{RenderContext, RenderSurface};
 use vello::wgpu;
-use vello::{
-    AaConfig, RenderParams, Renderer, RendererOptions, Scene,
-};
+use vello::{AaConfig, RenderParams, Renderer, RendererOptions, Scene};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::ActiveEventLoop;
 use winit::window::Window;
 
-const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
+pub trait FynixDemo {
+    fn window_title(&self) -> &'static str {
+        "Fynix"
+    }
 
-fynix::register_element!(EmptyBtn, Button<()>);
+    fn initial_logical_size(&self) -> (f64, f64) {
+        (800.0, 600.0)
+    }
 
-fn main() {
-    fynix::init();
-    let event_loop = EventLoop::new().unwrap();
-    let mut app = HelloWorldApp::new();
-    event_loop.run_app(&mut app).unwrap();
+    fn init(&mut self, _fynix: &mut Fynix) {}
+
+    fn build(&mut self, ctx: &mut FynixCtx<()>) -> ElementId;
 }
 
-fn content<W>(ctx: &mut FynixCtx<W>) -> ElementId {
-    ctx.add_with::<Vertical>(|v, ctx| {
-        ctx.set(field_accessor!(<Label>::fill), Color::WHITE.into());
-
-        v.add(ctx.add_with::<Label>(|label, _ctx| {
-            label.text = "Hello, Fynix!".into();
-            label.font_size = 24.0;
-        }));
-        v.add(ctx.add_with::<Label>(|label, _ctx| {
-            label.text = "Lorem ipsum dolor sit amet consectetur \
-                        adipiscing elit. Placerat in id cursus mi \
-                        pretium tellus duis. Urna tempor pulvinar \
-                        vivamus fringilla lacus nec metus. Integer \
-                        nunc posuere ut hendrerit semper vel class. \
-                        Conubia nostra inceptos himenaeos orci \
-                        varius natoque penatibus. Mus donec rhoncus \
-                        eros lobortis nulla molestie mattis. Purus \
-                        est efficitur laoreet mauris pharetra \
-                        vestibulum fusce. Sodales consequat magna \
-                        ante condimentum neque at luctus. Ligula \
-                        congue sollicitudin erat viverra ac \
-                        tincidunt nam. Lectus commodo augue arcu \
-                        dignissim velit aliquam imperdiet."
-                .into();
-        }));
-
-        v.add(ctx.add_with::<Horizontal>(|v, ctx| {
-            ctx.set(field_accessor!(<Label>::font_size), 16.0);
-            ctx.set(field_accessor!(<Label>::fill), css::AQUA.into());
-
-            v.add(ctx.add_with::<Label>(|label, _ctx| {
-                label.text = "Hello, Fynix!".into();
-            }));
-
-            ctx.set(
-                field_accessor!(<Label>::font_style),
-                FontStyle::Italic,
-            );
-
-            v.add(ctx.add_with::<Label>(|label, _ctx| {
-                label.text = "Horizontal continuation.".into();
-            }));
-            v.add(ctx.add_with::<Label>(|label, _ctx| {
-                label.text = "Another label!".into();
-            }));
-        }));
-
-        v.add(ctx.add_with::<EmptyBtn>(|b, ctx| {
-            b.child = Some(ctx.add_with::<Pad>(|p, ctx| {
-                p.set_child(ctx.add_with::<Label>(|l, _| {
-                    l.text = "Press me!".into()
-                }));
-            }));
-        }));
-    })
-}
-
-struct HelloWorldApp<'s> {
+pub struct VelloWinitApp<'s, D: FynixDemo> {
     fynix: Fynix,
     root_id: ElementId,
+    demo: D,
     context: RenderContext,
     renderer: Option<Renderer>,
     state: RenderState<'s>,
     scene: Scene,
 }
 
-enum RenderState<'s> {
+pub enum RenderState<'s> {
     Suspended(Option<Arc<Window>>),
     Active {
         surface: Box<RenderSurface<'s>>,
@@ -113,42 +50,25 @@ enum RenderState<'s> {
     },
 }
 
-impl HelloWorldApp<'_> {
-    fn new() -> Self {
-        let mut fynix = Fynix::new();
-        fynix_elements::init_resources(&mut fynix);
+impl<D: FynixDemo> VelloWinitApp<'_, D> {
+    pub fn new(mut demo: D) -> Self {
+        fynix::init();
 
-        if let Some(text_cx) =
-            fynix.resources.get_mut::<TextContext>()
-        {
-            let blob = Blob::new(Arc::new(FONT));
-            let ids =
-                text_cx.font_cx.collection.register_fonts(blob, None);
-            text_cx.font_cx.collection.set_generic_families(
-                GenericFamily::SansSerif,
-                ids.into_iter().map(|(f, _)| f),
-            );
-        }
+        let mut fynix = Fynix::new();
+        demo.init(&mut fynix);
 
         let mut world = ();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-
             ctx.add_with::<WindowSize>(|w, ctx| {
-                ctx.set(field_accessor!(<Pad>), Pad::all(10.0));
-                ctx.set(
-                    field_accessor!(<EmptyBtn>::corner_radius),
-                    8.0,
-                );
-                w.set_child(ctx.add_with::<Pad>(|p, ctx| {
-                    p.set_child(content(ctx));
-                }));
+                w.set_child(demo.build(ctx));
             })
         };
 
         Self {
             fynix,
             root_id,
+            demo,
             context: RenderContext::new(),
             renderer: None,
             state: RenderState::Suspended(None),
@@ -156,11 +76,9 @@ impl HelloWorldApp<'_> {
         }
     }
 
-    fn render_frame(&mut self) {
+    fn render(&mut self) {
         let (surface, window) = match &mut self.state {
-            RenderState::Active { surface, window } => {
-                (surface, window)
-            }
+            RenderState::Active { surface, window } => (surface, window),
             _ => return,
         };
 
@@ -174,20 +92,16 @@ impl HelloWorldApp<'_> {
         if surface.config.width != phys.width
             || surface.config.height != phys.height
         {
-            self.context.resize_surface(
-                surface,
-                phys.width,
-                phys.height,
-            );
+            self.context
+                .resize_surface(surface, phys.width, phys.height);
         }
 
-        // TODO(nixon): This should be mutated via signals!
-        if let Some(fixed) = self
+        if let Some(root) = self
             .fynix
             .elements
             .get_typed_mut::<WindowSize>(&self.root_id)
         {
-            fixed.size = rectree::Size::new(
+            root.size = rectree::Size::new(
                 phys.width as f32,
                 phys.height as f32,
             );
@@ -265,19 +179,18 @@ impl HelloWorldApp<'_> {
     }
 }
 
-impl ApplicationHandler for HelloWorldApp<'_> {
+impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let RenderState::Suspended(cached_window) = &mut self.state
         else {
             return;
         };
 
+        let (w, h) = self.demo.initial_logical_size();
         let window = cached_window.take().unwrap_or_else(|| {
             let attr = Window::default_attributes()
-                .with_inner_size(LogicalSize::new(
-                    800.0_f64, 600.0_f64,
-                ))
-                .with_title("Hello, Fynix!");
+                .with_inner_size(LogicalSize::new(w, h))
+                .with_title(self.demo.window_title());
             Arc::new(event_loop.create_window(attr).unwrap())
         });
 
@@ -289,7 +202,7 @@ impl ApplicationHandler for HelloWorldApp<'_> {
             wgpu::PresentMode::AutoVsync,
         );
         let surface =
-            block_on(surface_future).expect("create surface");
+            pollster::block_on(surface_future).expect("create surface");
 
         let device_handle = &self.context.devices[surface.dev_id];
         surface
@@ -302,8 +215,7 @@ impl ApplicationHandler for HelloWorldApp<'_> {
                     &device_handle.device,
                     RendererOptions {
                         use_cpu: false,
-                        antialiasing_support:
-                            vello::AaSupport::area_only(),
+                        antialiasing_support: vello::AaSupport::area_only(),
                         num_init_threads: NonZeroUsize::new(1),
                         pipeline_cache: None,
                     },
@@ -320,7 +232,8 @@ impl ApplicationHandler for HelloWorldApp<'_> {
 
     fn suspended(&mut self, _el: &ActiveEventLoop) {
         if let RenderState::Active { window, .. } = &self.state {
-            self.state = RenderState::Suspended(Some(window.clone()));
+            self.state =
+                RenderState::Suspended(Some(window.clone()));
         }
     }
 
@@ -333,16 +246,14 @@ impl ApplicationHandler for HelloWorldApp<'_> {
         match event {
             WindowEvent::CloseRequested => el.exit(),
             WindowEvent::RedrawRequested => {
-                self.render_frame();
-                if let RenderState::Active { window, .. } =
-                    &self.state
+                self.render();
+                if let RenderState::Active { window, .. } = &self.state
                 {
                     window.request_redraw();
                 }
             }
             WindowEvent::Resized(_) => {
-                if let RenderState::Active { window, .. } =
-                    &self.state
+                if let RenderState::Active { window, .. } = &self.state
                 {
                     window.request_redraw();
                 }
