@@ -8,11 +8,15 @@ use alloc::vec::Vec;
 use fynix::Fynix;
 use fynix::element::layout::ElementNodes;
 use fynix::element::meta::ElementMetas;
-use fynix::element::{Element, ElementBuild, ElementId};
-use fynix::imaging::kurbo::Affine;
+use fynix::element::{
+    Element, ElementBuild, ElementId, ElementTemplate,
+};
+use fynix::imaging::kurbo::{Affine, Stroke};
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
-use fynix::imaging::{Composite, GlyphRunRef, PaintSink, kurbo};
+use fynix::imaging::{
+    Composite, FillRef, GlyphRunRef, PaintSink, StrokeRef, kurbo,
+};
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 use parley::style::StyleProperty;
 use parley::{
@@ -116,6 +120,119 @@ impl ElementBuild for Vertical {
         }
 
         constraint.constrain(size)
+    }
+}
+
+#[derive(Element, Debug, Clone, Copy)]
+pub struct Pad {
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub left: f32,
+    #[element(children)]
+    child: Option<ElementId>,
+}
+
+impl Pad {
+    pub fn set_child(&mut self, id: ElementId) {
+        self.child = Some(id);
+    }
+
+    pub fn all(value: f32) -> Self {
+        Self {
+            top: value,
+            right: value,
+            bottom: value,
+            left: value,
+            child: None,
+        }
+    }
+}
+
+impl ElementBuild for Pad {
+    fn constrain(&self, parent_constraint: Constraint) -> Constraint {
+        let h = self.left + self.right;
+        let v = self.top + self.bottom;
+        Constraint {
+            min: Size::ZERO,
+            max: Size::new(
+                (parent_constraint.max.width - h).max(0.0),
+                (parent_constraint.max.height - v).max(0.0),
+            ),
+        }
+    }
+
+    fn build(
+        &self,
+        _id: &ElementId,
+        constraint: Constraint,
+        nodes: &mut ElementNodes,
+    ) -> Size {
+        let child_size = self
+            .child
+            .as_ref()
+            .map(|id| {
+                nodes.set_translation(
+                    id,
+                    Vec2::new(self.left, self.top),
+                );
+                nodes.get_size(id)
+            })
+            .unwrap_or_default();
+        constraint.constrain(Size::new(
+            child_size.width + self.left + self.right,
+            child_size.height + self.top + self.bottom,
+        ))
+    }
+}
+
+#[derive(ElementTemplate)]
+pub struct Button<A: 'static> {
+    pub action: Option<A>,
+    pub fill: Brush,
+    pub stroke: Stroke,
+    pub corner_radius: f64,
+    #[element(children)]
+    pub child: Option<ElementId>,
+}
+
+impl<A> ElementBuild for Button<A> {
+    fn build(
+        &self,
+        _id: &ElementId,
+        constraint: Constraint,
+        nodes: &mut ElementNodes,
+    ) -> Size {
+        constraint.constrain(
+            self.child
+                .as_ref()
+                .map(|id| nodes.get_size(id))
+                .unwrap_or_default(),
+        )
+    }
+
+    fn render(
+        &self,
+        id: &ElementId,
+        painter: &mut dyn PaintSink,
+        metas: &ElementMetas,
+    ) {
+        let Some(meta) = metas.get(id) else { return };
+        let pos = meta.node.world_translation;
+        let size = meta.node.size;
+        let shape = kurbo::RoundedRect::new(
+            pos.x as f64,
+            pos.y as f64,
+            (pos.x + size.width) as f64,
+            (pos.y + size.height) as f64,
+            self.corner_radius,
+        );
+        painter.fill(FillRef::new(shape, &self.fill));
+        painter.stroke(StrokeRef::new(
+            shape,
+            &self.stroke,
+            &self.fill,
+        ));
     }
 }
 

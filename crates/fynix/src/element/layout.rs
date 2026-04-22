@@ -8,61 +8,9 @@ use crate::resource::Resources;
 
 /// Immutable view of the element tree used to implement
 /// [`Rectree`].
-///
-/// Borrows the type tables from [`Elements`] so that
-/// [`ElementMetas`] can be mutably borrowed separately
-/// during layout.
 pub struct ElementTree<'a> {
     pub(super) elements: &'a ElementTable,
     pub(super) type_metas: &'a ElementTypeMetas,
-}
-
-pub struct ElementNodes<'a> {
-    pub(crate) metas: &'a mut ElementMetas,
-    pub(crate) resources: &'a mut Resources,
-}
-
-impl ElementNodes<'_> {
-    pub fn get_resource<R: 'static>(&self) -> Option<&R> {
-        self.resources.get()
-    }
-
-    pub fn get_resource_mut<R: 'static>(&mut self) -> Option<&mut R> {
-        self.resources.get_mut()
-    }
-
-    pub fn cache_scene(
-        &mut self,
-        id: &ElementId,
-        scene: Scene,
-    ) -> bool {
-        if let Some(meta) = self.metas.get_mut(id) {
-            meta.cached_scene = Some(scene);
-            return true;
-        }
-
-        false
-    }
-}
-
-// TODO: Hide this implementation to the `build` fn. Maybe
-// add a `ElementNodesBuilder` wrapper struct.
-impl RectNodes for ElementNodes<'_> {
-    type Id = ElementId;
-
-    fn get_node(
-        &self,
-        id: &ElementId,
-    ) -> Option<&RectNode<ElementId>> {
-        self.metas.get(id).map(|m| &m.node)
-    }
-
-    fn get_node_mut(
-        &mut self,
-        id: &ElementId,
-    ) -> Option<&mut RectNode<ElementId>> {
-        self.metas.get_mut(id).map(|m| &mut m.node)
-    }
 }
 
 impl<'a> Rectree for ElementTree<'a> {
@@ -122,5 +70,53 @@ impl<'a> Rectree for ElementTree<'a> {
                     .unwrap_or_default()
             })
             .unwrap_or(Size::ZERO)
+    }
+}
+
+pub struct ElementNodes<'a> {
+    pub(crate) metas: &'a mut ElementMetas,
+    pub(crate) resources: &'a mut Resources,
+}
+
+impl ElementNodes<'_> {
+    pub fn get_resource<R: 'static>(&self) -> Option<&R> {
+        self.resources.get()
+    }
+
+    pub fn get_resource_mut<R: 'static>(&mut self) -> Option<&mut R> {
+        self.resources.get_mut()
+    }
+
+    pub fn cache_scene(
+        &mut self,
+        id: &ElementId,
+        scene: Scene,
+    ) -> bool {
+        if let Some(meta) = self.metas.get_mut(id) {
+            meta.cached_scene = Some(scene);
+            return true;
+        }
+
+        false
+    }
+}
+
+// TODO: Hide this implementation to the `build` fn. Maybe
+// add a `ElementNodesBuilder` wrapper struct.
+impl RectNodes for ElementNodes<'_> {
+    type Id = ElementId;
+
+    fn get_node(
+        &self,
+        id: &ElementId,
+    ) -> Option<&RectNode<ElementId>> {
+        self.metas.get(id).map(|m| &m.node)
+    }
+
+    fn get_node_mut(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<&mut RectNode<ElementId>> {
+        self.metas.get_mut(id).map(|m| &mut m.node)
     }
 }
