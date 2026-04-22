@@ -120,7 +120,7 @@ impl<W> FynixCtx<'_, '_, W> {
     /// applies the current style chain to it.
     ///
     /// `is_deeper` indicates whether the committed style should go
-    /// into children[0] (deeper scope) or children[1]
+    /// into children\[0\] (deeper scope) or children\[1\]
     /// (sibling node at same scope).
     fn create_element<E: Element>(&mut self, is_deeper: bool) -> E {
         if self.fynix.styles.should_commit() {
@@ -149,6 +149,7 @@ mod tests {
     use rectree::{Constraint, NodeContext, Size, Vec2};
 
     use crate::element::{ElementBuild, ElementNodes};
+    use crate::init;
 
     use super::*;
 
@@ -296,6 +297,8 @@ mod tests {
 
     #[test]
     fn style_tree_cleanup_on_element_removal() {
+        init();
+
         let mut world = ();
         let mut fynix = Fynix::new();
         let element_a = {
@@ -346,6 +349,8 @@ mod tests {
 
     #[test]
     fn element_without_primary_style_no_cleanup() {
+        init();
+
         let mut world = ();
         let mut fynix = Fynix::new();
         let (element_a, element_b) = {

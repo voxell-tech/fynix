@@ -167,26 +167,31 @@ impl Elements {
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
-        use alloc::vec;
-
         if let Some(meta) = self.metas.remove(id)
             && self.elements.dyn_remove_by_slot(meta.slot, id)
         {
-            let mut children = vec![];
-            if let Some(type_meta) =
-                self.type_metas.get_slot(meta.slot)
-            {
-                (type_meta.children_fn)(
-                    &self.elements,
-                    id,
-                    &mut |child_id| {
-                        children.push(*child_id);
-                    },
-                );
-            }
+            // TODO: Refactor this algorithm; it is super expensive.
+            // The other heap-allocated algorithm is O(n); but this one is O((n^2 + n)/2)
+            loop {
+                let mut child = None;
 
-            for child in children {
-                self.remove(&child);
+                if let Some(type_meta) =
+                    self.type_metas.get_slot(meta.slot)
+                {
+                    (type_meta.children_fn)(
+                        &self.elements,
+                        id,
+                        &mut |child_id| {
+                            child = Some(*child_id);
+                        },
+                    );
+                }
+
+                if let Some(c) = child {
+                    self.remove(&c);
+                } else {
+                    break;
+                }
             }
 
             self.id_generator.recycle(*id);

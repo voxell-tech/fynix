@@ -107,6 +107,8 @@ impl Styles {
             return;
         };
 
+        debug_assert!(parent.children.iter().any(|c| c.is_none()));
+
         // [0] -> deeper depth
         // [1] -> sibling style
         if is_deeper {
