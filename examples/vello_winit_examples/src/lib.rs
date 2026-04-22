@@ -11,7 +11,9 @@ use vello::kurbo::Rect;
 use vello::peniko::Color;
 use vello::util::{RenderContext, RenderSurface};
 use vello::wgpu;
-use vello::{AaConfig, RenderParams, Renderer, RendererOptions, Scene};
+use vello::{
+    AaConfig, RenderParams, Renderer, RendererOptions, Scene,
+};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
@@ -78,7 +80,9 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
 
     fn render(&mut self) {
         let (surface, window) = match &mut self.state {
-            RenderState::Active { surface, window } => (surface, window),
+            RenderState::Active { surface, window } => {
+                (surface, window)
+            }
             _ => return,
         };
 
@@ -92,8 +96,11 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
         if surface.config.width != phys.width
             || surface.config.height != phys.height
         {
-            self.context
-                .resize_surface(surface, phys.width, phys.height);
+            self.context.resize_surface(
+                surface,
+                phys.width,
+                phys.height,
+            );
         }
 
         if let Some(root) = self
@@ -201,8 +208,8 @@ impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
             phys.height,
             wgpu::PresentMode::AutoVsync,
         );
-        let surface =
-            pollster::block_on(surface_future).expect("create surface");
+        let surface = pollster::block_on(surface_future)
+            .expect("create surface");
 
         let device_handle = &self.context.devices[surface.dev_id];
         surface
@@ -215,7 +222,8 @@ impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
                     &device_handle.device,
                     RendererOptions {
                         use_cpu: false,
-                        antialiasing_support: vello::AaSupport::area_only(),
+                        antialiasing_support:
+                            vello::AaSupport::area_only(),
                         num_init_threads: NonZeroUsize::new(1),
                         pipeline_cache: None,
                     },
@@ -232,8 +240,7 @@ impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
 
     fn suspended(&mut self, _el: &ActiveEventLoop) {
         if let RenderState::Active { window, .. } = &self.state {
-            self.state =
-                RenderState::Suspended(Some(window.clone()));
+            self.state = RenderState::Suspended(Some(window.clone()));
         }
     }
 
@@ -247,13 +254,15 @@ impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
             WindowEvent::CloseRequested => el.exit(),
             WindowEvent::RedrawRequested => {
                 self.render();
-                if let RenderState::Active { window, .. } = &self.state
+                if let RenderState::Active { window, .. } =
+                    &self.state
                 {
                     window.request_redraw();
                 }
             }
             WindowEvent::Resized(_) => {
-                if let RenderState::Active { window, .. } = &self.state
+                if let RenderState::Active { window, .. } =
+                    &self.state
                 {
                     window.request_redraw();
                 }

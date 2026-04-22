@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 fynix.workspace = true
 fynix_elements.workspace = true
-field_path.workspace = true
 parley.workspace = true
 imaging_vello.workspace = true
 vello.workspace = true

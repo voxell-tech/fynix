@@ -139,7 +139,13 @@ impl Pad {
     }
 
     pub fn new(top: f32, right: f32, bottom: f32, left: f32) -> Self {
-        Self { top, right, bottom, left, child: None }
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+            child: None,
+        }
     }
 
     pub fn all(value: f32) -> Self {

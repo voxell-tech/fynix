@@ -2171,7 +2171,6 @@ dependencies = [
 name = "vello_winit_examples"
 version = "0.1.0"
 dependencies = [
- "field_path",
  "fynix",
  "fynix_elements",
  "imaging_vello",
