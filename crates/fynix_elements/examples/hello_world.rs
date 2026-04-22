@@ -3,11 +3,13 @@ use std::sync::Arc;
 
 use field_path::field_accessor;
 use fynix::Fynix;
+use fynix::ctx::FynixCtx;
 use fynix::element::ElementId;
 use fynix::rectree;
 use fynix_elements::{
-    Horizontal, Label, TextContext, Vertical, WindowSize,
+    Button, Horizontal, Label, Pad, TextContext, Vertical, WindowSize,
 };
+
 use imaging_vello::VelloSceneSink;
 use parley::FontStyle;
 use parley::fontique::{Blob, GenericFamily};
@@ -28,11 +30,70 @@ use winit::window::Window;
 
 const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 
+fynix::register_element!(EmptyBtn, Button<()>);
+
 fn main() {
     fynix::init();
     let event_loop = EventLoop::new().unwrap();
     let mut app = HelloWorldApp::new();
     event_loop.run_app(&mut app).unwrap();
+}
+
+fn content<W>(ctx: &mut FynixCtx<W>) -> ElementId {
+    ctx.add_with::<Vertical>(|v, ctx| {
+        ctx.set(field_accessor!(<Label>::fill), Color::WHITE.into());
+
+        v.add(ctx.add_with::<Label>(|label, _ctx| {
+            label.text = "Hello, Fynix!".into();
+            label.font_size = 24.0;
+        }));
+        v.add(ctx.add_with::<Label>(|label, _ctx| {
+            label.text = "Lorem ipsum dolor sit amet consectetur \
+                        adipiscing elit. Placerat in id cursus mi \
+                        pretium tellus duis. Urna tempor pulvinar \
+                        vivamus fringilla lacus nec metus. Integer \
+                        nunc posuere ut hendrerit semper vel class. \
+                        Conubia nostra inceptos himenaeos orci \
+                        varius natoque penatibus. Mus donec rhoncus \
+                        eros lobortis nulla molestie mattis. Purus \
+                        est efficitur laoreet mauris pharetra \
+                        vestibulum fusce. Sodales consequat magna \
+                        ante condimentum neque at luctus. Ligula \
+                        congue sollicitudin erat viverra ac \
+                        tincidunt nam. Lectus commodo augue arcu \
+                        dignissim velit aliquam imperdiet."
+                .into();
+        }));
+
+        v.add(ctx.add_with::<Horizontal>(|v, ctx| {
+            ctx.set(field_accessor!(<Label>::font_size), 16.0);
+            ctx.set(field_accessor!(<Label>::fill), css::AQUA.into());
+
+            v.add(ctx.add_with::<Label>(|label, _ctx| {
+                label.text = "Hello, Fynix!".into();
+            }));
+
+            ctx.set(
+                field_accessor!(<Label>::font_style),
+                FontStyle::Italic,
+            );
+
+            v.add(ctx.add_with::<Label>(|label, _ctx| {
+                label.text = "Horizontal continuation.".into();
+            }));
+            v.add(ctx.add_with::<Label>(|label, _ctx| {
+                label.text = "Another label!".into();
+            }));
+        }));
+
+        v.add(ctx.add_with::<EmptyBtn>(|b, ctx| {
+            b.child = Some(ctx.add_with::<Pad>(|p, ctx| {
+                p.set_child(ctx.add_with::<Label>(|l, _| {
+                    l.text = "Press me!".into()
+                }));
+            }));
+        }));
+    })
 }
 
 struct HelloWorldApp<'s> {
@@ -72,50 +133,16 @@ impl HelloWorldApp<'_> {
         let mut world = ();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            let content = ctx.add_with::<Vertical>(|v, ctx| {
-                ctx.set(field_accessor!(<Label>::font_size), 24.0);
+
+            ctx.add_with::<WindowSize>(|w, ctx| {
+                ctx.set(field_accessor!(<Pad>), Pad::all(10.0));
                 ctx.set(
-                    field_accessor!(<Label>::fill),
-                    Color::WHITE.into(),
+                    field_accessor!(<EmptyBtn>::corner_radius),
+                    8.0,
                 );
-
-                v.add(ctx.add_with::<Label>(|label, _ctx| {
-                    label.text = "Hello, Fynix!".into();
+                w.set_child(ctx.add_with::<Pad>(|p, ctx| {
+                    p.set_child(content(ctx));
                 }));
-                v.add(ctx.add_with::<Label>(|label, _ctx| {
-                    label.text = "Lorem ipsum dolor sit amet consectetur adipiscing elit. Placerat in id cursus mi pretium tellus duis. Urna tempor pulvinar vivamus fringilla lacus nec metus. Integer nunc posuere ut hendrerit semper vel class. Conubia nostra inceptos himenaeos orci varius natoque penatibus. Mus donec rhoncus eros lobortis nulla molestie mattis. Purus est efficitur laoreet mauris pharetra vestibulum fusce. Sodales consequat magna ante condimentum neque at luctus. Ligula congue sollicitudin erat viverra ac tincidunt nam. Lectus commodo augue arcu dignissim velit aliquam imperdiet.".into();
-                }));
-
-                v.add(ctx.add_with::<Horizontal>(|v, ctx| {
-                    ctx.set(
-                        field_accessor!(<Label>::font_size),
-                        16.0,
-                    );
-                    ctx.set(
-                        field_accessor!(<Label>::fill),
-                        css::AQUA.into(),
-                    );
-
-                    v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "Hello, Fynix!".into();
-                    }));
-
-                    ctx.set(
-                        field_accessor!(<Label>::font_style),
-                        FontStyle::Italic,
-                    );
-
-                    v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "Horizontal continuation.".into();
-                    }));
-                    v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "Another label!".into();
-                    }));
-                }));
-            });
-
-            ctx.add_with::<WindowSize>(|f, _ctx| {
-                f.set_child(content);
             })
         };
 
