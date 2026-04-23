@@ -27,7 +27,7 @@ use parley::{FontContext, LayoutContext};
 #[derive(Element, Debug, Clone, Copy)]
 pub struct WindowSize {
     pub size: Size,
-    #[element(children)]
+    #[elem(children)]
     child: Option<ElementId>,
 }
 
@@ -57,7 +57,7 @@ impl ElementBuild for WindowSize {
 
 #[derive(Element, Debug, Clone)]
 pub struct Horizontal {
-    #[element(children)]
+    #[elem(children)]
     children: Vec<ElementId>,
 }
 
@@ -91,7 +91,7 @@ impl ElementBuild for Horizontal {
 
 #[derive(Element, Debug, Clone)]
 pub struct Vertical {
-    #[element(children)]
+    #[elem(children)]
     children: Vec<ElementId>,
 }
 
@@ -129,7 +129,7 @@ pub struct Pad {
     pub right: f32,
     pub bottom: f32,
     pub left: f32,
-    #[element(children)]
+    #[elem(children)]
     child: Option<ElementId>,
 }
 
@@ -208,13 +208,13 @@ impl ElementBuild for Pad {
 #[derive(ElementTemplate)]
 pub struct Button<A: 'static> {
     pub on_click: Option<A>,
-    #[element(default = Brush::Solid(Color::BLACK))]
+    #[elem(default = Brush::Solid(Color::BLACK))]
     pub fill: Brush,
     pub stroke: Stroke,
-    #[element(default = Brush::Solid(Color::WHITE))]
+    #[elem(default = Brush::Solid(Color::WHITE))]
     pub stroke_brush: Brush,
     pub corner_radius: f64,
-    #[element(children)]
+    #[elem(children)]
     pub child: Option<ElementId>,
 }
 
@@ -271,9 +271,9 @@ impl<A> ElementBuild for Button<A> {
 #[derive(Element, Debug, Clone)]
 pub struct Label {
     pub text: String,
-    #[element(default = Brush::Solid(Color::WHITE))]
+    #[elem(default = Brush::Solid(Color::WHITE))]
     pub fill: Brush,
-    #[element(default = 16.0)]
+    #[elem(default = 16.0)]
     pub font_size: f32,
     pub font_style: FontStyle,
     pub alignment: Alignment,

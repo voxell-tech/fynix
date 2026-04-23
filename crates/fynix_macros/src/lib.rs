@@ -75,7 +75,7 @@ fn parse_element_attrs(
     let mut children_fn = None;
 
     for attr in attrs {
-        if attr.path().is_ident("element") {
+        if attr.path().is_ident("elem") {
             attr.parse_nested_meta(|meta| {
                 let key = meta.path.get_ident().map(|i| i.to_string());
                 match key.as_deref() {
@@ -116,7 +116,7 @@ fn parse_field_attrs(
     let mut default = None;
 
     for attr in attrs {
-        if attr.path().is_ident("element") {
+        if attr.path().is_ident("elem") {
             attr.parse_nested_meta(|meta| {
                 let key = meta.path.get_ident().map(|i| i.to_string());
                 match key.as_deref() {
@@ -148,7 +148,7 @@ fn parse_field_attrs(
 /// `ElementTemplate` for the annotated struct. Implement
 /// `ElementBuild` manually. Only works for non-generic structs -
 /// use `#[derive(ElementTemplate)]` for generic structs.
-#[proc_macro_derive(Element, attributes(element))]
+#[proc_macro_derive(Element, attributes(elem))]
 pub fn derive_element(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
@@ -208,7 +208,7 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
 /// for the annotated struct. Implement `ElementBuild` manually.
 /// Call `typeslot::register!(ElementGroup, MyStruct<ConcreteType>)`
 /// for each concrete instantiation to satisfy the `Element` bound.
-#[proc_macro_derive(ElementTemplate, attributes(element))]
+#[proc_macro_derive(ElementTemplate, attributes(elem))]
 pub fn derive_element_template(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;

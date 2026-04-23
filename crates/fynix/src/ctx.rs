@@ -127,7 +127,7 @@ mod tests {
 
     #[derive(Element, Clone)]
     struct Vertical {
-        #[element(children)]
+        #[elem(children)]
         children: Vec<ElementId>,
     }
 
