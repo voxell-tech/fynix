@@ -251,44 +251,27 @@ pub fn derive_element_template(input: TokenStream) -> TokenStream {
     .into()
 }
 
-fn build_new_body(
-    name: &Ident,
-    fields: &Fields,
-) -> syn::Result<TokenStream2> {
-    match fields {
-        Fields::Unit => Ok(quote! { #name }),
-        Fields::Named(f) => {
-            let inits = f
-                .named
-                .iter()
-                .map(|field| {
-                    let ident = field.ident.as_ref().unwrap();
-                    let val = parse_field_attrs(&field.attrs)?.default
-                        .map(|e| quote! { #e })
-                        .unwrap_or_else(|| {
-                            quote! { ::core::default::Default::default() }
-                        });
-                    Ok(quote! { #ident: #val })
-                })
-                .collect::<syn::Result<Vec<_>>>()?;
-            Ok(quote! { #name { #(#inits),* } })
-        }
-        Fields::Unnamed(f) => {
-            let inits = f
-                .unnamed
-                .iter()
-                .map(|field| {
-                    let val = parse_field_attrs(&field.attrs)?.default
-                        .map(|e| quote! { #e })
-                        .unwrap_or_else(|| {
-                            quote! { ::core::default::Default::default() }
-                        });
-                    Ok(val)
-                })
-                .collect::<syn::Result<Vec<_>>>()?;
-            Ok(quote! { #name(#(#inits),*) })
-        }
-    }
+struct FieldInfo {
+    ident: Option<Ident>,
+    is_children: bool,
+    default: Option<Expr>,
+}
+
+fn parse_fields(fields: &Fields) -> syn::Result<Vec<FieldInfo>> {
+    let iter = match fields {
+        Fields::Unit => return Ok(vec![]),
+        Fields::Named(f) => f.named.iter(),
+        Fields::Unnamed(f) => f.unnamed.iter(),
+    };
+    iter.map(|field| {
+        let fa = parse_field_attrs(&field.attrs)?;
+        Ok(FieldInfo {
+            ident: field.ident.clone(),
+            is_children: fa.is_children,
+            default: fa.default,
+        })
+    })
+    .collect()
 }
 
 struct ElementTemplateImpls {
@@ -304,24 +287,50 @@ fn element_template_impls(
     s: &DataStruct,
     attrs: ElementAttrs,
 ) -> syn::Result<ElementTemplateImpls> {
-    let children_field = match &s.fields {
-        Fields::Named(f) => f.named.iter().find_map(|f| {
-            parse_field_attrs(&f.attrs)
-                .ok()
-                .filter(|a| a.is_children)
-                .map(|_| f.ident.as_ref().unwrap())
-        }),
-        _ => None,
-    };
+    let field_infos = parse_fields(&s.fields)?;
+
+    let mut children_field: Option<&Ident> = None;
+    for ident in field_infos
+        .iter()
+        .filter(|f| f.is_children)
+        .filter_map(|f| f.ident.as_ref())
+    {
+        if children_field.is_some() {
+            return Err(syn::Error::new_spanned(
+                ident,
+                "`#[element(children)]` can only be used on one field",
+            ));
+        }
+        children_field = Some(ident);
+    }
 
     let (impl_generics, ty_generics, where_clause) =
         generics.split_for_impl();
 
+    let default_val = |info: &FieldInfo| {
+        info.default.as_ref().map(|e| quote! { #e }).unwrap_or_else(
+            || quote! { ::core::default::Default::default() },
+        )
+    };
+
     let new_body = attrs
         .new_body
-        .map(|f| quote! { #f })
-        .map(Ok)
-        .unwrap_or_else(|| build_new_body(name, &s.fields))?;
+        .map(|expr| quote! { #expr })
+        .unwrap_or_else(|| match &s.fields {
+            Fields::Unit => quote! { #name },
+            Fields::Named(_) => {
+                let inits = field_infos.iter().map(|info| {
+                    let ident = info.ident.as_ref().unwrap();
+                    let val = default_val(info);
+                    quote! { #ident: #val }
+                });
+                quote! { #name { #(#inits),* } }
+            }
+            Fields::Unnamed(_) => {
+                let inits = field_infos.iter().map(default_val);
+                quote! { #name(#(#inits),*) }
+            }
+        });
 
     let new_impl = quote! {
         impl #impl_generics #fynix::element::ElementNew
