@@ -305,12 +305,22 @@ fn element_template_impls(
     attrs: ElementAttrs,
 ) -> syn::Result<ElementTemplateImpls> {
     let children_field = match &s.fields {
-        Fields::Named(f) => f.named.iter().find_map(|f| {
-            parse_field_attrs(&f.attrs)
-                .ok()
-                .filter(|a| a.is_children)
-                .map(|_| f.ident.as_ref().unwrap())
-        }),
+        Fields::Named(f) => {
+            let mut found: Option<&syn::Ident> = None;
+            for field in f.named.iter() {
+                if parse_field_attrs(&field.attrs)?.is_children {
+                    let ident = field.ident.as_ref().unwrap();
+                    if found.is_some() {
+                        return Err(syn::Error::new_spanned(
+                            ident,
+                            "`#[element(children)]` can only be used on one field",
+                        ));
+                    }
+                    found = Some(ident);
+                }
+            }
+            found
+        }
         _ => None,
     };
 
