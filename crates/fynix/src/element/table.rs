@@ -77,6 +77,21 @@ impl ElementTable {
         map.remove(key)
     }
 
+    /// Temporarily removes element `E` at `key`, calls `f` with mutable
+    /// access to both the value and the remaining table, then reinserts it.
+    ///
+    /// Returns `None` if `key` is not present for `E`.
+    pub fn scope<E: Element, T>(
+        &mut self,
+        key: &ElementId,
+        f: impl FnOnce(&mut E, &mut Self) -> T,
+    ) -> Option<T> {
+        let mut value = self.remove::<E>(key)?;
+        let result = f(&mut value, self);
+        self.insert(*key, value);
+        Some(result)
+    }
+
     /// Removes `key` from the column at `slot`.
     ///
     /// Returns `true` if the key was present and removed.

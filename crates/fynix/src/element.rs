@@ -167,39 +167,46 @@ impl Elements {
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
-        if let Some(meta) = self.metas.remove(id)
-            && self.elements.dyn_remove_by_slot(meta.slot, id)
-        {
-            // TODO: Refactor this algorithm; it is super expensive.
-            // The other heap-allocated algorithm is O(n); but this one is O((n^2 + n)/2)
-            loop {
-                let mut child = None;
+        fn remove_recursive(
+            id: &ElementId,
+            metas: &mut ElementMetas,
+            type_metas: &ElementTypeMetas,
+            elements: &mut ElementTable,
+            id_generator: &mut ElementIdGenerator,
+        ) -> bool {
+            if let Some(meta) = metas.remove(id)
+                && let Some(type_meta) =
+                    type_metas.get_slot(meta.slot)
+            {
+                (type_meta.for_each_child_mut_fn)(
+                    elements,
+                    id,
+                    &mut |child_id, elements| {
+                        remove_recursive(
+                            child_id,
+                            metas,
+                            type_metas,
+                            elements,
+                            id_generator,
+                        );
+                    },
+                );
 
-                if let Some(type_meta) =
-                    self.type_metas.get_slot(meta.slot)
-                {
-                    (type_meta.children_fn)(
-                        &self.elements,
-                        id,
-                        &mut |child_id| {
-                            child = Some(*child_id);
-                        },
-                    );
-                }
-
-                if let Some(c) = child {
-                    self.remove(&c);
-                } else {
-                    break;
-                }
+                elements.dyn_remove_by_slot(meta.slot, id);
+                id_generator.recycle(*id);
+                return true;
             }
 
-            self.id_generator.recycle(*id);
-
-            return true;
+            false
         }
 
-        false
+        remove_recursive(
+            id,
+            &mut self.metas,
+            &self.type_metas,
+            &mut self.elements,
+            &mut self.id_generator,
+        )
     }
 
     /// Renders the subtree rooted at `id` into `sink`.
@@ -225,7 +232,7 @@ impl Elements {
             {
                 element.render(id, painter, &self.metas);
             }
-            (type_meta.children_fn)(
+            (type_meta.for_each_child_fn)(
                 &self.elements,
                 id,
                 &mut |child| self.render(child, painter),
@@ -337,7 +344,7 @@ impl<'a> Rectree for ElementTree<'a> {
             .get(id)
             .and_then(|m| self.type_metas.get_slot(m.slot))
         {
-            (type_meta.children_fn)(
+            (type_meta.for_each_child_fn)(
                 self.elements,
                 id,
                 &mut |child| f(child, nodes),
