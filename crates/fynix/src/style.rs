@@ -11,6 +11,8 @@ use crate::element::Element;
 use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
+pub use field_path::field_accessor as path;
+
 /// Central style manager.
 ///
 /// Maintains the registry of field setters, the stored style values, and the

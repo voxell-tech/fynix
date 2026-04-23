@@ -1,20 +1,14 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use field_path::field_accessor;
 use fynix::Fynix;
+use fynix::ctx::FynixCtx;
 use fynix::element::ElementId;
 use fynix::rectree;
-use fynix_elements::{
-    Horizontal, Label, TextContext, Vertical, WindowSize,
-};
+use fynix_elements::WindowSize;
 use imaging_vello::VelloSceneSink;
-use parley::FontStyle;
-use parley::fontique::{Blob, GenericFamily};
-use pollster::block_on;
 use vello::kurbo::Rect;
 use vello::peniko::Color;
-use vello::peniko::color::palette::css;
 use vello::util::{RenderContext, RenderSurface};
 use vello::wgpu;
 use vello::{
@@ -23,28 +17,34 @@ use vello::{
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::ActiveEventLoop;
 use winit::window::Window;
 
-const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
+pub trait FynixDemo {
+    fn window_title(&self) -> &'static str {
+        "Fynix"
+    }
 
-fn main() {
-    fynix::init();
-    let event_loop = EventLoop::new().unwrap();
-    let mut app = HelloWorldApp::new();
-    event_loop.run_app(&mut app).unwrap();
+    fn initial_logical_size(&self) -> (f64, f64) {
+        (800.0, 600.0)
+    }
+
+    fn init(&mut self, _fynix: &mut Fynix) {}
+
+    fn build(&mut self, ctx: &mut FynixCtx<()>) -> ElementId;
 }
 
-struct HelloWorldApp<'s> {
+pub struct VelloWinitApp<'s, D: FynixDemo> {
     fynix: Fynix,
     root_id: ElementId,
+    demo: D,
     context: RenderContext,
     renderer: Option<Renderer>,
     state: RenderState<'s>,
     scene: Scene,
 }
 
-enum RenderState<'s> {
+pub enum RenderState<'s> {
     Suspended(Option<Arc<Window>>),
     Active {
         surface: Box<RenderSurface<'s>>,
@@ -52,76 +52,25 @@ enum RenderState<'s> {
     },
 }
 
-impl HelloWorldApp<'_> {
-    fn new() -> Self {
-        let mut fynix = Fynix::new();
-        fynix_elements::init_resources(&mut fynix);
+impl<D: FynixDemo> VelloWinitApp<'_, D> {
+    pub fn new(mut demo: D) -> Self {
+        fynix::init();
 
-        if let Some(text_cx) =
-            fynix.resources.get_mut::<TextContext>()
-        {
-            let blob = Blob::new(Arc::new(FONT));
-            let ids =
-                text_cx.font_cx.collection.register_fonts(blob, None);
-            text_cx.font_cx.collection.set_generic_families(
-                GenericFamily::SansSerif,
-                ids.into_iter().map(|(f, _)| f),
-            );
-        }
+        let mut fynix = Fynix::new();
+        demo.init(&mut fynix);
 
         let mut world = ();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            let content = ctx.add_with::<Vertical>(|v, ctx| {
-                ctx.set(field_accessor!(<Label>::font_size), 24.0);
-                ctx.set(
-                    field_accessor!(<Label>::fill),
-                    Color::WHITE.into(),
-                );
-
-                v.add(ctx.add_with::<Label>(|label, _ctx| {
-                    label.text = "Hello, Fynix!".into();
-                }));
-                v.add(ctx.add_with::<Label>(|label, _ctx| {
-                    label.text = "Lorem ipsum dolor sit amet consectetur adipiscing elit. Placerat in id cursus mi pretium tellus duis. Urna tempor pulvinar vivamus fringilla lacus nec metus. Integer nunc posuere ut hendrerit semper vel class. Conubia nostra inceptos himenaeos orci varius natoque penatibus. Mus donec rhoncus eros lobortis nulla molestie mattis. Purus est efficitur laoreet mauris pharetra vestibulum fusce. Sodales consequat magna ante condimentum neque at luctus. Ligula congue sollicitudin erat viverra ac tincidunt nam. Lectus commodo augue arcu dignissim velit aliquam imperdiet.".into();
-                }));
-
-                v.add(ctx.add_with::<Horizontal>(|v, ctx| {
-                    ctx.set(
-                        field_accessor!(<Label>::font_size),
-                        16.0,
-                    );
-                    ctx.set(
-                        field_accessor!(<Label>::fill),
-                        css::AQUA.into(),
-                    );
-
-                    v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "Hello, Fynix!".into();
-                    }));
-
-                    ctx.set(
-                        field_accessor!(<Label>::font_style),
-                        FontStyle::Italic,
-                    );
-
-                    v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "Horizontal continuation.".into();
-                    }));
-                    v.add(ctx.add_with::<Label>(|label, _ctx| {
-                        label.text = "Another label!".into();
-                    }));
-                }));
-            });
-
-            ctx.add_with::<WindowSize>(|f, _ctx| {
-                f.set_child(content);
+            ctx.add_with::<WindowSize>(|w, ctx| {
+                w.set_child(demo.build(ctx));
             })
         };
 
         Self {
             fynix,
             root_id,
+            demo,
             context: RenderContext::new(),
             renderer: None,
             state: RenderState::Suspended(None),
@@ -129,7 +78,7 @@ impl HelloWorldApp<'_> {
         }
     }
 
-    fn render_frame(&mut self) {
+    fn render(&mut self) {
         let (surface, window) = match &mut self.state {
             RenderState::Active { surface, window } => {
                 (surface, window)
@@ -154,13 +103,12 @@ impl HelloWorldApp<'_> {
             );
         }
 
-        // TODO(nixon): This should be mutated via signals!
-        if let Some(fixed) = self
+        if let Some(root) = self
             .fynix
             .elements
             .get_typed_mut::<WindowSize>(&self.root_id)
         {
-            fixed.size = rectree::Size::new(
+            root.size = rectree::Size::new(
                 phys.width as f32,
                 phys.height as f32,
             );
@@ -238,19 +186,18 @@ impl HelloWorldApp<'_> {
     }
 }
 
-impl ApplicationHandler for HelloWorldApp<'_> {
+impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let RenderState::Suspended(cached_window) = &mut self.state
         else {
             return;
         };
 
+        let (w, h) = self.demo.initial_logical_size();
         let window = cached_window.take().unwrap_or_else(|| {
             let attr = Window::default_attributes()
-                .with_inner_size(LogicalSize::new(
-                    800.0_f64, 600.0_f64,
-                ))
-                .with_title("Hello, Fynix!");
+                .with_inner_size(LogicalSize::new(w, h))
+                .with_title(self.demo.window_title());
             Arc::new(event_loop.create_window(attr).unwrap())
         });
 
@@ -261,8 +208,8 @@ impl ApplicationHandler for HelloWorldApp<'_> {
             phys.height,
             wgpu::PresentMode::AutoVsync,
         );
-        let surface =
-            block_on(surface_future).expect("create surface");
+        let surface = pollster::block_on(surface_future)
+            .expect("create surface");
 
         let device_handle = &self.context.devices[surface.dev_id];
         surface
@@ -306,7 +253,7 @@ impl ApplicationHandler for HelloWorldApp<'_> {
         match event {
             WindowEvent::CloseRequested => el.exit(),
             WindowEvent::RedrawRequested => {
-                self.render_frame();
+                self.render();
                 if let RenderState::Active { window, .. } =
                     &self.state
                 {

@@ -7,14 +7,13 @@ this repository. Read it before making any changes.
 
 ## Project Overview
 
-Fynix is a `no_std` Rust UI framework. The workspace has three
-crates:
+Fynix is a `no_std` Rust UI framework. The workspace these crates:
 
 | Crate                   | Role                                                |
 |-------------------------|-----------------------------------------------------|
 | `crates/fynix`          | Core: element trait, style system, build context    |
+| `crates/fynix_macros`   | Proc-macros: `#[derive(Element)]`, etc.             |
 | `crates/fynix_elements` | Default element types (Horizontal, Vertical, Label) |
-| `crates/fynix_vello`    | Vello rendering backend (skeleton)                  |
 
 ---
 
