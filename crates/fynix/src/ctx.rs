@@ -67,15 +67,17 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         f: impl FnOnce(&mut E, &mut Self),
     ) -> ElementId {
-        let parent_style_id_before = self.parent_style_id;
+        let pre_commit_id = self.parent_style_id;
 
         let mut element = self.create_element::<E>(true);
+
+        let pre_fn_id = self.parent_style_id;
 
         // styleId from create_element
         // else, current uncomited style if is None
         let first_inner_style_id = self
             .parent_style_id
-            .filter(|id| Some(*id) != parent_style_id_before)
+            .filter(|id| Some(*id) != pre_commit_id)
             .unwrap_or_else(|| self.fynix.styles.current_id());
 
         f(&mut element, self);
@@ -84,15 +86,14 @@ impl<W> FynixCtx<'_, '_, W> {
         // style has been committed inside the closure.
         // It's ID would be that of `first_inner_style_id`,
         // so our primary style is set to that.
-        let primary_style =
-            if self.parent_style_id != parent_style_id_before {
-                Some(first_inner_style_id)
-            } else {
-                None
-            };
+        let primary_style = if self.parent_style_id != pre_commit_id {
+            Some(first_inner_style_id)
+        } else {
+            None
+        };
 
         // restore to old value
-        self.parent_style_id = parent_style_id_before;
+        self.parent_style_id = pre_fn_id;
 
         let id = self.fynix.elements.add(element);
 
