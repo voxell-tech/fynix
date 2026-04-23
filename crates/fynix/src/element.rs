@@ -161,9 +161,7 @@ impl Elements {
         self.elements.get_mut::<E>(id)
     }
 
-    /// Removes the element and recycles its [`ElementId`].
-    /// Iterates through element children and removes them as
-    /// well.
+    /// Recursively removes the element subtree.
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
