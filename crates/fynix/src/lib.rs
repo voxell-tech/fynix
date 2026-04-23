@@ -81,6 +81,29 @@ impl Fynix {
         self.elements.render(id, sink);
     }
 
+    /// Removes an element and its associated primary style tree.
+    ///
+    /// If the element has a `primary_style`, that style and all
+    /// its descendants in the style tree are also removed
+    ///
+    /// Returns `true` if the element existed
+    #[inline]
+    pub fn remove_element(&mut self, id: &ElementId) -> bool {
+        let primary_style =
+            self.elements.metas.get(id).and_then(|m| m.primary_style);
+
+        if !self.elements.remove(id) {
+            return false;
+        }
+
+        // remove the style
+        if let Some(style_id) = primary_style {
+            self.styles.delete_tree(&style_id);
+        }
+
+        true
+    }
+
     /// Returns a [`FynixCtx`] rooted at the top of the style
     /// hierarchy.
     #[inline]
