@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt::{Debug, Display, Formatter, Result};
 use core::hash::Hash;
 use core::marker::PhantomData;
@@ -68,7 +69,7 @@ impl<T> PartialEq for GenId<T> {
 }
 
 impl<T> Ord for GenId<T> {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.id
             .cmp(&other.id)
             .then(self.generation.cmp(&other.generation))
@@ -77,10 +78,7 @@ impl<T> Ord for GenId<T> {
 }
 
 impl<T> PartialOrd for GenId<T> {
-    fn partial_cmp(
-        &self,
-        other: &Self,
-    ) -> Option<core::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }

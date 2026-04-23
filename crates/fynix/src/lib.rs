@@ -13,6 +13,7 @@ use crate::element::{ElementGroup, ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
+pub use field_path;
 pub use imaging;
 pub use rectree;
 pub use typeslot;
