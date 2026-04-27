@@ -78,7 +78,7 @@ impl Styles {
     pub fn commit_styles(
         &mut self,
         parent_id: Option<StyleId>,
-        is_deeper: bool,
+        is_nested: bool,
     ) {
         let committed_id = self.current_id;
         let style =
@@ -87,7 +87,7 @@ impl Styles {
         self.styles.insert(committed_id, style);
 
         if let Some(parent) = parent_id {
-            self.add_child_to_style(parent, committed_id, is_deeper);
+            self.add_child_to_style(parent, committed_id, is_nested);
         }
 
         self.current_id = self.id_generator.new_id();
@@ -103,20 +103,18 @@ impl Styles {
         &mut self,
         parent_id: StyleId,
         child_id: StyleId,
-        is_deeper: bool,
+        is_nested: bool,
     ) {
         let Some(parent) = self.styles.get_mut(&parent_id) else {
             return;
         };
 
-        debug_assert!(parent.children.iter().any(|c| c.is_none()));
-
-        // [0] -> deeper depth
-        // [1] -> sibling style
-        if is_deeper {
-            parent.children[0] = Some(child_id);
+        if is_nested {
+            debug_assert!(parent.nested_child.is_none());
+            parent.nested_child = Some(child_id);
         } else {
-            parent.children[1] = Some(child_id);
+            debug_assert!(parent.adjacent_child.is_none());
+            parent.adjacent_child = Some(child_id);
         }
     }
 
@@ -148,34 +146,18 @@ impl Styles {
         self.style_builder.insert(type_id, untyped_field);
     }
 
-    /// Removes a committed style node and recycles its [`StyleId`].
-    ///
-    /// Returns `true` if the node was present and removed.
-    pub fn delete(&mut self, id: &StyleId) -> bool {
-        if self.style_values.remove_all(id) {
-            self.styles.remove(id);
-            self.id_generator.recycle(*id);
-            return true;
-        }
-
-        false
-    }
-
-    /// Recursively deletes a style and its children
-    pub fn delete_tree(&mut self, id: &StyleId) {
-        let Some(style) = self.styles.get(id) else {
-            return;
+    /// Recursively removes the style and their descendants.
+    pub fn remove(&mut self, id: &StyleId) -> bool {
+        let Some(style) = self.styles.remove(id) else {
+            return false;
         };
+        self.id_generator.recycle(*id);
 
-        let children = style.children;
-        self.delete(id);
-
-        for c in children {
-            let Some(c) = c else {
-                continue;
-            };
-            self.delete_tree(&c);
+        for c in style.children().into_iter().flatten() {
+            self.remove(c);
         }
+
+        true
     }
 
     /// Applies the style chain rooted at `id` to `element`.
@@ -244,10 +226,8 @@ pub struct Style {
     parent_id: Option<StyleId>,
     index_map: HashMap<TypeId, Span>,
     fields: Box<[UntypedField]>,
-    /// Treat the style's children as a (sort-of) binary tree.
-    /// `children[0]` is one depth deeper (inner scope).
-    /// `children[1]` is same depth, subsequent style node.
-    children: [Option<StyleId>; 2],
+    adjacent_child: Option<StyleId>,
+    nested_child: Option<StyleId>,
 }
 
 impl Style {
@@ -255,8 +235,16 @@ impl Style {
         self.parent_id
     }
 
-    pub fn children(&self) -> [Option<StyleId>; 2] {
-        self.children
+    pub fn children(&self) -> [Option<&StyleId>; 2] {
+        [self.adjacent_child.as_ref(), self.nested_child.as_ref()]
+    }
+
+    pub fn adjacent_child(&self) -> Option<&StyleId> {
+        self.adjacent_child.as_ref()
+    }
+
+    pub fn nested_child(&self) -> Option<&StyleId> {
+        self.nested_child.as_ref()
     }
 
     fn get_fields(&self, id: &TypeId) -> Option<&[UntypedField]> {
@@ -280,6 +268,10 @@ impl StyleBuilder {
 
     fn insert(&mut self, id: TypeId, field: UntypedField) {
         self.field_map.entry(id).or_default().insert(field);
+    }
+
+    fn clear(&mut self) {
+        self.field_map.clear();
     }
 
     fn is_empty(&self) -> bool {
@@ -307,7 +299,8 @@ impl StyleBuilder {
             parent_id,
             index_map,
             fields: all_fields.into_boxed_slice(),
-            children: [None; 2],
+            adjacent_child: None,
+            nested_child: None,
         }
     }
 }
