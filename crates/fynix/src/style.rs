@@ -67,6 +67,10 @@ impl Styles {
         !self.style_builder.is_empty()
     }
 
+    pub fn clear_builder(&mut self) {
+        self.style_builder.clear();
+    }
+
     /// Flushes pending field changes into a new committed [`Style`] node
     /// and advances to a fresh [`StyleId`].
     ///

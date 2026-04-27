@@ -7,6 +7,7 @@ use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::element::table::ElementTable;
 use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
+use crate::style::{StyleId, Styles};
 
 pub use fynix_macros::{Element, ElementSlot, ElementTemplate};
 
@@ -130,12 +131,16 @@ impl Elements {
 
     /// Stores `element`, registers its type getter if needed,
     /// and returns a fresh [`ElementId`].
-    pub fn add<E: Element>(&mut self, element: E) -> ElementId {
+    pub fn add<E: Element>(
+        &mut self,
+        element: E,
+        primary_style: Option<StyleId>,
+    ) -> ElementId {
         self.type_metas.register::<E>();
 
         let id = self.id_generator.new_id();
 
-        self.metas.init_element::<E>(id);
+        self.metas.init_element::<E>(id, primary_style);
         self.elements.insert(id, element);
         id
     }
@@ -172,21 +177,34 @@ impl Elements {
         self.elements.get_mut::<E>(id)
     }
 
-    /// Recursively removes the element subtree.
+    /// Recursively removes the element subtree along with their styles.
     ///
     /// Returns `true` if the element was present and removed.
-    pub fn remove(&mut self, id: &ElementId) -> bool {
+    pub fn remove(
+        &mut self,
+        id: &ElementId,
+        styles: &mut Styles,
+    ) -> bool {
         fn remove_recursive(
             id: &ElementId,
             metas: &mut ElementMetas,
             type_metas: &ElementTypeMetas,
             elements: &mut ElementTable,
             id_generator: &mut ElementIdGenerator,
+            styles: &mut Styles,
+            mut has_removed_styles: bool,
         ) -> bool {
             if let Some(meta) = metas.remove(id)
                 && let Some(type_meta) =
                     type_metas.get_slot(meta.slot)
             {
+                if !has_removed_styles
+                    && let Some(primary_style) = meta.primary_style
+                {
+                    has_removed_styles =
+                        styles.remove(&primary_style);
+                }
+
                 (type_meta.for_each_child_mut_fn)(
                     elements,
                     id,
@@ -197,6 +215,8 @@ impl Elements {
                             type_metas,
                             elements,
                             id_generator,
+                            styles,
+                            has_removed_styles,
                         );
                     },
                 );
@@ -215,6 +235,8 @@ impl Elements {
             &self.type_metas,
             &mut self.elements,
             &mut self.id_generator,
+            styles,
+            false,
         )
     }
 
