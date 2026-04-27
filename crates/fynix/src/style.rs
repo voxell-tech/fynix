@@ -99,10 +99,9 @@ impl Styles {
 
     /// Adds `child_id` to the children of `parent_id`.
     ///
-    /// `is_deeper` refers to the child's scope relative to parent.
-    ///
-    /// If `is_deeper` is true, child is one scope deeper
-    /// Else, child is a sibling node (same depth in tree)
+    /// If `is_nested` is true, child is set as the `nested_child`
+    /// (one scope deeper). Otherwise, it is set as the `adjacent_child`
+    /// (same scope, next sibling node).
     fn add_child_to_style(
         &mut self,
         parent_id: StyleId,
@@ -220,12 +219,12 @@ impl Default for Styles {
 /// An immutable, committed snapshot of field changes for one
 /// style scope.
 ///
-/// Nodes form a singly-linked chain via `parent_id`.
-/// [`Styles::apply`] walks this chain to resolve inherited
-/// defaults.
+/// Each node links to its parent via `parent_id`, forming an inheritance
+/// chain that [`Styles::apply`] walks to resolve defaults.
 ///
-/// When a style is removed, all its descendants (children)
-/// are also removed.
+/// A node can have up to two children: `adjacent_child` (same scope,
+/// next sibling) and `nested_child` (one scope deeper). When a style
+/// is removed, all its descendants are also removed.
 pub struct Style {
     parent_id: Option<StyleId>,
     index_map: HashMap<TypeId, Span>,

@@ -9,9 +9,9 @@ use typeslot::SlotGroup;
 
 /// Slot-indexed element storage, keyed by [`ElementId`].
 ///
-/// Each element type is assigned a unique slot index at
-/// startup by [`crate::init`]. Typed access is then a direct
-/// [`Vec`] index.
+/// Each element type is assigned a unique slot index at startup by
+/// [`crate::Fynix::new`].
+/// Typed access is then a direct [`Vec`] index.
 pub struct ElementTable {
     columns: Vec<Option<DynTypeMap<ElementId>>>,
 }

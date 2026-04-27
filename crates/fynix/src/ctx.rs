@@ -4,8 +4,6 @@ use crate::Fynix;
 use crate::element::{Element, ElementId};
 use crate::style::{StyleId, StyleValue};
 
-// TODO: Docs probably needs to be updated with the new `parent_element_id`.
-
 /// Build-time context for constructing the element tree and declaring
 /// style defaults.
 ///
@@ -17,7 +15,7 @@ use crate::style::{StyleId, StyleValue};
 ///
 /// Style changes queued with [`Self::set`] are committed into a new
 /// [`Style`] node the next time an element is added. Inside an
-/// [`Self::add_with`] closure, the outer `parent_style_id` is saved
+/// [`Self::add_with`] closure, the outer `prev_style` is saved
 /// and restored after the closure returns, so inner style changes do
 /// not leak outward.
 ///
@@ -26,7 +24,6 @@ pub struct FynixCtx<'f, 'w, W> {
     fynix: &'f mut Fynix,
     pub world: &'w mut W,
 
-    // TODO: We need a way to actually create & represent these.
     prev_style: Option<StyleId>,
     /// The first style created within the current context.
     primary_style: Option<StyleId>,
@@ -57,11 +54,11 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.elements.add(element, None)
     }
 
-    /// Like [`Self::add`], but also runs `f` for inline mutations and
+    /// Like [`Self::add`], but also runs `scope` for inline mutations and
     /// nested element additions.
     ///
-    /// The outer `parent_style_id` is restored after `f` returns, so
-    /// any [`Self::set`] calls inside `f` do not affect elements
+    /// The outer `prev_style` is restored after `scope` returns, so
+    /// any [`Self::set`] calls inside `scope` do not affect elements
     /// added after this call.
     ///
     /// The element's `primary_style` is set to the first style
