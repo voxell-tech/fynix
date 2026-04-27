@@ -7,12 +7,16 @@ use typeslot::SlotGroup;
 
 use crate::element::ElementTable;
 use crate::element::{Element, ElementGroup, ElementId};
+use crate::style::StyleId;
 
 /// Per-element metadata.
 pub struct ElementMeta {
     pub slot: usize,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
+    /// When this element is removed, this style and all its
+    /// descendants in the style tree are also removed
+    pub primary_style: Option<StyleId>,
 }
 
 /// Per-element metadata storage, keyed by [`ElementId`].
@@ -34,6 +38,7 @@ impl ElementMetas {
                 slot: ElementGroup::slot::<E>(),
                 node: RectNode::new(None),
                 cached_scene: None,
+                primary_style: None,
             },
         );
     }
@@ -116,14 +121,16 @@ impl Default for ElementTypeMetas {
 /// concrete type at the call site.
 pub struct ElementTypeMeta {
     pub get_dyn_fn: GetDynElementFn,
-    pub children_fn: ChildrenElementFn,
+    pub for_each_child_fn: ForEachChildFn,
+    pub for_each_child_mut_fn: ForEachChildMutFn,
 }
 
 impl ElementTypeMeta {
     pub fn new<E: Element>() -> Self {
         Self {
             get_dyn_fn: get_dyn_element::<E>,
-            children_fn: for_each_child::<E>,
+            for_each_child_fn: for_each_child::<E>,
+            for_each_child_mut_fn: for_each_child_mut::<E>,
         }
     }
 
@@ -163,10 +170,19 @@ pub fn get_dyn_element<'a, E: Element>(
 /// function-pointer signature.
 ///
 /// [`ElementChildren::children`]: super::ElementChildren::children
-pub type ChildrenElementFn = fn(
+pub type ForEachChildFn = fn(
     table: &ElementTable,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
+);
+
+/// Like [`ForEachChildFn`], but temporarily removes the element via
+/// [`ElementTable::scope`] so the callback receives `&mut ElementTable`
+/// without a borrow conflict.
+pub type ForEachChildMutFn = fn(
+    table: &mut ElementTable,
+    id: &ElementId,
+    f: &mut dyn FnMut(&ElementId, &mut ElementTable),
 );
 
 #[inline]
@@ -180,4 +196,23 @@ pub fn for_each_child<E: Element>(
             f(child);
         }
     }
+}
+
+/// Like [`for_each_child`], but uses [`ElementTable::scope`] to lend
+/// `&mut ElementTable` to the callback.
+///
+/// The element at `id` is absent from the table for the duration of
+/// the callback, so the callback may freely mutate it (e.g. to
+/// recursively remove children) without a borrow conflict.
+#[inline]
+pub fn for_each_child_mut<E: Element>(
+    table: &mut ElementTable,
+    id: &ElementId,
+    f: &mut dyn FnMut(&ElementId, &mut ElementTable),
+) {
+    table.scope::<E, _>(id, |element, table| {
+        for child in element.children() {
+            f(child, table);
+        }
+    });
 }

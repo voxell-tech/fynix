@@ -72,12 +72,52 @@ impl Styles {
     ///
     /// `parent_id` links the new node into the inheritance chain so that
     /// [`apply`](Styles::apply) can walk up to ancestor defaults.
-    pub fn commit_styles(&mut self, parent_id: Option<StyleId>) {
+    ///
+    /// The parent's children is also updated accordingly, where the newly
+    /// committed style is added as the parent's child
+    pub fn commit_styles(
+        &mut self,
+        parent_id: Option<StyleId>,
+        is_deeper: bool,
+    ) {
+        let committed_id = self.current_id;
         let style =
             core::mem::take(&mut self.style_builder).build(parent_id);
 
-        self.styles.insert(self.current_id, style);
+        self.styles.insert(committed_id, style);
+
+        if let Some(parent) = parent_id {
+            self.add_child_to_style(parent, committed_id, is_deeper);
+        }
+
         self.current_id = self.id_generator.new_id();
+    }
+
+    /// Adds `child_id` to the children of `parent_id`.
+    ///
+    /// `is_deeper` refers to the child's scope relative to parent.
+    ///
+    /// If `is_deeper` is true, child is one scope deeper
+    /// Else, child is a sibling node (same depth in tree)
+    fn add_child_to_style(
+        &mut self,
+        parent_id: StyleId,
+        child_id: StyleId,
+        is_deeper: bool,
+    ) {
+        let Some(parent) = self.styles.get_mut(&parent_id) else {
+            return;
+        };
+
+        debug_assert!(parent.children.iter().any(|c| c.is_none()));
+
+        // [0] -> deeper depth
+        // [1] -> sibling style
+        if is_deeper {
+            parent.children[0] = Some(child_id);
+        } else {
+            parent.children[1] = Some(child_id);
+        }
     }
 
     /// Queues a style default: field `field_accessor` on element type `E`
@@ -119,6 +159,23 @@ impl Styles {
         }
 
         false
+    }
+
+    /// Recursively deletes a style and its children
+    pub fn delete_tree(&mut self, id: &StyleId) {
+        let Some(style) = self.styles.get(id) else {
+            return;
+        };
+
+        let children = style.children;
+        self.delete(id);
+
+        for c in children {
+            let Some(c) = c else {
+                continue;
+            };
+            self.delete_tree(&c);
+        }
     }
 
     /// Applies the style chain rooted at `id` to `element`.
@@ -180,13 +237,28 @@ impl Default for Styles {
 /// Nodes form a singly-linked chain via `parent_id`.
 /// [`Styles::apply`] walks this chain to resolve inherited
 /// defaults.
+///
+/// When a style is removed, all its descendants (children)
+/// are also removed.
 pub struct Style {
     parent_id: Option<StyleId>,
     index_map: HashMap<TypeId, Span>,
     fields: Box<[UntypedField]>,
+    /// Treat the style's children as a (sort-of) binary tree.
+    /// `children[0]` is one depth deeper (inner scope).
+    /// `children[1]` is same depth, subsequent style node.
+    children: [Option<StyleId>; 2],
 }
 
 impl Style {
+    pub fn parent_id(&self) -> Option<StyleId> {
+        self.parent_id
+    }
+
+    pub fn children(&self) -> [Option<StyleId>; 2] {
+        self.children
+    }
+
     fn get_fields(&self, id: &TypeId) -> Option<&[UntypedField]> {
         let span = self.index_map.get(id)?;
         Some(&self.fields[span.start..span.end])
@@ -235,6 +307,7 @@ impl StyleBuilder {
             parent_id,
             index_map,
             fields: all_fields.into_boxed_slice(),
+            children: [None; 2],
         }
     }
 }

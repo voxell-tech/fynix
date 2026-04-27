@@ -172,18 +172,50 @@ impl Elements {
         self.elements.get_mut::<E>(id)
     }
 
-    /// Removes the element and recycles its [`ElementId`].
+    /// Recursively removes the element subtree.
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(&mut self, id: &ElementId) -> bool {
-        if let Some(meta) = self.metas.remove(id)
-            && self.elements.dyn_remove_by_slot(meta.slot, id)
-        {
-            self.id_generator.recycle(*id);
-            return true;
+        fn remove_recursive(
+            id: &ElementId,
+            metas: &mut ElementMetas,
+            type_metas: &ElementTypeMetas,
+            elements: &mut ElementTable,
+            id_generator: &mut ElementIdGenerator,
+        ) -> bool {
+            if let Some(meta) = metas.remove(id)
+                && let Some(type_meta) =
+                    type_metas.get_slot(meta.slot)
+            {
+                (type_meta.for_each_child_mut_fn)(
+                    elements,
+                    id,
+                    &mut |child_id, elements| {
+                        remove_recursive(
+                            child_id,
+                            metas,
+                            type_metas,
+                            elements,
+                            id_generator,
+                        );
+                    },
+                );
+
+                elements.dyn_remove_by_slot(meta.slot, id);
+                id_generator.recycle(*id);
+                return true;
+            }
+
+            false
         }
 
-        false
+        remove_recursive(
+            id,
+            &mut self.metas,
+            &self.type_metas,
+            &mut self.elements,
+            &mut self.id_generator,
+        )
     }
 
     /// Renders the subtree rooted at `id` into the `painter`.
@@ -207,7 +239,7 @@ impl Elements {
             {
                 element.render(id, painter, &self.metas);
             }
-            (type_meta.children_fn)(
+            (type_meta.for_each_child_fn)(
                 &self.elements,
                 id,
                 &mut |child| self.render(child, painter),
