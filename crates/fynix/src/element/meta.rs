@@ -15,7 +15,7 @@ pub struct ElementMeta {
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
     /// When this element is removed, this style and all its
-    /// descendants in the style tree are also removed
+    /// descendants in the style tree are also removed.
     pub primary_style: Option<StyleId>,
 }
 
@@ -31,14 +31,18 @@ impl ElementMetas {
         }
     }
 
-    pub fn init_element<E: Element>(&mut self, id: ElementId) {
+    pub fn init_element<E: Element>(
+        &mut self,
+        id: ElementId,
+        primary_style: Option<StyleId>,
+    ) {
         self.map.insert(
             id,
             ElementMeta {
                 slot: ElementGroup::slot::<E>(),
                 node: RectNode::new(None),
                 cached_scene: None,
-                primary_style: None,
+                primary_style,
             },
         );
     }

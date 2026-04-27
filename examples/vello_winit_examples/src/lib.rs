@@ -54,8 +54,6 @@ pub enum RenderState<'s> {
 
 impl<D: FynixDemo> VelloWinitApp<'_, D> {
     pub fn new(mut demo: D) -> Self {
-        fynix::init();
-
         let mut fynix = Fynix::new();
         demo.init(&mut fynix);
 

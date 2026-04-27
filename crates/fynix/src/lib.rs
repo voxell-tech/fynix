@@ -31,7 +31,7 @@ mod id;
 /// Must be called before any element is added to a [`Fynix`]
 /// instance. Safe to call more than once - subsequent calls
 /// are no-ops.
-pub fn init() {
+fn init() {
     static INITIALIZED: AtomicBool = AtomicBool::new(false);
     if INITIALIZED
         .compare_exchange(
@@ -60,6 +60,7 @@ pub struct Fynix {
 
 impl Fynix {
     pub fn new() -> Self {
+        init();
         Self {
             elements: Elements::new(),
             styles: Styles::new(),
@@ -89,18 +90,10 @@ impl Fynix {
     /// Returns `true` if the element existed
     #[inline]
     pub fn remove_element(&mut self, id: &ElementId) -> bool {
-        let primary_style =
-            self.elements.metas.get(id).and_then(|m| m.primary_style);
-
-        if !self.elements.remove(id) {
+        // Removes the element subtree along with their styles.
+        if !self.elements.remove(id, &mut self.styles) {
             return false;
         }
-
-        // remove the style
-        if let Some(style_id) = primary_style {
-            self.styles.delete_tree(&style_id);
-        }
-
         true
     }
 
@@ -122,9 +115,9 @@ impl Fynix {
     pub fn create_ctx<'f, 'w, W>(
         &'f mut self,
         world: &'w mut W,
-        parent_style_id: Option<StyleId>,
+        parent_style: Option<StyleId>,
     ) -> FynixCtx<'f, 'w, W> {
-        FynixCtx::new(parent_style_id, self, world)
+        FynixCtx::new(self, world, parent_style)
     }
 }
 
