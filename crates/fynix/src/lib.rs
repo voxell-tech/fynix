@@ -6,7 +6,7 @@ extern crate alloc;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use imaging::PaintSink;
-use typeslot::{SlotGroup, TypeSlot};
+use typeslot::SlotGroup;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementGroup, ElementId, Elements};
@@ -26,18 +26,12 @@ pub mod type_table;
 
 mod id;
 
-#[derive(SlotGroup)]
-pub struct WorldGroup;
-
-pub trait World: TypeSlot<WorldGroup> {}
-
-impl<T: TypeSlot<WorldGroup>> World for T {}
+// TODO(nixon): Should we just call this in `Fynix::new()` instead?
 
 /// Initializes the Fynix framework.
 ///
-/// Must be called before any element is added to a [`Fynix`]
-/// instance. Safe to call more than once — subsequent calls
-/// are no-ops.
+/// Must be called once before calling [`Fynix::new()`].
+/// Safe to call more than once — subsequent calls are no-ops.
 pub fn init() {
     static INITIALIZED: AtomicBool = AtomicBool::new(false);
     if INITIALIZED

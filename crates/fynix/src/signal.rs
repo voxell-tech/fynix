@@ -1,17 +1,15 @@
 use core::any::TypeId;
 use core::marker::PhantomData;
 
-use alloc::vec;
-use alloc::vec::Vec;
+use hashbrown::hash_map::Entry;
 use hashbrown::{HashMap, HashSet};
-use typeslot::SlotGroup;
+use sparse_map::{Key, SparseMap};
 
 use crate::ctx::FynixCtx;
-use crate::element::ElementId;
+use crate::element::{Element, ElementId};
 use crate::id::{GenId, IdGenerator};
 use crate::signal::meta::SignalMetas;
 use crate::type_table::TypeTable;
-use crate::{World, WorldGroup};
 
 pub mod meta;
 
@@ -22,7 +20,8 @@ pub mod meta;
 pub struct Signals {
     signals: TypeTable<SignalId>,
     metas: SignalMetas,
-    scopes: Vec<HashMap<SignalId, UntypedScope>>,
+    scopes: HashMap<SignalId, SparseMap<UntypedScope>>,
+    // _scopes: SparseMap<(SignalId, UntypedScope)>,
     dirty: HashSet<SignalId>,
     id_gen: SignalIdGenerator,
 }
@@ -32,7 +31,7 @@ impl Signals {
         Self {
             signals: TypeTable::new(),
             metas: SignalMetas::new(),
-            scopes: vec![HashMap::new(); WorldGroup::len()],
+            scopes: HashMap::new(),
             dirty: HashSet::new(),
             id_gen: IdGenerator::new(),
         }
@@ -40,7 +39,10 @@ impl Signals {
 
     /// Creates a new signal with `initial` as its starting value and
     /// returns a typed handle to it.
-    pub fn add<T: 'static>(&mut self, initial: T) -> SignalHandle<T> {
+    pub fn add_signal<T: 'static>(
+        &mut self,
+        initial: T,
+    ) -> SignalHandle<T> {
         let id = self.id_gen.new_id();
         self.signals.insert(id, initial);
         self.metas.init::<T>(id);
@@ -50,15 +52,13 @@ impl Signals {
         }
     }
 
-    pub fn remove(&mut self, id: impl Into<SignalId>) -> bool {
+    pub fn remove_signal(&mut self, id: impl Into<SignalId>) -> bool {
         let id = id.into();
 
         if let Some(meta) = self.metas.get(&id) {
             self.signals.dyn_remove(&meta.signal_id, &id);
+            self.scopes.remove(&id);
             self.dirty.remove(&id);
-            for s in self.scopes.iter_mut() {
-                s.remove(&id);
-            }
 
             self.id_gen.recycle(id);
             return true;
@@ -67,14 +67,23 @@ impl Signals {
         false
     }
 
-    pub fn set_scope<T: 'static, W: World>(
+    pub fn add_scope<T: 'static, W: 'static>(
         &mut self,
         handle: SignalHandle<T>,
         scope: Scope<T, W>,
-    ) {
-        let slot = WorldGroup::slot::<W>();
-        self.scopes[slot].insert(handle.id, scope.untyped());
+    ) -> Key {
+        let untyped_scope = scope.untyped();
+        match self.scopes.entry(handle.id) {
+            Entry::Occupied(mut occupied_entry) => {
+                occupied_entry.get_mut().insert(untyped_scope)
+            }
+            Entry::Vacant(vacant_entry) => vacant_entry
+                .insert(SparseMap::new())
+                .insert(untyped_scope),
+        }
     }
+
+    pub fn remove_scope() {}
 
     /// Returns a reference to the current value of the signal.
     pub fn read<T: 'static>(
@@ -93,6 +102,13 @@ impl Signals {
         self.signals.insert(handle.id, value);
         self.dirty.insert(handle.id);
     }
+
+    // pub fn get_scopes(
+    //     &self,
+    //     id: &SignalId,
+    // ) -> Option<&[UntypedScope]> {
+    //     self.scopes.get(id).map(|s| s.as_slice())
+    // }
 
     /// Drains and returns the set of signals that have been mutated
     /// since the last call to this method.
@@ -206,6 +222,48 @@ impl<T> Clone for SignalHandle<T> {
         *self
     }
 }
+
+// pub trait XTrait {}
+
+// impl XTrait for X {}
+
+// impl<T: XTrait, U: XTrait> XTrait for (T, U) {}
+// impl<T: XTrait, U: XTrait, V: XTrait> XTrait for (T, U, V) {}
+
+// fn create_element<W>(ctx: &mut FynixCtx<W>) {
+//     let sig_handle = ctx.world.counter_handle;
+//     ctx.scope_signals::<(T, U, V)>((sig1, sig2, sig3), |value, ctx| {
+//         ctx.add_with::<E>(|e, _| {
+//             e.x = value;
+//         });
+//     });
+//     // let bind_handle = ctx.world.counter_handle;
+//     // ctx.bind
+// }
+
+// TODO: Create derive(ElementSlot) & derive(Element)
+pub struct ScopeEl {
+    pub id: SignalId,
+    pub scope: UntypedScope,
+}
+
+// impl Element for ScopeEl {
+//     fn new() -> Self
+//     where
+//         Self: Sized,
+//     {
+//         todo!()
+//     }
+
+//     fn build(
+//         &self,
+//         id: &ElementId,
+//         constraint: rectree::Constraint,
+//         nodes: &mut crate::element::ElementNodes,
+//     ) -> rectree::Size {
+//         todo!()
+//     }
+// }
 
 /// Generational ID for signal instances.
 pub type SignalId = GenId<_SignalMarker>;
