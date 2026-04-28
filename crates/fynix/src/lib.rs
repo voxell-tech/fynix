@@ -10,7 +10,7 @@ pub use imaging;
 use imaging::PaintSink;
 pub use rectree;
 pub use typeslot;
-use typeslot::{SlotGroup, TypeSlot};
+use typeslot::SlotGroup;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementGroup, ElementId, Elements};
@@ -41,12 +41,7 @@ pub mod prelude {
 
 mod id;
 
-#[derive(SlotGroup)]
-pub struct WorldGroup;
-
-pub trait World: TypeSlot<WorldGroup> {}
-
-impl<T: TypeSlot<WorldGroup>> World for T {}
+// TODO(nixon): Should we just call this in `Fynix::new()` instead?
 
 /// Initializes the Fynix framework.
 ///
