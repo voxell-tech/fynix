@@ -139,9 +139,9 @@ mod tests {
     use field_path::field_accessor;
     use rectree::{Constraint, NodeContext, Size, Vec2};
 
-    use crate::Init;
     use crate::element::ElementBuild;
     use crate::element::layout::ElementNodes;
+    use crate::init::Init;
 
     use super::*;
 

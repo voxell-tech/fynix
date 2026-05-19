@@ -103,7 +103,7 @@ pub fn derive_init(input: TokenStream) -> TokenStream {
     };
 
     quote! {
-        impl #impl_generics #fynix::Init
+        impl #impl_generics #fynix::init::Init
             for #name #ty_generics #where_clause
         {
             #[inline]

@@ -132,10 +132,10 @@ macro_rules! register_element {
             }
         }
 
-        impl $crate::Init for $new_type {
+        impl $crate::init::Init for $new_type {
             #[inline]
             fn init() -> Self {
-                Self($crate::Init::init())
+                Self($crate::init::Init::init())
             }
         }
 

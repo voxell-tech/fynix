@@ -25,8 +25,6 @@ pub mod resource;
 pub mod style;
 pub mod type_table;
 
-pub use init::Init;
-
 mod id;
 
 /// Initializes the Fynix framework.
