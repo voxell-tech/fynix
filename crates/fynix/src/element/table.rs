@@ -9,9 +9,9 @@ use typeslot::SlotGroup;
 
 /// Slot-indexed element storage, keyed by [`ElementId`].
 ///
-/// Each element type is assigned a unique slot index at
-/// startup by [`crate::init`]. Typed access is then a direct
-/// [`Vec`] index.
+/// Each element type is assigned a unique slot index at startup by
+/// [`crate::Fynix::new`].
+/// Typed access is then a direct [`Vec`] index.
 pub struct ElementTable {
     columns: Vec<Option<DynTypeMap<ElementId>>>,
 }
@@ -75,6 +75,21 @@ impl ElementTable {
         // SAFETY: see [`Self::insert`].
         let map = unsafe { col.downcast_unchecked_mut::<E>() };
         map.remove(key)
+    }
+
+    /// Temporarily removes element `E` at `key`, calls `f` with mutable
+    /// access to both the value and the remaining table, then reinserts it.
+    ///
+    /// Returns `None` if `key` is not present for `E`.
+    pub fn scope<E: Element, T>(
+        &mut self,
+        key: &ElementId,
+        f: impl FnOnce(&mut E, &mut Self) -> T,
+    ) -> Option<T> {
+        let mut value = self.remove::<E>(key)?;
+        let result = f(&mut value, self);
+        self.insert(*key, value);
+        Some(result)
     }
 
     /// Removes `key` from the column at `slot`.

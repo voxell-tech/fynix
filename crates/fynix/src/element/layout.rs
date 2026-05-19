@@ -28,7 +28,7 @@ impl<'a> Rectree for ElementTree<'a> {
             .get(id)
             .and_then(|m| self.type_metas.get_slot(m.slot))
         {
-            (type_meta.children_fn)(
+            (type_meta.for_each_child_fn)(
                 self.elements,
                 id,
                 &mut |child| f(child, nodes),

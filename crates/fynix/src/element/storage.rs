@@ -6,6 +6,7 @@ use super::meta::{ElementMetas, ElementTypeMetas};
 use super::table::ElementTable;
 use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
+use crate::style::{StyleId, Styles};
 
 /// Type-erased storage for all element instances.
 ///
@@ -35,12 +36,16 @@ impl Elements {
 
     /// Stores `element`, registers its type getter if needed,
     /// and returns a fresh [`ElementId`].
-    pub fn add<E: Element>(&mut self, element: E) -> ElementId {
+    pub fn add<E: Element>(
+        &mut self,
+        element: E,
+        primary_style: Option<StyleId>,
+    ) -> ElementId {
         self.type_metas.register::<E>();
 
         let id = self.id_generator.new_id();
 
-        self.metas.init_element::<E>(id);
+        self.metas.init_element::<E>(id, primary_style);
         self.elements.insert(id, element);
         id
     }
@@ -77,25 +82,74 @@ impl Elements {
         self.elements.get_mut::<E>(id)
     }
 
-    /// Removes the element and recycles its [`ElementId`].
+    /// Recursively removes the element subtree along with their styles.
     ///
     /// Returns `true` if the element was present and removed.
-    pub fn remove(&mut self, id: &ElementId) -> bool {
-        if let Some(meta) = self.metas.remove(id)
-            && self.elements.dyn_remove_by_slot(meta.slot, id)
-        {
-            self.id_generator.recycle(*id);
-            return true;
+    pub fn remove(
+        &mut self,
+        id: &ElementId,
+        styles: &mut Styles,
+    ) -> bool {
+        fn remove_recursive(
+            id: &ElementId,
+            metas: &mut ElementMetas,
+            type_metas: &ElementTypeMetas,
+            elements: &mut ElementTable,
+            id_generator: &mut ElementIdGenerator,
+            styles: &mut Styles,
+            mut has_removed_styles: bool,
+        ) -> bool {
+            if let Some(meta) = metas.remove(id)
+                && let Some(type_meta) =
+                    type_metas.get_slot(meta.slot)
+            {
+                if !has_removed_styles
+                    && let Some(primary_style) = meta.primary_style
+                {
+                    has_removed_styles =
+                        styles.remove(&primary_style);
+                }
+
+                (type_meta.for_each_child_mut_fn)(
+                    elements,
+                    id,
+                    &mut |child_id, elements| {
+                        remove_recursive(
+                            child_id,
+                            metas,
+                            type_metas,
+                            elements,
+                            id_generator,
+                            styles,
+                            has_removed_styles,
+                        );
+                    },
+                );
+
+                elements.dyn_remove_by_slot(meta.slot, id);
+                id_generator.recycle(*id);
+                return true;
+            }
+
+            false
         }
 
-        false
+        remove_recursive(
+            id,
+            &mut self.metas,
+            &self.type_metas,
+            &mut self.elements,
+            &mut self.id_generator,
+            styles,
+            false,
+        )
     }
 
     /// Renders the subtree rooted at `id` into the `painter`.
     ///
     /// Each element's own visual layer is painted via
-    /// [`crate::element::ElementBuild::render`] before its children are visited,
-    /// so parents always draw behind their children.
+    /// [`crate::element::ElementBuild::render`] before its children
+    /// are visited, so parents always draw behind their children.
     ///
     /// Layout must be complete before calling this.
     pub fn render(
@@ -112,7 +166,7 @@ impl Elements {
             {
                 element.render(id, painter, &self.metas);
             }
-            (type_meta.children_fn)(
+            (type_meta.for_each_child_fn)(
                 &self.elements,
                 id,
                 &mut |child| self.render(child, painter),

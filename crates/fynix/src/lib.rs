@@ -3,7 +3,7 @@
 
 extern crate alloc;
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicU8, Ordering};
 
 use imaging::PaintSink;
 use typeslot::SlotGroup;
@@ -30,19 +30,26 @@ mod id;
 ///
 /// Must be called before any element is added to a [`Fynix`]
 /// instance. Safe to call more than once - subsequent calls
-/// are no-ops.
-pub fn init() {
-    static INITIALIZED: AtomicBool = AtomicBool::new(false);
-    if INITIALIZED
-        .compare_exchange(
-            false,
-            true,
-            Ordering::AcqRel,
-            Ordering::Relaxed,
-        )
-        .is_ok()
-    {
-        ElementGroup::init();
+/// block until initialization is complete.
+fn init() {
+    // 0 = uninit, 1 = initializing, 2 = done.
+    static STATE: AtomicU8 = AtomicU8::new(0);
+
+    match STATE.compare_exchange(
+        0,
+        1,
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    ) {
+        Ok(_) => {
+            ElementGroup::init();
+            STATE.store(2, Ordering::Release);
+        }
+        Err(_) => {
+            while STATE.load(Ordering::Acquire) != 2 {
+                core::hint::spin_loop();
+            }
+        }
     }
 }
 
@@ -60,6 +67,7 @@ pub struct Fynix {
 
 impl Fynix {
     pub fn new() -> Self {
+        init();
         Self {
             elements: Elements::new(),
             styles: Styles::new(),
@@ -81,6 +89,21 @@ impl Fynix {
         self.elements.render(id, sink);
     }
 
+    /// Removes an element and its associated primary style tree.
+    ///
+    /// If the element has a `primary_style`, that style and all
+    /// its descendants in the style tree are also removed
+    ///
+    /// Returns `true` if the element existed
+    #[inline]
+    pub fn remove_element(&mut self, id: &ElementId) -> bool {
+        // Removes the element subtree along with their styles.
+        if !self.elements.remove(id, &mut self.styles) {
+            return false;
+        }
+        true
+    }
+
     /// Returns a [`FynixCtx`] rooted at the top of the style
     /// hierarchy.
     #[inline]
@@ -99,9 +122,9 @@ impl Fynix {
     pub fn create_ctx<'f, 'w, W>(
         &'f mut self,
         world: &'w mut W,
-        parent_style_id: Option<StyleId>,
+        parent_style: Option<StyleId>,
     ) -> FynixCtx<'f, 'w, W> {
-        FynixCtx::new(parent_style_id, self, world)
+        FynixCtx::new(self, world, parent_style)
     }
 }
 
