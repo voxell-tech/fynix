@@ -66,16 +66,16 @@ pub fn derive_element_slot(input: TokenStream) -> TokenStream {
 /// Derives `fynix::Init` for the annotated struct.
 ///
 /// Each field defaults to `Default::default()` unless annotated with
-/// `#[init = expr]`, which substitutes `expr` as the initial value.
+/// `#[init(expr)]`, which substitutes `expr` as the initial value.
 ///
 /// # Example
 ///
 /// ```ignore
 /// #[derive(Init)]
 /// struct Label {
-///     #[init = "hello"]
+///     #[init("hello")]
 ///     text: &'static str,
-///     #[init = 16.0]
+///     #[init(16.0)]
 ///     font_size: f32,
 /// }
 /// ```
@@ -118,7 +118,7 @@ pub fn derive_init(input: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Parses `#[init = expr]` from a field's attributes and returns the
+/// Parses `#[init(expr)]` from a field's attributes and returns the
 /// expression, falling back to `Default::default()`.
 fn init_val_for_field(
     attrs: &[syn::Attribute],
@@ -230,7 +230,7 @@ fn parse_field_attrs(
 /// for the annotated struct. Also derive `Init` for element
 /// initialization. Implement `ElementBuild` manually.
 ///
-/// Only works for non-generic structs — use `#[derive(ElementTemplate)]`
+/// Only works for non-generic structs; use `#[derive(ElementTemplate)]`
 /// for generic structs.
 #[proc_macro_derive(Element, attributes(elem))]
 pub fn derive_element(input: TokenStream) -> TokenStream {
