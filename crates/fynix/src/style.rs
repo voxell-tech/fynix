@@ -9,10 +9,9 @@ use hashbrown::{HashMap, HashSet};
 use crate::id::{GenId, IdGenerator};
 use crate::type_table::TypeTable;
 
-pub use field_path::field_accessor as path;
-
 pub mod storage;
 
+pub use field_path::field_accessor as path;
 pub use storage::Styles;
 
 pub enum StyleCommand {

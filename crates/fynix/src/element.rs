@@ -12,9 +12,7 @@ pub mod meta;
 pub mod storage;
 pub mod table;
 
-pub use storage::{
-    _ElementMarker, ElementId, ElementIdGenerator, Elements,
-};
+pub use storage::{ElementId, Elements};
 pub use table::ElementTable;
 
 /// Marker type for the element slot group.
