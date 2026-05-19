@@ -63,33 +63,126 @@ pub fn derive_element_slot(input: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Derives `fynix::Init` for the annotated struct.
+///
+/// Each field defaults to `Default::default()` unless annotated with
+/// `#[init(expr)]`, which substitutes `expr` as the initial value.
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(Init)]
+/// struct Label {
+///     #[init("hello")]
+///     text: &'static str,
+///     #[init(16.0)]
+///     font_size: f32,
+/// }
+/// ```
+#[proc_macro_derive(Init, attributes(init))]
+pub fn derive_init(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+    let fynix = fynix_crate();
+
+    let Data::Struct(s) = &input.data else {
+        return syn::Error::new_spanned(
+            name,
+            "#[derive(Init)] only supports structs",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    let (impl_generics, ty_generics, where_clause) =
+        input.generics.split_for_impl();
+
+    let init_body = match build_init_body(name, &s.fields) {
+        Ok(b) => b,
+        Err(e) => return e.to_compile_error().into(),
+    };
+
+    quote! {
+        impl #impl_generics #fynix::init::Init
+            for #name #ty_generics #where_clause
+        {
+            #[inline]
+            fn init() -> Self
+            where
+                Self: ::core::marker::Sized,
+            {
+                #init_body
+            }
+        }
+    }
+    .into()
+}
+
+/// Parses `#[init(expr)]` from a field's attributes and returns the
+/// expression, falling back to `Default::default()`.
+fn init_val_for_field(
+    attrs: &[syn::Attribute],
+) -> syn::Result<TokenStream2> {
+    for attr in attrs {
+        if attr.path().is_ident("init") {
+            let expr: Expr = attr.parse_args()?;
+            return Ok(quote! { #expr });
+        }
+    }
+    Ok(quote! { ::core::default::Default::default() })
+}
+
+fn build_init_body(
+    name: &Ident,
+    fields: &Fields,
+) -> syn::Result<TokenStream2> {
+    match fields {
+        Fields::Unit => Ok(quote! { #name }),
+        Fields::Named(f) => {
+            let inits = f
+                .named
+                .iter()
+                .map(|field| {
+                    let ident = field.ident.as_ref().unwrap();
+                    let val = init_val_for_field(&field.attrs)?;
+                    Ok(quote! { #ident: #val })
+                })
+                .collect::<syn::Result<Vec<_>>>()?;
+            Ok(quote! { #name { #(#inits),* } })
+        }
+        Fields::Unnamed(f) => {
+            let inits = f
+                .unnamed
+                .iter()
+                .map(|field| init_val_for_field(&field.attrs))
+                .collect::<syn::Result<Vec<_>>>()?;
+            Ok(quote! { #name(#(#inits),*) })
+        }
+    }
+}
+
 struct ElementAttrs {
-    new_body: Option<Expr>,
     children_fn: Option<Expr>,
 }
 
 fn parse_element_attrs(
     attrs: &[syn::Attribute],
 ) -> syn::Result<ElementAttrs> {
-    let mut new_body = None;
     let mut children_fn = None;
 
     for attr in attrs {
         if attr.path().is_ident("elem") {
             attr.parse_nested_meta(|meta| {
-                let key = meta.path.get_ident().map(|i| i.to_string());
+                let key =
+                    meta.path.get_ident().map(|i| i.to_string());
                 match key.as_deref() {
-                    Some("new") => {
-                        new_body =
-                            Some(meta.value()?.parse::<Expr>()?);
-                    }
                     Some("children") => {
                         children_fn =
                             Some(meta.value()?.parse::<Expr>()?);
                     }
                     _ => {
                         return Err(meta.error(
-                            "unknown `element` key; expected `new` or `children`",
+                            "unknown `elem` key; expected `children`",
                         ));
                     }
                 }
@@ -98,38 +191,30 @@ fn parse_element_attrs(
         }
     }
 
-    Ok(ElementAttrs {
-        new_body,
-        children_fn,
-    })
+    Ok(ElementAttrs { children_fn })
 }
 
 struct FieldAttrs {
     is_children: bool,
-    default: Option<Expr>,
 }
 
 fn parse_field_attrs(
     attrs: &[syn::Attribute],
 ) -> syn::Result<FieldAttrs> {
     let mut is_children = false;
-    let mut default = None;
 
     for attr in attrs {
         if attr.path().is_ident("elem") {
             attr.parse_nested_meta(|meta| {
-                let key = meta.path.get_ident().map(|i| i.to_string());
+                let key =
+                    meta.path.get_ident().map(|i| i.to_string());
                 match key.as_deref() {
                     Some("children") => {
                         is_children = true;
                     }
-                    Some("default") => {
-                        default =
-                            Some(meta.value()?.parse::<Expr>()?);
-                    }
                     _ => {
                         return Err(meta.error(
-                            "unknown `element` key; expected `children` or `default`",
+                            "unknown `elem` key; expected `children`",
                         ));
                     }
                 }
@@ -138,16 +223,15 @@ fn parse_field_attrs(
         }
     }
 
-    Ok(FieldAttrs {
-        is_children,
-        default,
-    })
+    Ok(FieldAttrs { is_children })
 }
 
-/// Derives `ElementNew`, `ElementChildren`, `ElementSlot`, and
-/// `ElementTemplate` for the annotated struct. Implement
-/// `ElementBuild` manually. Only works for non-generic structs -
-/// use `#[derive(ElementTemplate)]` for generic structs.
+/// Derives `ElementChildren`, `ElementSlot`, and `ElementTemplate`
+/// for the annotated struct. Also derive `Init` for element
+/// initialization. Implement `ElementBuild` manually.
+///
+/// Only works for non-generic structs; use `#[derive(ElementTemplate)]`
+/// for generic structs.
 #[proc_macro_derive(Element, attributes(elem))]
 pub fn derive_element(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -181,7 +265,6 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
     };
 
     let ElementTemplateImpls {
-        new_impl,
         children_impl,
         template_impl,
     } = match element_template_impls(
@@ -197,15 +280,16 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
 
     quote! {
         #slot_tokens
-        #new_impl
         #children_impl
         #template_impl
     }
     .into()
 }
 
-/// Derives `ElementNew`, `ElementChildren`, and `ElementTemplate`
-/// for the annotated struct. Implement `ElementBuild` manually.
+/// Derives `ElementChildren` and `ElementTemplate` for the annotated
+/// struct. Also derive `Init` for element initialization. Implement
+/// `ElementBuild` manually.
+///
 /// Call `typeslot::register!(ElementGroup, MyStruct<ConcreteType>)`
 /// for each concrete instantiation to satisfy the `Element` bound.
 #[proc_macro_derive(ElementTemplate, attributes(elem))]
@@ -229,7 +313,6 @@ pub fn derive_element_template(input: TokenStream) -> TokenStream {
     };
 
     let ElementTemplateImpls {
-        new_impl,
         children_impl,
         template_impl,
     } = match element_template_impls(
@@ -244,7 +327,6 @@ pub fn derive_element_template(input: TokenStream) -> TokenStream {
     };
 
     quote! {
-        #new_impl
         #children_impl
         #template_impl
     }
@@ -254,7 +336,6 @@ pub fn derive_element_template(input: TokenStream) -> TokenStream {
 struct FieldInfo {
     ident: Option<Ident>,
     is_children: bool,
-    default: Option<Expr>,
 }
 
 fn parse_fields(fields: &Fields) -> syn::Result<Vec<FieldInfo>> {
@@ -268,14 +349,12 @@ fn parse_fields(fields: &Fields) -> syn::Result<Vec<FieldInfo>> {
         Ok(FieldInfo {
             ident: field.ident.clone(),
             is_children: fa.is_children,
-            default: fa.default,
         })
     })
     .collect()
 }
 
 struct ElementTemplateImpls {
-    new_impl: TokenStream2,
     children_impl: TokenStream2,
     template_impl: TokenStream2,
 }
@@ -298,7 +377,7 @@ fn element_template_impls(
         if children_field.is_some() {
             return Err(syn::Error::new_spanned(
                 ident,
-                "`#[element(children)]` can only be used on one field",
+                "`#[elem(children)]` can only be used on one field",
             ));
         }
         children_field = Some(ident);
@@ -306,45 +385,6 @@ fn element_template_impls(
 
     let (impl_generics, ty_generics, where_clause) =
         generics.split_for_impl();
-
-    let default_val = |info: &FieldInfo| {
-        info.default.as_ref().map(|e| quote! { #e }).unwrap_or_else(
-            || quote! { ::core::default::Default::default() },
-        )
-    };
-
-    let new_body = attrs
-        .new_body
-        .map(|expr| quote! { #expr })
-        .unwrap_or_else(|| match &s.fields {
-            Fields::Unit => quote! { #name },
-            Fields::Named(_) => {
-                let inits = field_infos.iter().map(|info| {
-                    let ident = info.ident.as_ref().unwrap();
-                    let val = default_val(info);
-                    quote! { #ident: #val }
-                });
-                quote! { #name { #(#inits),* } }
-            }
-            Fields::Unnamed(_) => {
-                let inits = field_infos.iter().map(default_val);
-                quote! { #name(#(#inits),*) }
-            }
-        });
-
-    let new_impl = quote! {
-        impl #impl_generics #fynix::element::ElementNew
-            for #name #ty_generics #where_clause
-        {
-            #[inline]
-            fn new() -> Self
-            where
-                Self: ::core::marker::Sized,
-            {
-                #new_body
-            }
-        }
-    };
 
     let children_body = attrs
         .children_fn
@@ -386,7 +426,6 @@ fn element_template_impls(
     };
 
     Ok(ElementTemplateImpls {
-        new_impl,
         children_impl,
         template_impl,
     })

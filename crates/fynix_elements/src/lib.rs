@@ -17,6 +17,7 @@ use fynix::imaging::record::{Glyph, Scene, replay_transformed};
 use fynix::imaging::{
     Composite, FillRef, GlyphRunRef, PaintSink, StrokeRef, kurbo,
 };
+use fynix::init::Init;
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 use parley::style::StyleProperty;
 use parley::{
@@ -24,7 +25,7 @@ use parley::{
 };
 use parley::{FontContext, LayoutContext};
 
-#[derive(Element, Debug, Clone, Copy)]
+#[derive(Init, Element, Debug, Clone, Copy)]
 pub struct WindowSize {
     pub size: Size,
     #[elem(children)]
@@ -55,7 +56,7 @@ impl ElementBuild for WindowSize {
     }
 }
 
-#[derive(Element, Debug, Clone)]
+#[derive(Init, Element, Debug, Clone)]
 pub struct Horizontal {
     #[elem(children)]
     children: Vec<ElementId>,
@@ -89,7 +90,7 @@ impl ElementBuild for Horizontal {
     }
 }
 
-#[derive(Element, Debug, Clone)]
+#[derive(Init, Element, Debug, Clone)]
 pub struct Vertical {
     #[elem(children)]
     children: Vec<ElementId>,
@@ -123,7 +124,7 @@ impl ElementBuild for Vertical {
     }
 }
 
-#[derive(Element, Debug, Clone, Copy)]
+#[derive(Init, Element, Debug, Clone, Copy)]
 pub struct Pad {
     pub top: f32,
     pub right: f32,
@@ -205,13 +206,13 @@ impl ElementBuild for Pad {
     }
 }
 
-#[derive(ElementTemplate)]
+#[derive(Init, ElementTemplate)]
 pub struct Button<A: 'static> {
     pub on_click: Option<A>,
-    #[elem(default = Brush::Solid(Color::BLACK))]
+    #[init(Brush::Solid(Color::BLACK))]
     pub fill: Brush,
     pub stroke: Stroke,
-    #[elem(default = Brush::Solid(Color::WHITE))]
+    #[init(Brush::Solid(Color::WHITE))]
     pub stroke_brush: Brush,
     pub corner_radius: f64,
     #[elem(children)]
@@ -268,12 +269,12 @@ impl<A> ElementBuild for Button<A> {
     }
 }
 
-#[derive(Element, Debug, Clone)]
+#[derive(Init, Element, Debug, Clone)]
 pub struct Label {
     pub text: String,
-    #[elem(default = Brush::Solid(Color::WHITE))]
+    #[init(Brush::Solid(Color::WHITE))]
     pub fill: Brush,
-    #[elem(default = 16.0)]
+    #[init(16.0)]
     pub font_size: f32,
     pub font_style: FontStyle,
     pub alignment: Alignment,

@@ -105,7 +105,7 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.styles.set(field_accessor, value);
     }
 
-    /// Commits any pending style changes, constructs `E::new()`, and
+    /// Commits any pending style changes, constructs `E::init()`, and
     /// applies the current style chain to it.
     fn create_element<E: Element>(&mut self) -> E {
         if self.fynix.styles.should_commit() {
@@ -123,7 +123,7 @@ impl<W> FynixCtx<'_, '_, W> {
             }
         }
 
-        let mut element = E::new();
+        let mut element = E::init();
         if let Some(id) = &self.prev_style {
             self.fynix.styles.apply(&mut element, id);
         }
@@ -141,10 +141,11 @@ mod tests {
 
     use crate::element::ElementBuild;
     use crate::element::layout::ElementNodes;
+    use crate::init::Init;
 
     use super::*;
 
-    #[derive(Element, Default, Clone)]
+    #[derive(Init, Element, Clone)]
     struct Label {
         pub text: &'static str,
     }
@@ -160,7 +161,7 @@ mod tests {
         }
     }
 
-    #[derive(Element, Clone)]
+    #[derive(Init, Element, Clone)]
     struct Vertical {
         #[elem(children)]
         children: Vec<ElementId>,

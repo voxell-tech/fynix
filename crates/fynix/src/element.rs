@@ -4,6 +4,7 @@ use typeslot::{SlotGroup, TypeSlot};
 
 use crate::element::layout::ElementNodes;
 use crate::element::meta::ElementMetas;
+use crate::init::Init;
 
 pub use fynix_macros::{Element, ElementSlot, ElementTemplate};
 
@@ -18,16 +19,6 @@ pub use table::ElementTable;
 /// Marker type for the element slot group.
 #[derive(SlotGroup)]
 pub struct ElementGroup;
-
-/// Constructs a default (unstyled) instance of an element.
-///
-/// Derived by `#[derive(Element)]` - calls `Default::default()` unless
-/// overridden with `#[element(new = my_fn)]`.
-pub trait ElementNew {
-    fn new() -> Self
-    where
-        Self: Sized;
-}
 
 /// Enumerates the children of an element.
 ///
@@ -83,12 +74,12 @@ pub trait ElementBuild {
 
 /// Marker trait for element template types.
 ///
-/// Use `#[derive(ElementTemplate)]` to implement this and the
+/// Use `#[derive(Init, ElementTemplate)]` to implement this and the
 /// associated supertraits automatically.
 ///
 /// Use this for generic types, for non-generic types use [`Element`].
 pub trait ElementTemplate:
-    ElementNew + ElementChildren + ElementBuild + 'static
+    Init + ElementChildren + ElementBuild + 'static
 {
 }
 
@@ -141,10 +132,10 @@ macro_rules! register_element {
             }
         }
 
-        impl $crate::element::ElementNew for $new_type {
+        impl $crate::init::Init for $new_type {
             #[inline]
-            fn new() -> Self {
-                Self($crate::element::ElementNew::new())
+            fn init() -> Self {
+                Self($crate::init::Init::init())
             }
         }
 
