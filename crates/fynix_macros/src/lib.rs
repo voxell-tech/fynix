@@ -173,7 +173,8 @@ fn parse_element_attrs(
     for attr in attrs {
         if attr.path().is_ident("elem") {
             attr.parse_nested_meta(|meta| {
-                let key = meta.path.get_ident().map(|i| i.to_string());
+                let key =
+                    meta.path.get_ident().map(|i| i.to_string());
                 match key.as_deref() {
                     Some("children") => {
                         children_fn =
@@ -205,7 +206,8 @@ fn parse_field_attrs(
     for attr in attrs {
         if attr.path().is_ident("elem") {
             attr.parse_nested_meta(|meta| {
-                let key = meta.path.get_ident().map(|i| i.to_string());
+                let key =
+                    meta.path.get_ident().map(|i| i.to_string());
                 match key.as_deref() {
                     Some("children") => {
                         is_children = true;
