@@ -3,7 +3,7 @@
 
 extern crate alloc;
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicU8, Ordering};
 
 use imaging::PaintSink;
 use typeslot::SlotGroup;
@@ -30,19 +30,26 @@ mod id;
 ///
 /// Must be called before any element is added to a [`Fynix`]
 /// instance. Safe to call more than once - subsequent calls
-/// are no-ops.
+/// block until initialization is complete.
 fn init() {
-    static INITIALIZED: AtomicBool = AtomicBool::new(false);
-    if INITIALIZED
-        .compare_exchange(
-            false,
-            true,
-            Ordering::AcqRel,
-            Ordering::Relaxed,
-        )
-        .is_ok()
-    {
-        ElementGroup::init();
+    // 0 = uninit, 1 = initializing, 2 = done.
+    static STATE: AtomicU8 = AtomicU8::new(0);
+
+    match STATE.compare_exchange(
+        0,
+        1,
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    ) {
+        Ok(_) => {
+            ElementGroup::init();
+            STATE.store(2, Ordering::Release);
+        }
+        Err(_) => {
+            while STATE.load(Ordering::Acquire) != 2 {
+                core::hint::spin_loop();
+            }
+        }
     }
 }
 
