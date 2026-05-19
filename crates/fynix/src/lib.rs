@@ -20,9 +20,12 @@ pub use typeslot;
 
 pub mod ctx;
 pub mod element;
+pub mod init;
 pub mod resource;
 pub mod style;
 pub mod type_table;
+
+pub use init::Init;
 
 mod id;
 
