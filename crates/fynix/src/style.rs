@@ -128,16 +128,16 @@ impl Span {
     }
 }
 
-/// Monomorphized function signature for writing one typed value into an
+/// Monomorphized function signature for writing one typed value into a
 /// source field.
 ///
-/// Reads the value of type `T` from `values` at `style_id`, then writes it
+/// Reads the value of type `T` from `values` at `key`, then writes it
 /// into `source` via `accessor`. Returns `true` on success.
 pub type SetStyleFn<S> = fn(
     &mut S,
     &UntypedAccessor,
-    &StyleId,
-    &TypeTable<StyleId>,
+    &StyleValueId,
+    &TypeTable<StyleValueId>,
 ) -> bool;
 
 /// Concrete implementation of [`SetStyleFn`] for the `(S, T)` pair.
@@ -145,11 +145,11 @@ pub type SetStyleFn<S> = fn(
 pub fn set_style<S: 'static, T: StyleValue>(
     source: &mut S,
     accessor: &UntypedAccessor,
-    style_id: &StyleId,
-    values: &TypeTable<StyleId>,
+    key: &StyleValueId,
+    values: &TypeTable<StyleValueId>,
 ) -> bool {
     if let Some(accessor) = accessor.typed::<S, T>()
-        && let Some(value) = values.get::<T>(style_id)
+        && let Some(value) = values.get::<T>(key)
     {
         *accessor.get_mut(source) = value.clone();
         return true;
@@ -182,16 +182,16 @@ impl<S> SetStyle<S> {
         }
     }
 
-    /// Applies the setter. Returns `true` if both the accessor and the value
-    /// were found.
+    /// Applies the setter. Returns `true` if both the accessor and the
+    /// value were found.
     pub fn apply(
         &self,
         source: &mut S,
         accessor: &UntypedAccessor,
-        style_id: &StyleId,
-        values: &TypeTable<StyleId>,
+        key: &StyleValueId,
+        values: &TypeTable<StyleValueId>,
     ) -> bool {
-        (self.set_fn)(source, accessor, style_id, values)
+        (self.set_fn)(source, accessor, key, values)
     }
 }
 
@@ -235,6 +235,20 @@ impl UntypedSetStyle {
 pub trait StyleValue: Clone + 'static {}
 
 impl<T: Clone + 'static> StyleValue for T {}
+
+/// Composite key into the style value table: identifies one specific
+/// field within one committed style node.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StyleValueId {
+    pub id: StyleId,
+    pub field: UntypedField,
+}
+
+impl StyleValueId {
+    pub fn new(id: StyleId, field: UntypedField) -> Self {
+        Self { id, field }
+    }
+}
 
 /// Generational ID for committed style nodes.
 pub type StyleId = GenId<_StyleMarker>;

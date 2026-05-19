@@ -7,7 +7,7 @@ use hashbrown::{HashMap, HashSet};
 
 use crate::style::{
     SetStyle, Style, StyleBuilder, StyleId, StyleIdGenerator,
-    StyleValue, UntypedSetStyle,
+    StyleValue, StyleValueId, UntypedSetStyle,
 };
 use crate::type_table::TypeTable;
 
@@ -21,8 +21,8 @@ pub struct Styles {
     /// [`set`](Styles::set) call.
     registry:
         HashMap<UntypedField, (UntypedAccessor, UntypedSetStyle)>,
-    /// Stores the actual style values keyed by `(StyleId, T)`.
-    pub style_values: TypeTable<StyleId>,
+    /// Stores the actual style values keyed by [`StyleValueId`].
+    pub style_values: TypeTable<StyleValueId>,
     /// Committed style nodes, each forming a singly-linked
     /// inheritance chain via their `parent_id`.
     pub styles: HashMap<StyleId, Style>,
@@ -134,7 +134,10 @@ impl Styles {
             );
         }
 
-        self.style_values.insert(self.current_id, value);
+        self.style_values.insert(
+            StyleValueId::new(self.current_id, untyped_field),
+            value,
+        );
         self.style_builder.insert(type_id, untyped_field);
     }
 
@@ -183,10 +186,11 @@ impl Styles {
                     self.registry.get(field)
                     && let Some(set_style) = untyped_set.typed::<S>()
                 {
+                    let key = StyleValueId::new(id, *field);
                     set_style.apply(
                         source,
                         accessor,
-                        &id,
+                        &key,
                         &self.style_values,
                     );
                     applied.insert(*field);

@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
 use core::fmt::{Debug, Display, Formatter, Result};
-use core::hash::Hash;
+use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 
 use alloc::vec::Vec;
@@ -51,7 +51,7 @@ impl<T> Debug for GenId<T> {
 }
 
 impl<T> Hash for GenId<T> {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
         self.generation.hash(state);
         self._marker.hash(state);
