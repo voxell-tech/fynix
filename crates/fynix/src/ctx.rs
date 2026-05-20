@@ -51,7 +51,7 @@ impl<W> FynixCtx<'_, '_, W> {
     /// `primary_style` is `None`
     #[must_use]
     pub fn add<E: Element>(&mut self) -> ElementId {
-        let element = self.create_element::<E>();
+        let element = self.create_styled::<E>();
         self.fynix.elements.add(element, None)
     }
 
@@ -72,7 +72,7 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         scope: impl FnOnce(&mut E, &mut Self),
     ) -> ElementId {
-        let mut element = self.create_element::<E>();
+        let mut element = self.create_styled::<E>();
 
         let prev_style_id = self.prev_style;
         let primary_style = self.primary_style.take();
@@ -177,10 +177,6 @@ impl<W> FynixCtx<'_, '_, W> {
         }
 
         instance
-    }
-
-    fn create_element<E: Element>(&mut self) -> E {
-        self.create_styled::<E>()
     }
 }
 
