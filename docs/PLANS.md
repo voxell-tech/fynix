@@ -3,71 +3,8 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| Element composers                    | Ready to start                    |
 | Interactions & Events                | Planned, not started              |
 | Reactivity (`Signals`)               | Deferred until after first render |
-| `TypeSlot` / typed table opt.        | In progress...                    |
-
----
-
-## Element composers
-
-`Composer<W>` is a trait separate from `Element`. It separates
-required caller inputs from styleable element data:
-
-- The **element** (`Hierarchy`) is a normal `Element` - pure data,
-  styleable via `ctx.set`.
-- The **composer** (`HierarchyComposer`) holds required inputs and
-  builds the element. It is not an `Element` itself.
-
-`ctx.compose()` calls `compose`, applies the style chain to the
-returned element, and inserts it into the tree.
-
-```rust
-pub trait Composer<W> {
-    type Element: Element;
-    fn compose(self, ctx: &mut FynixCtx<W>) -> Self::Element;
-}
-```
-
-### Usage
-
-```rust
-#[derive(Element, Default)]
-struct Hierarchy {
-    font_size: f32,
-    #[children]
-    children: Vec<ElementId>,
-}
-
-struct HierarchyComposer<'a> {
-    filter: &'a str,
-}
-
-impl Composer<BevyWorld> for HierarchyComposer<'_> {
-    type Element = Hierarchy;
-    fn compose(self, ctx: &mut FynixCtx<BevyWorld>) -> Hierarchy {
-        let mut h = Hierarchy::default();
-        for _ in ctx.world.query_filtered(self.filter) {
-            h.children.push(ctx.add::<Label>());
-        }
-        h
-    }
-}
-```
-
-```rust
-fn create_ui(ctx: &mut FynixCtx<BevyWorld>) {
-    ctx.set(field_accessor!(<Hierarchy>::font_size), 24.0);
-    ctx.compose(HierarchyComposer { filter: "enemy" });
-}
-```
-
-### Reactive re-composition
-
-When a signal that scopes a composer's subtree changes, the old
-children are removed and `compose` is re-called with fresh data.
-See the reactive scopes section under Signals.
 
 ---
 
@@ -225,17 +162,3 @@ reactive_scopes: HashMap<SignalId, Vec<ScopeEntry>>
 field signals in-place and re-runs any dirty scope builders, limiting
 re-layout to the affected subtree in both cases.
 
----
-
-## `TypeSlot` - typed table optimisation
-
-This enables faster specialised tables for types known at link time:
-
-- `ElementTable` - replaces `TypeTable<ElementId>` for element storage
-- `InteractionTable` - replaces the interaction handler registry
-- `EventTable` - replaces the outgoing events queue
-
-**Style values remain on `TypeTable`** - style field values are
-arbitrary user types (`f32`, `String`, custom structs) that cannot
-be required to `#[derive(HasSlot)]`. The hashmap stays there. This is
-debatable, we will see for the time being..
