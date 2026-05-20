@@ -97,10 +97,6 @@ impl<W> FynixCtx<'_, '_, W> {
     /// Queues a style default: field `T` on type `S` will be set to
     /// `value` for all elements added after this call (within the
     /// current scope).
-    ///
-    /// `S` only needs to implement [`Stylable`] (`Init + 'static`),
-    /// so both element types and plain style structs (e.g. for
-    /// [`Composer`](crate::composer::Composer)) can be targeted.
     pub fn set<S: Stylable, T: StyleValue>(
         &mut self,
         field_accessor: FieldAccessor<S, T>,
