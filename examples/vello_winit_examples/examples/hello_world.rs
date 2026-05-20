@@ -91,7 +91,7 @@ impl FynixDemo for HelloWorld {
                 }));
                 ctx.set(
                     path!(<TextButtonStyle>::bg_color),
-                    css::GREEN,
+                    Some(css::GREEN),
                 );
                 v.add(ctx.compose(TextButton {
                     label: "Green Button?!",
@@ -109,8 +109,7 @@ struct TextButtonStyle {
     pub pad_v: f32,
     #[init(16.0)]
     pub pad_h: f32,
-    #[init(Color::BLACK)]
-    pub bg_color: Color,
+    pub bg_color: Option<Color>,
 }
 
 struct TextButton<'a> {
@@ -127,7 +126,10 @@ impl Composer<()> for TextButton<'_> {
     ) -> ElementId {
         ctx.add_with::<EmptyBtn>(|b, ctx| {
             b.corner_radius = style.corner_radius;
-            b.fill = style.bg_color.into();
+            if let Some(bg_color) = style.bg_color {
+                b.fill = bg_color.into();
+            }
+
             b.set_child(ctx.add_with::<Pad>(|p, ctx| {
                 *p = Pad::symmetric(style.pad_v, style.pad_h);
                 p.set_child(ctx.add_with::<Label>(|l, _| {
