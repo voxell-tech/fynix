@@ -18,12 +18,25 @@ pub use imaging;
 pub use rectree;
 pub use typeslot;
 
+pub mod composer;
 pub mod ctx;
 pub mod element;
 pub mod init;
 pub mod resource;
 pub mod style;
 pub mod type_table;
+
+pub mod prelude {
+    pub use crate::Fynix;
+    pub use crate::composer::Composer;
+    pub use crate::ctx::FynixCtx;
+    pub use crate::element::{
+        Element, ElementBuild, ElementChildren, ElementId,
+        ElementTemplate,
+    };
+    pub use crate::init::Init;
+    pub use crate::style::{Stylable, path};
+}
 
 mod id;
 

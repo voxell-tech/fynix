@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use fynix::Fynix;
-use fynix::ctx::FynixCtx;
-use fynix::element::ElementId;
-use fynix::style::path;
+use fynix::prelude::*;
 use fynix_elements::{
     Button, Horizontal, Label, Pad, TextContext, Vertical,
 };
@@ -17,6 +14,12 @@ use winit::event_loop::EventLoop;
 const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 
 fynix::register_element!(EmptyBtn, Button<()>);
+
+fn main() {
+    let event_loop = EventLoop::new().unwrap();
+    let mut app = VelloWinitApp::new(HelloWorld);
+    event_loop.run_app(&mut app).unwrap();
+}
 
 struct HelloWorld;
 
@@ -41,8 +44,6 @@ impl FynixDemo for HelloWorld {
     }
 
     fn build(&mut self, ctx: &mut FynixCtx<()>) -> ElementId {
-        ctx.set(path!(<EmptyBtn>::corner_radius), 8.0);
-
         ctx.add_with::<Pad>(|p, ctx| {
             *p = Pad::all(20.0);
             p.set_child(ctx.add_with::<Vertical>(|v, ctx| {
@@ -84,21 +85,55 @@ impl FynixDemo for HelloWorld {
                     }));
                 }));
 
-                v.add(ctx.add_with::<EmptyBtn>(|b, ctx| {
-                    b.set_child(ctx.add_with::<Pad>(|p, ctx| {
-                        *p = Pad::symmetric(8.0, 16.0);
-                        p.set_child(ctx.add_with::<Label>(|l, _| {
-                            l.text = "Press me!".into();
-                        }));
-                    }));
+                v.add(ctx.compose(TextButton { label: "Press me!" }));
+                v.add(ctx.compose(TextButton {
+                    label: "Other Button!",
+                }));
+                ctx.set(
+                    path!(<TextButtonStyle>::bg_color),
+                    css::GREEN,
+                );
+                v.add(ctx.compose(TextButton {
+                    label: "Green Button?!",
                 }));
             }));
         })
     }
 }
 
-fn main() {
-    let event_loop = EventLoop::new().unwrap();
-    let mut app = VelloWinitApp::new(HelloWorld);
-    event_loop.run_app(&mut app).unwrap();
+#[derive(Init)]
+struct TextButtonStyle {
+    #[init(8.0)]
+    pub corner_radius: f64,
+    #[init(8.0)]
+    pub pad_v: f32,
+    #[init(16.0)]
+    pub pad_h: f32,
+    #[init(Color::BLACK)]
+    pub bg_color: Color,
+}
+
+struct TextButton<'a> {
+    pub label: &'a str,
+}
+
+impl Composer<()> for TextButton<'_> {
+    type Style = TextButtonStyle;
+
+    fn compose(
+        self,
+        style: TextButtonStyle,
+        ctx: &mut FynixCtx<'_, '_, ()>,
+    ) -> ElementId {
+        ctx.add_with::<EmptyBtn>(|b, ctx| {
+            b.corner_radius = style.corner_radius;
+            b.fill = style.bg_color.into();
+            b.set_child(ctx.add_with::<Pad>(|p, ctx| {
+                *p = Pad::symmetric(style.pad_v, style.pad_h);
+                p.set_child(ctx.add_with::<Label>(|l, _| {
+                    l.text = self.label.into();
+                }));
+            }));
+        })
+    }
 }
