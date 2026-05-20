@@ -7,6 +7,7 @@ use field_path::field::UntypedField;
 use hashbrown::{HashMap, HashSet};
 
 use crate::id::{GenId, IdGenerator};
+use crate::init::Init;
 use crate::type_table::TypeTable;
 
 pub mod storage;
@@ -228,6 +229,15 @@ impl UntypedSetStyle {
         }
     }
 }
+
+/// Blanket trait alias for types whose fields can be targeted by `Styles::set`.
+///
+/// Any `Init + 'static` type automatically implements this, allowing both
+/// element types and non-element style structs to be used with the style
+/// system.
+pub trait Stylable: Init + 'static {}
+
+impl<T: Init + 'static> Stylable for T {}
 
 /// Blanket trait alias for values that can be stored as style defaults.
 ///

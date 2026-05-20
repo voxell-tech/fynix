@@ -2,7 +2,7 @@ use field_path::field_accessor::FieldAccessor;
 
 use crate::Fynix;
 use crate::element::{Element, ElementId};
-use crate::style::{StyleId, StyleValue};
+use crate::style::{Stylable, StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
 /// style defaults.
@@ -94,12 +94,16 @@ impl<W> FynixCtx<'_, '_, W> {
         id
     }
 
-    /// Queues a style default: field `T` on element type `E` will be
-    /// set to `value` for all elements added after this call (within
-    /// the current scope).
-    pub fn set<E: Element, T: StyleValue>(
+    /// Queues a style default: field `T` on type `S` will be set to
+    /// `value` for all elements added after this call (within the
+    /// current scope).
+    ///
+    /// `S` only needs to implement [`Stylable`] (`Init + 'static`),
+    /// so both element types and plain style structs (e.g. for
+    /// [`Composer`](crate::composer::Composer)) can be targeted.
+    pub fn set<S: Stylable, T: StyleValue>(
         &mut self,
-        field_accessor: FieldAccessor<E, T>,
+        field_accessor: FieldAccessor<S, T>,
         value: T,
     ) {
         self.fynix.styles.set(field_accessor, value);
