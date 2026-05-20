@@ -55,44 +55,18 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.elements.add(element, None)
     }
 
-    /// Like [`Self::add`], but also runs `scope` for inline mutations and
-    /// nested element additions.
-    ///
-    /// The outer `prev_style` is restored after `scope` returns, so
-    /// any [`Self::set`] calls inside `scope` do not affect elements
-    /// added after this call.
-    ///
-    /// The element's `primary_style` is set to the first style
-    /// committed inside the closure.
-    ///
-    /// When the element is removed, that style and all its descendants
-    /// are also removed.
+    /// Like [`Self::add`], but also runs `scope` for inline mutations
+    /// and nested element additions.
     #[must_use]
     pub fn add_with<E: Element>(
         &mut self,
         scope: impl FnOnce(&mut E, &mut Self),
     ) -> ElementId {
         let mut element = self.create_styled::<E>();
-
-        let prev_style_id = self.prev_style;
-        let primary_style = self.primary_style.take();
-
-        scope(&mut element, self);
-
-        let id = self
-            .fynix
-            .elements
-            .add(element, self.primary_style.take());
-
-        // Restore pre-closure state.
-        self.prev_style = prev_style_id;
-        self.primary_style = primary_style;
-
-        // Clears all style leftovers to prevent them from leaking
-        // outside the scope.
-        self.fynix.styles.clear_builder();
-
-        id
+        self.style_scoped(|ctx| {
+            scope(&mut element, ctx);
+            ctx.fynix.elements.add(element, ctx.primary_style.take())
+        })
     }
 
     /// Queues a style default: field `T` on type `S` will be set to
@@ -117,17 +91,7 @@ impl<W> FynixCtx<'_, '_, W> {
         composer: C,
     ) -> ElementId {
         let style = self.create_styled::<C::Style>();
-
-        let prev_style_id = self.prev_style;
-        let primary_style = self.primary_style.take();
-
-        let id = composer.compose(style, self);
-
-        self.prev_style = prev_style_id;
-        self.primary_style = primary_style;
-        self.fynix.styles.clear_builder();
-
-        id
+        self.style_scoped(|ctx| composer.compose(style, ctx))
     }
 
     /// Like [`Self::compose`], but runs `inline` after the style chain
@@ -140,17 +104,34 @@ impl<W> FynixCtx<'_, '_, W> {
     ) -> ElementId {
         let mut style = self.create_styled::<C::Style>();
         inline(&mut style);
+        self.style_scoped(|ctx| composer.compose(style, ctx))
+    }
 
+    /// Saves the current style scope, runs `scope`, then
+    /// restores it.
+    ///
+    /// Prevents style changes made inside `scope` from leaking
+    /// into the outer scope. Any [`Self::set`] calls inside
+    /// `scope` do not affect elements added after this call
+    /// returns. The first style committed inside `scope` becomes
+    /// the element's `primary_style` - when that element is
+    /// removed, its style subtree is also removed.
+    fn style_scoped<T>(
+        &mut self,
+        scope: impl FnOnce(&mut Self) -> T,
+    ) -> T {
         let prev_style_id = self.prev_style;
         let primary_style = self.primary_style.take();
 
-        let id = composer.compose(style, self);
+        let result = scope(self);
 
+        // Restore pre-closure style state.
         self.prev_style = prev_style_id;
         self.primary_style = primary_style;
+        // Clear any uncommitted style changes to prevent leaking.
         self.fynix.styles.clear_builder();
 
-        id
+        result
     }
 
     /// Commits any pending style changes, constructs `S::init()`, and
