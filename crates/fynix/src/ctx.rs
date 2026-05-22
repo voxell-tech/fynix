@@ -1,6 +1,7 @@
 use field_path::field_accessor::FieldAccessor;
 
 use crate::Fynix;
+use crate::composer::Composer;
 use crate::element::{Element, ElementId};
 use crate::style::{Stylable, StyleId, StyleValue};
 
@@ -50,48 +51,22 @@ impl<W> FynixCtx<'_, '_, W> {
     /// `primary_style` is `None`
     #[must_use]
     pub fn add<E: Element>(&mut self) -> ElementId {
-        let element = self.create_element::<E>();
+        let element = self.create_styled::<E>();
         self.fynix.elements.add(element, None)
     }
 
-    /// Like [`Self::add`], but also runs `scope` for inline mutations and
-    /// nested element additions.
-    ///
-    /// The outer `prev_style` is restored after `scope` returns, so
-    /// any [`Self::set`] calls inside `scope` do not affect elements
-    /// added after this call.
-    ///
-    /// The element's `primary_style` is set to the first style
-    /// committed inside the closure.
-    ///
-    /// When the element is removed, that style and all its descendants
-    /// are also removed.
+    /// Like [`Self::add`], but also runs `scope` for inline mutations
+    /// and nested element additions.
     #[must_use]
     pub fn add_with<E: Element>(
         &mut self,
         scope: impl FnOnce(&mut E, &mut Self),
     ) -> ElementId {
-        let mut element = self.create_element::<E>();
-
-        let prev_style_id = self.prev_style;
-        let primary_style = self.primary_style.take();
-
-        scope(&mut element, self);
-
-        let id = self
-            .fynix
-            .elements
-            .add(element, self.primary_style.take());
-
-        // Restore pre-closure state.
-        self.prev_style = prev_style_id;
-        self.primary_style = primary_style;
-
-        // Clears all style leftovers to prevent them from leaking
-        // outside the scope.
-        self.fynix.styles.clear_builder();
-
-        id
+        let mut element = self.create_styled::<E>();
+        self.style_scoped(|ctx| {
+            scope(&mut element, ctx);
+            ctx.fynix.elements.add(element, ctx.primary_style.take())
+        })
     }
 
     /// Queues a style default: field `T` on type `S` will be set to
@@ -105,9 +80,63 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.styles.set(field_accessor, value);
     }
 
-    /// Commits any pending style changes, constructs `E::init()`, and
+    /// Runs `composer`, passing it a style instance built from the
+    /// current style chain.
+    ///
+    /// The composer's scope is isolated: any [`Self::set`] calls made
+    /// inside [`Composer::compose`] do not leak into the outer scope.
+    #[must_use]
+    pub fn compose<C: Composer<W>>(
+        &mut self,
+        composer: C,
+    ) -> ElementId {
+        let style = self.create_styled::<C::Style>();
+        self.style_scoped(|ctx| composer.compose(style, ctx))
+    }
+
+    /// Like [`Self::compose`], but runs `inline` after the style chain
+    /// is applied, allowing per-call field overrides.
+    #[must_use]
+    pub fn compose_with<C: Composer<W>>(
+        &mut self,
+        composer: C,
+        inline: impl FnOnce(&mut C::Style),
+    ) -> ElementId {
+        let mut style = self.create_styled::<C::Style>();
+        inline(&mut style);
+        self.style_scoped(|ctx| composer.compose(style, ctx))
+    }
+
+    /// Saves the current style scope, runs `scope`, then
+    /// restores it.
+    ///
+    /// Prevents style changes made inside `scope` from leaking
+    /// into the outer scope. Any [`Self::set`] calls inside
+    /// `scope` do not affect elements added after this call
+    /// returns. The first style committed inside `scope` becomes
+    /// the element's `primary_style` - when that element is
+    /// removed, its style subtree is also removed.
+    fn style_scoped<T>(
+        &mut self,
+        scope: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let prev_style_id = self.prev_style;
+        let primary_style = self.primary_style.take();
+
+        let result = scope(self);
+
+        // Restore pre-closure style state.
+        self.prev_style = prev_style_id;
+        self.primary_style = primary_style;
+        // Clear any uncommitted style changes to prevent leaking.
+        self.fynix.styles.clear_builder();
+
+        result
+    }
+
+    /// Commits any pending style changes, constructs `S::init()`, and
     /// applies the current style chain to it.
-    fn create_element<E: Element>(&mut self) -> E {
+    fn create_styled<S: Stylable>(&mut self) -> S {
         if self.fynix.styles.should_commit() {
             let committed_id = self.fynix.styles.current_id();
 
@@ -123,12 +152,12 @@ impl<W> FynixCtx<'_, '_, W> {
             }
         }
 
-        let mut element = E::init();
+        let mut instance = S::init();
         if let Some(id) = &self.prev_style {
-            self.fynix.styles.apply(&mut element, id);
+            self.fynix.styles.apply(&mut instance, id);
         }
 
-        element
+        instance
     }
 }
 
@@ -410,5 +439,85 @@ mod tests {
         // [a] will be removed.
         fynix.remove_element(&elem_a);
         assert_eq!(fynix.styles.styles.len(), 0);
+    }
+
+    #[derive(Init)]
+    struct LabelStyle {
+        pub text: &'static str,
+    }
+
+    struct LabelComposer;
+
+    impl Composer<()> for LabelComposer {
+        type Style = LabelStyle;
+
+        fn compose(
+            self,
+            style: LabelStyle,
+            ctx: &mut FynixCtx<'_, '_, ()>,
+        ) -> ElementId {
+            ctx.add_with::<Label>(|l, _| {
+                l.text = style.text;
+            })
+        }
+    }
+
+    #[test]
+    fn compose_applies_style_chain() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let id = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.set(
+                field_accessor!(<LabelStyle>::text),
+                "from_chain",
+            );
+            ctx.compose(LabelComposer)
+        };
+
+        let label = fynix.elements.get_typed::<Label>(&id).unwrap();
+        assert_eq!(label.text, "from_chain");
+    }
+
+    #[test]
+    fn compose_with_inline_overrides_chain() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let id = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.set(
+                field_accessor!(<LabelStyle>::text),
+                "from_chain",
+            );
+            ctx.compose_with(LabelComposer, |s| s.text = "inline")
+        };
+
+        let label = fynix.elements.get_typed::<Label>(&id).unwrap();
+        assert_eq!(label.text, "inline");
+    }
+
+    #[test]
+    fn compose_scope_does_not_leak() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let (inner_id, outer_id) = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            let inner = ctx.compose_with(LabelComposer, |s| {
+                s.text = "inner";
+            });
+            // Styles set inside compose must not affect elements added
+            // after it returns.
+            let outer = ctx.add_with::<Label>(|l, _| {
+                l.text = "outer";
+            });
+            (inner, outer)
+        };
+
+        let inner =
+            fynix.elements.get_typed::<Label>(&inner_id).unwrap();
+        let outer =
+            fynix.elements.get_typed::<Label>(&outer_id).unwrap();
+        assert_eq!(inner.text, "inner");
+        assert_eq!(outer.text, "outer");
     }
 }
