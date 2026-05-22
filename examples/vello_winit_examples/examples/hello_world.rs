@@ -89,13 +89,12 @@ impl FynixDemo for HelloWorld {
                 v.add(ctx.compose(TextButton {
                     label: "Other Button!",
                 }));
-                ctx.set(
-                    path!(<TextButtonStyle>::bg_color),
-                    Some(css::GREEN),
-                );
-                v.add(ctx.compose(TextButton {
-                    label: "Green Button?!",
-                }));
+                v.add(ctx.compose_with(
+                    TextButton {
+                        label: "Green Button?!",
+                    },
+                    |s| s.bg_color = Some(css::GREEN),
+                ));
             }));
         })
     }
