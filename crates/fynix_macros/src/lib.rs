@@ -49,7 +49,7 @@ pub fn derive_element_slot(input: TokenStream) -> TokenStream {
         .unwrap_or_else(|| {
             syn::Error::new_spanned(
                 input.ident,
-                "#[derive(TypeSlot)] only supportsnon-generic \
+                "#[derive(TypeSlot)] only supports non-generic \
                  structs",
             )
             .to_compile_error()
