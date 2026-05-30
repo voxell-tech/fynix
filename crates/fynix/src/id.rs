@@ -1,9 +1,8 @@
+use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::fmt::{Debug, Display, Formatter, Result};
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
-
-use alloc::vec::Vec;
 
 /// A generational ID with a phantom type parameter `T`.
 ///

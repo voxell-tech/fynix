@@ -6,13 +6,12 @@ use crate::element::layout::ElementNodes;
 use crate::element::meta::ElementMetas;
 use crate::init::Init;
 
-pub use fynix_macros::{Element, ElementSlot, ElementTemplate};
-
 pub mod layout;
 pub mod meta;
 pub mod storage;
 pub mod table;
 
+pub use fynix_macros::{Element, ElementSlot, ElementTemplate};
 pub use storage::{ElementId, Elements};
 pub use table::ElementTable;
 

@@ -168,11 +168,10 @@ mod tests {
     use field_path::field_accessor;
     use rectree::{Constraint, NodeContext, Size, Vec2};
 
+    use super::*;
     use crate::element::ElementBuild;
     use crate::element::layout::ElementNodes;
     use crate::init::Init;
-
-    use super::*;
 
     #[derive(Init, Element, Clone)]
     struct Label {

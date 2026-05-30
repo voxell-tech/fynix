@@ -1,1 +1,6 @@
 max_width = 70
+
+unstable_features = true
+format_strings = true
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"

@@ -1,11 +1,10 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-use crate::element::ElementGroup;
-use crate::element::{Element, ElementId};
-use crate::type_table::DynTypeMap;
-use crate::type_table::TypeMap;
 use typeslot::SlotGroup;
+
+use crate::element::{Element, ElementGroup, ElementId};
+use crate::type_table::{DynTypeMap, TypeMap};
 
 /// Slot-indexed element storage, keyed by [`ElementId`].
 ///

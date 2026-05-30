@@ -1,16 +1,10 @@
 use proc_macro::TokenStream;
-use proc_macro_crate::FoundCrate;
-use proc_macro_crate::crate_name;
-use proc_macro2::Ident;
-use proc_macro2::Span;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro_crate::{FoundCrate, crate_name};
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::Data;
-use syn::DataStruct;
-use syn::DeriveInput;
-use syn::Expr;
-use syn::Fields;
-use syn::parse_macro_input;
+use syn::{
+    Data, DataStruct, DeriveInput, Expr, Fields, parse_macro_input,
+};
 
 fn fynix_crate() -> TokenStream2 {
     match crate_name("fynix") {
@@ -55,8 +49,8 @@ pub fn derive_element_slot(input: TokenStream) -> TokenStream {
         .unwrap_or_else(|| {
             syn::Error::new_spanned(
                 input.ident,
-                "#[derive(TypeSlot)] only supports\
-                non-generic structs",
+                "#[derive(TypeSlot)] only supportsnon-generic \
+                 structs",
             )
             .to_compile_error()
         })
@@ -258,7 +252,7 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         return syn::Error::new_spanned(
             name,
             "#[derive(Element)] only supports non-generic structs, \
-            use #[derive(ElementTemplate)] instead",
+             use #[derive(ElementTemplate)] instead",
         )
         .to_compile_error()
         .into();

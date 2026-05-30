@@ -1,18 +1,16 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use fynix::Fynix;
 use fynix::ctx::FynixCtx;
 use fynix::element::ElementId;
-use fynix::rectree;
+use fynix::{Fynix, rectree};
 use fynix_elements::WindowSize;
 use imaging_vello::VelloSceneSink;
 use vello::kurbo::Rect;
 use vello::peniko::Color;
 use vello::util::{RenderContext, RenderSurface};
-use vello::wgpu;
 use vello::{
-    AaConfig, RenderParams, Renderer, RendererOptions, Scene,
+    AaConfig, RenderParams, Renderer, RendererOptions, Scene, wgpu,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;

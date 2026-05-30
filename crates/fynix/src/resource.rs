@@ -1,6 +1,6 @@
+use alloc::boxed::Box;
 use core::any::{Any, TypeId};
 
-use alloc::boxed::Box;
 use hashbrown::HashMap;
 
 // TODO(nixon): Use `TypeSlot` for this?

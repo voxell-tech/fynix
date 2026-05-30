@@ -5,18 +5,17 @@ extern crate alloc;
 
 use core::sync::atomic::{AtomicU8, Ordering};
 
+pub use field_path;
+pub use imaging;
 use imaging::PaintSink;
+pub use rectree;
+pub use typeslot;
 use typeslot::SlotGroup;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementGroup, ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
-
-pub use field_path;
-pub use imaging;
-pub use rectree;
-pub use typeslot;
 
 pub mod composer;
 pub mod ctx;
