@@ -5,8 +5,9 @@ use imaging::record::Scene;
 use rectree::RectNode;
 use typeslot::SlotGroup;
 
-use crate::element::ElementTable;
-use crate::element::{Element, ElementGroup, ElementId};
+use crate::element::{
+    Element, ElementGroup, ElementId, ElementTable,
+};
 use crate::style::StyleId;
 
 /// Per-element metadata.

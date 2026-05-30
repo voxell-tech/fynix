@@ -17,9 +17,9 @@ use fynix::prelude::*;
 use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 use parley::style::StyleProperty;
 use parley::{
-    Alignment, AlignmentOptions, FontStyle, PositionedLayoutItem,
+    Alignment, AlignmentOptions, FontContext, FontStyle,
+    LayoutContext, PositionedLayoutItem,
 };
-use parley::{FontContext, LayoutContext};
 
 #[derive(Init, Element, Debug, Clone, Copy)]
 pub struct WindowSize {
@@ -344,6 +344,7 @@ impl ElementBuild for Label {
                             style: &Style::Fill(Fill::NonZero),
                             brush: BrushRef::from(&style.brush),
                             composite: Composite::default(),
+                            brush_transform: None,
                         },
                         &mut glyphs,
                     );

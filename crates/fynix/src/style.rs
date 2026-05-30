@@ -1,7 +1,7 @@
-use core::any::TypeId;
-
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use core::any::TypeId;
+
 use field_path::accessor::UntypedAccessor;
 use field_path::field::UntypedField;
 use hashbrown::{HashMap, HashSet};

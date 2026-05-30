@@ -15,10 +15,10 @@ fynix_macros = { path = "crates/fynix_macros" }
 fynix_elements = { path = "crates/fynix_elements" }
 
 rectree = { git = "https://github.com/voxell-tech/rectree", rev = "08ddf2a" }
-field_path = { git = "https://github.com/voxell-tech/field_path", rev = "1e8f41c" }
+field_path = "0.4.1"
 parley = { version = "0.7.0", default-features = false, features = ["libm"] }
-imaging = { git = "https://github.com/forest-rs/imaging", rev = "e18778f", features = ["libm"] }
-imaging_vello = { git = "https://github.com/forest-rs/imaging", rev = "e18778f" }
+imaging = { version = "0.0.1", default-features = false }
+imaging_vello = { version = "0.0.1", default-features = false, features = ["vello-0-8"] }
 
 typeslot = { version = "0.3.0", git = "https://github.com/voxell-tech/typeslot", rev = "ead9111" }
 sparse_map = "0.1.2"

@@ -1,7 +1,7 @@
+use alloc::boxed::Box;
 use core::any::TypeId;
 use core::hash::Hash;
 
-use alloc::boxed::Box;
 use hashbrown::HashMap;
 use sparse_map::{Key, SparseMap};
 
@@ -311,8 +311,9 @@ where
 // }
 
 mod any_type_map {
-    use super::*;
     use core::any::TypeId;
+
+    use super::*;
 
     /// Private trait to prevent other types from implementing
     /// the [`AnyTypeMap`] trait.

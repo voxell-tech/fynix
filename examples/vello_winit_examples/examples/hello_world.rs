@@ -56,10 +56,10 @@ impl FynixDemo for HelloWorld {
                 v.add(ctx.add_with::<Label>(|label, _ctx| {
                     label.text =
                         "Lorem ipsum dolor sit amet consectetur \
-                        adipiscing elit. Placerat in id cursus mi \
-                        pretium tellus duis. Urna tempor pulvinar \
-                        vivamus fringilla lacus nec metus. Integer \
-                        nunc posuere ut hendrerit semper vel class."
+                         adipiscing elit. Placerat in id cursus mi \
+                         pretium tellus duis. Urna tempor pulvinar \
+                         vivamus fringilla lacus nec metus. Integer \
+                         nunc posuere ut hendrerit semper vel class."
                             .into();
                 }));
 
