@@ -32,8 +32,7 @@ fn on_click_button(
 }
 ```
 
-Registered into a `ELEMENT_INTERACTIONS` distributed slice via
-`linkme`, same pattern as `ELEMENT_COMPOSERS`.
+Registered via `inventory::submit!` / `inventory::iter`.
 
 ```rust
 pub struct UntypedInteractionHandler {
