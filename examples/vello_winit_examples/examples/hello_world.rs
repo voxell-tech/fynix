@@ -13,7 +13,6 @@ use winit::event_loop::EventLoop;
 
 const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 
-fynix::register_element!(EmptyBtn, Button<()>);
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
@@ -123,7 +122,7 @@ impl Composer<()> for TextButton<'_> {
         style: TextButtonStyle,
         ctx: &mut FynixCtx<'_, '_, ()>,
     ) -> ElementId {
-        ctx.add_with::<EmptyBtn>(|b, ctx| {
+        ctx.add_with::<Button<()>>(|b, ctx| {
             b.corner_radius = style.corner_radius;
             if let Some(bg_color) = style.bg_color {
                 b.fill = bg_color.into();

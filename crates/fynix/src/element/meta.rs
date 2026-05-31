@@ -3,16 +3,14 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 use imaging::record::Scene;
 use rectree::RectNode;
-use typeslot::SlotGroup;
 
-use crate::element::{
-    Element, ElementGroup, ElementId, ElementTable,
-};
+use crate::element::{Element, ElementId, ElementTable};
 use crate::style::StyleId;
+use crate::type_table::SlotId;
 
 /// Per-element metadata.
 pub struct ElementMeta {
-    pub slot: usize,
+    pub slot: SlotId,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
     /// When this element is removed, this style and all its
@@ -32,15 +30,16 @@ impl ElementMetas {
         }
     }
 
-    pub fn init_element<E: Element>(
+    pub(super) fn init_element(
         &mut self,
         id: ElementId,
+        slot: SlotId,
         primary_style: Option<StyleId>,
     ) {
         self.map.insert(
             id,
             ElementMeta {
-                slot: ElementGroup::slot::<E>(),
+                slot,
                 node: RectNode::new(None),
                 cached_scene: None,
                 primary_style,
@@ -72,43 +71,34 @@ impl Default for ElementMetas {
     }
 }
 
-/// Registry of per-type dispatch tables, one entry per
-/// element type.
-///
-/// Slot-indexed parallel to [`ElementTable`]: the column at
-/// index `ElementGroup::slot::<E>()` holds the
-/// [`ElementTypeMeta`] for `E`.
+/// Per-type dispatch table registry, slot-indexed.
 pub struct ElementTypeMetas {
     slots: Vec<Option<ElementTypeMeta>>,
 }
 
 impl ElementTypeMetas {
-    /// Creates an empty registry sized for all element types.
     pub fn new() -> Self {
-        let mut slots = Vec::new();
-        slots.resize_with(ElementGroup::len(), || None);
-        Self { slots }
+        Self { slots: Vec::new() }
     }
 
-    /// Registers `E` if it has not been registered yet.
-    pub fn register<E: Element>(&mut self) {
-        let slot = ElementGroup::slot::<E>();
-        if self.slots[slot].is_none() {
-            self.slots[slot] = Some(ElementTypeMeta::new::<E>());
+    /// Registers `E` at `slot` if it has not been registered yet.
+    ///
+    /// `slot` must have been obtained from
+    /// [`ElementTable::ensure_slot::<E>`].
+    pub fn register<E: Element>(&mut self, slot: SlotId) {
+        let i = slot.index();
+        if self.slots.len() <= i {
+            self.slots.resize_with(i + 1, || None);
         }
-    }
-
-    /// Returns the [`ElementTypeMeta`] for `E`, or `None` if
-    /// `E` has not been registered.
-    pub fn get<E: Element>(&self) -> Option<&ElementTypeMeta> {
-        let slot = ElementGroup::slot::<E>();
-        self.slots[slot].as_ref()
+        if self.slots[i].is_none() {
+            self.slots[i] = Some(ElementTypeMeta::new::<E>());
+        }
     }
 
     /// Returns the [`ElementTypeMeta`] for `slot`, or `None`
     /// if that slot has not been registered.
-    pub fn get_slot(&self, slot: usize) -> Option<&ElementTypeMeta> {
-        self.slots.get(slot)?.as_ref()
+    pub fn get_slot(&self, slot: SlotId) -> Option<&ElementTypeMeta> {
+        self.slots.get(slot.index())?.as_ref()
     }
 }
 

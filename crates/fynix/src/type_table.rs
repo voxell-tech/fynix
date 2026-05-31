@@ -56,9 +56,12 @@ impl<K> TypeTable<K>
 where
     K: Hash + Eq + 'static,
 {
-    /// Returns the slot for `T`, inserting a fresh column if
-    /// this is the first time `T` is seen.
-    fn slot_or_insert<T: 'static>(&mut self) -> SlotId {
+    /// Ensures the column for `T` exists and returns its [`SlotId`].
+    ///
+    /// Like [`Self::type_slot`] but creates the column on first call
+    /// rather than returning `None`. The returned id is stable for
+    /// the lifetime of this table.
+    pub fn ensure_slot<T: 'static>(&mut self) -> SlotId {
         match self.slots.entry(TypeId::of::<T>()) {
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => {
@@ -79,8 +82,8 @@ where
         key: K,
         value: T,
     ) -> Option<T> {
-        let slot = self.slot_or_insert::<T>();
-        // SAFETY: slot was just assigned for T by slot_or_insert.
+        let slot = self.ensure_slot::<T>();
+        // SAFETY: slot was just assigned for T by ensure_slot.
         let map = unsafe {
             self.columns[slot.0].downcast_unchecked_mut::<T>()
         };
@@ -162,6 +165,17 @@ where
         false
     }
 
+    /// Removes `key` from the column at `slot` without knowing the
+    /// value type at compile time.
+    ///
+    /// Returns `true` if the key was present and removed.
+    pub fn dyn_remove_by_slot(&mut self, slot: SlotId, key: &K) -> bool {
+        match self.columns.get_mut(slot.0) {
+            Some(col) => col.dyn_remove(key),
+            None => false,
+        }
+    }
+
     /// Removes `key` from every type column.
     ///
     /// Returns `true` if at least one column contained an
@@ -186,8 +200,14 @@ impl<K> Default for TypeTable<K> {
 /// Obtained from [`TypeTable::type_slot`] and passed to
 /// [`TypeTable::get_by_slot`] / [`TypeTable::get_mut_by_slot`]
 /// to skip the [`TypeId`] → slot [`HashMap`] lookup on hot paths.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SlotId(usize);
+
+impl SlotId {
+    pub fn index(self) -> usize {
+        self.0
+    }
+}
 
 /// Typed column inside a [`TypeTable`]: maps keys of type
 /// `K` to values of type `T`, backed by a [`SparseMap`]

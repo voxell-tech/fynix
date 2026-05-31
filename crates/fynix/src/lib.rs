@@ -3,17 +3,13 @@
 
 extern crate alloc;
 
-use core::sync::atomic::{AtomicU8, Ordering};
-
 pub use field_path;
 pub use imaging;
 use imaging::PaintSink;
 pub use rectree;
-pub use typeslot;
-use typeslot::SlotGroup;
 
 use crate::ctx::FynixCtx;
-use crate::element::{ElementGroup, ElementId, Elements};
+use crate::element::{ElementId, Elements};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
@@ -31,40 +27,12 @@ pub mod prelude {
     pub use crate::ctx::FynixCtx;
     pub use crate::element::{
         Element, ElementBuild, ElementChildren, ElementId,
-        ElementTemplate,
     };
     pub use crate::init::Init;
     pub use crate::style::{Stylable, path};
 }
 
 mod id;
-
-/// Initializes the Fynix framework.
-///
-/// Must be called before any element is added to a [`Fynix`]
-/// instance. Safe to call more than once - subsequent calls
-/// block until initialization is complete.
-fn init() {
-    // 0 = uninit, 1 = initializing, 2 = done.
-    static STATE: AtomicU8 = AtomicU8::new(0);
-
-    match STATE.compare_exchange(
-        0,
-        1,
-        Ordering::AcqRel,
-        Ordering::Acquire,
-    ) {
-        Ok(_) => {
-            ElementGroup::init();
-            STATE.store(2, Ordering::Release);
-        }
-        Err(_) => {
-            while STATE.load(Ordering::Acquire) != 2 {
-                core::hint::spin_loop();
-            }
-        }
-    }
-}
 
 /// Root application context. Owns the element tree, layout state,
 /// and style state.
@@ -80,7 +48,6 @@ pub struct Fynix {
 
 impl Fynix {
     pub fn new() -> Self {
-        init();
         Self {
             elements: Elements::new(),
             styles: Styles::new(),

@@ -202,7 +202,7 @@ impl ElementBuild for Pad {
     }
 }
 
-#[derive(Init, ElementTemplate)]
+#[derive(Init, Element)]
 pub struct Button<A: 'static> {
     pub on_click: Option<A>,
     #[init(Brush::Solid(Color::BLACK))]

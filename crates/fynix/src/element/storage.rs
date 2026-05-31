@@ -41,11 +41,12 @@ impl Elements {
         element: E,
         primary_style: Option<StyleId>,
     ) -> ElementId {
-        self.type_metas.register::<E>();
+        let slot = self.elements.ensure_slot::<E>();
+        self.type_metas.register::<E>(slot);
 
         let id = self.id_generator.new_id();
 
-        self.metas.init_element::<E>(id, primary_style);
+        self.metas.init_element(id, slot, primary_style);
         self.elements.insert(id, element);
         id
     }
