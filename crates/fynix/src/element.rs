@@ -61,8 +61,8 @@ pub trait ElementBuild {
     /// `constraint` is the already-narrowed constraint from
     /// [`Self::constrain`].
     ///
-    /// Use `nodes` to read and write child layout state. The
-    /// returned [`Size`] should fit within `constraint`.
+    /// Use `nodes` to read and write child layout state. The returned
+    /// [`Size`] should fit within `constraint`.
     fn build(
         &self,
         id: &ElementId,

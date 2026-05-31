@@ -3,11 +3,6 @@ use core::any::{Any, TypeId};
 
 use hashbrown::HashMap;
 
-// TODO(nixon): Use `TypeSlot` for this?
-//
-// Implication:
-// A derive is needed for all resource that needs to be registable.
-
 pub struct Resources {
     map: HashMap<TypeId, Box<dyn Any>>,
 }
@@ -21,9 +16,9 @@ impl Resources {
 
     // TODO(nixon): Add insert_or, insert_or_default
 
-    /// Temporarily removes `R`, calls `f` with mutable access to
-    /// both the resource and the remaining [`Resources`], then
-    /// reinserts it.
+    /// Temporarily removes `R`, calls `f` with mutable access to both
+    /// the resource and the remaining [`Resources`], then reinserts
+    /// it.
     ///
     /// Returns `None` if `R` is not present.
     pub fn scope<R: 'static, T>(
@@ -65,8 +60,8 @@ impl Resources {
         self.insert(R::default())
     }
 
-    /// Removes and returns the resource of type `R`, or `None` if
-    /// it was not present.
+    /// Removes and returns the resource of type `R`, or `None` if it
+    /// was not present.
     pub fn remove<R: 'static>(&mut self) -> Option<R> {
         let type_id = TypeId::of::<R>();
         self.map
@@ -74,8 +69,8 @@ impl Resources {
             .map(|r| *r.downcast().expect("Type mismatch!"))
     }
 
-    /// Removes the resource identified by `type_id`. Returns
-    /// `true` if it was present.
+    /// Removes the resource identified by `type_id`. Returns `true`
+    /// if it was present.
     pub fn remove_dyn(&mut self, type_id: &TypeId) -> bool {
         self.map.remove(type_id).is_some()
     }

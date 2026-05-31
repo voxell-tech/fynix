@@ -16,9 +16,9 @@ use crate::style::{Stylable, StyleId, StyleValue};
 ///
 /// Style changes queued with [`Self::set`] are committed into a new
 /// [`Style`] node the next time an element is added. Inside an
-/// [`Self::add_with`] closure, the outer `prev_style` is saved
-/// and restored after the closure returns, so inner style changes do
-/// not leak outward.
+/// [`Self::add_with`] closure, the outer `prev_style` is saved and
+/// restored after the closure returns, so inner style changes do not
+/// leak outward.
 ///
 /// [`Style`]: crate::style::Style
 pub struct FynixCtx<'f, 'w, W> {
@@ -94,8 +94,8 @@ impl<W> FynixCtx<'_, '_, W> {
         self.style_scoped(|ctx| composer.compose(style, ctx))
     }
 
-    /// Like [`Self::compose`], but runs `inline` after the style chain
-    /// is applied, allowing per-call field overrides.
+    /// Like [`Self::compose`], but runs `inline` after the style
+    /// chain is applied, allowing per-call field overrides.
     #[must_use]
     pub fn compose_with<C: Composer<W>>(
         &mut self,
@@ -107,15 +107,16 @@ impl<W> FynixCtx<'_, '_, W> {
         self.style_scoped(|ctx| composer.compose(style, ctx))
     }
 
-    /// Saves the current style scope, runs `scope`, then
-    /// restores it.
+    /// Saves the current style scope, runs `scope`, then restores it.
     ///
-    /// Prevents style changes made inside `scope` from leaking
-    /// into the outer scope. Any [`Self::set`] calls inside
-    /// `scope` do not affect elements added after this call
-    /// returns. The first style committed inside `scope` becomes
-    /// the element's `primary_style` - when that element is
-    /// removed, its style subtree is also removed.
+    /// Prevents style changes made inside `scope` from leaking into
+    /// the outer scope. Any [`Self::set`] calls inside `scope` do not
+    /// affect elements added after this call returns.
+    ///
+    /// The first style committed inside `scope` becomes the element's
+    /// [`primary_style`].
+    ///
+    /// [`primary_style`]: crate::element::meta::ElementMeta::primary_style
     fn style_scoped<T>(
         &mut self,
         scope: impl FnOnce(&mut Self) -> T,
@@ -259,8 +260,7 @@ mod tests {
                     v.add(ctx.add::<Label>());
                 });
 
-                // After the inner closure, "outer" style is
-                // restored.
+                // After the inner closure, "outer" style is restored.
                 v.add(inner_id);
                 v.add(ctx.add::<Label>());
             })
@@ -504,8 +504,8 @@ mod tests {
             let inner = ctx.compose_with(LabelComposer, |s| {
                 s.text = "inner";
             });
-            // Styles set inside compose must not affect elements added
-            // after it returns.
+            // Styles set inside compose must not affect elements
+            // added after it returns.
             let outer = ctx.add_with::<Label>(|l, _| {
                 l.text = "outer";
             });

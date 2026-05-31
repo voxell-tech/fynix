@@ -184,8 +184,8 @@ fn parse_field_attrs(
 ///
 /// Works for both generic and non-generic structs. Implement
 /// `ElementBuild` manually; `Element` is satisfied automatically via
-/// the blanket impl once `Init`, `ElementChildren`, and `ElementBuild`
-/// are all in scope.
+/// the blanket impl once `Init`, `ElementChildren`, and
+/// `ElementBuild` are all in scope.
 #[proc_macro_derive(Element, attributes(elem))]
 pub fn derive_element(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

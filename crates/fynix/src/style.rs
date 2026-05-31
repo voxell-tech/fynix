@@ -20,11 +20,12 @@ pub use storage::Styles;
 //     Replace(StyleId, StyleId, UntypedField),
 // }
 
-/// An immutable, committed snapshot of field changes for one
-/// style scope.
+/// An immutable, committed snapshot of field changes for one style
+/// scope.
 ///
-/// Each node links to its parent via `parent_id`, forming an inheritance
-/// chain that [`Styles::apply`] walks to resolve defaults.
+/// Each node links to its parent via `parent_id`, forming an
+/// inheritance chain that [`Styles::apply`] walks to resolve
+/// defaults.
 ///
 /// A node can have up to two children: `adjacent_child` (same scope,
 /// next sibling) and `nested_child` (one scope deeper). When a style
@@ -129,8 +130,8 @@ impl Span {
     }
 }
 
-/// Monomorphized function signature for writing one typed value into a
-/// source field.
+/// Monomorphized function signature for writing one typed value into
+/// a source field.
 ///
 /// Reads the value of type `T` from `values` at `key`, then writes it
 /// into `source` via `accessor`. Returns `true` on success.
@@ -183,8 +184,8 @@ impl<S: Stylable> SetStyle<S> {
         }
     }
 
-    /// Applies the setter. Returns `true` if both the accessor and the
-    /// value were found.
+    /// Applies the setter. Returns `true` if both the accessor and
+    /// the value were found.
     pub fn apply(
         &self,
         source: &mut S,
@@ -196,7 +197,8 @@ impl<S: Stylable> SetStyle<S> {
     }
 }
 
-/// Type-erased [`SetStyle<S>`], recoverable via [`typed`](UntypedSetStyle::typed).
+/// Type-erased [`SetStyle<S>`], recoverable via
+/// [`typed`](UntypedSetStyle::typed).
 #[derive(Debug, Clone, Copy)]
 pub struct UntypedSetStyle {
     source_id: TypeId,
@@ -204,7 +206,8 @@ pub struct UntypedSetStyle {
 }
 
 impl UntypedSetStyle {
-    /// Recovers the typed [`SetStyle<S>`] if `S` matches the source type.
+    /// Recovers the typed [`SetStyle<S>`] if `S` matches the source
+    /// type.
     pub fn typed<S: Stylable>(&self) -> Option<SetStyle<S>> {
         if TypeId::of::<S>() == self.source_id {
             return Some(unsafe { self.typed_unchecked() });

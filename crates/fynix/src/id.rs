@@ -6,11 +6,14 @@ use core::marker::PhantomData;
 
 /// A generational ID with a phantom type parameter `T`.
 ///
-/// The `generation` counter is bumped each time a raw `id` slot is recycled,
-/// preventing stale handles from accidentally matching a newly allocated ID
-/// (ABA problem). The phantom `T` makes IDs for different domains
-/// (e.g. [`ElementId`](crate::element::ElementId) vs
-/// [`StyleId`](crate::style::StyleId)) incompatible at the type level.
+/// The `generation` counter is bumped each time a raw `id` slot is
+/// recycled, preventing stale handles from accidentally matching a
+/// newly allocated ID (ABA problem). The phantom `T` makes IDs for
+/// different domains (e.g. [`ElementId`] vs [`StyleId`] incompatible
+/// at the type level).
+///
+/// [`ElementId`]: crate::element::ElementId
+/// [`StyleId`]: crate::style::StyleId
 pub struct GenId<T> {
     id: u32,
     generation: u32,
@@ -92,8 +95,8 @@ impl<T> Clone for GenId<T> {
 
 /// Allocates and recycles [`GenId<T>`] values.
 ///
-/// Recycled IDs are returned with a bumped generation so they are never equal
-/// to any previously issued ID for the same raw slot.
+/// Recycled IDs are returned with a bumped generation so they are
+/// never equal to any previously issued ID for the same raw slot.
 pub struct IdGenerator<T> {
     next_id: u32,
     unused_ids: Vec<GenId<T>>,

@@ -34,13 +34,14 @@ pub mod prelude {
 
 mod id;
 
-/// Root application context. Owns the element tree, layout state,
-/// and style state.
+/// Root application context. Owns the element tree, layout state, and
+/// style state.
 ///
-/// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building
-/// the UI.
+/// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building the
+/// UI.
 pub struct Fynix {
-    // TODO(nixon): Make these private and provide a more elegant API!
+    // TODO(nixon): Make these private and provide a more elegant
+    // API!
     pub elements: Elements,
     pub styles: Styles,
     pub resources: Resources,
@@ -71,8 +72,8 @@ impl Fynix {
 
     /// Removes an element and its associated primary style tree.
     ///
-    /// If the element has a `primary_style`, that style and all
-    /// its descendants in the style tree are also removed
+    /// If the element has a `primary_style`, that style and all its
+    /// descendants in the style tree are also removed
     ///
     /// Returns `true` if the element existed
     #[inline]

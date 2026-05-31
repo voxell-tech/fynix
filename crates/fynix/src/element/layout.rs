@@ -6,8 +6,7 @@ use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::resource::Resources;
 use crate::type_table::TypeTable;
 
-/// Immutable view of the element tree used to implement
-/// [`Rectree`].
+/// Immutable view of the element tree used to implement [`Rectree`].
 pub struct ElementTree<'a> {
     pub(super) elements: &'a TypeTable<ElementId>,
     pub(super) type_metas: &'a ElementTypeMetas,
@@ -101,8 +100,8 @@ impl ElementNodes<'_> {
     }
 }
 
-// TODO: Hide this implementation to the `build` fn. Maybe
-// add a `ElementNodesBuilder` wrapper struct.
+// TODO: Hide this implementation to the `build` fn. Maybe add a
+// `ElementNodesBuilder` wrapper struct.
 impl RectNodes for ElementNodes<'_> {
     type Id = ElementId;
 
