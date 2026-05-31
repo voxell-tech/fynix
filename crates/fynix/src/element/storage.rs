@@ -3,22 +3,24 @@ use imaging::PaintSink;
 use super::Element;
 use super::layout::{ElementNodes, ElementTree};
 use super::meta::{ElementMetas, ElementTypeMetas};
-use super::table::ElementTable;
 use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
+use crate::type_table::TypeTable;
 
 /// Type-erased storage for all element instances.
 ///
-/// Internally holds one [`ElementTable`] column per element
-/// type. The slot index of each element is stored inside
+/// Internally holds one column per element type inside a
+/// [`TypeTable`]. The [`ColumnId`] for each element is stored in
 /// [`ElementMetas`] so that polymorphic access (via
 /// [`Self::get_dyn`]) and removal work without knowing the
 /// concrete type at the call site.
+///
+/// [`ColumnId`]: crate::type_table::ColumnId
 pub struct Elements {
     // TODO(nixon): Make these private and provide a more
     // elegant API!
-    pub elements: ElementTable,
+    pub elements: TypeTable<ElementId>,
     pub metas: ElementMetas,
     pub type_metas: ElementTypeMetas,
     id_generator: ElementIdGenerator,
@@ -27,7 +29,7 @@ pub struct Elements {
 impl Elements {
     pub fn new() -> Self {
         Self {
-            elements: ElementTable::new(),
+            elements: TypeTable::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
             id_generator: IdGenerator::new(),
@@ -69,7 +71,7 @@ impl Elements {
         &self,
         id: &ElementId,
     ) -> Option<&E> {
-        self.elements.get::<E>(id)
+        self.elements.get(id)
     }
 
     /// Returns a mutable typed reference to the element.
@@ -80,7 +82,7 @@ impl Elements {
         &mut self,
         id: &ElementId,
     ) -> Option<&mut E> {
-        self.elements.get_mut::<E>(id)
+        self.elements.get_mut(id)
     }
 
     /// Recursively removes the element subtree along with their styles.
@@ -95,7 +97,7 @@ impl Elements {
             id: &ElementId,
             metas: &mut ElementMetas,
             type_metas: &ElementTypeMetas,
-            elements: &mut ElementTable,
+            elements: &mut TypeTable<ElementId>,
             id_generator: &mut ElementIdGenerator,
             styles: &mut Styles,
             mut has_removed_styles: bool,
@@ -161,7 +163,8 @@ impl Elements {
         let Some(meta) = self.metas.get(id) else {
             return;
         };
-        if let Some(type_meta) = self.type_metas.get_column(meta.col) {
+        if let Some(type_meta) = self.type_metas.get_column(meta.col)
+        {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
             {

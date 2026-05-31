@@ -17,7 +17,6 @@ fn fynix_crate() -> TokenStream2 {
     }
 }
 
-
 /// Derives `fynix::Init` for the annotated struct.
 ///
 /// Each field defaults to `Default::default()` unless annotated with
@@ -207,8 +206,13 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         .into();
     };
 
-    match element_children_impl(name, &fynix, &input.generics, s, attrs)
-    {
+    match element_children_impl(
+        name,
+        &fynix,
+        &input.generics,
+        s,
+        attrs,
+    ) {
         Ok(tokens) => tokens.into(),
         Err(e) => e.to_compile_error().into(),
     }

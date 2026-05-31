@@ -13,7 +13,6 @@ use winit::event_loop::EventLoop;
 
 const FONT: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 
-
 fn main() {
     let event_loop = EventLoop::new().unwrap();
     let mut app = VelloWinitApp::new(HelloWorld);

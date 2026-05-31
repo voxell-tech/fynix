@@ -8,11 +8,9 @@ use crate::init::Init;
 pub mod layout;
 pub mod meta;
 pub mod storage;
-pub mod table;
 
 pub use fynix_macros::Element;
 pub use storage::{ElementId, Elements};
-pub use table::ElementTable;
 
 /// Marker trait for element types.
 ///

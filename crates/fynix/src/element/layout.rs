@@ -3,13 +3,13 @@ use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 
 use crate::element::ElementId;
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
-use crate::element::table::ElementTable;
 use crate::resource::Resources;
+use crate::type_table::TypeTable;
 
 /// Immutable view of the element tree used to implement
 /// [`Rectree`].
 pub struct ElementTree<'a> {
-    pub(super) elements: &'a ElementTable,
+    pub(super) elements: &'a TypeTable<ElementId>,
     pub(super) type_metas: &'a ElementTypeMetas,
 }
 

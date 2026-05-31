@@ -180,6 +180,25 @@ where
         }
     }
 
+    /// Temporarily removes the `T`-typed value at `key`, calls `f` with
+    /// mutable access to both the value and the remaining table, then
+    /// reinserts it.
+    ///
+    /// Returns `None` if `key` is not present for `T`.
+    pub fn scope<T: 'static, R>(
+        &mut self,
+        key: &K,
+        f: impl FnOnce(&mut T, &mut Self) -> R,
+    ) -> Option<R>
+    where
+        K: Copy,
+    {
+        let mut value = self.remove::<T>(key)?;
+        let result = f(&mut value, self);
+        self.insert(*key, value);
+        Some(result)
+    }
+
     /// Removes `key` from every type column.
     ///
     /// Returns `true` if at least one column contained an

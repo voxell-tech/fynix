@@ -4,9 +4,9 @@ use hashbrown::HashMap;
 use imaging::record::Scene;
 use rectree::RectNode;
 
-use crate::element::{Element, ElementId, ElementTable};
+use crate::element::{Element, ElementId};
 use crate::style::StyleId;
-use crate::type_table::ColumnId;
+use crate::type_table::{ColumnId, TypeTable};
 
 /// Per-element metadata.
 pub struct ElementMeta {
@@ -47,8 +47,8 @@ impl ElementMetas {
         );
     }
 
-    /// Removes the element meta and returns its slot index
-    /// for type-erased element storage cleanup.
+    /// Removes the element meta and returns it for type-erased
+    /// element storage cleanup.
     pub fn remove(&mut self, id: &ElementId) -> Option<ElementMeta> {
         self.map.remove(id)
     }
@@ -81,10 +81,10 @@ impl ElementTypeMetas {
         Self { slots: Vec::new() }
     }
 
-    /// Registers `E` at `slot` if it has not been registered yet.
+    /// Registers `E` at `col` if it has not been registered yet.
     ///
-    /// `slot` must have been obtained from
-    /// [`ElementTable::ensure_column::<E>`].
+    /// `col` must have been obtained from
+    /// [`TypeTable::ensure_column::<E>`].
     pub fn register<E: Element>(&mut self, col: ColumnId) {
         let i = col.index();
         if self.slots.len() <= i {
@@ -95,9 +95,12 @@ impl ElementTypeMetas {
         }
     }
 
-    /// Returns the [`ElementTypeMeta`] for `slot`, or `None`
-    /// if that slot has not been registered.
-    pub fn get_column(&self, col: ColumnId) -> Option<&ElementTypeMeta> {
+    /// Returns the [`ElementTypeMeta`] for `col`, or `None`
+    /// if that column has not been registered.
+    pub fn get_column(
+        &self,
+        col: ColumnId,
+    ) -> Option<&ElementTypeMeta> {
         self.slots.get(col.index())?.as_ref()
     }
 }
@@ -131,7 +134,7 @@ impl ElementTypeMeta {
 
     pub fn get_dyn<'a>(
         &self,
-        table: &'a ElementTable,
+        table: &'a TypeTable<ElementId>,
         id: &ElementId,
     ) -> Option<&'a dyn Element> {
         (self.get_dyn_fn)(table, id)
@@ -141,7 +144,7 @@ impl ElementTypeMeta {
 /// Returns `&dyn Element` from the table without knowing the
 /// concrete type at the call site.
 pub type GetDynElementFn = for<'a> fn(
-    table: &'a ElementTable,
+    table: &'a TypeTable<ElementId>,
     id: &ElementId,
 ) -> Option<&'a dyn Element>;
 
@@ -149,7 +152,7 @@ pub type GetDynElementFn = for<'a> fn(
 /// element type `E`.
 #[inline]
 pub fn get_dyn_element<'a, E: Element>(
-    table: &'a ElementTable,
+    table: &'a TypeTable<ElementId>,
     id: &ElementId,
 ) -> Option<&'a dyn Element> {
     table.get::<E>(id).map(|e| e as &dyn Element)
@@ -166,23 +169,23 @@ pub fn get_dyn_element<'a, E: Element>(
 ///
 /// [`ElementChildren::children`]: super::ElementChildren::children
 pub type ForEachChildFn = fn(
-    table: &ElementTable,
+    table: &TypeTable<ElementId>,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
 );
 
 /// Like [`ForEachChildFn`], but temporarily removes the element via
-/// [`ElementTable::scope`] so the callback receives `&mut ElementTable`
+/// [`TypeTable::scope`] so the callback receives `&mut TypeTable<ElementId>`
 /// without a borrow conflict.
 pub type ForEachChildMutFn = fn(
-    table: &mut ElementTable,
+    table: &mut TypeTable<ElementId>,
     id: &ElementId,
-    f: &mut dyn FnMut(&ElementId, &mut ElementTable),
+    f: &mut dyn FnMut(&ElementId, &mut TypeTable<ElementId>),
 );
 
 #[inline]
 pub fn for_each_child<E: Element>(
-    table: &ElementTable,
+    table: &TypeTable<ElementId>,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
 ) {
@@ -193,17 +196,17 @@ pub fn for_each_child<E: Element>(
     }
 }
 
-/// Like [`for_each_child`], but uses [`ElementTable::scope`] to lend
-/// `&mut ElementTable` to the callback.
+/// Like [`for_each_child`], but uses [`TypeTable::scope`] to lend
+/// `&mut TypeTable<ElementId>` to the callback.
 ///
 /// The element at `id` is absent from the table for the duration of
 /// the callback, so the callback may freely mutate it (e.g. to
 /// recursively remove children) without a borrow conflict.
 #[inline]
 pub fn for_each_child_mut<E: Element>(
-    table: &mut ElementTable,
+    table: &mut TypeTable<ElementId>,
     id: &ElementId,
-    f: &mut dyn FnMut(&ElementId, &mut ElementTable),
+    f: &mut dyn FnMut(&ElementId, &mut TypeTable<ElementId>),
 ) {
     table.scope::<E, _>(id, |element, table| {
         for child in element.children() {
