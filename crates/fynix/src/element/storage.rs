@@ -3,22 +3,24 @@ use imaging::PaintSink;
 use super::Element;
 use super::layout::{ElementNodes, ElementTree};
 use super::meta::{ElementMetas, ElementTypeMetas};
-use super::table::ElementTable;
 use crate::id::{GenId, IdGenerator};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
+use crate::type_table::TypeTable;
 
 /// Type-erased storage for all element instances.
 ///
-/// Internally holds one [`ElementTable`] column per element
-/// type. The slot index of each element is stored inside
+/// Internally holds one column per element type inside a
+/// [`TypeTable`]. The [`ColumnId`] for each element is stored in
 /// [`ElementMetas`] so that polymorphic access (via
 /// [`Self::get_dyn`]) and removal work without knowing the
 /// concrete type at the call site.
+///
+/// [`ColumnId`]: crate::type_table::ColumnId
 pub struct Elements {
     // TODO(nixon): Make these private and provide a more
     // elegant API!
-    pub elements: ElementTable,
+    pub elements: TypeTable<ElementId>,
     pub metas: ElementMetas,
     pub type_metas: ElementTypeMetas,
     id_generator: ElementIdGenerator,
@@ -27,7 +29,7 @@ pub struct Elements {
 impl Elements {
     pub fn new() -> Self {
         Self {
-            elements: ElementTable::new(),
+            elements: TypeTable::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
             id_generator: IdGenerator::new(),
@@ -41,11 +43,12 @@ impl Elements {
         element: E,
         primary_style: Option<StyleId>,
     ) -> ElementId {
-        self.type_metas.register::<E>();
+        let col = self.elements.ensure_column::<E>();
+        self.type_metas.register::<E>(col);
 
         let id = self.id_generator.new_id();
 
-        self.metas.init_element::<E>(id, primary_style);
+        self.metas.init_element(id, col, primary_style);
         self.elements.insert(id, element);
         id
     }
@@ -55,8 +58,8 @@ impl Elements {
     /// Prefer [`get_typed`](Elements::get_typed) when the
     /// concrete type is known, it avoids the getter dispatch.
     pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
-        let slot = self.metas.get(id)?.slot;
-        let type_meta = self.type_metas.get_slot(slot)?;
+        let col = self.metas.get(id)?.col;
+        let type_meta = self.type_metas.get_column(col)?;
         type_meta.get_dyn(&self.elements, id)
     }
 
@@ -68,7 +71,7 @@ impl Elements {
         &self,
         id: &ElementId,
     ) -> Option<&E> {
-        self.elements.get::<E>(id)
+        self.elements.get(id)
     }
 
     /// Returns a mutable typed reference to the element.
@@ -79,7 +82,7 @@ impl Elements {
         &mut self,
         id: &ElementId,
     ) -> Option<&mut E> {
-        self.elements.get_mut::<E>(id)
+        self.elements.get_mut(id)
     }
 
     /// Recursively removes the element subtree along with their styles.
@@ -94,14 +97,14 @@ impl Elements {
             id: &ElementId,
             metas: &mut ElementMetas,
             type_metas: &ElementTypeMetas,
-            elements: &mut ElementTable,
+            elements: &mut TypeTable<ElementId>,
             id_generator: &mut ElementIdGenerator,
             styles: &mut Styles,
             mut has_removed_styles: bool,
         ) -> bool {
             if let Some(meta) = metas.remove(id)
                 && let Some(type_meta) =
-                    type_metas.get_slot(meta.slot)
+                    type_metas.get_column(meta.col)
             {
                 if !has_removed_styles
                     && let Some(primary_style) = meta.primary_style
@@ -126,7 +129,7 @@ impl Elements {
                     },
                 );
 
-                elements.dyn_remove_by_slot(meta.slot, id);
+                elements.dyn_remove_by_column(meta.col, id);
                 id_generator.recycle(*id);
                 return true;
             }
@@ -160,7 +163,8 @@ impl Elements {
         let Some(meta) = self.metas.get(id) else {
             return;
         };
-        if let Some(type_meta) = self.type_metas.get_slot(meta.slot) {
+        if let Some(type_meta) = self.type_metas.get_column(meta.col)
+        {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
             {

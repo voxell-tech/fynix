@@ -3,13 +3,13 @@ use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 
 use crate::element::ElementId;
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
-use crate::element::table::ElementTable;
 use crate::resource::Resources;
+use crate::type_table::TypeTable;
 
 /// Immutable view of the element tree used to implement
 /// [`Rectree`].
 pub struct ElementTree<'a> {
-    pub(super) elements: &'a ElementTable,
+    pub(super) elements: &'a TypeTable<ElementId>,
     pub(super) type_metas: &'a ElementTypeMetas,
 }
 
@@ -26,7 +26,7 @@ impl<'a> Rectree for ElementTree<'a> {
         if let Some(type_meta) = nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get_slot(m.slot))
+            .and_then(|m| self.type_metas.get_column(m.col))
         {
             (type_meta.for_each_child_fn)(
                 self.elements,
@@ -45,7 +45,7 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get_slot(m.slot))
+            .and_then(|m| self.type_metas.get_column(m.col))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.constrain(parent))
@@ -63,7 +63,7 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get_slot(m.slot))
+            .and_then(|m| self.type_metas.get_column(m.col))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.build(id, constraint, nodes))
