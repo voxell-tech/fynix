@@ -6,7 +6,7 @@ use hashbrown::{HashMap, HashSet};
 use sparse_map::{Key, SparseMap};
 
 use crate::ctx::FynixCtx;
-use crate::element::{Element, ElementId};
+use crate::element::ElementId;
 use crate::id::{GenId, IdGenerator};
 use crate::signal::meta::SignalMetas;
 use crate::type_table::TypeTable;
