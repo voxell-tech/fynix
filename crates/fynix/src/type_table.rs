@@ -85,7 +85,7 @@ where
         let col = self.ensure_column::<T>();
         // SAFETY: col was just assigned for T by ensure_column.
         let map = unsafe {
-            self.columns[col.0].downcast_unchecked_mut::<T>()
+            self.columns[col.index()].downcast_unchecked_mut::<T>()
         };
         map.insert(key, value)
     }
@@ -96,7 +96,7 @@ where
         let col = self.columns_map.get(&TypeId::of::<T>())?;
         // SAFETY: col was assigned for T.
         let map = unsafe {
-            self.columns[col.0].downcast_unchecked_ref::<T>()
+            self.columns[col.index()].downcast_unchecked_ref::<T>()
         };
         map.get(key)
     }
@@ -107,7 +107,7 @@ where
         let col = self.columns_map.get(&TypeId::of::<T>())?;
         // SAFETY: col was assigned for T.
         let map = unsafe {
-            self.columns[col.0].downcast_unchecked_mut::<T>()
+            self.columns[col.index()].downcast_unchecked_mut::<T>()
         };
         map.get_mut(key)
     }
@@ -122,7 +122,7 @@ where
         col: ColumnId,
         key: &K,
     ) -> Option<&T> {
-        self.columns.get(col.0)?.downcast_ref::<T>()?.get(key)
+        self.columns.get(col.index())?.downcast_ref::<T>()?.get(key)
     }
 
     /// Returns a mutable reference to the `T`-typed value stored
@@ -136,7 +136,7 @@ where
         key: &K,
     ) -> Option<&mut T> {
         self.columns
-            .get_mut(col.0)?
+            .get_mut(col.index())?
             .downcast_mut::<T>()?
             .get_mut(key)
     }
@@ -147,7 +147,7 @@ where
         let col = self.columns_map.get(&TypeId::of::<T>())?;
         // SAFETY: col was assigned for T.
         let map = unsafe {
-            self.columns[col.0].downcast_unchecked_mut::<T>()
+            self.columns[col.index()].downcast_unchecked_mut::<T>()
         };
         map.remove(key)
     }
@@ -160,7 +160,7 @@ where
     /// present in it.
     pub fn dyn_remove(&mut self, type_id: &TypeId, key: &K) -> bool {
         if let Some(col) = self.columns_map.get(type_id) {
-            return self.columns[col.0].dyn_remove(key);
+            return self.columns[col.index()].dyn_remove(key);
         }
         false
     }
@@ -169,8 +169,12 @@ where
     /// value type at compile time.
     ///
     /// Returns `true` if the key was present and removed.
-    pub fn dyn_remove_by_column(&mut self, col: ColumnId, key: &K) -> bool {
-        match self.columns.get_mut(col.0) {
+    pub fn dyn_remove_by_column(
+        &mut self,
+        col: ColumnId,
+        key: &K,
+    ) -> bool {
+        match self.columns.get_mut(col.index()) {
             Some(col) => col.dyn_remove(key),
             None => false,
         }

@@ -186,11 +186,10 @@ impl Styles {
                     self.registry.get(field)
                     && let Some(set_style) = untyped_set.typed::<S>()
                 {
-                    let key = StyleValueId::new(id, *field);
                     set_style.apply(
                         source,
                         accessor,
-                        &key,
+                        &StyleValueId::new(id, *field),
                         &self.style_values,
                     );
                     applied.insert(*field);

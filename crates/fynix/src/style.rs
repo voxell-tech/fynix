@@ -189,10 +189,10 @@ impl<S: Stylable> SetStyle<S> {
         &self,
         source: &mut S,
         accessor: &UntypedAccessor,
-        key: &StyleValueId,
+        id: &StyleValueId,
         values: &TypeTable<StyleValueId>,
     ) -> bool {
-        (self.set_fn)(source, accessor, key, values)
+        (self.set_fn)(source, accessor, id, values)
     }
 }
 
