@@ -13,8 +13,8 @@ use crate::type_table::TypeTable;
 /// Internally holds one column per element type inside a
 /// [`TypeTable`]. The [`ColumnId`] for each element is stored in
 /// [`ElementMetas`] so that polymorphic access (via
-/// [`Self::get_dyn`]) and removal work without knowing the
-/// concrete type at the call site.
+/// [`Self::get_dyn`]) and removal work without knowing the concrete
+/// type at the call site.
 ///
 /// [`ColumnId`]: crate::type_table::ColumnId
 pub struct Elements {
@@ -36,8 +36,8 @@ impl Elements {
         }
     }
 
-    /// Stores `element`, registers its type getter if needed,
-    /// and returns a fresh [`ElementId`].
+    /// Stores `element`, registers its type getter if needed, and
+    /// returns a fresh [`ElementId`].
     pub fn add<E: Element>(
         &mut self,
         element: E,
@@ -55,8 +55,8 @@ impl Elements {
 
     /// Returns a type-erased reference to the element.
     ///
-    /// Prefer [`get_typed`](Elements::get_typed) when the
-    /// concrete type is known, it avoids the getter dispatch.
+    /// Prefer [`get_typed`](Elements::get_typed) when the concrete
+    /// type is known, it avoids the getter dispatch.
     pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
         let col = self.metas.get(id)?.col;
         let type_meta = self.type_metas.get_column(col)?;
@@ -65,8 +65,8 @@ impl Elements {
 
     /// Returns a typed reference to the element.
     ///
-    /// Returns `None` if `id` does not exist or does not
-    /// hold a value of type `E`.
+    /// Returns `None` if `id` does not exist or does not hold a value
+    /// of type `E`.
     pub fn get_typed<E: Element>(
         &self,
         id: &ElementId,
@@ -76,8 +76,8 @@ impl Elements {
 
     /// Returns a mutable typed reference to the element.
     ///
-    /// Returns `None` if `id` does not exist or does not
-    /// hold a value of type `E`.
+    /// Returns `None` if `id` does not exist or does not hold a value
+    /// of type `E`.
     pub fn get_typed_mut<E: Element>(
         &mut self,
         id: &ElementId,
@@ -85,7 +85,8 @@ impl Elements {
         self.elements.get_mut(id)
     }
 
-    /// Recursively removes the element subtree along with their styles.
+    /// Recursively removes the element subtree along with their
+    /// styles.
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(
@@ -178,12 +179,12 @@ impl Elements {
         }
     }
 
-    /// Runs a full three-pass layout cycle on the subtree
-    /// rooted at `id`.
+    /// Runs a full three-pass layout cycle on the subtree rooted at
+    /// `id`.
     ///
-    /// The caller is responsible for setting the node's
-    /// constraint on [`ElementMetas`] before calling this if
-    /// a specific size is required.
+    /// The caller is responsible for setting the node's constraint on
+    /// [`ElementMetas`] before calling this if a specific size is
+    /// required.
     pub fn layout(
         &mut self,
         id: &ElementId,

@@ -95,8 +95,8 @@ impl ElementTypeMetas {
         }
     }
 
-    /// Returns the [`ElementTypeMeta`] for `col`, or `None`
-    /// if that column has not been registered.
+    /// Returns the [`ElementTypeMeta`] for `col`, or `None` if that
+    /// column has not been registered.
     pub fn get_column(
         &self,
         col: ColumnId,
@@ -113,10 +113,9 @@ impl Default for ElementTypeMetas {
 
 /// Monomorphized function pointers for a single element type.
 ///
-/// Registered once per type via
-/// [`ElementTypeMetas::register`]. Each function implements
-/// one step of the layout protocol without knowing the
-/// concrete type at the call site.
+/// Registered once per type via [`ElementTypeMetas::register`].
+/// Each function implements one step of the layout protocol without
+/// knowing the concrete type at the call site.
 pub struct ElementTypeMeta {
     pub get_dyn_fn: GetDynElementFn,
     pub for_each_child_fn: ForEachChildFn,
@@ -141,15 +140,15 @@ impl ElementTypeMeta {
     }
 }
 
-/// Returns `&dyn Element` from the table without knowing the
-/// concrete type at the call site.
+/// Returns `&dyn Element` from the table without knowing the concrete
+/// type at the call site.
 pub type GetDynElementFn = for<'a> fn(
     table: &'a TypeTable<ElementId>,
     id: &ElementId,
 ) -> Option<&'a dyn Element>;
 
-/// Monomorphized implementation of [`GetDynElementFn`] for
-/// element type `E`.
+/// Monomorphized implementation of [`GetDynElementFn`] for element
+/// type `E`.
 #[inline]
 pub fn get_dyn_element<'a, E: Element>(
     table: &'a TypeTable<ElementId>,
@@ -162,10 +161,9 @@ pub fn get_dyn_element<'a, E: Element>(
 /// [`ElementId`] the element yields from
 /// [`ElementChildren::children`].
 ///
-/// Using a visitor avoids the need to name the concrete
-/// iterator type returned by [`ElementChildren::children`], which
-/// differs per `E` and cannot be expressed in a
-/// function-pointer signature.
+/// Using a visitor avoids the need to name the concrete iterator type
+/// returned by [`ElementChildren::children`], which differs per `E`
+/// and cannot be expressed in a function-pointer signature.
 ///
 /// [`ElementChildren::children`]: super::ElementChildren::children
 pub type ForEachChildFn = fn(
@@ -175,8 +173,8 @@ pub type ForEachChildFn = fn(
 );
 
 /// Like [`ForEachChildFn`], but temporarily removes the element via
-/// [`TypeTable::scope`] so the callback receives `&mut TypeTable<ElementId>`
-/// without a borrow conflict.
+/// [`TypeTable::scope`] so the callback receives `&mut
+/// TypeTable<ElementId>` without a borrow conflict.
 pub type ForEachChildMutFn = fn(
     table: &mut TypeTable<ElementId>,
     id: &ElementId,

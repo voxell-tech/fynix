@@ -68,7 +68,8 @@ impl Styles {
     /// node and advances to a fresh [`StyleId`].
     ///
     /// `parent_id` links the new node into the inheritance chain so
-    /// that [`apply`](Styles::apply) can walk up to ancestor defaults.
+    /// that [`apply`](Styles::apply) can walk up to ancestor
+    /// defaults.
     ///
     /// `is_nested` controls which child slot on the parent is used:
     /// `true` sets `nested_child` (one scope deeper), `false` sets

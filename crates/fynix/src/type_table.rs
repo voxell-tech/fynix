@@ -7,13 +7,11 @@ use hashbrown::HashMap;
 use hashbrown::hash_map::Entry;
 use sparse_map::{Key, SparseMap};
 
-/// Heterogeneous table mapping keys of type `K` to typed
-/// values.
+/// Heterogeneous table mapping keys of type `K` to typed values.
 ///
-/// Each key can be associated with at most one value per
-/// concrete type `T`. Internally, one [`TypeMap<K, T>`]
-/// column is allocated the first time a value of type `T`
-/// is inserted.
+/// Each key can be associated with at most one value per concrete
+/// type `T`. Internally, one [`TypeMap<K, T>`] column is allocated
+/// the first time a value of type `T` is inserted.
 ///
 /// ## Mental model
 ///
@@ -23,10 +21,10 @@ use sparse_map::{Key, SparseMap};
 /// | k2  | -     | -     | -24   |
 /// | k3  | 3.14  | -     | -     |
 ///
-/// Columns are stored in a [`Vec`] and indexed by a column
-/// number. The `slots` map translates [`TypeId`] to a column
-/// index once on first use; subsequent accesses go straight
-/// to the [`Vec`] by index.
+/// Columns are stored in a [`Vec`] and indexed by a column number.
+/// The `slots` map translates [`TypeId`] to a column index once on
+/// first use; subsequent accesses go straight to the [`Vec`] by
+/// index.
 pub struct TypeTable<K> {
     columns_map: HashMap<TypeId, ColumnId>,
     columns: Vec<DynTypeMap<K>>,
@@ -41,12 +39,11 @@ impl<K> TypeTable<K> {
         }
     }
 
-    /// Returns the [`ColumnId`] for `T`, or `None` if no value
-    /// of type `T` has ever been inserted.
+    /// Returns the [`ColumnId`] for `T`, or `None` if no value of
+    /// type `T` has ever been inserted.
     ///
-    /// The returned id is stable for the lifetime of this
-    /// table and can be stored to bypass the [`TypeId`] lookup
-    /// on hot paths.
+    /// The returned id is stable for the lifetime of this table and
+    /// can be stored to bypass the [`TypeId`] lookup on hot paths.
     pub fn type_column<T: 'static>(&self) -> Option<ColumnId> {
         self.columns_map.get(&TypeId::of::<T>()).copied()
     }
@@ -56,11 +53,12 @@ impl<K> TypeTable<K>
 where
     K: Hash + Eq + 'static,
 {
-    /// Ensures the column for `T` exists and returns its [`ColumnId`].
+    /// Ensures the column for `T` exists and returns its
+    /// [`ColumnId`].
     ///
-    /// Like [`Self::type_column`] but creates the column on first call
-    /// rather than returning `None`. The returned id is stable for
-    /// the lifetime of this table.
+    /// Like [`Self::type_column`] but creates the column on first
+    /// call rather than returning `None`. The returned id is stable
+    /// for the lifetime of this table.
     pub fn ensure_column<T: 'static>(&mut self) -> ColumnId {
         match self.columns_map.entry(TypeId::of::<T>()) {
             Entry::Occupied(e) => *e.get(),
@@ -90,8 +88,8 @@ where
         map.insert(key, value)
     }
 
-    /// Returns a reference to the `T`-typed value stored
-    /// under `key`, or `None` if no such entry exists.
+    /// Returns a reference to the `T`-typed value stored under `key`,
+    /// or `None` if no such entry exists.
     pub fn get<T: 'static>(&self, key: &K) -> Option<&T> {
         let col = self.columns_map.get(&TypeId::of::<T>())?;
         // SAFETY: col was assigned for T.
@@ -101,8 +99,8 @@ where
         map.get(key)
     }
 
-    /// Returns a mutable reference to the `T`-typed value
-    /// stored under `key`, or `None` if no such entry exists.
+    /// Returns a mutable reference to the `T`-typed value stored
+    /// under `key`, or `None` if no such entry exists.
     pub fn get_mut<T: 'static>(&mut self, key: &K) -> Option<&mut T> {
         let col = self.columns_map.get(&TypeId::of::<T>())?;
         // SAFETY: col was assigned for T.
@@ -112,11 +110,11 @@ where
         map.get_mut(key)
     }
 
-    /// Returns a reference to the `T`-typed value stored under
-    /// `key` using a pre-resolved [`ColumnId`].
+    /// Returns a reference to the `T`-typed value stored under `key`
+    /// using a pre-resolved [`ColumnId`].
     ///
-    /// Returns `None` if `col` is out of bounds, the column holds
-    /// a different type, or `key` is absent.
+    /// Returns `None` if `col` is out of bounds, the column holds a
+    /// different type, or `key` is absent.
     pub fn get_by_column<T: 'static>(
         &self,
         col: ColumnId,
@@ -128,8 +126,8 @@ where
     /// Returns a mutable reference to the `T`-typed value stored
     /// under `key` using a pre-resolved [`ColumnId`].
     ///
-    /// Returns `None` if `col` is out of bounds, the column holds
-    /// a different type, or `key` is absent.
+    /// Returns `None` if `col` is out of bounds, the column holds a
+    /// different type, or `key` is absent.
     pub fn get_mut_by_column<T: 'static>(
         &mut self,
         col: ColumnId,
@@ -141,8 +139,8 @@ where
             .get_mut(key)
     }
 
-    /// Removes and returns the `T`-typed value stored under
-    /// `key`, or `None` if none exists.
+    /// Removes and returns the `T`-typed value stored under `key`, or
+    /// `None` if none exists.
     pub fn remove<T: 'static>(&mut self, key: &K) -> Option<T> {
         let col = self.columns_map.get(&TypeId::of::<T>())?;
         // SAFETY: col was assigned for T.
@@ -152,12 +150,11 @@ where
         map.remove(key)
     }
 
-    /// Removes `key` from the column identified by
-    /// `type_id`, without knowing the value type at compile
-    /// time.
+    /// Removes `key` from the column identified by `type_id`, without
+    /// knowing the value type at compile time.
     ///
-    /// Returns `true` if the column existed and the key was
-    /// present in it.
+    /// Returns `true` if the column existed and the key was present
+    /// in it.
     pub fn dyn_remove(&mut self, type_id: &TypeId, key: &K) -> bool {
         if let Some(col) = self.columns_map.get(type_id) {
             return self.columns[col.index()].dyn_remove(key);
@@ -180,9 +177,9 @@ where
         }
     }
 
-    /// Temporarily removes the `T`-typed value at `key`, calls `f` with
-    /// mutable access to both the value and the remaining table, then
-    /// reinserts it.
+    /// Temporarily removes the `T`-typed value at `key`, calls `f`
+    /// with mutable access to both the value and the remaining table,
+    /// then reinserts it.
     ///
     /// Returns `None` if `key` is not present for `T`.
     pub fn scope<T: 'static, R>(
@@ -201,8 +198,8 @@ where
 
     /// Removes `key` from every type column.
     ///
-    /// Returns `true` if at least one column contained an
-    /// entry for `key`.
+    /// Returns `true` if at least one column contained an entry for
+    /// `key`.
     pub fn remove_all(&mut self, key: &K) -> bool {
         let mut has_removed = false;
         for col in &mut self.columns {
@@ -221,8 +218,8 @@ impl<K> Default for TypeTable<K> {
 /// Opaque index into a [`TypeTable`]'s column [`Vec`].
 ///
 /// Obtained from [`TypeTable::type_column`] and passed to
-/// [`TypeTable::get_by_column`] / [`TypeTable::get_mut_by_column`]
-/// to skip the [`TypeId`] → slot [`HashMap`] lookup on hot paths.
+/// [`TypeTable::get_by_column`] / [`TypeTable::get_mut_by_column`] to
+/// skip the [`TypeId`] → slot [`HashMap`] lookup on hot paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ColumnId(usize);
 
@@ -232,9 +229,9 @@ impl ColumnId {
     }
 }
 
-/// Typed column inside a [`TypeTable`]: maps keys of type
-/// `K` to values of type `T`, backed by a [`SparseMap`]
-/// for cache-friendly dense storage.
+/// Typed column inside a [`TypeTable`]: maps keys of type `K` to
+/// values of type `T`, backed by a [`SparseMap`] for cache-friendly
+/// dense storage.
 pub struct TypeMap<K, T> {
     values: SparseMap<T>,
     map: HashMap<K, Key>,
@@ -262,8 +259,7 @@ where
 {
     /// Inserts `value` under `key`.
     ///
-    /// Returns the displaced value if one was already
-    /// present.
+    /// Returns the displaced value if one was already present.
     pub fn insert(&mut self, key: K, value: T) -> Option<T> {
         let mut previous = None;
         if let Some(sparse_key) = self.map.get(&key) {
@@ -276,20 +272,20 @@ where
         previous
     }
 
-    /// Returns a reference to the value stored under `key`,
-    /// or `None` if absent.
+    /// Returns a reference to the value stored under `key`, or `None`
+    /// if absent.
     pub fn get(&self, key: &K) -> Option<&T> {
         self.map.get(key).and_then(|k| self.values.get(k))
     }
 
-    /// Returns a mutable reference to the value stored under
-    /// `key`, or `None` if absent.
+    /// Returns a mutable reference to the value stored under `key`,
+    /// or `None` if absent.
     pub fn get_mut(&mut self, key: &K) -> Option<&mut T> {
         self.map.get(key).and_then(|k| self.values.get_mut(k))
     }
 
-    /// Removes and returns the value stored under `key`,
-    /// or `None` if absent.
+    /// Removes and returns the value stored under `key`, or `None` if
+    /// absent.
     pub fn remove(&mut self, key: &K) -> Option<T> {
         self.map.remove(key).and_then(|k| self.values.remove(&k))
     }
@@ -300,8 +296,8 @@ mod any_type_map {
 
     use super::*;
 
-    /// Private trait to prevent other types from implementing
-    /// the [`AnyTypeMap`] trait.
+    /// Private trait to prevent other types from implementing the
+    /// [`AnyTypeMap`] trait.
     trait Seal {}
     impl<K, T: 'static> Seal for TypeMap<K, T> {}
 
@@ -335,6 +331,7 @@ mod any_type_map {
         pub fn element_is<T: 'static>(&self) -> bool {
             self.element_type_id() == TypeId::of::<T>()
         }
+
         #[allow(unused)]
         #[inline]
         pub fn downcast_ref<T: 'static>(
@@ -346,6 +343,7 @@ mod any_type_map {
                 None
             }
         }
+
         #[allow(unused)]
         #[inline]
         pub fn downcast_mut<T: 'static>(
@@ -357,6 +355,7 @@ mod any_type_map {
                 None
             }
         }
+
         /// # Safety
         ///
         /// Calling this method with the incorrect type is
@@ -368,6 +367,7 @@ mod any_type_map {
             debug_assert!(self.element_is::<T>());
             unsafe { &*(self as *const Self as *const TypeMap<K, T>) }
         }
+
         /// # Safety
         ///
         /// Calling this method with the incorrect type is
