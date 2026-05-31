@@ -15,10 +15,10 @@ pub mod storage;
 pub use field_path::field_accessor as path;
 pub use storage::Styles;
 
-pub enum StyleCommand {
-    Set(StyleId, UntypedField),
-    Replace(StyleId, StyleId, UntypedField),
-}
+// pub enum StyleCommand {
+//     Set(StyleId, UntypedField),
+//     Replace(StyleId, StyleId, UntypedField),
+// }
 
 /// An immutable, committed snapshot of field changes for one
 /// style scope.
@@ -143,7 +143,7 @@ pub type SetStyleFn<S> = fn(
 
 /// Concrete implementation of [`SetStyleFn`] for the `(S, T)` pair.
 #[inline]
-pub fn set_style<S: 'static, T: StyleValue>(
+pub fn set_style<S: Stylable, T: StyleValue>(
     source: &mut S,
     accessor: &UntypedAccessor,
     key: &StyleValueId,
@@ -162,11 +162,11 @@ pub fn set_style<S: 'static, T: StyleValue>(
 ///
 /// Created once per `(S, T)` pair and stored type-erased as
 /// [`UntypedSetStyle`] in the [`Styles`] registry.
-pub struct SetStyle<S: 'static> {
+pub struct SetStyle<S: Stylable> {
     set_fn: SetStyleFn<S>,
 }
 
-impl<S> SetStyle<S> {
+impl<S: Stylable> SetStyle<S> {
     /// Creates a `SetStyle` monomorphized for value type `T`.
     pub fn new<T: StyleValue>() -> Self {
         Self {
@@ -205,7 +205,7 @@ pub struct UntypedSetStyle {
 
 impl UntypedSetStyle {
     /// Recovers the typed [`SetStyle<S>`] if `S` matches the source type.
-    pub fn typed<S>(&self) -> Option<SetStyle<S>> {
+    pub fn typed<S: Stylable>(&self) -> Option<SetStyle<S>> {
         if TypeId::of::<S>() == self.source_id {
             return Some(unsafe { self.typed_unchecked() });
         }
@@ -218,7 +218,9 @@ impl UntypedSetStyle {
     /// # Safety
     ///
     /// `S` must be the source type this setter was created for.
-    pub const unsafe fn typed_unchecked<S>(&self) -> SetStyle<S> {
+    pub const unsafe fn typed_unchecked<S: Stylable>(
+        &self,
+    ) -> SetStyle<S> {
         unsafe {
             use core::mem::transmute;
             SetStyle {

@@ -6,8 +6,8 @@ use field_path::field_accessor::FieldAccessor;
 use hashbrown::{HashMap, HashSet};
 
 use crate::style::{
-    SetStyle, Style, StyleBuilder, StyleId, StyleIdGenerator,
-    StyleValue, StyleValueId, UntypedSetStyle,
+    SetStyle, Stylable, Style, StyleBuilder, StyleId,
+    StyleIdGenerator, StyleValue, StyleValueId, UntypedSetStyle,
 };
 use crate::type_table::TypeTable;
 
@@ -116,7 +116,7 @@ impl Styles {
     ///
     /// The setter is registered in the registry on the first call for
     /// a given field; subsequent calls only update the stored value.
-    pub fn set<S: 'static, T: StyleValue>(
+    pub fn set<S: Stylable, T: StyleValue>(
         &mut self,
         field_accessor: FieldAccessor<S, T>,
         value: T,
@@ -161,7 +161,7 @@ impl Styles {
     ///
     /// Walks the parent chain from leaf to root. The first value
     /// encountered for each field wins (leaf takes precedence).
-    pub fn apply<S: 'static>(&self, source: &mut S, id: &StyleId) {
+    pub fn apply<S: Stylable>(&self, source: &mut S, id: &StyleId) {
         let type_id = TypeId::of::<S>();
         let mut applied = HashSet::new();
 

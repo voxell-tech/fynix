@@ -41,12 +41,12 @@ impl Elements {
         element: E,
         primary_style: Option<StyleId>,
     ) -> ElementId {
-        let slot = self.elements.ensure_slot::<E>();
-        self.type_metas.register::<E>(slot);
+        let col = self.elements.ensure_column::<E>();
+        self.type_metas.register::<E>(col);
 
         let id = self.id_generator.new_id();
 
-        self.metas.init_element(id, slot, primary_style);
+        self.metas.init_element(id, col, primary_style);
         self.elements.insert(id, element);
         id
     }
@@ -56,8 +56,8 @@ impl Elements {
     /// Prefer [`get_typed`](Elements::get_typed) when the
     /// concrete type is known, it avoids the getter dispatch.
     pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
-        let slot = self.metas.get(id)?.slot;
-        let type_meta = self.type_metas.get_slot(slot)?;
+        let col = self.metas.get(id)?.col;
+        let type_meta = self.type_metas.get_column(col)?;
         type_meta.get_dyn(&self.elements, id)
     }
 
@@ -102,7 +102,7 @@ impl Elements {
         ) -> bool {
             if let Some(meta) = metas.remove(id)
                 && let Some(type_meta) =
-                    type_metas.get_slot(meta.slot)
+                    type_metas.get_column(meta.col)
             {
                 if !has_removed_styles
                     && let Some(primary_style) = meta.primary_style
@@ -127,7 +127,7 @@ impl Elements {
                     },
                 );
 
-                elements.dyn_remove_by_slot(meta.slot, id);
+                elements.dyn_remove_by_column(meta.col, id);
                 id_generator.recycle(*id);
                 return true;
             }
@@ -161,7 +161,7 @@ impl Elements {
         let Some(meta) = self.metas.get(id) else {
             return;
         };
-        if let Some(type_meta) = self.type_metas.get_slot(meta.slot) {
+        if let Some(type_meta) = self.type_metas.get_column(meta.col) {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
             {

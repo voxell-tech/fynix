@@ -6,11 +6,11 @@ use rectree::RectNode;
 
 use crate::element::{Element, ElementId, ElementTable};
 use crate::style::StyleId;
-use crate::type_table::SlotId;
+use crate::type_table::ColumnId;
 
 /// Per-element metadata.
 pub struct ElementMeta {
-    pub slot: SlotId,
+    pub col: ColumnId,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
     /// When this element is removed, this style and all its
@@ -33,13 +33,13 @@ impl ElementMetas {
     pub(super) fn init_element(
         &mut self,
         id: ElementId,
-        slot: SlotId,
+        col: ColumnId,
         primary_style: Option<StyleId>,
     ) {
         self.map.insert(
             id,
             ElementMeta {
-                slot,
+                col,
                 node: RectNode::new(None),
                 cached_scene: None,
                 primary_style,
@@ -84,9 +84,9 @@ impl ElementTypeMetas {
     /// Registers `E` at `slot` if it has not been registered yet.
     ///
     /// `slot` must have been obtained from
-    /// [`ElementTable::ensure_slot::<E>`].
-    pub fn register<E: Element>(&mut self, slot: SlotId) {
-        let i = slot.index();
+    /// [`ElementTable::ensure_column::<E>`].
+    pub fn register<E: Element>(&mut self, col: ColumnId) {
+        let i = col.index();
         if self.slots.len() <= i {
             self.slots.resize_with(i + 1, || None);
         }
@@ -97,8 +97,8 @@ impl ElementTypeMetas {
 
     /// Returns the [`ElementTypeMeta`] for `slot`, or `None`
     /// if that slot has not been registered.
-    pub fn get_slot(&self, slot: SlotId) -> Option<&ElementTypeMeta> {
-        self.slots.get(slot.index())?.as_ref()
+    pub fn get_column(&self, col: ColumnId) -> Option<&ElementTypeMeta> {
+        self.slots.get(col.index())?.as_ref()
     }
 }
 

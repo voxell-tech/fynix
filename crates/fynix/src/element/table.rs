@@ -1,9 +1,9 @@
 use crate::element::{Element, ElementId};
-use crate::type_table::{SlotId, TypeTable};
+use crate::type_table::{ColumnId, TypeTable};
 
 /// Slot-indexed element storage, keyed by [`ElementId`].
 ///
-/// Each element type is assigned a runtime [`SlotId`] on first use.
+/// Each element type is assigned a runtime [`ColumnId`] on first use.
 /// Typed access resolves to a direct [`Vec`] index after the initial
 /// [`TypeId`] lookup.
 pub struct ElementTable {
@@ -17,12 +17,12 @@ impl ElementTable {
         }
     }
 
-    /// Ensures the column for `E` exists and returns its [`SlotId`].
+    /// Ensures the column for `E` exists and returns its [`ColumnId`].
     ///
     /// The id is stable for the lifetime of this table and can be
     /// stored in per-element metadata for slot-based dispatch.
-    pub fn ensure_slot<E: Element>(&mut self) -> SlotId {
-        self.inner.ensure_slot::<E>()
+    pub fn ensure_column<E: Element>(&mut self) -> ColumnId {
+        self.inner.ensure_column::<E>()
     }
 
     /// Inserts `value` under `key`.
@@ -76,12 +76,12 @@ impl ElementTable {
     /// Removes `key` from the column at `slot`.
     ///
     /// Returns `true` if the key was present and removed.
-    pub fn dyn_remove_by_slot(
+    pub fn dyn_remove_by_column(
         &mut self,
-        slot: SlotId,
+        col: ColumnId,
         key: &ElementId,
     ) -> bool {
-        self.inner.dyn_remove_by_slot(slot, key)
+        self.inner.dyn_remove_by_column(col, key)
     }
 }
 

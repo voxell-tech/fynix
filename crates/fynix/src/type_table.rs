@@ -23,12 +23,12 @@ use sparse_map::{Key, SparseMap};
 /// | k2  | -     | -     | -24   |
 /// | k3  | 3.14  | -     | -     |
 ///
-/// Columns are stored in a [`Vec`] and indexed by a slot
-/// number. The `slots` map translates [`TypeId`] to a slot
+/// Columns are stored in a [`Vec`] and indexed by a column
+/// number. The `slots` map translates [`TypeId`] to a column
 /// index once on first use; subsequent accesses go straight
 /// to the [`Vec`] by index.
 pub struct TypeTable<K> {
-    slots: HashMap<TypeId, SlotId>,
+    columns_map: HashMap<TypeId, ColumnId>,
     columns: Vec<DynTypeMap<K>>,
 }
 
@@ -36,19 +36,19 @@ impl<K> TypeTable<K> {
     /// Creates an empty [`TypeTable`].
     pub fn new() -> Self {
         Self {
-            slots: HashMap::new(),
+            columns_map: HashMap::new(),
             columns: Vec::new(),
         }
     }
 
-    /// Returns the [`SlotId`] for `T`, or `None` if no value
+    /// Returns the [`ColumnId`] for `T`, or `None` if no value
     /// of type `T` has ever been inserted.
     ///
     /// The returned id is stable for the lifetime of this
     /// table and can be stored to bypass the [`TypeId`] lookup
     /// on hot paths.
-    pub fn type_slot<T: 'static>(&self) -> Option<SlotId> {
-        self.slots.get(&TypeId::of::<T>()).copied()
+    pub fn type_column<T: 'static>(&self) -> Option<ColumnId> {
+        self.columns_map.get(&TypeId::of::<T>()).copied()
     }
 }
 
@@ -56,19 +56,19 @@ impl<K> TypeTable<K>
 where
     K: Hash + Eq + 'static,
 {
-    /// Ensures the column for `T` exists and returns its [`SlotId`].
+    /// Ensures the column for `T` exists and returns its [`ColumnId`].
     ///
-    /// Like [`Self::type_slot`] but creates the column on first call
+    /// Like [`Self::type_column`] but creates the column on first call
     /// rather than returning `None`. The returned id is stable for
     /// the lifetime of this table.
-    pub fn ensure_slot<T: 'static>(&mut self) -> SlotId {
-        match self.slots.entry(TypeId::of::<T>()) {
+    pub fn ensure_column<T: 'static>(&mut self) -> ColumnId {
+        match self.columns_map.entry(TypeId::of::<T>()) {
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => {
-                let slot = SlotId(self.columns.len());
-                e.insert(slot);
+                let col = ColumnId(self.columns.len());
+                e.insert(col);
                 self.columns.push(Box::new(TypeMap::<K, T>::new()));
-                slot
+                col
             }
         }
     }
@@ -82,10 +82,10 @@ where
         key: K,
         value: T,
     ) -> Option<T> {
-        let slot = self.ensure_slot::<T>();
-        // SAFETY: slot was just assigned for T by ensure_slot.
+        let col = self.ensure_column::<T>();
+        // SAFETY: col was just assigned for T by ensure_column.
         let map = unsafe {
-            self.columns[slot.0].downcast_unchecked_mut::<T>()
+            self.columns[col.0].downcast_unchecked_mut::<T>()
         };
         map.insert(key, value)
     }
@@ -93,10 +93,10 @@ where
     /// Returns a reference to the `T`-typed value stored
     /// under `key`, or `None` if no such entry exists.
     pub fn get<T: 'static>(&self, key: &K) -> Option<&T> {
-        let slot = self.slots.get(&TypeId::of::<T>())?;
-        // SAFETY: slot was assigned for T.
+        let col = self.columns_map.get(&TypeId::of::<T>())?;
+        // SAFETY: col was assigned for T.
         let map = unsafe {
-            self.columns[slot.0].downcast_unchecked_ref::<T>()
+            self.columns[col.0].downcast_unchecked_ref::<T>()
         };
         map.get(key)
     }
@@ -104,39 +104,39 @@ where
     /// Returns a mutable reference to the `T`-typed value
     /// stored under `key`, or `None` if no such entry exists.
     pub fn get_mut<T: 'static>(&mut self, key: &K) -> Option<&mut T> {
-        let slot = self.slots.get(&TypeId::of::<T>())?;
-        // SAFETY: slot was assigned for T.
+        let col = self.columns_map.get(&TypeId::of::<T>())?;
+        // SAFETY: col was assigned for T.
         let map = unsafe {
-            self.columns[slot.0].downcast_unchecked_mut::<T>()
+            self.columns[col.0].downcast_unchecked_mut::<T>()
         };
         map.get_mut(key)
     }
 
     /// Returns a reference to the `T`-typed value stored under
-    /// `key` using a pre-resolved [`SlotId`].
+    /// `key` using a pre-resolved [`ColumnId`].
     ///
-    /// Returns `None` if `slot` is out of bounds, the column holds
+    /// Returns `None` if `col` is out of bounds, the column holds
     /// a different type, or `key` is absent.
-    pub fn get_by_slot<T: 'static>(
+    pub fn get_by_column<T: 'static>(
         &self,
-        slot: SlotId,
+        col: ColumnId,
         key: &K,
     ) -> Option<&T> {
-        self.columns.get(slot.0)?.downcast_ref::<T>()?.get(key)
+        self.columns.get(col.0)?.downcast_ref::<T>()?.get(key)
     }
 
     /// Returns a mutable reference to the `T`-typed value stored
-    /// under `key` using a pre-resolved [`SlotId`].
+    /// under `key` using a pre-resolved [`ColumnId`].
     ///
-    /// Returns `None` if `slot` is out of bounds, the column holds
+    /// Returns `None` if `col` is out of bounds, the column holds
     /// a different type, or `key` is absent.
-    pub fn get_mut_by_slot<T: 'static>(
+    pub fn get_mut_by_column<T: 'static>(
         &mut self,
-        slot: SlotId,
+        col: ColumnId,
         key: &K,
     ) -> Option<&mut T> {
         self.columns
-            .get_mut(slot.0)?
+            .get_mut(col.0)?
             .downcast_mut::<T>()?
             .get_mut(key)
     }
@@ -144,10 +144,10 @@ where
     /// Removes and returns the `T`-typed value stored under
     /// `key`, or `None` if none exists.
     pub fn remove<T: 'static>(&mut self, key: &K) -> Option<T> {
-        let slot = self.slots.get(&TypeId::of::<T>())?;
-        // SAFETY: slot was assigned for T.
+        let col = self.columns_map.get(&TypeId::of::<T>())?;
+        // SAFETY: col was assigned for T.
         let map = unsafe {
-            self.columns[slot.0].downcast_unchecked_mut::<T>()
+            self.columns[col.0].downcast_unchecked_mut::<T>()
         };
         map.remove(key)
     }
@@ -159,8 +159,8 @@ where
     /// Returns `true` if the column existed and the key was
     /// present in it.
     pub fn dyn_remove(&mut self, type_id: &TypeId, key: &K) -> bool {
-        if let Some(slot) = self.slots.get(type_id) {
-            return self.columns[slot.0].dyn_remove(key);
+        if let Some(col) = self.columns_map.get(type_id) {
+            return self.columns[col.0].dyn_remove(key);
         }
         false
     }
@@ -169,8 +169,8 @@ where
     /// value type at compile time.
     ///
     /// Returns `true` if the key was present and removed.
-    pub fn dyn_remove_by_slot(&mut self, slot: SlotId, key: &K) -> bool {
-        match self.columns.get_mut(slot.0) {
+    pub fn dyn_remove_by_column(&mut self, col: ColumnId, key: &K) -> bool {
+        match self.columns.get_mut(col.0) {
             Some(col) => col.dyn_remove(key),
             None => false,
         }
@@ -197,13 +197,13 @@ impl<K> Default for TypeTable<K> {
 
 /// Opaque index into a [`TypeTable`]'s column [`Vec`].
 ///
-/// Obtained from [`TypeTable::type_slot`] and passed to
-/// [`TypeTable::get_by_slot`] / [`TypeTable::get_mut_by_slot`]
+/// Obtained from [`TypeTable::type_column`] and passed to
+/// [`TypeTable::get_by_column`] / [`TypeTable::get_mut_by_column`]
 /// to skip the [`TypeId`] → slot [`HashMap`] lookup on hot paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SlotId(usize);
+pub struct ColumnId(usize);
 
-impl SlotId {
+impl ColumnId {
     pub fn index(self) -> usize {
         self.0
     }
