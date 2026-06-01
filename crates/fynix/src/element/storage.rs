@@ -49,6 +49,14 @@ impl Elements {
         let id = self.id_generator.new_id();
 
         self.metas.init_element(id, col, primary_style);
+
+        // Setup the parent's id for child nodes.
+        for child in element.children() {
+            if let Some(meta) = self.metas.get_mut(child) {
+                meta.node.parent_id = Some(id);
+            }
+        }
+
         self.elements.insert(id, element);
         id
     }
@@ -58,8 +66,8 @@ impl Elements {
     /// Prefer [`get_typed`](Elements::get_typed) when the concrete
     /// type is known, it avoids the getter dispatch.
     pub fn get_dyn(&self, id: &ElementId) -> Option<&dyn Element> {
-        let col = self.metas.get(id)?.col;
-        let type_meta = self.type_metas.get_column(col)?;
+        let col_id = self.metas.get(id)?.col_id;
+        let type_meta = self.type_metas.get_column(col_id)?;
         type_meta.get_dyn(&self.elements, id)
     }
 
@@ -105,7 +113,7 @@ impl Elements {
         ) -> bool {
             if let Some(meta) = metas.remove(id)
                 && let Some(type_meta) =
-                    type_metas.get_column(meta.col)
+                    type_metas.get_column(meta.col_id)
             {
                 if !has_removed_styles
                     && let Some(primary_style) = meta.primary_style
@@ -130,7 +138,7 @@ impl Elements {
                     },
                 );
 
-                elements.dyn_remove_by_column(meta.col, id);
+                elements.dyn_remove_by_column(meta.col_id, id);
                 id_generator.recycle(*id);
                 return true;
             }
@@ -152,7 +160,7 @@ impl Elements {
     /// Renders the subtree rooted at `id` into the `painter`.
     ///
     /// Each element's own visual layer is painted via
-    /// [`crate::element::ElementBuild::render`] before its children
+    /// [`super::ElementBuild::render`] before its children
     /// are visited, so parents always draw behind their children.
     ///
     /// Layout must be complete before calling this.
@@ -164,7 +172,8 @@ impl Elements {
         let Some(meta) = self.metas.get(id) else {
             return;
         };
-        if let Some(type_meta) = self.type_metas.get_column(meta.col)
+        if let Some(type_meta) =
+            self.type_metas.get_column(meta.col_id)
         {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
