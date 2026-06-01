@@ -33,13 +33,13 @@ impl ElementMetas {
     pub(super) fn init_element(
         &mut self,
         id: ElementId,
-        col: ColumnId,
+        col_id: ColumnId,
         primary_style: Option<StyleId>,
     ) {
         self.map.insert(
             id,
             ElementMeta {
-                col_id: col,
+                col_id,
                 node: RectNode::new(None),
                 cached_scene: None,
                 primary_style,

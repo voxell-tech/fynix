@@ -81,7 +81,7 @@ where
         value: T,
     ) -> Option<T> {
         let col = self.ensure_column::<T>();
-        // SAFETY: col was just assigned for T by ensure_column.
+        // SAFETY: col_id was just assigned for T by ensure_column.
         let map = unsafe {
             self.columns[col.index()].downcast_unchecked_mut::<T>()
         };
@@ -92,7 +92,7 @@ where
     /// or `None` if no such entry exists.
     pub fn get<T: 'static>(&self, key: &K) -> Option<&T> {
         let col = self.columns_map.get(&TypeId::of::<T>())?;
-        // SAFETY: col was assigned for T.
+        // SAFETY: col_id was assigned for T.
         let map = unsafe {
             self.columns[col.index()].downcast_unchecked_ref::<T>()
         };
@@ -103,7 +103,7 @@ where
     /// under `key`, or `None` if no such entry exists.
     pub fn get_mut<T: 'static>(&mut self, key: &K) -> Option<&mut T> {
         let col = self.columns_map.get(&TypeId::of::<T>())?;
-        // SAFETY: col was assigned for T.
+        // SAFETY: col_id was assigned for T.
         let map = unsafe {
             self.columns[col.index()].downcast_unchecked_mut::<T>()
         };
@@ -143,7 +143,7 @@ where
     /// `None` if none exists.
     pub fn remove<T: 'static>(&mut self, key: &K) -> Option<T> {
         let col = self.columns_map.get(&TypeId::of::<T>())?;
-        // SAFETY: col was assigned for T.
+        // SAFETY: col_id was assigned for T.
         let map = unsafe {
             self.columns[col.index()].downcast_unchecked_mut::<T>()
         };
