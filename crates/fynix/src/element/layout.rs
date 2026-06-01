@@ -25,7 +25,7 @@ impl<'a> Rectree for ElementTree<'a> {
         if let Some(type_meta) = nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get_column(m.col))
+            .and_then(|m| self.type_metas.get_column(m.col_id))
         {
             (type_meta.for_each_child_fn)(
                 self.elements,
@@ -44,7 +44,7 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get_column(m.col))
+            .and_then(|m| self.type_metas.get_column(m.col_id))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.constrain(parent))
@@ -62,7 +62,7 @@ impl<'a> Rectree for ElementTree<'a> {
         nodes
             .metas
             .get(id)
-            .and_then(|m| self.type_metas.get_column(m.col))
+            .and_then(|m| self.type_metas.get_column(m.col_id))
             .map(|m| {
                 m.get_dyn(self.elements, id)
                     .map(|e| e.build(id, constraint, nodes))

@@ -11,6 +11,8 @@ use crate::style::{
 };
 use crate::type_table::TypeTable;
 
+// TODO: `style_values` are not removed on `Styles::remove()..`
+
 /// Central style manager.
 ///
 /// Maintains the registry of field setters, the stored style values,

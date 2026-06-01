@@ -10,7 +10,7 @@ use crate::type_table::{ColumnId, TypeTable};
 
 /// Per-element metadata.
 pub struct ElementMeta {
-    pub col: ColumnId,
+    pub col_id: ColumnId,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
     /// When this element is removed, this style and all its
@@ -33,13 +33,13 @@ impl ElementMetas {
     pub(super) fn init_element(
         &mut self,
         id: ElementId,
-        col: ColumnId,
+        col_id: ColumnId,
         primary_style: Option<StyleId>,
     ) {
         self.map.insert(
             id,
             ElementMeta {
-                col,
+                col_id,
                 node: RectNode::new(None),
                 cached_scene: None,
                 primary_style,
