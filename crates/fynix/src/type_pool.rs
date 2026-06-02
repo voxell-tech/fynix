@@ -14,6 +14,9 @@ use sparse_map::{Key, SparseMap};
 pub struct ColumnId(usize);
 
 impl ColumnId {
+    /// A sentinel id that will never refer to a live column.
+    pub const PLACEHOLDER: Self = Self(usize::MAX);
+
     pub fn index(self) -> usize {
         self.0
     }
@@ -21,14 +24,26 @@ impl ColumnId {
 
 /// Handle returned by [`TypePool::insert`].
 ///
-/// Encodes both the column and the position within it.
-/// Pass it back to [`TypePool::get`], [`TypePool::get_mut`],
-/// or [`TypePool::remove`] to reach the value with no hash
-/// lookup.
+/// Encodes both the column and the position within it. Pass it back
+/// to [`TypePool::get`], [`TypePool::get_mut`], or
+/// [`TypePool::remove`] to reach the value with no hash lookup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ColumnKey {
     col: ColumnId,
     key: Key,
+}
+
+impl ColumnKey {
+    /// A sentinel key that will never refer to a live value.
+    pub const PLACEHOLDER: Self = Self {
+        col: ColumnId::PLACEHOLDER,
+        key: Key::PLACEHOLDER,
+    };
+
+    /// Returns the [`ColumnId`] encoded in this key.
+    pub fn col_id(self) -> ColumnId {
+        self.col
+    }
 }
 
 mod any_sparse_map {
@@ -141,7 +156,7 @@ impl TypePool {
         }
     }
 
-    fn ensure_column<T: 'static>(&mut self) -> ColumnId {
+    pub fn ensure_column<T: 'static>(&mut self) -> ColumnId {
         match self.column_ids.entry(TypeId::of::<T>()) {
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => {
@@ -155,12 +170,25 @@ impl TypePool {
 
     /// Inserts `value` and returns a [`ColumnKey`] identifying it.
     pub fn insert<T: 'static>(&mut self, value: T) -> ColumnKey {
+        self.insert_with_key(
+            #[inline(always)]
+            |_| value,
+        )
+    }
+
+    /// Like [`Self::insert`], but calls `create` with the
+    /// [`ColumnKey`] before the value is placed in storage.
+    pub fn insert_with_key<T: 'static>(
+        &mut self,
+        create: impl FnOnce(ColumnKey) -> T,
+    ) -> ColumnKey {
         let col = self.ensure_column::<T>();
         // SAFETY: `col` was just assigned for T by ensure_column.
         let column = unsafe {
             self.columns[col.index()].downcast_unchecked_mut::<T>()
         };
-        let key = column.insert(value);
+        let key = column
+            .insert_with_key(|_, key| create(ColumnKey { col, key }));
         ColumnKey { col, key }
     }
 
@@ -195,6 +223,35 @@ impl TypePool {
             .get_mut(col_key.col.index())?
             .downcast_mut::<T>()?
             .remove(&col_key.key)
+    }
+
+    /// Provides `(&mut T, &mut TypePool)` simultaneously.
+    ///
+    /// The value at `col_key` is temporarily taken out of its slot
+    /// for the duration of `f`, then restored to the same slot.
+    /// The [`ColumnKey`] remains valid after the call.
+    ///
+    /// Returns `None` if `col_key` is absent.
+    pub fn scope<T: 'static, R>(
+        &mut self,
+        col_key: &ColumnKey,
+        f: impl FnOnce(&mut T, &mut Self) -> R,
+    ) -> Option<R> {
+        let mut value = {
+            self.columns
+                .get_mut(col_key.col.index())?
+                .downcast_mut::<T>()?
+                .take(&col_key.key)?
+        };
+        let result = f(&mut value, self);
+        if let Some(col) = self
+            .columns
+            .get_mut(col_key.col.index())
+            .and_then(|c| c.downcast_mut::<T>())
+        {
+            col.restore(&col_key.key, value);
+        }
+        Some(result)
     }
 
     /// Removes the value at `col_key` without knowing its type.

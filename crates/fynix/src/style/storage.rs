@@ -7,11 +7,9 @@ use hashbrown::{HashMap, HashSet};
 
 use crate::style::{
     SetStyle, Stylable, Style, StyleBuilder, StyleId,
-    StyleIdGenerator, StyleValue, StyleValueId, UntypedSetStyle,
+    StyleIdGenerator, StyleValue, UntypedSetStyle,
 };
-use crate::type_table::TypeTable;
-
-// TODO: `style_values` are not removed on `Styles::remove()..`
+use crate::type_pool::TypePool;
 
 /// Central style manager.
 ///
@@ -19,12 +17,12 @@ use crate::type_table::TypeTable;
 /// and the committed chain of [`Style`] nodes.
 pub struct Styles {
     /// Maps each field to its accessor and type-erased setter,
-    /// registered once per `(S, T)` pair on the first
-    /// [`set`](Styles::set) call.
+    /// registered once per `(S, T)` pair on the first [`Self::set`]
+    /// call.
     registry:
         HashMap<UntypedField, (UntypedAccessor, UntypedSetStyle)>,
-    /// Stores the actual style values keyed by [`StyleValueId`].
-    pub style_values: TypeTable<StyleValueId>,
+    /// Stores the actual style values.
+    pub style_values: TypePool,
     /// Committed style nodes, each forming a singly-linked
     /// inheritance chain via their `parent_id`.
     pub styles: HashMap<StyleId, Style>,
@@ -42,7 +40,7 @@ impl Styles {
 
         Self {
             registry: HashMap::new(),
-            style_values: TypeTable::new(),
+            style_values: TypePool::new(),
             styles: HashMap::new(),
             style_builder: StyleBuilder::new(),
             current_id: id_generator.new_id(),
@@ -137,11 +135,12 @@ impl Styles {
             );
         }
 
-        self.style_values.insert(
-            StyleValueId::new(self.current_id, untyped_field),
-            value,
-        );
-        self.style_builder.insert(type_id, untyped_field);
+        let col_key = self.style_values.insert(value);
+        if let Some(old_key) =
+            self.style_builder.insert(type_id, untyped_field, col_key)
+        {
+            self.style_values.remove::<T>(&old_key);
+        }
     }
 
     /// Recursively removes the style node and all its descendants.
@@ -152,6 +151,10 @@ impl Styles {
             return false;
         };
         self.id_generator.recycle(*id);
+
+        for (_, col_key) in style.fields.iter() {
+            self.style_values.dyn_remove(col_key);
+        }
 
         for c in style.children().into_iter().flatten() {
             self.remove(c);
@@ -180,7 +183,7 @@ impl Styles {
                 continue;
             };
 
-            for field in fields {
+            for (field, col_key) in fields {
                 if applied.contains(field) {
                     continue;
                 }
@@ -192,7 +195,7 @@ impl Styles {
                     set_style.apply(
                         source,
                         accessor,
-                        &StyleValueId::new(id, *field),
+                        col_key,
                         &self.style_values,
                     );
                     applied.insert(*field);

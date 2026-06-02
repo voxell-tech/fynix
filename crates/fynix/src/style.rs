@@ -4,11 +4,11 @@ use core::any::TypeId;
 
 use field_path::accessor::UntypedAccessor;
 use field_path::field::UntypedField;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 
 use crate::id::{GenId, IdGenerator};
 use crate::init::Init;
-use crate::type_table::TypeTable;
+use crate::type_pool::{ColumnKey, TypePool};
 
 pub mod storage;
 
@@ -33,7 +33,7 @@ pub use storage::Styles;
 pub struct Style {
     parent_id: Option<StyleId>,
     index_map: HashMap<TypeId, Span>,
-    fields: Box<[UntypedField]>,
+    fields: Box<[(UntypedField, ColumnKey)]>,
     adjacent_child: Option<StyleId>,
     nested_child: Option<StyleId>,
 }
@@ -55,14 +55,17 @@ impl Style {
         self.nested_child.as_ref()
     }
 
-    fn get_fields(&self, id: &TypeId) -> Option<&[UntypedField]> {
+    fn get_fields(
+        &self,
+        id: &TypeId,
+    ) -> Option<&[(UntypedField, ColumnKey)]> {
         let span = self.index_map.get(id)?;
         Some(&self.fields[span.start..span.end])
     }
 }
 
 struct StyleBuilder {
-    field_map: HashMap<TypeId, HashSet<UntypedField>>,
+    field_map: HashMap<TypeId, HashMap<UntypedField, ColumnKey>>,
 }
 
 impl StyleBuilder {
@@ -72,8 +75,18 @@ impl StyleBuilder {
         }
     }
 
-    fn insert(&mut self, id: TypeId, field: UntypedField) {
-        self.field_map.entry(id).or_default().insert(field);
+    /// Inserts or replaces the [`ColumnKey`] for `field` under
+    /// `type_id`. Returns the displaced key if one existed.
+    fn insert(
+        &mut self,
+        type_id: TypeId,
+        field: UntypedField,
+        col_key: ColumnKey,
+    ) -> Option<ColumnKey> {
+        self.field_map
+            .entry(type_id)
+            .or_default()
+            .insert(field, col_key)
     }
 
     fn clear(&mut self) {
@@ -133,25 +146,21 @@ impl Span {
 /// Monomorphized function signature for writing one typed value into
 /// a source field.
 ///
-/// Reads the value of type `T` from `values` at `key`, then writes it
-/// into `source` via `accessor`. Returns `true` on success.
-pub type SetStyleFn<S> = fn(
-    &mut S,
-    &UntypedAccessor,
-    &StyleValueId,
-    &TypeTable<StyleValueId>,
-) -> bool;
+/// Reads the value of type `T` from `values` at `col_key`, then
+/// writes it into `source` via `accessor`. Returns `true` on success.
+pub type SetStyleFn<S> =
+    fn(&mut S, &UntypedAccessor, &ColumnKey, &TypePool) -> bool;
 
 /// Concrete implementation of [`SetStyleFn`] for the `(S, T)` pair.
 #[inline]
 pub fn set_style<S: Stylable, T: StyleValue>(
     source: &mut S,
     accessor: &UntypedAccessor,
-    key: &StyleValueId,
-    values: &TypeTable<StyleValueId>,
+    col_key: &ColumnKey,
+    values: &TypePool,
 ) -> bool {
     if let Some(accessor) = accessor.typed::<S, T>()
-        && let Some(value) = values.get::<T>(key)
+        && let Some(value) = values.get::<T>(col_key)
     {
         *accessor.get_mut(source) = value.clone();
         return true;
@@ -190,10 +199,10 @@ impl<S: Stylable> SetStyle<S> {
         &self,
         source: &mut S,
         accessor: &UntypedAccessor,
-        id: &StyleValueId,
-        values: &TypeTable<StyleValueId>,
+        col_key: &ColumnKey,
+        values: &TypePool,
     ) -> bool {
-        (self.set_fn)(source, accessor, id, values)
+        (self.set_fn)(source, accessor, col_key, values)
     }
 }
 
@@ -252,20 +261,6 @@ impl<T: Init + 'static> Stylable for T {}
 pub trait StyleValue: Clone + 'static {}
 
 impl<T: Clone + 'static> StyleValue for T {}
-
-/// Composite key into the style value table: identifies one specific
-/// field within one committed style node.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct StyleValueId {
-    pub id: StyleId,
-    pub field: UntypedField,
-}
-
-impl StyleValueId {
-    pub fn new(id: StyleId, field: UntypedField) -> Self {
-        Self { id, field }
-    }
-}
 
 /// Generational ID for committed style nodes.
 pub type StyleId = GenId<_StyleMarker>;

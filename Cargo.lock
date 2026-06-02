@@ -256,6 +256,9 @@ name = "color"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ec7c5eb7a16992b1904d76c517d170ab353b0e0b3d5a0c81a8a0cd1037893cf"
+dependencies = [
+ "libm",
+]
 
 [[package]]
 name = "combine"
@@ -517,6 +520,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "icu_locale_core",
  "linebender_resource_handle",
+ "memmap2",
  "read-fonts 0.35.0",
  "smallvec",
 ]
@@ -936,6 +940,7 @@ checksum = "4b60dfc32f652b926df6192e55525b16d186c69d47876c3ead4da5cc9f8450e2"
 dependencies = [
  "arrayvec",
  "euclid",
+ "libm",
  "polycool",
  "smallvec",
 ]
@@ -1542,6 +1547,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50596ddc09eb5ad5f75cacd40209568e66df71baf86e1499a0e99c4cff12a5a6"
 dependencies = [
  "arrayvec",
+ "libm",
 ]
 
 [[package]]
@@ -1912,9 +1918,9 @@ dependencies = [
 
 [[package]]
 name = "sparse_map"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "839b579eddeb504ed4349054948eb9f02245488eddab69672e6d8a91a64f448a"
+checksum = "6bee4323beb1addf168bef443b1e6609b5119eb0a2e84725847537d61c8c45f2"
 
 [[package]]
 name = "spirv"
@@ -1951,6 +1957,7 @@ checksum = "842f3cd369c2ba38966204f983eaa5e54a8e84a7d7159ed36ade2b6c335aae64"
 dependencies = [
  "core_maths",
  "skrifa 0.40.0",
+ "yazi",
  "zeno",
 ]
 
@@ -2882,6 +2889,12 @@ name = "xml-rs"
 version = "0.8.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
+
+[[package]]
+name = "yazi"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e01738255b5a16e78bbb83e7fbba0a1e7dd506905cfc53f4622d89015a03fbb5"
 
 [[package]]
 name = "zeno"
