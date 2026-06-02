@@ -117,6 +117,11 @@ impl<T> IdGenerator<T> {
             .pop()
             .map(|id| id.next_generation())
             .unwrap_or_else(|| {
+                assert!(
+                    self.next_id < u32::MAX,
+                    "`IdGenerator` ran out of ids (u32::MAX limit \
+                     reached)"
+                );
                 let id = GenId::from_raw(self.next_id, 0);
                 self.next_id += 1;
                 id

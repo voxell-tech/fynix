@@ -20,9 +20,9 @@ Fynix is a `no_std` Rust UI framework. The workspace these crates:
 ## Code Style
 
 - All crates are `#![no_std]` + `extern crate alloc`.
-- `rustfmt.toml` sets `max_width = 70`. Run `cargo fmt` before
-  every commit. Doc comment lines must also respect 70 chars
-  (`/// ` prefix is 4 chars, leaving 66 for text).
+- `rustfmt.toml` sets `max_width = 70`. Run `cargo +nightly fmt` before
+  every commit. Write doc comments without linebreaking (when it's
+  continuous) and let `cargo +nightly fmt` wrap the comments.
 - Edition 2024 - `if let` chains with `&&` are idiomatic.
 - No `std` imports. Use `alloc::vec::Vec`, `alloc::string::String`,
   `alloc::boxed::Box`, etc.
@@ -60,7 +60,7 @@ Always run these in order before committing, and they must produce
 zero warnings/errors:
 
 ```sh
-cargo fmt
+cargo +nightly fmt
 cargo check --workspace --all-features
 cargo check --workspace --no-default-features
 cargo test --workspace --all-features

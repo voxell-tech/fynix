@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use fynix::prelude::*;
+use fynix_elements::parley::FontStyle;
+use fynix_elements::parley::fontique::{Blob, GenericFamily};
 use fynix_elements::{
     Button, Horizontal, Label, Pad, TextContext, Vertical,
 };
-use parley::FontStyle;
-use parley::fontique::{Blob, GenericFamily};
 use vello::peniko::Color;
 use vello::peniko::color::palette::css;
 use vello_winit_examples::{FynixDemo, VelloWinitApp};

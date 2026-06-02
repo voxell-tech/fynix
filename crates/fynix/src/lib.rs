@@ -19,7 +19,7 @@ pub mod element;
 pub mod init;
 pub mod resource;
 pub mod style;
-pub mod type_table;
+pub mod type_pool;
 
 pub mod prelude {
     pub use crate::Fynix;

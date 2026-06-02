@@ -6,11 +6,10 @@ use rectree::RectNode;
 
 use crate::element::{Element, ElementId};
 use crate::style::StyleId;
-use crate::type_table::{ColumnId, TypeTable};
+use crate::type_pool::{ColumnId, TypePool};
 
 /// Per-element metadata.
 pub struct ElementMeta {
-    pub col_id: ColumnId,
     pub node: RectNode<ElementId>,
     pub cached_scene: Option<Scene>,
     /// When this element is removed, this style and all its
@@ -33,13 +32,11 @@ impl ElementMetas {
     pub(super) fn init_element(
         &mut self,
         id: ElementId,
-        col_id: ColumnId,
         primary_style: Option<StyleId>,
     ) {
         self.map.insert(
             id,
             ElementMeta {
-                col_id,
                 node: RectNode::new(None),
                 cached_scene: None,
                 primary_style,
@@ -47,9 +44,11 @@ impl ElementMetas {
         );
     }
 
-    /// Removes the element meta and returns it for type-erased
-    /// element storage cleanup.
-    pub fn remove(&mut self, id: &ElementId) -> Option<ElementMeta> {
+    /// Removes the element meta and returns it for cleanup.
+    pub(super) fn remove(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<ElementMeta> {
         self.map.remove(id)
     }
 
@@ -71,27 +70,29 @@ impl Default for ElementMetas {
     }
 }
 
-/// Per-type dispatch table registry, slot-indexed.
+/// Per-type dispatch table registry, column-indexed.
 pub struct ElementTypeMetas {
-    slots: Vec<Option<ElementTypeMeta>>,
+    columns: Vec<Option<ElementTypeMeta>>,
 }
 
 impl ElementTypeMetas {
     pub fn new() -> Self {
-        Self { slots: Vec::new() }
+        Self {
+            columns: Vec::new(),
+        }
     }
 
     /// Registers `E` at `col` if it has not been registered yet.
     ///
     /// `col` must have been obtained from
-    /// [`TypeTable::ensure_column::<E>`].
+    /// [`TypePool::ensure_column::<E>`].
     pub fn register<E: Element>(&mut self, col: ColumnId) {
         let i = col.index();
-        if self.slots.len() <= i {
-            self.slots.resize_with(i + 1, || None);
+        if self.columns.len() <= i {
+            self.columns.resize_with(i + 1, || None);
         }
-        if self.slots[i].is_none() {
-            self.slots[i] = Some(ElementTypeMeta::new::<E>());
+        if self.columns[i].is_none() {
+            self.columns[i] = Some(ElementTypeMeta::new::<E>());
         }
     }
 
@@ -101,7 +102,7 @@ impl ElementTypeMetas {
         &self,
         col: ColumnId,
     ) -> Option<&ElementTypeMeta> {
-        self.slots.get(col.index())?.as_ref()
+        self.columns.get(col.index())?.as_ref()
     }
 }
 
@@ -114,11 +115,16 @@ impl Default for ElementTypeMetas {
 /// Monomorphized function pointers for a single element type.
 ///
 /// Registered once per type via [`ElementTypeMetas::register`].
-/// Each function implements one step of the layout protocol without
-/// knowing the concrete type at the call site.
 pub struct ElementTypeMeta {
+    /// Returns `&dyn Element` from the pool without knowing the
+    /// concrete type at the call site.
     pub get_dyn_fn: GetDynElementFn,
+    /// Visits each child of an element by calling `f` for every
+    /// [`ElementId`] the element yields from
+    /// [`super::ElementChildren::children`].
     pub for_each_child_fn: ForEachChildFn,
+    /// Like [`ForEachChildFn`], but provides `&mut TypePool` to the
+    /// callback via [`TypePool::scope`].
     pub for_each_child_mut_fn: ForEachChildMutFn,
 }
 
@@ -133,82 +139,84 @@ impl ElementTypeMeta {
 
     pub fn get_dyn<'a>(
         &self,
-        table: &'a TypeTable<ElementId>,
+        pool: &'a TypePool,
         id: &ElementId,
     ) -> Option<&'a dyn Element> {
-        (self.get_dyn_fn)(table, id)
+        (self.get_dyn_fn)(pool, id)
+    }
+
+    pub fn for_each_child(
+        &self,
+        pool: &TypePool,
+        id: &ElementId,
+        f: &mut dyn FnMut(&ElementId),
+    ) {
+        (self.for_each_child_fn)(pool, id, f);
+    }
+
+    pub fn for_each_child_mut(
+        &self,
+        pool: &mut TypePool,
+        id: &ElementId,
+        f: &mut dyn FnMut(&ElementId, &mut TypePool),
+    ) {
+        (self.for_each_child_mut_fn)(pool, id, f);
     }
 }
 
-/// Returns `&dyn Element` from the table without knowing the concrete
-/// type at the call site.
+/// See [`ElementTypeMeta::get_dyn_fn`].
 pub type GetDynElementFn = for<'a> fn(
-    table: &'a TypeTable<ElementId>,
+    pool: &'a TypePool,
     id: &ElementId,
 ) -> Option<&'a dyn Element>;
 
-/// Monomorphized implementation of [`GetDynElementFn`] for element
-/// type `E`.
-#[inline]
-pub fn get_dyn_element<'a, E: Element>(
-    table: &'a TypeTable<ElementId>,
-    id: &ElementId,
-) -> Option<&'a dyn Element> {
-    table.get::<E>(id).map(|e| e as &dyn Element)
-}
-
-/// Visits each child of an element by calling `f` for every
-/// [`ElementId`] the element yields from
-/// [`ElementChildren::children`].
-///
-/// Using a visitor avoids the need to name the concrete iterator type
-/// returned by [`ElementChildren::children`], which differs per `E`
-/// and cannot be expressed in a function-pointer signature.
-///
-/// [`ElementChildren::children`]: super::ElementChildren::children
+/// See [`ElementTypeMeta::for_each_child_fn`].
 pub type ForEachChildFn = fn(
-    table: &TypeTable<ElementId>,
+    pool: &TypePool,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
 );
 
-/// Like [`ForEachChildFn`], but temporarily removes the element via
-/// [`TypeTable::scope`] so the callback receives `&mut
-/// TypeTable<ElementId>` without a borrow conflict.
+/// See [`ElementTypeMeta::for_each_child_mut_fn`].
 pub type ForEachChildMutFn = fn(
-    table: &mut TypeTable<ElementId>,
+    pool: &mut TypePool,
     id: &ElementId,
-    f: &mut dyn FnMut(&ElementId, &mut TypeTable<ElementId>),
+    f: &mut dyn FnMut(&ElementId, &mut TypePool),
 );
 
+/// See [`ElementTypeMeta::get_dyn_fn`].
+#[inline]
+pub fn get_dyn_element<'a, E: Element>(
+    pool: &'a TypePool,
+    id: &ElementId,
+) -> Option<&'a dyn Element> {
+    pool.get::<E>(id).map(|e| e as &dyn Element)
+}
+
+/// See [`ElementTypeMeta::for_each_child_fn`].
 #[inline]
 pub fn for_each_child<E: Element>(
-    table: &TypeTable<ElementId>,
+    pool: &TypePool,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
 ) {
-    if let Some(element) = table.get::<E>(id) {
+    if let Some(element) = pool.get::<E>(id) {
         for child in element.children() {
             f(child);
         }
     }
 }
 
-/// Like [`for_each_child`], but uses [`TypeTable::scope`] to lend
-/// `&mut TypeTable<ElementId>` to the callback.
-///
-/// The element at `id` is absent from the table for the duration of
-/// the callback, so the callback may freely mutate it (e.g. to
-/// recursively remove children) without a borrow conflict.
+/// See [`ElementTypeMeta::for_each_child_mut_fn`].
 #[inline]
 pub fn for_each_child_mut<E: Element>(
-    table: &mut TypeTable<ElementId>,
+    pool: &mut TypePool,
     id: &ElementId,
-    f: &mut dyn FnMut(&ElementId, &mut TypeTable<ElementId>),
+    f: &mut dyn FnMut(&ElementId, &mut TypePool),
 ) {
-    table.scope::<E, _>(id, |element, table| {
+    pool.scope::<E, _>(id, |element, pool| {
         for child in element.children() {
-            f(child, table);
+            f(child, pool);
         }
     });
 }
