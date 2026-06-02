@@ -60,7 +60,7 @@ Always run these in order before committing, and they must produce
 zero warnings/errors:
 
 ```sh
-cargo fmt
+cargo +nightly fmt
 cargo check --workspace --all-features
 cargo check --workspace --no-default-features
 cargo test --workspace --all-features
