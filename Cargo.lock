@@ -2179,7 +2179,6 @@ dependencies = [
  "fynix",
  "fynix_elements",
  "imaging_vello",
- "parley",
  "pollster",
  "vello",
  "winit",
