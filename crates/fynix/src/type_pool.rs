@@ -46,88 +46,6 @@ impl ColumnKey {
     }
 }
 
-mod any_sparse_map {
-    use core::any::TypeId;
-
-    use sparse_map::{Key, SparseMap};
-
-    trait Seal {}
-    impl<T: 'static> Seal for SparseMap<T> {}
-
-    #[expect(private_bounds)]
-    pub trait AnySparseMap: Seal {
-        fn element_type_id(&self) -> TypeId;
-
-        /// Removes the value at `key`.
-        ///
-        /// Returns `true` if an entry was present and removed.
-        fn dyn_remove(&mut self, key: &Key) -> bool;
-    }
-
-    impl<T: 'static> AnySparseMap for SparseMap<T> {
-        fn element_type_id(&self) -> TypeId {
-            TypeId::of::<T>()
-        }
-
-        fn dyn_remove(&mut self, key: &Key) -> bool {
-            self.remove(key).is_some()
-        }
-    }
-
-    impl dyn AnySparseMap {
-        #[inline]
-        pub fn element_is<T: 'static>(&self) -> bool {
-            self.element_type_id() == TypeId::of::<T>()
-        }
-
-        #[inline]
-        pub fn downcast_ref<T: 'static>(
-            &self,
-        ) -> Option<&SparseMap<T>> {
-            if self.element_is::<T>() {
-                unsafe { Some(self.downcast_unchecked_ref()) }
-            } else {
-                None
-            }
-        }
-
-        #[inline]
-        pub fn downcast_mut<T: 'static>(
-            &mut self,
-        ) -> Option<&mut SparseMap<T>> {
-            if self.element_is::<T>() {
-                unsafe { Some(self.downcast_unchecked_mut()) }
-            } else {
-                None
-            }
-        }
-
-        /// # Safety
-        ///
-        /// Calling this with the wrong type is *undefined behavior*.
-        #[inline]
-        pub unsafe fn downcast_unchecked_ref<T: 'static>(
-            &self,
-        ) -> &SparseMap<T> {
-            debug_assert!(self.element_is::<T>());
-            unsafe { &*(self as *const Self as *const SparseMap<T>) }
-        }
-
-        /// # Safety
-        ///
-        /// Calling this with the wrong type is *undefined behavior*.
-        #[inline]
-        pub unsafe fn downcast_unchecked_mut<T: 'static>(
-            &mut self,
-        ) -> &mut SparseMap<T> {
-            debug_assert!(self.element_is::<T>());
-            unsafe { &mut *(self as *mut Self as *mut SparseMap<T>) }
-        }
-    }
-}
-
-type DynSparseMap = Box<dyn any_sparse_map::AnySparseMap>;
-
 /// Heterogeneous append-only store.
 ///
 /// Each call to [`TypePool::insert`] allocates a new slot and
@@ -270,6 +188,88 @@ impl Default for TypePool {
         Self::new()
     }
 }
+
+mod any_sparse_map {
+    use core::any::TypeId;
+
+    use sparse_map::{Key, SparseMap};
+
+    trait Seal {}
+    impl<T: 'static> Seal for SparseMap<T> {}
+
+    #[expect(private_bounds)]
+    pub trait AnySparseMap: Seal {
+        fn element_type_id(&self) -> TypeId;
+
+        /// Removes the value at `key`.
+        ///
+        /// Returns `true` if an entry was present and removed.
+        fn dyn_remove(&mut self, key: &Key) -> bool;
+    }
+
+    impl<T: 'static> AnySparseMap for SparseMap<T> {
+        fn element_type_id(&self) -> TypeId {
+            TypeId::of::<T>()
+        }
+
+        fn dyn_remove(&mut self, key: &Key) -> bool {
+            self.remove(key).is_some()
+        }
+    }
+
+    impl dyn AnySparseMap {
+        #[inline]
+        pub fn element_is<T: 'static>(&self) -> bool {
+            self.element_type_id() == TypeId::of::<T>()
+        }
+
+        #[inline]
+        pub fn downcast_ref<T: 'static>(
+            &self,
+        ) -> Option<&SparseMap<T>> {
+            if self.element_is::<T>() {
+                unsafe { Some(self.downcast_unchecked_ref()) }
+            } else {
+                None
+            }
+        }
+
+        #[inline]
+        pub fn downcast_mut<T: 'static>(
+            &mut self,
+        ) -> Option<&mut SparseMap<T>> {
+            if self.element_is::<T>() {
+                unsafe { Some(self.downcast_unchecked_mut()) }
+            } else {
+                None
+            }
+        }
+
+        /// # Safety
+        ///
+        /// Calling this with the wrong type is *undefined behavior*.
+        #[inline]
+        pub unsafe fn downcast_unchecked_ref<T: 'static>(
+            &self,
+        ) -> &SparseMap<T> {
+            debug_assert!(self.element_is::<T>());
+            unsafe { &*(self as *const Self as *const SparseMap<T>) }
+        }
+
+        /// # Safety
+        ///
+        /// Calling this with the wrong type is *undefined behavior*.
+        #[inline]
+        pub unsafe fn downcast_unchecked_mut<T: 'static>(
+            &mut self,
+        ) -> &mut SparseMap<T> {
+            debug_assert!(self.element_is::<T>());
+            unsafe { &mut *(self as *mut Self as *mut SparseMap<T>) }
+        }
+    }
+}
+
+type DynSparseMap = Box<dyn any_sparse_map::AnySparseMap>;
 
 #[cfg(test)]
 mod tests {

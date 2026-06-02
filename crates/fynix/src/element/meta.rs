@@ -86,7 +86,7 @@ impl ElementTypeMetas {
     ///
     /// `col` must have been obtained from
     /// [`TypePool::ensure_column::<E>`].
-    pub(super) fn register<E: Element>(&mut self, col: ColumnId) {
+    pub fn register<E: Element>(&mut self, col: ColumnId) {
         let i = col.index();
         if self.columns.len() <= i {
             self.columns.resize_with(i + 1, || None);
@@ -116,8 +116,15 @@ impl Default for ElementTypeMetas {
 ///
 /// Registered once per type via [`ElementTypeMetas::register`].
 pub struct ElementTypeMeta {
+    /// Returns `&dyn Element` from the pool without knowing the
+    /// concrete type at the call site.
     pub get_dyn_fn: GetDynElementFn,
+    /// Visits each child of an element by calling `f` for every
+    /// [`ElementId`] the element yields from
+    /// [`super::ElementChildren::children`].
     pub for_each_child_fn: ForEachChildFn,
+    /// Like [`ForEachChildFn`], but provides `&mut TypePool` to the
+    /// callback via [`TypePool::scope`].
     pub for_each_child_mut_fn: ForEachChildMutFn,
 }
 
@@ -157,30 +164,27 @@ impl ElementTypeMeta {
     }
 }
 
-/// Returns `&dyn Element` from the pool without knowing the concrete
-/// type at the call site.
+/// See [`ElementTypeMeta::get_dyn_fn`].
 pub type GetDynElementFn = for<'a> fn(
     pool: &'a TypePool,
     id: &ElementId,
 ) -> Option<&'a dyn Element>;
 
-/// Visits each child of an element by calling `f` for every
-/// [`ElementId`] the element yields from
-/// [`ElementChildren::children`].
+/// See [`ElementTypeMeta::for_each_child_fn`].
 pub type ForEachChildFn = fn(
     pool: &TypePool,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId),
 );
 
-/// Like [`ForEachChildFn`], but provides `&mut TypePool` to the
-/// callback via [`TypePool::scope`].
+/// See [`ElementTypeMeta::for_each_child_mut_fn`].
 pub type ForEachChildMutFn = fn(
     pool: &mut TypePool,
     id: &ElementId,
     f: &mut dyn FnMut(&ElementId, &mut TypePool),
 );
 
+/// See [`ElementTypeMeta::get_dyn_fn`].
 #[inline]
 pub fn get_dyn_element<'a, E: Element>(
     pool: &'a TypePool,
@@ -189,6 +193,7 @@ pub fn get_dyn_element<'a, E: Element>(
     pool.get::<E>(id).map(|e| e as &dyn Element)
 }
 
+/// See [`ElementTypeMeta::for_each_child_fn`].
 #[inline]
 pub fn for_each_child<E: Element>(
     pool: &TypePool,
@@ -202,6 +207,7 @@ pub fn for_each_child<E: Element>(
     }
 }
 
+/// See [`ElementTypeMeta::for_each_child_mut_fn`].
 #[inline]
 pub fn for_each_child_mut<E: Element>(
     pool: &mut TypePool,
