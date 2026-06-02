@@ -270,3 +270,166 @@ impl Default for TypePool {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::string::String;
+
+    use super::{ColumnKey, TypePool};
+
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    struct Velocity(f32);
+
+    #[derive(Debug, PartialEq, Clone)]
+    struct Name(String);
+
+    #[test]
+    fn insert_and_get() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(10.5));
+        assert_eq!(pool.get::<Velocity>(&key), Some(&Velocity(10.5)));
+    }
+
+    #[test]
+    fn heterogeneous_storage() {
+        let mut pool = TypePool::new();
+        let kv = pool.insert(Velocity(20.0));
+        let kn = pool.insert(Name(String::from("Entity_1")));
+        // Each type occupies a different column.
+        assert_ne!(kv.col_id(), kn.col_id());
+        assert_eq!(pool.get::<Velocity>(&kv), Some(&Velocity(20.0)));
+        assert_eq!(
+            pool.get::<Name>(&kn),
+            Some(&Name(String::from("Entity_1")))
+        );
+    }
+
+    #[test]
+    fn type_isolation() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(50u64);
+        assert!(pool.get::<u32>(&key).is_none());
+        assert!(pool.get::<i64>(&key).is_none());
+        assert_eq!(pool.get::<u64>(&key), Some(&50u64));
+    }
+
+    #[test]
+    fn multiple_values_same_type() {
+        let mut pool = TypePool::new();
+        let k1 = pool.insert(Velocity(1.0));
+        let k2 = pool.insert(Velocity(2.0));
+        assert_eq!(pool.get::<Velocity>(&k1), Some(&Velocity(1.0)));
+        assert_eq!(pool.get::<Velocity>(&k2), Some(&Velocity(2.0)));
+    }
+
+    #[test]
+    fn get_mut_modifies_value() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(0.0));
+        pool.get_mut::<Velocity>(&key).unwrap().0 = 9.9;
+        assert_eq!(pool.get::<Velocity>(&key), Some(&Velocity(9.9)));
+    }
+
+    #[test]
+    fn remove_returns_value() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(5.0));
+        assert_eq!(
+            pool.remove::<Velocity>(&key),
+            Some(Velocity(5.0))
+        );
+        assert!(pool.get::<Velocity>(&key).is_none());
+        assert!(pool.remove::<Velocity>(&key).is_none());
+    }
+
+    #[test]
+    fn dyn_remove_present() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(1.0));
+        assert!(pool.dyn_remove(&key));
+        assert!(pool.get::<Velocity>(&key).is_none());
+    }
+
+    #[test]
+    fn dyn_remove_absent() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(1.0));
+        pool.dyn_remove(&key);
+        assert!(!pool.dyn_remove(&key));
+    }
+
+    #[test]
+    fn placeholder_key_is_absent() {
+        let mut pool = TypePool::new();
+        assert!(!pool.dyn_remove(&ColumnKey::PLACEHOLDER));
+    }
+
+    #[test]
+    fn insert_with_key_receives_correct_key() {
+        let mut pool = TypePool::new();
+        let mut seen = None;
+        let returned = pool.insert_with_key(|k| {
+            seen = Some(k);
+            Velocity(1.0)
+        });
+        assert_eq!(seen, Some(returned));
+    }
+
+    #[test]
+    fn ensure_column_is_idempotent() {
+        let mut pool = TypePool::new();
+        let c1 = pool.ensure_column::<Velocity>();
+        let c2 = pool.ensure_column::<Velocity>();
+        assert_eq!(c1, c2);
+    }
+
+    #[test]
+    fn different_types_get_different_columns() {
+        let mut pool = TypePool::new();
+        let cv = pool.ensure_column::<Velocity>();
+        let cn = pool.ensure_column::<Name>();
+        assert_ne!(cv, cn);
+    }
+
+    #[test]
+    fn scope_temporarily_removes_value() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(5.0));
+        let result = pool.scope::<Velocity, _>(&key, |val, inner| {
+            // Value is absent during the closure.
+            assert!(inner.get::<Velocity>(&key).is_none());
+            val.0 * 2.0
+        });
+        assert_eq!(result, Some(10.0));
+        // Value is restored after scope.
+        assert_eq!(pool.get::<Velocity>(&key), Some(&Velocity(5.0)));
+    }
+
+    #[test]
+    fn scope_restores_mutation() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(5.0));
+        pool.scope::<Velocity, _>(&key, |val, _| {
+            val.0 = 99.0;
+        });
+        assert_eq!(pool.get::<Velocity>(&key), Some(&Velocity(99.0)));
+    }
+
+    #[test]
+    fn scope_absent_key_returns_none() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(1.0));
+        pool.remove::<Velocity>(&key);
+        assert!(pool.scope::<Velocity, _>(&key, |_, _| ()).is_none());
+    }
+
+    #[test]
+    fn scope_can_insert_into_pool() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(1.0));
+        pool.scope::<Velocity, _>(&key, |_, inner| {
+            inner.insert(Name(String::from("side value")));
+        });
+        assert_eq!(pool.get::<Velocity>(&key), Some(&Velocity(1.0)));
+    }
+}
