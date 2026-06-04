@@ -1,9 +1,11 @@
+use hashbrown::HashSet;
 use imaging::PaintSink;
 
 use super::Element;
 use super::layout::{ElementNodes, ElementTree};
 use super::meta::{ElementMetas, ElementTypeMetas};
 use crate::resource::Resources;
+use crate::scope::Scopes;
 use crate::style::{StyleId, Styles};
 use crate::type_pool::{ColumnKey, TypePool};
 
@@ -17,6 +19,9 @@ pub struct Elements {
     pub elements: TypePool,
     pub metas: ElementMetas,
     pub type_metas: ElementTypeMetas,
+    /// Elements whose subtree changed and needs re-layout/render,
+    /// e.g. after a reactive scope rebuilt its child.
+    pub dirty_elements: HashSet<ElementId>,
 }
 
 impl Elements {
@@ -25,14 +30,48 @@ impl Elements {
             elements: TypePool::new(),
             metas: ElementMetas::new(),
             type_metas: ElementTypeMetas::new(),
+            dirty_elements: HashSet::new(),
+        }
+    }
+
+    /// Marks an element's subtree dirty so [`Self::layout`] re-lays
+    /// it out on the next call.
+    ///
+    /// Resets the node's layout state here so rectree re-layout the
+    /// subtree.
+    pub fn mark_dirty(&mut self, id: ElementId) {
+        if self.dirty_elements.insert(id)
+            && let Some(meta) = self.metas.get_mut(&id)
+        {
+            meta.node.state.reset();
         }
     }
 
     /// Stores `element`, registers its type if needed, and returns
     /// a fresh [`ElementId`].
+    #[must_use]
     pub fn add<E: Element>(
         &mut self,
         element: E,
+        primary_style: Option<StyleId>,
+    ) -> ElementId {
+        self.add_with_id(
+            #[inline(always)]
+            |_| element,
+            primary_style,
+        )
+    }
+
+    /// Like [`Self::add`], but calls `create` with the element's own
+    /// [`ElementId`] before the element is stored.
+    ///
+    /// Use this when an element must embed a reference to its own id,
+    /// such as a node that links back to a sibling structure keyed on
+    /// that id.
+    #[must_use]
+    pub fn add_with_id<E: Element>(
+        &mut self,
+        create: impl FnOnce(ElementId) -> E,
         primary_style: Option<StyleId>,
     ) -> ElementId {
         let col = self.elements.ensure_column::<E>();
@@ -40,6 +79,7 @@ impl Elements {
 
         let key = self.elements.insert_with_key(|key| {
             let id = ElementId(key);
+            let element = create(id);
 
             // Set parent id on each child's meta node.
             for child_id in element.children() {
@@ -51,7 +91,9 @@ impl Elements {
             element
         });
 
-        ElementId(key)
+        let id = ElementId(key);
+        self.mark_dirty(id);
+        id
     }
 
     /// Returns a type-erased reference to the element.
@@ -93,6 +135,7 @@ impl Elements {
         &mut self,
         id: &ElementId,
         styles: &mut Styles,
+        scopes: &mut Scopes,
     ) -> bool {
         fn remove_recursive(
             id: &ElementId,
@@ -100,6 +143,7 @@ impl Elements {
             type_metas: &ElementTypeMetas,
             elements: &mut TypePool,
             styles: &mut Styles,
+            scopes: &mut Scopes,
             mut has_removed_styles: bool,
         ) -> bool {
             if let Some(meta) = metas.remove(id)
@@ -109,9 +153,14 @@ impl Elements {
                 if !has_removed_styles
                     && let Some(primary_style) = meta.primary_style
                 {
+                    // Drop this element's primary style and its
+                    // descendants in the style tree.
                     has_removed_styles =
                         styles.remove(&primary_style);
                 }
+
+                // Drop any scope this element owns.
+                scopes.remove_for_element(id);
 
                 type_meta.for_each_child_mut(
                     elements,
@@ -123,6 +172,7 @@ impl Elements {
                             type_metas,
                             elements,
                             styles,
+                            scopes,
                             has_removed_styles,
                         );
                     },
@@ -141,6 +191,7 @@ impl Elements {
             &self.type_metas,
             &mut self.elements,
             styles,
+            scopes,
             false,
         )
     }
@@ -177,17 +228,9 @@ impl Elements {
         let _ = meta;
     }
 
-    /// Runs a full three-pass layout cycle on the subtree rooted at
-    /// `id`.
-    ///
-    /// The caller is responsible for setting the node's constraint on
-    /// [`ElementMetas`] before calling this if a specific size is
-    /// required.
-    pub fn layout(
-        &mut self,
-        id: &ElementId,
-        resources: &mut Resources,
-    ) {
+    /// Lays out the subtree of every dirty element, draining the
+    /// dirty set. Nodes are reset when marked dirty, not here.
+    pub fn layout(&mut self, resources: &mut Resources) {
         let tree = ElementTree {
             elements: &self.elements,
             type_metas: &self.type_metas,
@@ -197,7 +240,12 @@ impl Elements {
             metas: &mut self.metas,
             resources,
         };
-        rectree::layout(&tree, &mut nodes, id);
+
+        for id in self.dirty_elements.drain() {
+            if self.elements.contains(&id) {
+                rectree::layout(&tree, &mut nodes, &id);
+            }
+        }
     }
 }
 

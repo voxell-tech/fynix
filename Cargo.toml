@@ -14,7 +14,7 @@ fynix = { version = "0.1.0", path = "crates/fynix" }
 fynix_macros = { version = "0.1.0", path = "crates/fynix_macros" }
 fynix_elements = { version = "0.1.0", path = "crates/fynix_elements" }
 
-rectree = { git = "https://github.com/voxell-tech/rectree", rev = "08ddf2a" }
+rectree = { git = "https://github.com/voxell-tech/rectree", rev = "e9ffbcb" }
 field_path = "0.4.1"
 parley = { version = "0.7.0", default-features = false }
 imaging = { version = "0.0.1", default-features = false }

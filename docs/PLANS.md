@@ -4,7 +4,8 @@
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
 | Interactions & Events                | Planned, not started              |
-| Reactivity (`Signals`)               | Deferred until after first render |
+| Reactive scopes (`ctx.reactive`)     | Implemented                       |
+| Field bindings (`Bindings`)          | Planned, not started              |
 
 ---
 
@@ -74,11 +75,11 @@ fn process(fynix: Res<Fynix>, mut commands: Commands) {
 }
 
 // Example consumer system.
-fn system(events: Res<Events>, signals: ResMut<Signals>) {
+fn system(events: Res<Events>, bindings: ResMut<Bindings>) {
     for msg in events.iter::<Increment>() {}
 
     for msg in events.iter::<Decrement>() {
-        signals.set(..);
+        bindings.set(..);
     }
 }
 
@@ -97,68 +98,51 @@ type.
 
 ---
 
-## Signals
+## Bindings
 
-Signals are reactive bindings from an external value to an element
-field. `SignalId` is a plain type alias (same pattern as `ElementId`),
-not a typed wrapper - type safety comes from the accessor at binding
-time.
+A binding connects an external value to an element field. `BindingId`
+is a plain type alias (same pattern as `ElementId`), not a typed
+wrapper - type safety comes from the accessor at binding time.
 
-`Fynix` gains a `signals: Signals` field:
+`Fynix` gains a `bindings: Bindings` field:
 
 ```
-Signals
-- values: TypeTable<SignalId>
-    - current value per (SignalId, T)
-- targets: HashMap<SignalId, (ElementId, UntypedAccessor)>
-    - which element field each signal writes to
-- dirty: HashSet<SignalId>
+Bindings
+- values: TypeTable<BindingId>
+    - current value per (BindingId, T)
+- targets: HashMap<BindingId, (ElementId, UntypedAccessor)>
+    - which element field each binding writes to
+- dirty: HashSet<BindingId>
     - changed since last flush
 - layout_dirty: HashSet<ElementId>
     - populated during flush, consumed by the backend
 - render_dirty: HashSet<ElementId>
     - populated during flush, consumed by the backend
-- id_generator: SignalIdGenerator
+- id_generator: BindingIdGenerator
 ```
 
-Two kinds of signals:
-
-**Field signals** - bind a signal to a single element field. Flushing
-writes the value directly into `Elements` in-place, then marks the
-element layout/render dirty:
+**Field bindings** - bind a single element field to an external value.
+Flushing writes the value directly into `Elements` in-place, then
+marks the element layout/render dirty:
 
 ```rust
-let label_text: SignalId = ctx.signal(
+let label_text: BindingId = ctx.bind(
     field_accessor!(<Label>::text),
     "hello".to_string(),
 );
 
 // From outside Fynix:
-fynix.signals.set(label_text, "world".to_string());
+fynix.bindings.set(label_text, "world".to_string());
 ```
 
-**Reactive scopes** - bind a signal to a subtree builder closure.
-When the signal changes, the old children of the scope root are
-removed and the closure re-runs with fresh state:
+A `flush_bindings()` would be called by the backend each frame to
+apply field bindings in-place, limiting re-layout to the affected
+subtree.
 
-```rust
-ctx.add_with::<Vertical>(|v, ctx| {
-    ctx.reactive(items_signal, |items, ctx| {
-        for item in items {
-            v.add(ctx.add::<Label>());
-        }
-    });
-});
-```
-
-Scope entries are stored on `Fynix`:
-
-```
-reactive_scopes: HashMap<SignalId, Vec<ScopeEntry>>
-    ScopeEntry { root: ElementId, rebuild: Box<dyn FnMut(...)> }
-```
-
-`flush_signals()` is called by the backend each frame. It applies
-field signals in-place and re-runs any dirty scope builders, limiting
-re-layout to the affected subtree in both cases.
+> **Reactive scopes** (the change-detection counterpart) are already
+> implemented as `ctx.reactive(changed_fn, build_fn)` +
+> `Fynix::update_scopes::<W>(world)`, backed by `Scopes` / `Scope` /
+> `ScopeElement` and `Elements::dirty_elements`. The remaining
+> dirty-propagation and depth-ordering work is tracked in issue #38.
+> See `crates/fynix/src/scope.rs`.
 

@@ -98,6 +98,7 @@ impl StyleBuilder {
     }
 
     /// Consumes the builder and produces a committed [`Style`].
+    #[must_use]
     fn build(self, parent_id: Option<StyleId>) -> Style {
         let mut index_map = HashMap::new();
         let mut all_fields = Vec::new();

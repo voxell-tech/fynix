@@ -27,7 +27,7 @@ pub struct Styles {
     /// inheritance chain via their `parent_id`.
     pub styles: HashMap<StyleId, Style>,
     /// Accumulates field changes for the current (open) style node
-    /// until the next [`commit_styles`](Styles::commit_styles) call.
+    /// until the next [`Self::commit_styles`] call.
     style_builder: StyleBuilder,
     /// The ID of the open style node currently being built.
     current_id: StyleId,
@@ -68,8 +68,7 @@ impl Styles {
     /// node and advances to a fresh [`StyleId`].
     ///
     /// `parent_id` links the new node into the inheritance chain so
-    /// that [`apply`](Styles::apply) can walk up to ancestor
-    /// defaults.
+    /// that [`Self::apply`] can walk up to ancestor defaults.
     ///
     /// `is_nested` controls which child slot on the parent is used:
     /// `true` sets `nested_child` (one scope deeper), `false` sets
