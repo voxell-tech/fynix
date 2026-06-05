@@ -185,7 +185,12 @@ impl Elements {
             false
         }
 
-        remove_recursive(
+        // Mark the parent as dirty before dropped the child so we can
+        // re-layout the parent's subtree once the child is gone.
+        let parent_id =
+            self.metas.get(id).and_then(|meta| meta.node.parent_id);
+
+        let removed = remove_recursive(
             id,
             &mut self.metas,
             &self.type_metas,
@@ -193,7 +198,13 @@ impl Elements {
             styles,
             scopes,
             false,
-        )
+        );
+
+        if removed && let Some(parent_id) = parent_id {
+            self.mark_dirty(parent_id);
+        }
+
+        removed
     }
 
     /// Renders the subtree rooted at `id` into the `painter`.

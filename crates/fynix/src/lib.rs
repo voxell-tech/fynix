@@ -88,14 +88,7 @@ impl Fynix {
     #[inline]
     pub fn remove_element(&mut self, id: &ElementId) -> bool {
         // Removes the element subtree along with their styles.
-        if !self.elements.remove(
-            id,
-            &mut self.styles,
-            &mut self.scopes,
-        ) {
-            return false;
-        }
-        true
+        self.elements.remove(id, &mut self.styles, &mut self.scopes)
     }
 
     /// Re-runs every reactive scope of world type `W` whose
