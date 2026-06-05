@@ -69,7 +69,7 @@ impl Default for Scopes {
 }
 
 #[derive(Init, Element)]
-pub(crate) struct ScopeElement {
+pub struct ScopeElement {
     #[elem(children)]
     pub(crate) child: Option<ElementId>,
 }
