@@ -27,18 +27,6 @@ Fynix is a `no_std` Rust UI framework. The workspace these crates:
 - No `std` imports. Use `alloc::vec::Vec`, `alloc::string::String`,
   `alloc::boxed::Box`, etc.
 - Prefer `hashbrown::{HashMap, HashSet}` over `std::collections`.
-- Must use Module import granulatiy.
-  ```rust
-  // Accepted.
-  use crate::id::{GenId, IdGenerator};
-  use crate::type_table::TypeTable;
-
-  // Unaccepted.
-  use crate::{
-      id::{GenId, IdGenerator},
-      type_table::TypeTable,
-  };
-  ```
 - Use fullstop at the end of sentences in all comments whenever
   possible (including doc comments).
 - Do not write comments after code.
@@ -85,6 +73,10 @@ cargo doc --workspace --all-features --no-deps --document-private-items
   // -----------------------------------------
   // Section Name
   // -----------------------------------------
+  ```
+  Or
+  ```rust
+  // -- Section Name ------
   ```
 
 ---

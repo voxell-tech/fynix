@@ -3,6 +3,8 @@ use field_path::field_accessor::FieldAccessor;
 use crate::Fynix;
 use crate::composer::Composer;
 use crate::element::{Element, ElementId};
+use crate::init::Init;
+use crate::scope::{BuildFn, ChangedFn, Scope, ScopeElement};
 use crate::style::{Stylable, StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -69,17 +71,6 @@ impl<W> FynixCtx<'_, '_, W> {
         })
     }
 
-    /// Queues a style default: field `T` on type `S` will be set to
-    /// `value` for all elements added after this call (within the
-    /// current scope).
-    pub fn set<S: Stylable, T: StyleValue>(
-        &mut self,
-        field_accessor: FieldAccessor<S, T>,
-        value: T,
-    ) {
-        self.fynix.styles.set(field_accessor, value);
-    }
-
     /// Runs `composer`, passing it a style instance built from the
     /// current style chain.
     ///
@@ -107,6 +98,77 @@ impl<W> FynixCtx<'_, '_, W> {
         self.style_scoped(|ctx| composer.compose(style, ctx))
     }
 
+    /// Queues a style default: field `T` on type `S` will be set to
+    /// `value` for all elements added after this call (within the
+    /// current scope).
+    pub fn set<S: Stylable, T: StyleValue>(
+        &mut self,
+        field_accessor: FieldAccessor<S, T>,
+        value: T,
+    ) {
+        self.fynix.styles.set(field_accessor, value);
+    }
+
+    /// Binds a reactive scope to the element tree.
+    ///
+    /// `build` constructs a subtree and `changed` reports whether the
+    /// state it reads has changed since the last build. A holder
+    /// [`ScopeElement`] owns the subtree, so when `changed` fires the
+    /// backend can rebuild just that subtree in place.
+    ///
+    /// The initial subtree is built immediately, under the current
+    /// style scope. That scope is captured on the [`Scope`] and
+    /// restored on every rebuild, so a rebuilt subtree is styled like
+    /// the first.
+    #[must_use]
+    pub fn reactive(
+        &mut self,
+        changed: ChangedFn<W>,
+        build: BuildFn<W>,
+    ) -> ElementId
+    where
+        W: 'static,
+    {
+        // Build the holder element and its scope together: the
+        // element's id is needed to register the scope, and the
+        // scope's id is needed to construct the element.
+        let style_id = self.prev_style;
+        let element_id = self.fynix.elements.add_with_id(
+            |element_id| {
+                self.fynix.scopes.add(Scope::new(
+                    changed, build, element_id, style_id,
+                ));
+                ScopeElement::init()
+            },
+            None,
+        );
+
+        // Build the initial subtree under the current style scope,
+        // then drop any uncommitted style changes so they do not
+        // leak. The same scope is restored on every rebuild.
+        let child = {
+            let ctx = FynixCtx::new(self.fynix, self.world, style_id);
+            build(ctx)
+        };
+        self.fynix.styles.clear_builder();
+
+        if let Some(child_id) = child
+            && let Some(meta) =
+                self.fynix.elements.metas.get_mut(&child_id)
+        {
+            meta.node.parent_id = Some(element_id);
+        }
+        if let Some(elem) = self
+            .fynix
+            .elements
+            .get_typed_mut::<ScopeElement>(&element_id)
+        {
+            elem.child = child;
+        }
+
+        element_id
+    }
+
     /// Saves the current style scope, runs `scope`, then restores it.
     ///
     /// Prevents style changes made inside `scope` from leaking into
@@ -117,6 +179,7 @@ impl<W> FynixCtx<'_, '_, W> {
     /// [`primary_style`].
     ///
     /// [`primary_style`]: crate::element::meta::ElementMeta::primary_style
+    #[must_use]
     fn style_scoped<T>(
         &mut self,
         scope: impl FnOnce(&mut Self) -> T,
@@ -137,6 +200,7 @@ impl<W> FynixCtx<'_, '_, W> {
 
     /// Commits any pending style changes, constructs `S::init()`, and
     /// applies the current style chain to it.
+    #[must_use]
     fn create_styled<S: Stylable>(&mut self) -> S {
         if self.fynix.styles.should_commit() {
             let committed_id = self.fynix.styles.current_id();

@@ -1656,7 +1656,7 @@ dependencies = [
 [[package]]
 name = "rectree"
 version = "0.1.0"
-source = "git+https://github.com/voxell-tech/rectree?rev=08ddf2a#08ddf2a84e9198980b6ab6c84c2ec25f3a4b3b70"
+source = "git+https://github.com/voxell-tech/rectree?rev=11e802d#11e802d1b9cbcd6cf671371631f53210d1b47043"
 dependencies = [
  "bitflags 2.11.1",
 ]

@@ -86,6 +86,13 @@ impl TypePool {
         }
     }
 
+    pub fn contains(&self, col_key: &ColumnKey) -> bool {
+        self.columns
+            .get(col_key.col.index())
+            .map(|c| c.dyn_contains(&col_key.key))
+            .unwrap_or_default()
+    }
+
     /// Inserts `value` and returns a [`ColumnKey`] identifying it.
     pub fn insert<T: 'static>(&mut self, value: T) -> ColumnKey {
         self.insert_with_key(
@@ -205,6 +212,9 @@ mod any_sparse_map {
         ///
         /// Returns `true` if an entry was present and removed.
         fn dyn_remove(&mut self, key: &Key) -> bool;
+
+        /// Returns `true` if an entry was present.
+        fn dyn_contains(&self, key: &Key) -> bool;
     }
 
     impl<T: 'static> AnySparseMap for SparseMap<T> {
@@ -214,6 +224,10 @@ mod any_sparse_map {
 
         fn dyn_remove(&mut self, key: &Key) -> bool {
             self.remove(key).is_some()
+        }
+
+        fn dyn_contains(&self, key: &Key) -> bool {
+            self.contains(key)
         }
     }
 

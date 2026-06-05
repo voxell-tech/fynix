@@ -1,9 +1,8 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use fynix::ctx::FynixCtx;
-use fynix::element::ElementId;
-use fynix::{Fynix, rectree};
+use fynix::prelude::*;
 use fynix_elements::WindowSize;
 use imaging_vello::VelloSceneSink;
 use vello::kurbo::Rect;
@@ -19,6 +18,10 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::Window;
 
 pub trait FynixDemo {
+    /// World state passed to [`Self::build`] and advanced each frame
+    /// in [`Self::update`]. Reactive scopes read from it.
+    type World: Default + 'static;
+
     fn window_title(&self) -> &'static str {
         "Fynix"
     }
@@ -29,13 +32,20 @@ pub trait FynixDemo {
 
     fn init(&mut self, _fynix: &mut Fynix) {}
 
-    fn build(&mut self, ctx: &mut FynixCtx<()>) -> ElementId;
+    /// Advances world state before reactive scopes are updated.
+    /// `dt` is the time elapsed since the previous frame.
+    fn update(&mut self, _world: &mut Self::World, _dt: Duration) {}
+
+    fn build(&mut self, ctx: &mut FynixCtx<Self::World>)
+    -> ElementId;
 }
 
 pub struct VelloWinitApp<'s, D: FynixDemo> {
     fynix: Fynix,
     root_id: ElementId,
     demo: D,
+    world: D::World,
+    last_frame: Instant,
     context: RenderContext,
     renderer: Option<Renderer>,
     state: RenderState<'s>,
@@ -55,7 +65,7 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
         let mut fynix = Fynix::new();
         demo.init(&mut fynix);
 
-        let mut world = ();
+        let mut world = D::World::default();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add_with::<WindowSize>(|w, ctx| {
@@ -67,6 +77,8 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
             fynix,
             root_id,
             demo,
+            world,
+            last_frame: Instant::now(),
             context: RenderContext::new(),
             renderer: None,
             state: RenderState::Suspended(None),
@@ -99,24 +111,33 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
             );
         }
 
-        if let Some(root) = self
+        // Resize the root only when the window size changes, marking
+        // it dirty so the whole tree re-lays out then (and on the
+        // first frame).
+        let size = Size::new(phys.width as f32, phys.height as f32);
+        let resized = self
             .fynix
             .elements
             .get_typed_mut::<WindowSize>(&self.root_id)
-        {
-            root.size = rectree::Size::new(
-                phys.width as f32,
-                phys.height as f32,
-            );
+            .is_some_and(|root| {
+                let changed = root.size.width != size.width
+                    || root.size.height != size.height;
+                root.size = size;
+                changed
+            });
+        if resized {
+            self.fynix.elements.mark_dirty(self.root_id);
         }
 
-        if let Some(meta) =
-            self.fynix.elements.metas.get_mut(&self.root_id)
-        {
-            meta.node.state.reset();
-        }
+        // Advance world state with this frame's delta, then rebuild
+        // any reactive scopes whose inputs changed, before layout.
+        let now = Instant::now();
+        let dt = now.duration_since(self.last_frame);
+        self.last_frame = now;
+        self.demo.update(&mut self.world, dt);
+        self.fynix.update_scopes::<D::World>(&mut self.world);
 
-        self.fynix.layout(&self.root_id);
+        self.fynix.layout();
 
         let bounds = Rect::new(
             0.0,

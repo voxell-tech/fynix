@@ -6,11 +6,11 @@ extern crate alloc;
 pub use field_path;
 pub use imaging;
 use imaging::PaintSink;
-pub use rectree;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
 use crate::resource::Resources;
+use crate::scope::{ScopeElement, Scopes};
 use crate::style::{StyleId, Styles};
 
 pub mod composer;
@@ -18,10 +18,16 @@ pub mod ctx;
 pub mod element;
 pub mod init;
 pub mod resource;
+pub mod scope;
 pub mod style;
 pub mod type_pool;
 
 pub mod prelude {
+    // Intentionally exposing only `NodeContext` and hiding
+    // `RectNodes`, `Rectree`, `NodeState`, etc.
+    pub use rectree::NodeContext;
+    pub use rectree::geom::*;
+
     pub use crate::Fynix;
     pub use crate::composer::Composer;
     pub use crate::ctx::FynixCtx;
@@ -45,6 +51,7 @@ pub struct Fynix {
     pub elements: Elements,
     pub styles: Styles,
     pub resources: Resources,
+    pub scopes: Scopes,
 }
 
 impl Fynix {
@@ -53,13 +60,15 @@ impl Fynix {
             elements: Elements::new(),
             styles: Styles::new(),
             resources: Resources::new(),
+            scopes: Scopes::new(),
         }
     }
 
-    /// Runs a full layout cycle on the subtree rooted at `id`.
+    /// Lays out every dirty subtree (see [`Elements::mark_dirty`]),
+    /// draining the dirty set.
     #[inline]
-    pub fn layout(&mut self, id: &ElementId) {
-        self.elements.layout(id, &mut self.resources);
+    pub fn layout(&mut self) {
+        self.elements.layout(&mut self.resources);
     }
 
     /// Renders the subtree rooted at `id` into `sink`.
@@ -79,10 +88,63 @@ impl Fynix {
     #[inline]
     pub fn remove_element(&mut self, id: &ElementId) -> bool {
         // Removes the element subtree along with their styles.
-        if !self.elements.remove(id, &mut self.styles) {
-            return false;
+        self.elements.remove(id, &mut self.styles, &mut self.scopes)
+    }
+
+    /// Re-runs every reactive scope of world type `W` whose
+    /// `changed_fn` reports a change, rebuilding its subtree in
+    /// place.
+    ///
+    /// Intended to be called by the backend once per frame.
+    pub fn update_scopes<W: 'static>(&mut self, world: &mut W) {
+        for scope in self.scopes.snapshot_changed::<W>(world) {
+            let element_id = scope.element_id();
+
+            // The holder may have been discarded earlier this flush
+            // by an ancestor scope's rebuild. If so, the scope was
+            // dropped with it, so skip the stale snapshot entry.
+            let Some(old_child) = self
+                .elements
+                .get_typed_mut::<ScopeElement>(&element_id)
+                .map(|elem| elem.child.take())
+            else {
+                continue;
+            };
+
+            if let Some(old_child) = old_child {
+                self.elements.remove(
+                    &old_child,
+                    &mut self.styles,
+                    &mut self.scopes,
+                );
+            }
+
+            // Rebuild under the scope's captured style scope, then
+            // drop any uncommitted style changes so they do not leak.
+            let child = {
+                let ctx =
+                    FynixCtx::new(self, world, scope.style_id());
+                scope.build(ctx)
+            };
+            self.styles.clear_builder();
+
+            if let Some(child_id) = child
+                && let Some(meta) =
+                    self.elements.metas.get_mut(&child_id)
+            {
+                meta.node.parent_id = Some(element_id);
+            }
+            if let Some(elem) = self
+                .elements
+                .get_typed_mut::<ScopeElement>(&element_id)
+            {
+                elem.child = child;
+            }
+
+            // Mark the rebuilt subtree dirty so it is re-laid-out
+            // and re-rendered.
+            self.elements.mark_dirty(element_id);
         }
-        true
     }
 
     /// Returns a [`FynixCtx`] rooted at the top of the style
