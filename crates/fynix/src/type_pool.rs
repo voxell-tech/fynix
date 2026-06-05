@@ -188,6 +188,49 @@ impl TypePool {
             None => false,
         }
     }
+
+    /// Returns the number of values stored in the column for `T`.
+    pub fn len<T: 'static>(&self) -> usize {
+        self.column::<T>().map(SparseMap::len).unwrap_or_default()
+    }
+
+    /// Iterates shared references to every value in the column for
+    /// `T`.
+    ///
+    /// Yields nothing if no column for `T` has been created yet.
+    pub fn iter<'a, T: 'static>(
+        &'a self,
+    ) -> impl Iterator<Item = &'a T> + 'a {
+        self.column::<T>().into_iter().flat_map(SparseMap::iter)
+    }
+
+    /// Removes and yields every value in the column for `T`, leaving
+    /// that column empty.
+    pub fn drain<T: 'static>(
+        &mut self,
+    ) -> impl Iterator<Item = T> + '_ {
+        self.column_mut::<T>()
+            .into_iter()
+            .flat_map(SparseMap::drain)
+    }
+
+    /// Returns the [`SparseMap`] column for `T`, if one exists.
+    fn column<T: 'static>(&self) -> Option<&SparseMap<T>> {
+        self.column_ids
+            .get(&TypeId::of::<T>())
+            .and_then(|col| self.columns.get(col.index()))
+            .and_then(|c| c.downcast_ref::<T>())
+    }
+
+    /// Returns a mutable [`SparseMap`] column for `T`, if one exists.
+    fn column_mut<T: 'static>(
+        &mut self,
+    ) -> Option<&mut SparseMap<T>> {
+        let col = *self.column_ids.get(&TypeId::of::<T>())?;
+        self.columns
+            .get_mut(col.index())
+            .and_then(|c| c.downcast_mut::<T>())
+    }
 }
 
 impl Default for TypePool {

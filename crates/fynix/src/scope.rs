@@ -54,10 +54,10 @@ impl Scopes {
         &self,
         world: &W,
     ) -> Vec<Scope<W>> {
-        self.by_element
-            .values()
-            .filter_map(|id| self.scopes.get::<Scope<W>>(id).copied())
+        self.scopes
+            .iter::<Scope<W>>()
             .filter(|scope| scope.is_changed(world))
+            .copied()
             .collect()
     }
 }
