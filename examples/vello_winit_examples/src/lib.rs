@@ -2,9 +2,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use fynix::ctx::FynixCtx;
-use fynix::element::ElementId;
-use fynix::{Fynix, rectree};
+use fynix::prelude::*;
 use fynix_elements::WindowSize;
 use imaging_vello::VelloSceneSink;
 use vello::kurbo::Rect;
@@ -116,8 +114,7 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
         // Resize the root only when the window size changes, marking
         // it dirty so the whole tree re-lays out then (and on the
         // first frame).
-        let size =
-            rectree::Size::new(phys.width as f32, phys.height as f32);
+        let size = Size::new(phys.width as f32, phys.height as f32);
         let resized = self
             .fynix
             .elements

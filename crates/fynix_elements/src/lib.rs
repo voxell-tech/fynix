@@ -14,7 +14,6 @@ use fynix::imaging::{
     Composite, FillRef, GlyphRunRef, PaintSink, StrokeRef, kurbo,
 };
 use fynix::prelude::*;
-use fynix::rectree::{Constraint, NodeContext, Size, Vec2};
 pub use parley;
 use parley::style::StyleProperty;
 use parley::{

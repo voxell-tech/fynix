@@ -6,7 +6,6 @@ extern crate alloc;
 pub use field_path;
 pub use imaging;
 use imaging::PaintSink;
-pub use rectree;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
@@ -24,6 +23,11 @@ pub mod style;
 pub mod type_pool;
 
 pub mod prelude {
+    // Intentionally exposing only `NodeContext` and hiding
+    // `RectNodes`, `Rectree`, `NodeState`, etc.
+    pub use rectree::NodeContext;
+    pub use rectree::geom::*;
+
     pub use crate::Fynix;
     pub use crate::composer::Composer;
     pub use crate::ctx::FynixCtx;
