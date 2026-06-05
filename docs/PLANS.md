@@ -63,7 +63,7 @@ ctx.add_with::<Button>(|e, ctx| {
 
 ### Events queue (UI -> world)
 
-`Events` is Fynix-owned, backed by `TypeTable`. Handlers push
+`Events` is Fynix-owned, backed by `TypePool`. Handlers push
 typed messages; the backend drains them with full world access:
 
 ```rust
@@ -107,7 +107,7 @@ wrapper - type safety comes from the accessor at binding time.
 
 ```
 Bindings
-- values: TypeTable<BindingId>
+- values: TypePool<BindingId>
     - current value per (BindingId, T)
 - targets: HashMap<BindingId, (ElementId, UntypedAccessor)>
     - which element field each binding writes to

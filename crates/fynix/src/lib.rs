@@ -9,6 +9,7 @@ use imaging::PaintSink;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
+use crate::events::Events;
 use crate::resource::Resources;
 use crate::scope::{ScopeElement, Scopes};
 use crate::style::{StyleId, Styles};
@@ -16,6 +17,7 @@ use crate::style::{StyleId, Styles};
 pub mod composer;
 pub mod ctx;
 pub mod element;
+pub mod events;
 pub mod init;
 pub mod resource;
 pub mod scope;
@@ -52,6 +54,9 @@ pub struct Fynix {
     pub styles: Styles,
     pub resources: Resources,
     pub scopes: Scopes,
+    /// Queue of typed messages flowing from the UI to the host
+    /// world, drained by the backend each frame.
+    pub events: Events,
 }
 
 impl Fynix {
@@ -61,6 +66,7 @@ impl Fynix {
             styles: Styles::new(),
             resources: Resources::new(),
             scopes: Scopes::new(),
+            events: Events::new(),
         }
     }
 
