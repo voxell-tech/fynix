@@ -20,7 +20,7 @@ parley = { version = "0.7.0", default-features = false }
 imaging = { version = "0.0.1", default-features = false }
 imaging_vello = { version = "0.0.1", default-features = false, features = ["vello-0-8"] }
 
-sparse_map = "0.2.0"
+sparse_map = "0.3.0"
 vello = "0.8.0"
 winit = "0.30"
 pollster = "0.4.0"
