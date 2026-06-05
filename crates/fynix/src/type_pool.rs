@@ -194,6 +194,11 @@ impl TypePool {
         self.column::<T>().map(SparseMap::len).unwrap_or_default()
     }
 
+    /// Returns `true` if the column for `T` holds no values.
+    pub fn is_empty<T: 'static>(&self) -> bool {
+        self.len::<T>() == 0
+    }
+
     /// Iterates shared references to every value in the column for
     /// `T`.
     ///
@@ -212,6 +217,18 @@ impl TypePool {
         self.column_mut::<T>()
             .into_iter()
             .flat_map(SparseMap::drain)
+    }
+
+    /// Removes every value in the column for `T`, leaving it empty.
+    ///
+    /// Returns `true` if a column for `T` exists, or `false` if one
+    /// has not been created yet.
+    pub fn clear<T: 'static>(&mut self) -> bool {
+        if let Some(column) = self.column_mut::<T>() {
+            column.clear();
+            return true;
+        }
+        false
     }
 
     /// Returns the [`SparseMap`] column for `T`, if one exists.
@@ -419,6 +436,23 @@ mod tests {
     fn placeholder_key_is_absent() {
         let mut pool = TypePool::new();
         assert!(!pool.dyn_remove(&ColumnKey::PLACEHOLDER));
+    }
+
+    #[test]
+    fn clear_empties_column() {
+        let mut pool = TypePool::new();
+        let key = pool.insert(Velocity(1.0));
+        pool.insert(Velocity(2.0));
+
+        assert!(pool.clear::<Velocity>());
+        assert_eq!(pool.len::<Velocity>(), 0);
+        assert!(pool.get::<Velocity>(&key).is_none());
+    }
+
+    #[test]
+    fn clear_absent_column_returns_false() {
+        let mut pool = TypePool::new();
+        assert!(!pool.clear::<Velocity>());
     }
 
     #[test]
