@@ -54,8 +54,6 @@ pub struct Fynix {
     pub styles: Styles,
     pub resources: Resources,
     pub scopes: Scopes,
-    /// Queue of typed messages flowing from the UI to the host
-    /// world, drained by the backend each frame.
     pub events: Events,
 }
 

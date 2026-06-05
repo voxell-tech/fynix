@@ -35,17 +35,13 @@ impl Events {
     }
 
     /// Iterates the queued events of type `E` without removing them.
-    pub fn iter<'a, E: 'static>(
-        &'a self,
-    ) -> impl Iterator<Item = &'a E> + 'a {
+    pub fn iter<E: 'static>(&self) -> impl Iterator<Item = &E> {
         self.pool.iter::<E>()
     }
 
     /// Removes and yields every queued event of type `E`, leaving the
     /// queue for that type empty.
-    pub fn drain<E: 'static>(
-        &mut self,
-    ) -> impl Iterator<Item = E> + '_ {
+    pub fn drain<E: 'static>(&mut self) -> impl Iterator<Item = E> {
         self.pool.drain::<E>()
     }
 }

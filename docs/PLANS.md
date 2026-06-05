@@ -42,8 +42,8 @@ pub struct UntypedInteractionHandler {
 }
 ```
 
-Registry keyed on `(TypeId<E>, TypeId<Ev>)` - one handler per
-element + interaction pair.
+Registry keyed by `(TypeId<E>, TypeId<I>)` (element, interaction) -
+one handler per element + interaction pair.
 
 ### Per-instance behavior via fn pointer
 
