@@ -189,6 +189,17 @@ impl TypePool {
         }
     }
 
+    /// Returns the [`TypeId`] of the values held in `col_key`'s
+    /// column, or `None` if the column does not exist.
+    pub fn value_type_id(
+        &self,
+        col_key: &ColumnKey,
+    ) -> Option<TypeId> {
+        self.columns
+            .get(col_key.col.index())
+            .map(|c| c.type_id_of())
+    }
+
     /// Returns the number of values stored in the column for `T`.
     pub fn len<T: 'static>(&self) -> usize {
         self.column::<T>().map(SparseMap::len).unwrap_or_default()
@@ -292,6 +303,11 @@ mod any_sparse_map {
     }
 
     impl dyn AnySparseMap {
+        #[inline]
+        pub fn type_id_of(&self) -> TypeId {
+            self.element_type_id()
+        }
+
         #[inline]
         pub fn element_is<T: 'static>(&self) -> bool {
             self.element_type_id() == TypeId::of::<T>()

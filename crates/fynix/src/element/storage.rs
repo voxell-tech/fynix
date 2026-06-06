@@ -1,3 +1,5 @@
+use core::any::TypeId;
+
 use hashbrown::HashSet;
 use imaging::PaintSink;
 
@@ -125,6 +127,12 @@ impl Elements {
         id: &ElementId,
     ) -> Option<&mut E> {
         self.elements.get_mut(id)
+    }
+
+    /// Returns the [`TypeId`] of the element's concrete type, or
+    /// `None` if `id` does not exist.
+    pub fn type_id_of(&self, id: &ElementId) -> Option<TypeId> {
+        self.elements.value_type_id(id)
     }
 
     /// Recursively removes the element subtree along with their
@@ -267,9 +275,6 @@ impl Default for Elements {
 }
 
 /// Identifier for an element instance.
-///
-/// Wraps the [`ColumnKey`] returned by [`TypePool::insert`], so the
-/// id is also the direct storage key - no secondary lookup needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ElementId(pub(crate) ColumnKey);
 

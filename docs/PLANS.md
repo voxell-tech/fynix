@@ -3,7 +3,9 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| Interactions & Events                | Planned, not started              |
+| Events queue (`Events`)              | Implemented                       |
+| Interaction registry + macro         | Implemented                       |
+| Interaction input layer              | Planned, not started              |
 | Reactive scopes (`ctx.reactive`)     | Implemented                       |
 | Field bindings (`Bindings`)          | Planned, not started              |
 
