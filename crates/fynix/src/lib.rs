@@ -123,8 +123,24 @@ impl Fynix {
     /// Returns `true` if the element existed
     #[inline]
     pub fn remove_element(&mut self, id: &ElementId) -> bool {
-        // Removes the element subtree along with their styles.
-        self.elements.remove(id, &mut self.styles, &mut self.scopes)
+        // Removes the element subtree, cleaning up the styles and
+        // scopes each removed element owns. The first primary style
+        // encountered drops itself and all its descendants in the
+        // style tree, so deeper primary styles are left for that
+        // subtree removal to handle.
+        let mut has_removed_styles = false;
+
+        self.elements.remove(id, |id, meta| {
+            if !has_removed_styles
+                && let Some(primary_style) = meta.primary_style
+            {
+                has_removed_styles =
+                    self.styles.remove(&primary_style);
+            }
+
+            // Drop any scope this element owns.
+            self.scopes.remove_for_element(id);
+        })
     }
 
     /// Re-runs every reactive scope of world type `W` whose
@@ -148,11 +164,7 @@ impl Fynix {
             };
 
             if let Some(old_child) = old_child {
-                self.elements.remove(
-                    &old_child,
-                    &mut self.styles,
-                    &mut self.scopes,
-                );
+                self.remove_element(&old_child);
             }
 
             // Rebuild under the scope's captured style scope, then
