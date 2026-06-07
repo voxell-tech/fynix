@@ -88,7 +88,6 @@ impl Fynix {
             id,
             interaction,
             &mut self.events,
-            &mut self.elements,
         )
     }
 

@@ -1,5 +1,3 @@
-use core::marker::PhantomData;
-
 use field_path::field_accessor::FieldAccessor;
 
 use crate::Fynix;
@@ -55,7 +53,7 @@ impl<W> FynixCtx<'_, '_, W> {
     /// Elements created with `add` dont own any styles, so their
     /// `primary_style` is `None`
     #[must_use]
-    pub fn add<E: Element>(&mut self) -> ElementHandle<'_, E> {
+    pub fn add<E: Element>(&mut self) -> ElementHandle<'_> {
         let element = self.create_styled::<E>();
         let id = self.fynix.elements.add(element, None);
         ElementHandle::new(&mut self.fynix.interactions, id)
@@ -236,37 +234,29 @@ impl<W> FynixCtx<'_, '_, W> {
 /// Returned by [`FynixCtx::add`]. Converts into the element's
 /// [`ElementId`] via [`Self::id`] or the [`From`]/[`Into`] impls, so
 /// it drops into any API that wants an id.
-pub struct ElementHandle<'a, E> {
+pub struct ElementHandle<'a> {
     interactions: &'a mut Interactions,
     id: ElementId,
-    _element: PhantomData<fn() -> E>,
 }
 
-impl<'a, E: Element> ElementHandle<'a, E> {
+impl<'a> ElementHandle<'a> {
     fn new(
         interactions: &'a mut Interactions,
         id: ElementId,
     ) -> Self {
-        Self {
-            interactions,
-            id,
-            _element: PhantomData,
-        }
+        Self { interactions, id }
     }
 
     /// Attaches a handler for interaction type `I` to this element.
     ///
-    /// `I` is inferred from the handler's second parameter. Chainable,
-    /// so successive calls attach handlers for different interactions;
-    /// a later call for the same `I` replaces the earlier one.
+    /// `I` is inferred from the handler's parameter. Chainable, so
+    /// successive calls attach handlers for different interactions; a
+    /// later call for the same `I` replaces the earlier one.
     ///
     /// The handler is a [`HandlerFn`], so a non-capturing closure
     /// coerces into one; a capturing closure does not.
-    pub fn on<I: 'static>(
-        self,
-        handler: HandlerFn<E, I>,
-    ) -> Self {
-        self.interactions.register::<E, I>(self.id, handler);
+    pub fn on<I: 'static>(self, handler: HandlerFn<I>) -> Self {
+        self.interactions.register::<I>(self.id, handler);
         self
     }
 
@@ -276,8 +266,8 @@ impl<'a, E: Element> ElementHandle<'a, E> {
     }
 }
 
-impl<E> From<ElementHandle<'_, E>> for ElementId {
-    fn from(handle: ElementHandle<'_, E>) -> Self {
+impl From<ElementHandle<'_>> for ElementId {
+    fn from(handle: ElementHandle<'_>) -> Self {
         handle.id
     }
 }

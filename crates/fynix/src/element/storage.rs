@@ -164,10 +164,7 @@ impl Elements {
                     id,
                     &mut |child_id, elements| {
                         remove_recursive(
-                            child_id,
-                            metas,
-                            type_metas,
-                            elements,
+                            child_id, metas, type_metas, elements,
                             on_removed,
                         );
                     },
