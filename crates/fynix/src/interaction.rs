@@ -20,7 +20,7 @@ type DispatchFn<I> =
 ///
 /// One of these is monomorphized per `(E, I)` and stored,
 /// type-erased, inside a [`Dispatcher`].
-fn dispatch_typed<E: Element, I>(
+fn dispatch<E: Element, I>(
     elements: &mut Elements,
     id: &ElementId,
     interaction: I,
@@ -42,15 +42,15 @@ fn dispatch_typed<E: Element, I>(
 /// call it. The interaction type `I` is retained; the element type is
 /// erased into `dispatch`.
 struct Dispatcher<I> {
-    handler: *const (),
-    dispatch: DispatchFn<I>,
+    handler_fn: *const (),
+    dispatch_fn: DispatchFn<I>,
 }
 
 impl<I> Dispatcher<I> {
-    fn new<E: Element>(handler: HandlerFn<E, I>) -> Self {
+    fn new<E: Element>(handler_fn: HandlerFn<E, I>) -> Self {
         Self {
-            handler: handler as *const (),
-            dispatch: dispatch_typed::<E, I>,
+            handler_fn: handler_fn as *const (),
+            dispatch_fn: dispatch::<E, I>,
         }
     }
 
@@ -58,8 +58,8 @@ impl<I> Dispatcher<I> {
     /// one map.
     fn untyped(self) -> UntypedDispatcher {
         UntypedDispatcher {
-            handler: self.handler,
-            dispatch: self.dispatch as *const (),
+            handler_fn: self.handler_fn,
+            dispatch_fn: self.dispatch_fn as *const (),
         }
     }
 
@@ -70,12 +70,12 @@ impl<I> Dispatcher<I> {
         interaction: I,
         events: &mut Events,
     ) {
-        (self.dispatch)(
+        (self.dispatch_fn)(
             elements,
             id,
             interaction,
             events,
-            self.handler,
+            self.handler_fn,
         );
     }
 }
@@ -84,8 +84,8 @@ impl<I> Dispatcher<I> {
 /// [`Self::typed`] using the `I` known at dispatch.
 #[derive(Clone, Copy)]
 struct UntypedDispatcher {
-    handler: *const (),
-    dispatch: *const (),
+    handler_fn: *const (),
+    dispatch_fn: *const (),
 }
 
 impl UntypedDispatcher {
@@ -93,11 +93,13 @@ impl UntypedDispatcher {
         // SAFETY: stored under a key whose `interaction_id` is
         // `TypeId::of::<I>()`, so `dispatch` is a `DispatchFn<I>`.
         let dispatch = unsafe {
-            mem::transmute::<*const (), DispatchFn<I>>(self.dispatch)
+            mem::transmute::<*const (), DispatchFn<I>>(
+                self.dispatch_fn,
+            )
         };
         Dispatcher {
-            handler: self.handler,
-            dispatch,
+            handler_fn: self.handler_fn,
+            dispatch_fn: dispatch,
         }
     }
 }
@@ -280,12 +282,12 @@ mod tests {
             ctx.add::<Counter>()
         };
 
-        struct Hover;
+        struct Unhandled;
         let interactions = Interactions::new();
         let ran = interactions.dispatch(
             &mut fynix.elements,
             &id,
-            Hover,
+            Unhandled,
             &mut fynix.events,
         );
 

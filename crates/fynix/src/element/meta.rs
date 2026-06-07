@@ -62,6 +62,13 @@ impl ElementMetas {
     ) -> Option<&mut ElementMeta> {
         self.map.get_mut(id)
     }
+
+    /// Iterates every element id and its metadata.
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&ElementId, &ElementMeta)> {
+        self.map.iter()
+    }
 }
 
 impl Default for ElementMetas {
