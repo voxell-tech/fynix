@@ -595,6 +595,7 @@ dependencies = [
  "fynix_macros",
  "hashbrown 0.16.1",
  "imaging",
+ "indexmap",
  "inventory",
  "rectree",
  "sparse_map",

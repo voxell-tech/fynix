@@ -24,7 +24,7 @@ pub mod interaction;
 pub mod resource;
 pub mod scope;
 pub mod style;
-pub mod type_pool;
+pub mod typing;
 
 pub mod prelude {
     // Intentionally exposing only `NodeContext` and hiding

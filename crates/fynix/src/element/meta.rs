@@ -6,7 +6,7 @@ use rectree::RectNode;
 
 use crate::element::{Element, ElementId};
 use crate::style::StyleId;
-use crate::type_pool::{ColumnId, TypePool};
+use crate::typing::type_pool::{ColumnId, TypePool};
 
 /// Per-element metadata.
 pub struct ElementMeta {

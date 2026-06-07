@@ -8,7 +8,7 @@ use crate::element::layout::ElementNodes;
 use crate::element::{Element, ElementBuild, ElementId};
 use crate::init::Init;
 use crate::style::StyleId;
-use crate::type_pool::{ColumnKey, TypePool};
+use crate::typing::type_pool::{ColumnKey, TypePool};
 
 pub struct Scopes {
     scopes: TypePool,

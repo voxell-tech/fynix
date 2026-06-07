@@ -21,6 +21,7 @@ imaging = { version = "0.0.1", default-features = false }
 imaging_vello = { version = "0.0.1", default-features = false, features = ["vello-0-8"] }
 
 sparse_map = "0.3.0"
+indexmap = { version = "2.14", default-features = false }
 inventory = "0.3"
 vello = "0.8.0"
 winit = "0.30"

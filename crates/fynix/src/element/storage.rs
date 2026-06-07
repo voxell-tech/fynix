@@ -8,7 +8,7 @@ use super::layout::{ElementNodes, ElementTree};
 use super::meta::{ElementMeta, ElementMetas, ElementTypeMetas};
 use crate::resource::Resources;
 use crate::style::StyleId;
-use crate::type_pool::{ColumnKey, TypePool};
+use crate::typing::type_pool::{ColumnKey, TypePool};
 
 /// Type-erased storage for all element instances.
 ///
