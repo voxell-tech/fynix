@@ -1,14 +1,14 @@
-use core::any::TypeId;
 use core::mem;
-
-pub use fynix_macros::fynix;
-use hashbrown::HashMap;
 
 use crate::element::{Element, ElementId, Elements};
 use crate::events::Events;
+use crate::typing::type_table::TypeTable;
 
 /// User-written interaction handler: reacts to interaction `I` on an
 /// element of type `E`, emitting messages into [`Events`].
+///
+/// A plain function pointer, so a non-capturing closure coerces into
+/// one at the [`on`](crate::ctx::ElementHandle::on) call site.
 pub type HandlerFn<E, I> = fn(&mut E, I, &mut Events);
 
 /// Monomorphized dispatch for interaction type `I`, with the element
@@ -27,7 +27,7 @@ fn dispatch<E: Element, I>(
     events: &mut Events,
     handler: *const (),
 ) {
-    // SAFETY: `Dispatcher::new` pairs `dispatch_typed::<E, I>` with a
+    // SAFETY: `Dispatcher::new` pairs `dispatch::<E, I>` with a
     // `HandlerFn<E, I>` erased to `*const ()`, so the pointer is
     // exactly that handler.
     let handler = unsafe {
@@ -38,9 +38,9 @@ fn dispatch<E: Element, I>(
     }
 }
 
-/// A handler paired with the [`dispatch_typed`] that knows how to
-/// call it. The interaction type `I` is retained; the element type is
-/// erased into `dispatch`.
+/// A handler paired with the [`dispatch`] that knows how to call it.
+/// The interaction type `I` is retained; the element type is erased
+/// into `dispatch_fn`.
 struct Dispatcher<I> {
     handler_fn: *const (),
     dispatch_fn: DispatchFn<I>,
@@ -51,15 +51,6 @@ impl<I> Dispatcher<I> {
         Self {
             handler_fn: handler_fn as *const (),
             dispatch_fn: dispatch::<E, I>,
-        }
-    }
-
-    /// Erases the interaction type so dispatchers of every `I` share
-    /// one map.
-    fn untyped(self) -> UntypedDispatcher {
-        UntypedDispatcher {
-            handler_fn: self.handler_fn,
-            dispatch_fn: self.dispatch_fn as *const (),
         }
     }
 
@@ -80,122 +71,71 @@ impl<I> Dispatcher<I> {
     }
 }
 
-/// A [`Dispatcher`] with its interaction type erased, recovered via
-/// [`Self::typed`] using the `I` known at dispatch.
-#[derive(Clone, Copy)]
-struct UntypedDispatcher {
-    handler_fn: *const (),
-    dispatch_fn: *const (),
-}
+impl<I> Copy for Dispatcher<I> {}
 
-impl UntypedDispatcher {
-    fn typed<I>(self) -> Dispatcher<I> {
-        // SAFETY: stored under a key whose `interaction_id` is
-        // `TypeId::of::<I>()`, so `dispatch` is a `DispatchFn<I>`.
-        let dispatch = unsafe {
-            mem::transmute::<*const (), DispatchFn<I>>(
-                self.dispatch_fn,
-            )
-        };
-        Dispatcher {
-            handler_fn: self.handler_fn,
-            dispatch_fn: dispatch,
-        }
+impl<I> Clone for Dispatcher<I> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 
-/// Identifies the handler for an `(element, interaction)` type pair.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InteractionKey {
-    /// [`TypeId`] of the element type.
-    pub element_id: TypeId,
-    /// [`TypeId`] of the interaction type.
-    pub interaction_id: TypeId,
-}
-
-impl InteractionKey {
-    /// Builds a key for element type `E` reacting to interaction `I`.
-    pub fn of<E: 'static, I: 'static>() -> Self {
-        Self {
-            element_id: TypeId::of::<E>(),
-            interaction_id: TypeId::of::<I>(),
-        }
-    }
-}
-
-/// A registrar collected by [`inventory`] from every
-/// `#[fynix(interaction)]` annotation.
+/// Per-instance interaction store.
 ///
-/// Carries a registrar rather than a handler directly, so each
-/// submission inserts its handler into the registry when it is built.
-pub struct InteractionRegistrar {
-    /// Inserts the handler into [`Interactions`].
-    pub register: fn(&mut Interactions),
-}
-
-inventory::collect!(InteractionRegistrar);
-
-/// Runtime index of interaction handlers, keyed by element and
-/// interaction type.
+/// Each element instance carries its own handlers, attached at build
+/// time via [`FynixCtx::add`] and [`ElementHandle::on`]. The
+/// [`TypeTable`] keeps one column of [`Dispatcher<I>`] per interaction
+/// type `I`, addressed by [`ElementId`], so the element type is erased
+/// into the dispatcher and recovered by id when `I` is dispatched.
 ///
-/// One handler per `(element, interaction)` pair.
+/// [`FynixCtx::add`]: crate::ctx::FynixCtx::add
+/// [`ElementHandle::on`]: crate::ctx::ElementHandle::on
 pub struct Interactions {
-    dispatchers: HashMap<InteractionKey, UntypedDispatcher>,
+    table: TypeTable<ElementId>,
 }
 
 impl Interactions {
-    /// Builds the index from every [`InteractionRegistrar`] submitted
-    /// through [`inventory`].
+    /// Creates an empty store.
     pub fn new() -> Self {
-        let mut interactions = Self {
-            dispatchers: HashMap::new(),
-        };
-        for registrar in inventory::iter::<InteractionRegistrar> {
-            (registrar.register)(&mut interactions);
+        Self {
+            table: TypeTable::new(),
         }
-        interactions
     }
 
-    /// Registers `handler` for element type `E` reacting to
-    /// interaction `I`.
+    /// Attaches `handler` to `id` for interaction type `I`.
     ///
-    /// Called by the registrars generated by `#[fynix(interaction)]`.
-    pub fn register<E: Element, I: 'static>(
+    /// Replaces any handler previously attached to `id` for `I`.
+    pub fn register<E, I>(
         &mut self,
+        id: ElementId,
         handler: HandlerFn<E, I>,
-    ) {
-        self.dispatchers.insert(
-            InteractionKey::of::<E, I>(),
-            Dispatcher::new(handler).untyped(),
-        );
+    ) where
+        E: Element,
+        I: 'static,
+    {
+        self.table.insert(id, Dispatcher::new(handler));
     }
 
-    /// Dispatches `interaction` to the handler registered for `id`'s
-    /// element type and `I`, if one exists.
-    ///
-    /// Returns `true` if a handler ran.
+    /// Drops every handler attached to `id`, across all interaction
+    /// types. Returns `true` if any were present.
+    pub fn remove(&mut self, id: &ElementId) -> bool {
+        self.table.remove_row(id)
+    }
+
+    /// Runs the handler attached to `id` for interaction `I`, if one
+    /// exists. Returns `true` if a handler ran.
     pub fn dispatch<I: 'static>(
         &self,
-        elements: &mut Elements,
         id: &ElementId,
         interaction: I,
         events: &mut Events,
+        elements: &mut Elements,
     ) -> bool {
-        let Some(element_id) = elements.type_id_of(id) else {
-            return false;
-        };
-        let key = InteractionKey {
-            element_id,
-            interaction_id: TypeId::of::<I>(),
-        };
-        let Some(dispatcher) =
-            self.dispatchers.get(&key).map(|d| d.typed::<I>())
-        else {
-            return false;
-        };
+        if let Some(dispatcher) = self.table.get::<Dispatcher<I>>(id) {
+            dispatcher.run(elements, id, interaction, events);
+            return true;
+        }
 
-        dispatcher.run(elements, id, interaction, events);
-        true
+        false
     }
 }
 
@@ -236,32 +176,21 @@ mod tests {
     #[derive(Debug, PartialEq)]
     struct Clicked(u32);
 
-    #[fynix(interaction)]
-    fn on_click_counter(
-        counter: &mut Counter,
-        _click: Click,
-        events: &mut Events,
-    ) {
-        counter.count += 1;
-        events.push(Clicked(counter.count));
-    }
-
     #[test]
-    fn dispatch_runs_registered_handler() {
+    fn dispatch_runs_attached_handler() {
         let mut world = ();
         let mut fynix = Fynix::new();
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Counter>()
+                .on(|counter: &mut Counter, _: Click, events| {
+                    counter.count += 1;
+                    events.push(Clicked(counter.count));
+                })
+                .id()
         };
 
-        let interactions = Interactions::new();
-        let ran = interactions.dispatch(
-            &mut fynix.elements,
-            &id,
-            Click,
-            &mut fynix.events,
-        );
+        let ran = fynix.dispatch(&id, Click);
 
         assert!(ran);
         let counter =
@@ -279,18 +208,58 @@ mod tests {
         let mut fynix = Fynix::new();
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.add::<Counter>()
+            ctx.add::<Counter>().id()
         };
 
         struct Unhandled;
-        let interactions = Interactions::new();
-        let ran = interactions.dispatch(
-            &mut fynix.elements,
-            &id,
-            Unhandled,
-            &mut fynix.events,
-        );
+        let ran = fynix.dispatch(&id, Unhandled);
 
         assert!(!ran);
+    }
+
+    #[test]
+    fn handlers_are_per_instance() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let (handled, plain) = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            let handled = ctx
+                .add::<Counter>()
+                .on(|counter: &mut Counter, _: Click, _| {
+                    counter.count += 1;
+                })
+                .id();
+            // A second instance of the same type with no handler.
+            let plain = ctx.add::<Counter>().id();
+            (handled, plain)
+        };
+
+        assert!(fynix.dispatch(&handled, Click));
+        assert!(!fynix.dispatch(&plain, Click));
+        assert_eq!(
+            fynix
+                .elements
+                .get_typed::<Counter>(&handled)
+                .unwrap()
+                .count,
+            1
+        );
+    }
+
+    #[test]
+    fn remove_drops_handlers() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let id = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.add::<Counter>()
+                .on(|counter: &mut Counter, _: Click, _| {
+                    counter.count += 1;
+                })
+                .id()
+        };
+
+        assert!(fynix.interactions.remove(&id));
+        assert!(!fynix.dispatch(&id, Click));
     }
 }

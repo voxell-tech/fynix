@@ -16,7 +16,6 @@ hashbrown.workspace = true
 field_path.workspace = true
 sparse_map.workspace = true
 indexmap.workspace = true
-inventory.workspace = true
 imaging.workspace = true
 
 [features]

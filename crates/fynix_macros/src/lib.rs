@@ -1,10 +1,9 @@
 use proc_macro::TokenStream;
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{
-    Data, DataStruct, DeriveInput, Expr, Fields, FnArg, ItemFn, Type,
-    parse_macro_input,
+    Data, DataStruct, DeriveInput, Expr, Fields, parse_macro_input,
 };
 
 fn fynix_crate() -> TokenStream2 {
@@ -207,16 +206,21 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         .into();
     };
 
-    match element_children_impl(
+    let children = match element_children_impl(
         name,
         &fynix,
         &input.generics,
         s,
         attrs,
     ) {
-        Ok(tokens) => tokens.into(),
-        Err(e) => e.to_compile_error().into(),
+        Ok(tokens) => tokens,
+        Err(e) => return e.to_compile_error().into(),
+    };
+
+    quote! {
+        #children
     }
+    .into()
 }
 
 struct FieldInfo {
@@ -299,107 +303,5 @@ fn element_children_impl(
         {
             #children_fn
         }
-    })
-}
-
-/// Registers an interaction handler from a free function.
-///
-/// ```ignore
-/// #[fynix(interaction)]
-/// fn on_click(e: &mut Button, click: Click, events: &mut Events) {
-///     (e.on_click)(events);
-/// }
-/// ```
-///
-/// The element type comes from the first parameter (`&mut E`), the
-/// interaction type from the second (`I`, by value), and outgoing
-/// messages flow through the third (`&mut Events`). The handler is
-/// collected at startup and dispatched on its `(E, I)` pair.
-#[proc_macro_attribute]
-pub fn fynix(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let kind = parse_macro_input!(attr as Ident);
-    if kind == "interaction" {
-        return fynix_interaction(item);
-    }
-
-    syn::Error::new_spanned(
-        kind,
-        "unknown `fynix` attribute; expected `interaction`",
-    )
-    .to_compile_error()
-    .into()
-}
-
-/// Expands `#[fynix(interaction)]` on a handler function.
-fn fynix_interaction(item: TokenStream) -> TokenStream {
-    let func = parse_macro_input!(item as ItemFn);
-    match interaction_impl(func) {
-        Ok(tokens) => tokens.into(),
-        Err(e) => e.to_compile_error().into(),
-    }
-}
-
-/// Returns the `E` in a `&mut E` parameter type.
-fn ref_mut_target(ty: &Type) -> syn::Result<&Type> {
-    if let Type::Reference(reference) = ty
-        && reference.mutability.is_some()
-    {
-        return Ok(&reference.elem);
-    }
-
-    Err(syn::Error::new_spanned(
-        ty,
-        "expected `&mut Element` as the first parameter",
-    ))
-}
-
-fn interaction_impl(func: ItemFn) -> syn::Result<TokenStream2> {
-    let fynix = fynix_crate();
-    let fn_name = func.sig.ident.clone();
-
-    let mut inputs = func.sig.inputs.iter();
-
-    let elem_ty = match inputs.next() {
-        Some(FnArg::Typed(pat)) => ref_mut_target(&pat.ty)?,
-        _ => {
-            return Err(syn::Error::new_spanned(
-                &func.sig,
-                "interaction handler needs `&mut Element` as its \
-                 first parameter",
-            ));
-        }
-    };
-
-    let interaction_ty = match inputs.next() {
-        Some(FnArg::Typed(pat)) => &*pat.ty,
-        _ => {
-            return Err(syn::Error::new_spanned(
-                &func.sig,
-                "interaction handler needs the interaction value as \
-                 its second parameter",
-            ));
-        }
-    };
-
-    let registrar = format_ident!("__fynix_register_{}", fn_name);
-
-    Ok(quote! {
-        #func
-
-        const _: () = {
-            fn #registrar(
-                interactions: &mut #fynix::interaction::Interactions,
-            ) {
-                interactions.register::<#elem_ty, #interaction_ty>(
-                    #fn_name,
-                );
-            }
-
-            #fynix::__private::inventory::submit! {
-                #fynix::interaction::InteractionRegistrar {
-                    register: #registrar,
-                }
-            }
-        };
     })
 }
