@@ -10,7 +10,8 @@ impl<T: 'static> Seal for SparseMap<T> {}
 
 #[expect(private_bounds)]
 pub trait AnySparseMap: Seal {
-    fn element_type_id(&self) -> TypeId;
+    /// Returns the [`TypeId`] of the stored value type.
+    fn value_type_id(&self) -> TypeId;
 
     /// Removes the value at `key`.
     ///
@@ -22,7 +23,7 @@ pub trait AnySparseMap: Seal {
 }
 
 impl<T: 'static> AnySparseMap for SparseMap<T> {
-    fn element_type_id(&self) -> TypeId {
+    fn value_type_id(&self) -> TypeId {
         TypeId::of::<T>()
     }
 
@@ -38,12 +39,12 @@ impl<T: 'static> AnySparseMap for SparseMap<T> {
 impl dyn AnySparseMap {
     #[inline]
     pub fn type_id_of(&self) -> TypeId {
-        self.element_type_id()
+        self.value_type_id()
     }
 
     #[inline]
     pub fn element_is<T: 'static>(&self) -> bool {
-        self.element_type_id() == TypeId::of::<T>()
+        self.value_type_id() == TypeId::of::<T>()
     }
 
     #[inline]

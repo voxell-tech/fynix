@@ -10,15 +10,11 @@ use crate::typing::any_index_map::DynIndexMap;
 
 /// Heterogeneous, key-addressed table.
 ///
-/// A `TypeTable` stores values of many different types, all reachable
-/// by a shared key type `K`. Each value type `V` occupies its own
-/// [`IndexMap<K, V, S>`] column, type-erased behind a
-/// [`DynIndexMap`]. A lookup hashes the value's [`TypeId`] to find
-/// its column, then hashes `K` within that column.
-///
-/// Unlike [`TypePool`](super::type_pool::TypePool), which hands back
-/// an opaque key for every insert, a `TypeTable` is addressed by the
-/// caller's own key, so the same `K` reaches every column.
+/// Stores values of many types under a shared key `K`. Each value
+/// type occupies its own column; a lookup hashes the value's
+/// [`TypeId`] to find the column, then `K` within it. Unlike
+/// [`TypePool`](super::type_pool::TypePool), the caller supplies the
+/// key, so the same `K` reaches every column.
 ///
 /// ## Mental model
 ///

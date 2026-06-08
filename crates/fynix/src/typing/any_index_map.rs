@@ -9,13 +9,6 @@ pub(crate) type DynIndexMap<K, S> = Box<dyn AnyIndexMap<K, S>>;
 trait Seal {}
 impl<K, V: 'static, S> Seal for IndexMap<K, V, S> {}
 
-/// Type-erased view over an [`IndexMap`] whose value type has been
-/// forgotten.
-///
-/// The key type `K` and hasher `S` stay concrete so entries can be
-/// queried and removed by key without knowing the value type. Use
-/// the [`downcast_ref`](Self::downcast_ref) family to recover the
-/// full [`IndexMap<K, V, S>`].
 #[expect(private_bounds)]
 pub trait AnyIndexMap<K, S>: Seal {
     /// Returns the [`TypeId`] of the stored value type.

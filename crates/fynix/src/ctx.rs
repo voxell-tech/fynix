@@ -5,7 +5,9 @@ use crate::composer::Composer;
 use crate::element::{Element, ElementId};
 use crate::init::Init;
 use crate::interaction::{HandlerFn, Interactions};
-use crate::scope::{BuildFn, ChangedFn, Scope, ScopeElement};
+use crate::reactive::{
+    BuildFn, ChangedFn, Reactive, ReactiveElement,
+};
 use crate::style::{Stylable, StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -111,15 +113,15 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.styles.set(field_accessor, value);
     }
 
-    /// Binds a reactive scope to the element tree.
+    /// Binds a reactive to the element tree.
     ///
     /// `build` constructs a subtree and `changed` reports whether the
     /// state it reads has changed since the last build. A holder
-    /// [`ScopeElement`] owns the subtree, so when `changed` fires the
-    /// backend can rebuild just that subtree in place.
+    /// [`ReactiveElement`] owns the subtree, so when `changed` fires
+    /// the backend can rebuild just that subtree in place.
     ///
     /// The initial subtree is built immediately, under the current
-    /// style scope. That scope is captured on the [`Scope`] and
+    /// style scope. That scope is captured on the [`Reactive`] and
     /// restored on every rebuild, so a rebuilt subtree is styled like
     /// the first.
     #[must_use]
@@ -131,16 +133,16 @@ impl<W> FynixCtx<'_, '_, W> {
     where
         W: 'static,
     {
-        // Build the holder element and its scope together: the
-        // element's id is needed to register the scope, and the
-        // scope's id is needed to construct the element.
+        // Build the holder element and its reactive together: the
+        // element's id is needed to register the reactive, and the
+        // reactive's id is needed to construct the element.
         let style_id = self.prev_style;
         let element_id = self.fynix.elements.add_with_id(
             |element_id| {
-                self.fynix.scopes.add(Scope::new(
+                self.fynix.reactives.add(Reactive::new(
                     changed, build, element_id, style_id,
                 ));
-                ScopeElement::init()
+                ReactiveElement::init()
             },
             None,
         );
@@ -163,7 +165,7 @@ impl<W> FynixCtx<'_, '_, W> {
         if let Some(elem) = self
             .fynix
             .elements
-            .get_typed_mut::<ScopeElement>(&element_id)
+            .get_typed_mut::<ReactiveElement>(&element_id)
         {
             elem.child = child;
         }
