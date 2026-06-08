@@ -8,7 +8,7 @@ use super::layout::{ElementNodes, ElementTree};
 use super::meta::{ElementMeta, ElementMetas, ElementTypeMetas};
 use crate::resource::Resources;
 use crate::style::StyleId;
-use crate::typing::type_pool::{ColumnKey, TypePool};
+use crate::typing::type_pool::{PoolKey, TypePool};
 
 /// Type-erased storage for all element instances.
 ///
@@ -258,16 +258,16 @@ impl Default for Elements {
 
 /// Identifier for an element instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ElementId(pub(crate) ColumnKey);
+pub struct ElementId(pub(crate) PoolKey);
 
 impl ElementId {
     /// A sentinel id that will never refer to a live element.
-    pub const PLACEHOLDER: Self = Self(ColumnKey::PLACEHOLDER);
+    pub const PLACEHOLDER: Self = Self(PoolKey::PLACEHOLDER);
 }
 
 impl core::ops::Deref for ElementId {
-    type Target = ColumnKey;
-    fn deref(&self) -> &ColumnKey {
+    type Target = PoolKey;
+    fn deref(&self) -> &PoolKey {
         &self.0
     }
 }

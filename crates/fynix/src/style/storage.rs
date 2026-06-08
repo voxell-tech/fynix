@@ -134,9 +134,9 @@ impl Styles {
             );
         }
 
-        let col_key = self.style_values.insert(value);
+        let key = self.style_values.insert(value);
         if let Some(old_key) =
-            self.style_builder.insert(type_id, untyped_field, col_key)
+            self.style_builder.insert(type_id, untyped_field, key)
         {
             self.style_values.remove::<T>(&old_key);
         }
@@ -151,8 +151,8 @@ impl Styles {
         };
         self.id_generator.recycle(*id);
 
-        for (_, col_key) in style.fields.iter() {
-            self.style_values.dyn_remove(col_key);
+        for (_, key) in style.fields.iter() {
+            self.style_values.dyn_remove(key);
         }
 
         for c in style.children().into_iter().flatten() {
@@ -182,7 +182,7 @@ impl Styles {
                 continue;
             };
 
-            for (field, col_key) in fields {
+            for (field, key) in fields {
                 if applied.contains(field) {
                     continue;
                 }
@@ -194,7 +194,7 @@ impl Styles {
                     set_style.apply(
                         source,
                         accessor,
-                        col_key,
+                        key,
                         &self.style_values,
                     );
                     applied.insert(*field);

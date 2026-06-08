@@ -8,7 +8,7 @@ use crate::element::layout::ElementNodes;
 use crate::element::{Element, ElementBuild, ElementId};
 use crate::init::Init;
 use crate::style::StyleId;
-use crate::typing::type_pool::{ColumnKey, TypePool};
+use crate::typing::type_pool::{PoolKey, TypePool};
 
 pub struct Reactives {
     reactives: TypePool,
@@ -157,16 +157,16 @@ impl<W> Clone for Reactive<W> {
 
 /// Generational ID for reactive instances.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ReactiveId(ColumnKey);
+pub struct ReactiveId(PoolKey);
 
 impl ReactiveId {
     /// A sentinel id that will never refer to a live reactive.
-    pub const PLACEHOLDER: Self = Self(ColumnKey::PLACEHOLDER);
+    pub const PLACEHOLDER: Self = Self(PoolKey::PLACEHOLDER);
 }
 
 impl core::ops::Deref for ReactiveId {
-    type Target = ColumnKey;
-    fn deref(&self) -> &ColumnKey {
+    type Target = PoolKey;
+    fn deref(&self) -> &PoolKey {
         &self.0
     }
 }

@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use core::any::TypeId;
 use core::hash::{BuildHasher, Hash};
 
@@ -6,15 +7,15 @@ use hashbrown::hash_map::Entry;
 use hashbrown::{DefaultHashBuilder, HashMap};
 use indexmap::IndexMap;
 
+use crate::typing::ColumnId;
 use crate::typing::any_index_map::DynIndexMap;
 
 /// Heterogeneous, key-addressed table.
 ///
 /// Stores values of many types under a shared key `K`. Each value
 /// type occupies its own column; a lookup hashes the value's
-/// [`TypeId`] to find the column, then `K` within it. Unlike
-/// [`TypePool`](super::type_pool::TypePool), the caller supplies the
-/// key, so the same `K` reaches every column.
+/// [`TypeId`] to a column index, then resolves `K` within that
+/// column.
 ///
 /// ## Mental model
 ///
@@ -23,7 +24,9 @@ use crate::typing::any_index_map::DynIndexMap;
 /// | `e0`  | (1.0, 2.0)     | "player"   |
 /// | `e1`  | (3.0, 4.0)     | -          |
 pub struct TypeTable<K, S = DefaultHashBuilder> {
-    columns: HashMap<TypeId, DynIndexMap<K, S>>,
+    /// Maps each value type to its column's id in `columns`.
+    indices: HashMap<TypeId, ColumnId>,
+    columns: Vec<DynIndexMap<K, S>>,
     hasher: S,
 }
 
@@ -40,7 +43,8 @@ impl<K, S> TypeTable<K, S> {
     /// Every column clones `hasher` for its own [`IndexMap`].
     pub fn with_hasher(hasher: S) -> Self {
         Self {
-            columns: HashMap::new(),
+            indices: HashMap::new(),
+            columns: Vec::new(),
             hasher,
         }
     }
@@ -63,6 +67,46 @@ where
         self.column_mut::<V>()?.get_mut(key)
     }
 
+    /// Returns the [`ColumnId`] for `V`, or `None` if no value of
+    /// type `V` has been inserted yet.
+    ///
+    /// Stable for the table's lifetime, so a hot path that always
+    /// touches the same `V` can resolve the id once and reuse it with
+    /// [`Self::get_by_column`], skipping the per-call [`TypeId`] hash
+    /// lookup.
+    pub fn type_column<V: 'static>(&self) -> Option<ColumnId> {
+        self.indices.get(&TypeId::of::<V>()).copied()
+    }
+
+    /// Like [`Self::get`], but reaches the column by a pre-resolved
+    /// [`ColumnId`] instead of hashing `V`'s [`TypeId`].
+    ///
+    /// Returns `None` if `col` is out of bounds, its column holds a
+    /// different type, or `key` is absent.
+    pub fn get_by_column<V: 'static>(
+        &self,
+        col: ColumnId,
+        key: &K,
+    ) -> Option<&V> {
+        self.columns.get(col.index())?.downcast_ref::<V>()?.get(key)
+    }
+
+    /// Like [`Self::get_mut`], but reaches the column by a
+    /// pre-resolved [`ColumnId`] instead of hashing `V`'s [`TypeId`].
+    ///
+    /// Returns `None` if `col` is out of bounds, its column holds a
+    /// different type, or `key` is absent.
+    pub fn get_mut_by_column<V: 'static>(
+        &mut self,
+        col: ColumnId,
+        key: &K,
+    ) -> Option<&mut V> {
+        self.columns
+            .get_mut(col.index())?
+            .downcast_mut::<V>()?
+            .get_mut(key)
+    }
+
     /// Returns `true` if a value of type `V` is present at `key`.
     pub fn contains<V: 'static>(&self, key: &K) -> bool {
         self.column::<V>().is_some_and(|c| c.contains_key(key))
@@ -82,7 +126,7 @@ where
     /// value type. Returns `true` if any column held `key`.
     pub fn remove_row(&mut self, key: &K) -> bool {
         let mut removed = false;
-        for column in self.columns.values_mut() {
+        for column in self.columns.iter_mut() {
             removed |= column.dyn_swap_remove(key);
         }
         removed
@@ -90,7 +134,7 @@ where
 
     /// Returns `true` if any column holds a value at `key`.
     pub fn contains_row(&self, key: &K) -> bool {
-        self.columns.values().any(|c| c.dyn_contains(key))
+        self.columns.iter().any(|c| c.dyn_contains(key))
     }
 
     /// Returns the number of values stored in the column for `V`.
@@ -124,16 +168,16 @@ where
 
     /// Returns the [`IndexMap`] column for `V`, if one exists.
     fn column<V: 'static>(&self) -> Option<&IndexMap<K, V, S>> {
-        self.columns.get(&TypeId::of::<V>())?.downcast_ref::<V>()
+        let col = *self.indices.get(&TypeId::of::<V>())?;
+        self.columns[col.index()].downcast_ref::<V>()
     }
 
     /// Returns a mutable [`IndexMap`] column for `V`, if one exists.
     fn column_mut<V: 'static>(
         &mut self,
     ) -> Option<&mut IndexMap<K, V, S>> {
-        self.columns
-            .get_mut(&TypeId::of::<V>())?
-            .downcast_mut::<V>()
+        let col = *self.indices.get(&TypeId::of::<V>())?;
+        self.columns[col.index()].downcast_mut::<V>()
     }
 }
 
@@ -150,21 +194,33 @@ where
         key: K,
         value: V,
     ) -> Option<V> {
-        self.ensure_column::<V>().insert(key, value)
+        let col = self.ensure_column::<V>();
+        // SAFETY: `ensure_column` just assigned this column to V.
+        let column = unsafe {
+            self.columns[col.index()].downcast_unchecked_mut::<V>()
+        };
+        column.insert(key, value)
     }
 
-    /// Returns the column for `V`, creating an empty one if needed.
-    fn ensure_column<V: 'static>(
-        &mut self,
-    ) -> &mut IndexMap<K, V, S> {
-        let column = match self.columns.entry(TypeId::of::<V>()) {
-            Entry::Occupied(e) => e.into_mut(),
-            Entry::Vacant(e) => e.insert(Box::new(
-                IndexMap::<K, V, S>::with_hasher(self.hasher.clone()),
-            )),
-        };
-        // SAFETY: the column for `TypeId::of::<V>()` always stores V.
-        unsafe { column.downcast_unchecked_mut::<V>() }
+    /// Ensures the column for `V` exists and returns its
+    /// [`ColumnId`].
+    ///
+    /// Like [`Self::type_column`] but creates the column on first
+    /// call rather than returning `None`. The id is stable for the
+    /// table's lifetime.
+    pub fn ensure_column<V: 'static>(&mut self) -> ColumnId {
+        match self.indices.entry(TypeId::of::<V>()) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => {
+                let col = ColumnId::new(self.columns.len());
+                self.columns.push(Box::new(
+                    IndexMap::<K, V, S>::with_hasher(
+                        self.hasher.clone(),
+                    ),
+                ));
+                *e.insert(col)
+            }
+        }
     }
 }
 
@@ -178,7 +234,7 @@ impl<K> Default for TypeTable<K> {
 mod tests {
     use alloc::string::String;
 
-    use super::TypeTable;
+    use super::{ColumnId, TypeTable};
 
     #[derive(Debug, PartialEq, Clone, Copy)]
     struct Position(f32, f32);
@@ -334,5 +390,127 @@ mod tests {
             .collect::<alloc::vec::Vec<_>>();
         keys.sort();
         assert_eq!(keys, [0, 1]);
+    }
+
+    #[test]
+    fn type_column_none_before_insert() {
+        let table = TypeTable::<u32>::new();
+        assert_eq!(table.type_column::<Position>(), None);
+    }
+
+    #[test]
+    fn type_column_stable_across_inserts() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(0.0, 0.0));
+        let col = table.type_column::<Position>().unwrap();
+
+        // Inserting more values, even of other types, must not move
+        // the existing column.
+        table.insert(1, Position(1.0, 1.0));
+        table.insert(0, Name(String::from("player")));
+        assert_eq!(table.type_column::<Position>(), Some(col));
+    }
+
+    #[test]
+    fn ensure_column_is_idempotent() {
+        let mut table = TypeTable::<u32>::new();
+        let first = table.ensure_column::<Position>();
+        let second = table.ensure_column::<Position>();
+        assert_eq!(first, second);
+        // And matches the lazily resolved id.
+        assert_eq!(table.type_column::<Position>(), Some(first));
+    }
+
+    #[test]
+    fn ensure_column_distinct_per_type() {
+        let mut table = TypeTable::<u32>::new();
+        let pos = table.ensure_column::<Position>();
+        let name = table.ensure_column::<Name>();
+        assert_ne!(pos, name);
+    }
+
+    #[test]
+    fn get_by_column_matches_get() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(1.0, 2.0));
+        let col = table.type_column::<Position>().unwrap();
+        assert_eq!(
+            table.get_by_column::<Position>(col, &0),
+            table.get::<Position>(&0),
+        );
+    }
+
+    #[test]
+    fn get_by_column_wrong_type_returns_none() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(1.0, 2.0));
+        let col = table.type_column::<Position>().unwrap();
+        // The column at `col` holds `Position`, not `Name`.
+        assert_eq!(table.get_by_column::<Name>(col, &0), None);
+    }
+
+    #[test]
+    fn get_by_column_out_of_bounds_returns_none() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(1.0, 2.0));
+        assert_eq!(
+            table.get_by_column::<Position>(
+                ColumnId::PLACEHOLDER,
+                &0,
+            ),
+            None,
+        );
+    }
+
+    #[test]
+    fn get_by_column_absent_key_returns_none() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(1.0, 2.0));
+        let col = table.type_column::<Position>().unwrap();
+        assert_eq!(table.get_by_column::<Position>(col, &9), None);
+    }
+
+    #[test]
+    fn get_mut_by_column_modifies_value() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(1, Position(0.0, 0.0));
+        let col = table.type_column::<Position>().unwrap();
+        table.get_mut_by_column::<Position>(col, &1).unwrap().0 = 5.0;
+        assert_eq!(
+            table.get::<Position>(&1),
+            Some(&Position(5.0, 0.0))
+        );
+    }
+
+    #[test]
+    fn get_mut_by_column_wrong_type_returns_none() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(1.0, 2.0));
+        let col = table.type_column::<Position>().unwrap();
+        assert_eq!(table.get_mut_by_column::<Name>(col, &0), None);
+    }
+
+    #[test]
+    fn get_mut_by_column_out_of_bounds_returns_none() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(1.0, 2.0));
+        assert_eq!(
+            table.get_mut_by_column::<Position>(
+                ColumnId::PLACEHOLDER,
+                &0,
+            ),
+            None,
+        );
+    }
+
+    #[test]
+    fn get_mut_by_column_absent_key_returns_none() {
+        let mut table = TypeTable::<u32>::new();
+        table.insert(0, Position(1.0, 2.0));
+        let col = table.type_column::<Position>().unwrap();
+        assert_eq!(
+            table.get_mut_by_column::<Position>(col, &9),
+            None
+        );
     }
 }
