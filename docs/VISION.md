@@ -27,15 +27,16 @@ ctx.add::<Label>(); // font_size == 16.0
 ctx.add::<Label>(); // font_size == 16.0
 ```
 
-Rules cascade. Inner scopes can override outer ones, and the outer
-defaults are automatically restored when the scope closes:
+Rules cascade. A container's closure is its own scope: rules set
+inside it override the outer ones, and the outer defaults are
+automatically restored when the closure returns:
 
 ```rust
 ctx.set(field_accessor!(<Label>::font_size), 16.0);
 
-ctx.scope(|ctx| {
+ctx.add_with::<Vertical>(|v, ctx| {
     ctx.set(field_accessor!(<Label>::font_size), 24.0);
-    ctx.add::<Label>(); // 24.0 - inner wins
+    v.add(ctx.add::<Label>()); // 24.0 - inner wins
 });
 
 ctx.add::<Label>(); // 16.0 - outer restored
@@ -83,23 +84,72 @@ runtime panic.
 
 ## Reactivity
 
-UI state changes over time. Fynix will expose a backend-agnostic
-`Signal<T>` primitive: a value that elements can subscribe to and
-that triggers a minimal re-evaluation when it changes.
+UI state changes over time. Fynix reacts through change-detection
+closures: you say what changed, and the framework re-evaluates the
+minimum needed. There are two granularities, a *scope* that rebuilds a
+subtree and a *binding* that mutates a single element in place.
 
-The first integration target is Bevy ECS, where signals map naturally
-onto components and change detection. The core reactivity model is
-deliberately kept separate from any specific game engine or runtime.
+Both are world-agnostic: the core never names a specific runtime, it
+only calls your closures. The first integration target is Bevy ECS,
+where the change check maps naturally onto component change detection.
+
+### Scope
+
+A scope is a subtree paired with a change-detection closure. When the
+state it reads changes, the whole subtree is rebuilt.
+
+```rust
+let panel = ctx.reactive(
+    |world: &World| world.score_changed(),
+    |ctx| build_score_panel(ctx),
+);
+```
+
+`ctx.reactive(changed, build)` builds the subtree once and returns a
+holder element that owns it. Each frame the backend calls
+`Fynix::update_scopes::<W>(world)`; for every scope whose `changed`
+closure reports a change, `build` reruns and the subtree is rebuilt in
+place under its original style scope.
+
+### Binding
+
+A binding is the lightweight counterpart: instead of rebuilding a
+subtree, it writes directly into one element's fields. Bindings attach
+per instance through the `ElementHandle` returned by `add`:
+
+```rust
+ctx.add::<Label>().bind(
+    |world| world.score_changed(),
+    |world, label| label.text = world.score.to_string(),
+);
+
+// Or when we need to capture some environment data...
+ctx.add::<Label>().bind_with(
+    entity,
+    |world, entity| world.score_changed(*entity),
+    |world, entity, label| {
+        label.text = world.score(*entity).to_string();
+    },
+);
+```
 
 ---
 
 ## Rendering
 
-Fynix's core has no rendering dependency. Backends are separate
-crates that receive the built element tree and lay it out and paint
-it. The first backend, `fynix_vello`, will use
-[Vello](https://github.com/linebender/vello) for GPU-accelerated 2D
-rendering.
+Fynix's core is not bound to any GPU or windowing stack. Elements
+paint themselves into [`imaging`](https://crates.io/crates/imaging), a
+backend-agnostic 2D drawing abstraction: each element records its
+visual layer into an `imaging` `Scene` through a `PaintSink`, parents
+before children, so the framework only ever produces a renderer-neutral
+description of what to draw.
+
+A renderer is then anything that consumes an `imaging` scene. The
+first target adapts to [Vello](https://github.com/linebender/vello)
+for GPU-accelerated 2D rendering via `imaging_vello`, but swapping in
+another backend means swapping the `imaging` adapter, not touching
+fynix. Recorded scenes are cached per element and only re-recorded
+when that element changes.
 
 Layout is powered by [Rectree](https://github.com/voxell-tech/rectree).
 Each element type registers its own layout solver; the framework
