@@ -107,7 +107,7 @@ mod tests {
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on(|_: Click, events| {
+                .on::<Click>(|_, events| {
                     events.push(Clicked(1));
                 })
                 .id()
@@ -145,7 +145,7 @@ mod tests {
             let mut ctx = fynix.root_ctx(&mut world);
             let handled = ctx
                 .add::<Button>()
-                .on(|_: Click, events| events.push(Clicked(1)))
+                .on::<Click>(|_, events| events.push(Clicked(1)))
                 .id();
             // A second instance of the same type with no handler.
             let plain = ctx.add::<Button>().id();
@@ -164,7 +164,7 @@ mod tests {
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on(|_: Click, events| events.push(Clicked(1)))
+                .on::<Click>(|_, events| events.push(Clicked(1)))
                 .id()
         };
 

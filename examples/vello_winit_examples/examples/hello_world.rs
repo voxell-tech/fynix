@@ -159,7 +159,7 @@ impl Composer<DemoWorld> for TextButton<'_> {
         style: TextButtonStyle,
         ctx: &mut FynixCtx<'_, '_, DemoWorld>,
     ) -> ElementId {
-        ctx.add_with::<Button<DemoWorld>>(|b, ctx| {
+        ctx.add_with::<Button>(|b, ctx| {
             b.corner_radius = style.corner_radius;
             if let Some(bg_color) = style.bg_color {
                 b.fill = bg_color.into();
