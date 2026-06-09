@@ -1,13 +1,14 @@
+use core::any::TypeId;
+
 use hashbrown::HashSet;
 use imaging::PaintSink;
 
 use super::Element;
 use super::layout::{ElementNodes, ElementTree};
-use super::meta::{ElementMetas, ElementTypeMetas};
+use super::meta::{ElementMeta, ElementMetas, ElementTypeMetas};
 use crate::resource::Resources;
-use crate::scope::Scopes;
-use crate::style::{StyleId, Styles};
-use crate::type_pool::{ColumnKey, TypePool};
+use crate::style::StyleId;
+use crate::typing::type_pool::{PoolKey, TypePool};
 
 /// Type-erased storage for all element instances.
 ///
@@ -127,53 +128,44 @@ impl Elements {
         self.elements.get_mut(id)
     }
 
-    /// Recursively removes the element subtree along with their
-    /// styles.
+    /// Returns the [`TypeId`] of the element's concrete type, or
+    /// `None` if `id` does not exist.
+    pub fn type_id_of(&self, id: &ElementId) -> Option<TypeId> {
+        self.elements.value_type_id(id)
+    }
+
+    /// Recursively removes the element subtree.
+    ///
+    /// `on_removed` runs for each removed element, in
+    /// parent-before-child order, with its id and meta. Use it to
+    /// clean up per-element resources such as styles and scopes.
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(
         &mut self,
         id: &ElementId,
-        styles: &mut Styles,
-        scopes: &mut Scopes,
+        mut on_removed: impl FnMut(&ElementId, &ElementMeta),
     ) -> bool {
         fn remove_recursive(
             id: &ElementId,
             metas: &mut ElementMetas,
             type_metas: &ElementTypeMetas,
             elements: &mut TypePool,
-            styles: &mut Styles,
-            scopes: &mut Scopes,
-            mut has_removed_styles: bool,
+            on_removed: &mut impl FnMut(&ElementId, &ElementMeta),
         ) -> bool {
             if let Some(meta) = metas.remove(id)
                 && let Some(type_meta) =
                     type_metas.get_column(id.col_id())
             {
-                if !has_removed_styles
-                    && let Some(primary_style) = meta.primary_style
-                {
-                    // Drop this element's primary style and its
-                    // descendants in the style tree.
-                    has_removed_styles =
-                        styles.remove(&primary_style);
-                }
-
-                // Drop any scope this element owns.
-                scopes.remove_for_element(id);
+                on_removed(id, &meta);
 
                 type_meta.for_each_child_mut(
                     elements,
                     id,
                     &mut |child_id, elements| {
                         remove_recursive(
-                            child_id,
-                            metas,
-                            type_metas,
-                            elements,
-                            styles,
-                            scopes,
-                            has_removed_styles,
+                            child_id, metas, type_metas, elements,
+                            on_removed,
                         );
                     },
                 );
@@ -195,9 +187,7 @@ impl Elements {
             &mut self.metas,
             &self.type_metas,
             &mut self.elements,
-            styles,
-            scopes,
-            false,
+            &mut on_removed,
         );
 
         if removed && let Some(parent_id) = parent_id {
@@ -267,20 +257,17 @@ impl Default for Elements {
 }
 
 /// Identifier for an element instance.
-///
-/// Wraps the [`ColumnKey`] returned by [`TypePool::insert`], so the
-/// id is also the direct storage key - no secondary lookup needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ElementId(pub(crate) ColumnKey);
+pub struct ElementId(pub(crate) PoolKey);
 
 impl ElementId {
     /// A sentinel id that will never refer to a live element.
-    pub const PLACEHOLDER: Self = Self(ColumnKey::PLACEHOLDER);
+    pub const PLACEHOLDER: Self = Self(PoolKey::PLACEHOLDER);
 }
 
 impl core::ops::Deref for ElementId {
-    type Target = ColumnKey;
-    fn deref(&self) -> &ColumnKey {
+    type Target = PoolKey;
+    fn deref(&self) -> &PoolKey {
         &self.0
     }
 }

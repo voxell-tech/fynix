@@ -9,18 +9,22 @@ use imaging::PaintSink;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
+use crate::events::Events;
+use crate::interaction::Interactions;
+use crate::reactive::{ReactiveElement, Reactives};
 use crate::resource::Resources;
-use crate::scope::{ScopeElement, Scopes};
 use crate::style::{StyleId, Styles};
 
 pub mod composer;
 pub mod ctx;
 pub mod element;
+pub mod events;
 pub mod init;
+pub mod interaction;
+pub mod reactive;
 pub mod resource;
-pub mod scope;
 pub mod style;
-pub mod type_pool;
+pub mod typing;
 
 pub mod prelude {
     // Intentionally exposing only `NodeContext` and hiding
@@ -34,6 +38,7 @@ pub mod prelude {
     pub use crate::element::{
         Element, ElementBuild, ElementChildren, ElementId,
     };
+    pub use crate::events::Events;
     pub use crate::init::Init;
     pub use crate::style::{Stylable, path};
 }
@@ -51,7 +56,9 @@ pub struct Fynix {
     pub elements: Elements,
     pub styles: Styles,
     pub resources: Resources,
-    pub scopes: Scopes,
+    pub reactives: Reactives,
+    pub events: Events,
+    pub interactions: Interactions,
 }
 
 impl Fynix {
@@ -60,8 +67,28 @@ impl Fynix {
             elements: Elements::new(),
             styles: Styles::new(),
             resources: Resources::new(),
-            scopes: Scopes::new(),
+            reactives: Reactives::new(),
+            events: Events::new(),
+            interactions: Interactions::new(),
         }
+    }
+
+    /// Dispatches `interaction` to the handler registered for `id`'s
+    /// element type and the interaction type `I`, if one exists.
+    ///
+    /// Returns `true` if a handler ran. Messages the handler emits
+    /// land in [`Self::events`].
+    #[inline]
+    pub fn dispatch<I: 'static>(
+        &mut self,
+        id: &ElementId,
+        interaction: I,
+    ) -> bool {
+        self.interactions.dispatch::<I>(
+            id,
+            interaction,
+            &mut self.events,
+        )
     }
 
     /// Lays out every dirty subtree (see [`Elements::mark_dirty`]),
@@ -87,44 +114,57 @@ impl Fynix {
     /// Returns `true` if the element existed
     #[inline]
     pub fn remove_element(&mut self, id: &ElementId) -> bool {
-        // Removes the element subtree along with their styles.
-        self.elements.remove(id, &mut self.styles, &mut self.scopes)
+        // Removes the element subtree, cleaning up the styles and
+        // reactives each removed element owns. The first primary
+        // style encountered drops itself and all its
+        // descendants in the style tree, so deeper primary
+        // styles are left for that subtree removal to handle.
+        let mut has_removed_styles = false;
+
+        self.elements.remove(id, |id, meta| {
+            if !has_removed_styles
+                && let Some(primary_style) = meta.primary_style
+            {
+                has_removed_styles =
+                    self.styles.remove(&primary_style);
+            }
+
+            // Drop any reactive and interaction handlers this
+            // element owns.
+            self.reactives.remove_for_element(id);
+            self.interactions.remove(id);
+        })
     }
 
-    /// Re-runs every reactive scope of world type `W` whose
-    /// `changed_fn` reports a change, rebuilding its subtree in
-    /// place.
+    /// Re-runs every reactive of world type `W` whose `changed_fn`
+    /// reports a change, rebuilding its subtree in place.
     ///
     /// Intended to be called by the backend once per frame.
-    pub fn update_scopes<W: 'static>(&mut self, world: &mut W) {
-        for scope in self.scopes.snapshot_changed::<W>(world) {
-            let element_id = scope.element_id();
+    pub fn update_reactives<W: 'static>(&mut self, world: &mut W) {
+        for reactive in self.reactives.snapshot_changed::<W>(world) {
+            let element_id = reactive.element_id();
 
             // The holder may have been discarded earlier this flush
-            // by an ancestor scope's rebuild. If so, the scope was
+            // by an ancestor's rebuild. If so, the reactive was
             // dropped with it, so skip the stale snapshot entry.
             let Some(old_child) = self
                 .elements
-                .get_typed_mut::<ScopeElement>(&element_id)
+                .get_typed_mut::<ReactiveElement>(&element_id)
                 .map(|elem| elem.child.take())
             else {
                 continue;
             };
 
             if let Some(old_child) = old_child {
-                self.elements.remove(
-                    &old_child,
-                    &mut self.styles,
-                    &mut self.scopes,
-                );
+                self.remove_element(&old_child);
             }
 
-            // Rebuild under the scope's captured style scope, then
+            // Rebuild under the reactive's captured style scope, then
             // drop any uncommitted style changes so they do not leak.
             let child = {
                 let ctx =
-                    FynixCtx::new(self, world, scope.style_id());
-                scope.build(ctx)
+                    FynixCtx::new(self, world, reactive.style_id());
+                reactive.build(ctx)
             };
             self.styles.clear_builder();
 
@@ -136,7 +176,7 @@ impl Fynix {
             }
             if let Some(elem) = self
                 .elements
-                .get_typed_mut::<ScopeElement>(&element_id)
+                .get_typed_mut::<ReactiveElement>(&element_id)
             {
                 elem.child = child;
             }

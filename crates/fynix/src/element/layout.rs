@@ -4,7 +4,7 @@ use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 use crate::element::ElementId;
 use crate::element::meta::{ElementMetas, ElementTypeMetas};
 use crate::resource::Resources;
-use crate::type_pool::TypePool;
+use crate::typing::type_pool::TypePool;
 
 /// Immutable view of the element tree used to implement [`Rectree`].
 pub struct ElementTree<'a> {

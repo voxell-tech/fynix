@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 
 use crate::id::{GenId, IdGenerator};
 use crate::init::Init;
-use crate::type_pool::{ColumnKey, TypePool};
+use crate::typing::type_pool::{PoolKey, TypePool};
 
 pub mod storage;
 
@@ -33,7 +33,7 @@ pub use storage::Styles;
 pub struct Style {
     parent_id: Option<StyleId>,
     index_map: HashMap<TypeId, Span>,
-    fields: Box<[(UntypedField, ColumnKey)]>,
+    fields: Box<[(UntypedField, PoolKey)]>,
     adjacent_child: Option<StyleId>,
     nested_child: Option<StyleId>,
 }
@@ -58,14 +58,14 @@ impl Style {
     fn get_fields(
         &self,
         id: &TypeId,
-    ) -> Option<&[(UntypedField, ColumnKey)]> {
+    ) -> Option<&[(UntypedField, PoolKey)]> {
         let span = self.index_map.get(id)?;
         Some(&self.fields[span.start..span.end])
     }
 }
 
 struct StyleBuilder {
-    field_map: HashMap<TypeId, HashMap<UntypedField, ColumnKey>>,
+    field_map: HashMap<TypeId, HashMap<UntypedField, PoolKey>>,
 }
 
 impl StyleBuilder {
@@ -75,18 +75,18 @@ impl StyleBuilder {
         }
     }
 
-    /// Inserts or replaces the [`ColumnKey`] for `field` under
+    /// Inserts or replaces the [`PoolKey`] for `field` under
     /// `type_id`. Returns the displaced key if one existed.
     fn insert(
         &mut self,
         type_id: TypeId,
         field: UntypedField,
-        col_key: ColumnKey,
-    ) -> Option<ColumnKey> {
+        key: PoolKey,
+    ) -> Option<PoolKey> {
         self.field_map
             .entry(type_id)
             .or_default()
-            .insert(field, col_key)
+            .insert(field, key)
     }
 
     fn clear(&mut self) {
@@ -147,21 +147,21 @@ impl Span {
 /// Monomorphized function signature for writing one typed value into
 /// a source field.
 ///
-/// Reads the value of type `T` from `values` at `col_key`, then
+/// Reads the value of type `T` from `values` at `key`, then
 /// writes it into `source` via `accessor`. Returns `true` on success.
 pub type SetStyleFn<S> =
-    fn(&mut S, &UntypedAccessor, &ColumnKey, &TypePool) -> bool;
+    fn(&mut S, &UntypedAccessor, &PoolKey, &TypePool) -> bool;
 
 /// Concrete implementation of [`SetStyleFn`] for the `(S, T)` pair.
 #[inline]
 pub fn set_style<S: Stylable, T: StyleValue>(
     source: &mut S,
     accessor: &UntypedAccessor,
-    col_key: &ColumnKey,
+    key: &PoolKey,
     values: &TypePool,
 ) -> bool {
     if let Some(accessor) = accessor.typed::<S, T>()
-        && let Some(value) = values.get::<T>(col_key)
+        && let Some(value) = values.get::<T>(key)
     {
         *accessor.get_mut(source) = value.clone();
         return true;
@@ -200,10 +200,10 @@ impl<S: Stylable> SetStyle<S> {
         &self,
         source: &mut S,
         accessor: &UntypedAccessor,
-        col_key: &ColumnKey,
+        key: &PoolKey,
         values: &TypePool,
     ) -> bool {
-        (self.set_fn)(source, accessor, col_key, values)
+        (self.set_fn)(source, accessor, key, values)
     }
 }
 

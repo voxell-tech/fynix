@@ -595,6 +595,7 @@ dependencies = [
  "fynix_macros",
  "hashbrown 0.16.1",
  "imaging",
+ "indexmap",
  "rectree",
  "sparse_map",
 ]
@@ -1656,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "rectree"
 version = "0.1.0"
-source = "git+https://github.com/voxell-tech/rectree?rev=11e802d#11e802d1b9cbcd6cf671371631f53210d1b47043"
+source = "git+https://github.com/voxell-tech/rectree?rev=e9729bf#e9729bfd8faf91e88c1b69ee48065e02acc1bbb7"
 dependencies = [
  "bitflags 2.11.1",
 ]
@@ -1918,9 +1919,9 @@ dependencies = [
 
 [[package]]
 name = "sparse_map"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bee4323beb1addf168bef443b1e6609b5119eb0a2e84725847537d61c8c45f2"
+checksum = "ea8f483b9159a7efadd9a82915dc40fdc9cfef7985651bbb83a8db20b12bf629"
 
 [[package]]
 name = "spirv"

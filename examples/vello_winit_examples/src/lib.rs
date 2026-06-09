@@ -130,12 +130,12 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
         }
 
         // Advance world state with this frame's delta, then rebuild
-        // any reactive scopes whose inputs changed, before layout.
+        // any reactives whose inputs changed, before layout.
         let now = Instant::now();
         let dt = now.duration_since(self.last_frame);
         self.last_frame = now;
         self.demo.update(&mut self.world, dt);
-        self.fynix.update_scopes::<D::World>(&mut self.world);
+        self.fynix.update_reactives::<D::World>(&mut self.world);
 
         self.fynix.layout();
 

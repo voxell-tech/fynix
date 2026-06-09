@@ -6,7 +6,8 @@ use rectree::RectNode;
 
 use crate::element::{Element, ElementId};
 use crate::style::StyleId;
-use crate::type_pool::{ColumnId, TypePool};
+use crate::typing::ColumnId;
+use crate::typing::type_pool::TypePool;
 
 /// Per-element metadata.
 pub struct ElementMeta {
@@ -61,6 +62,13 @@ impl ElementMetas {
         id: &ElementId,
     ) -> Option<&mut ElementMeta> {
         self.map.get_mut(id)
+    }
+
+    /// Iterates every element id and its metadata.
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&ElementId, &ElementMeta)> {
+        self.map.iter()
     }
 }
 

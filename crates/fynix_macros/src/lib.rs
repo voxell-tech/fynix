@@ -206,16 +206,21 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         .into();
     };
 
-    match element_children_impl(
+    let children = match element_children_impl(
         name,
         &fynix,
         &input.generics,
         s,
         attrs,
     ) {
-        Ok(tokens) => tokens.into(),
-        Err(e) => e.to_compile_error().into(),
+        Ok(tokens) => tokens,
+        Err(e) => return e.to_compile_error().into(),
+    };
+
+    quote! {
+        #children
     }
+    .into()
 }
 
 struct FieldInfo {

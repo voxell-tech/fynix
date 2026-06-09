@@ -4,7 +4,10 @@ use crate::Fynix;
 use crate::composer::Composer;
 use crate::element::{Element, ElementId};
 use crate::init::Init;
-use crate::scope::{BuildFn, ChangedFn, Scope, ScopeElement};
+use crate::interaction::{HandlerFn, Interactions};
+use crate::reactive::{
+    BuildFn, ChangedFn, Reactive, ReactiveElement,
+};
 use crate::style::{Stylable, StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -52,9 +55,10 @@ impl<W> FynixCtx<'_, '_, W> {
     /// Elements created with `add` dont own any styles, so their
     /// `primary_style` is `None`
     #[must_use]
-    pub fn add<E: Element>(&mut self) -> ElementId {
+    pub fn add<E: Element>(&mut self) -> ElementHandle<'_> {
         let element = self.create_styled::<E>();
-        self.fynix.elements.add(element, None)
+        let id = self.fynix.elements.add(element, None);
+        ElementHandle::new(&mut self.fynix.interactions, id)
     }
 
     /// Like [`Self::add`], but also runs `scope` for inline mutations
@@ -109,15 +113,15 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.styles.set(field_accessor, value);
     }
 
-    /// Binds a reactive scope to the element tree.
+    /// Binds a reactive to the element tree.
     ///
     /// `build` constructs a subtree and `changed` reports whether the
     /// state it reads has changed since the last build. A holder
-    /// [`ScopeElement`] owns the subtree, so when `changed` fires the
-    /// backend can rebuild just that subtree in place.
+    /// [`ReactiveElement`] owns the subtree, so when `changed` fires
+    /// the backend can rebuild just that subtree in place.
     ///
     /// The initial subtree is built immediately, under the current
-    /// style scope. That scope is captured on the [`Scope`] and
+    /// style scope. That scope is captured on the [`Reactive`] and
     /// restored on every rebuild, so a rebuilt subtree is styled like
     /// the first.
     #[must_use]
@@ -129,16 +133,16 @@ impl<W> FynixCtx<'_, '_, W> {
     where
         W: 'static,
     {
-        // Build the holder element and its scope together: the
-        // element's id is needed to register the scope, and the
-        // scope's id is needed to construct the element.
+        // Build the holder element and its reactive together: the
+        // element's id is needed to register the reactive, and the
+        // reactive's id is needed to construct the element.
         let style_id = self.prev_style;
         let element_id = self.fynix.elements.add_with_id(
             |element_id| {
-                self.fynix.scopes.add(Scope::new(
+                self.fynix.reactives.add(Reactive::new(
                     changed, build, element_id, style_id,
                 ));
-                ScopeElement::init()
+                ReactiveElement::init()
             },
             None,
         );
@@ -161,7 +165,7 @@ impl<W> FynixCtx<'_, '_, W> {
         if let Some(elem) = self
             .fynix
             .elements
-            .get_typed_mut::<ScopeElement>(&element_id)
+            .get_typed_mut::<ReactiveElement>(&element_id)
         {
             elem.child = child;
         }
@@ -226,6 +230,50 @@ impl<W> FynixCtx<'_, '_, W> {
     }
 }
 
+/// A freshly added element, borrowed for the length of one build
+/// statement so interaction handlers can be attached to it.
+///
+/// Returned by [`FynixCtx::add`]. Converts into the element's
+/// [`ElementId`] via [`Self::id`] or the [`From`]/[`Into`] impls, so
+/// it drops into any API that wants an id.
+pub struct ElementHandle<'a> {
+    interactions: &'a mut Interactions,
+    id: ElementId,
+}
+
+impl<'a> ElementHandle<'a> {
+    fn new(
+        interactions: &'a mut Interactions,
+        id: ElementId,
+    ) -> Self {
+        Self { interactions, id }
+    }
+
+    /// Attaches a handler for interaction type `I` to this element.
+    ///
+    /// `I` is inferred from the handler's parameter. Chainable, so
+    /// successive calls attach handlers for different interactions; a
+    /// later call for the same `I` replaces the earlier one.
+    ///
+    /// The handler is a [`HandlerFn`], so a non-capturing closure
+    /// coerces into one; a capturing closure does not.
+    pub fn on<I: 'static>(self, handler: HandlerFn<I>) -> Self {
+        self.interactions.register::<I>(self.id, handler);
+        self
+    }
+
+    /// Returns the element's id, ending the borrow of the context.
+    pub fn id(self) -> ElementId {
+        self.id
+    }
+}
+
+impl From<ElementHandle<'_>> for ElementId {
+    fn from(handle: ElementHandle<'_>) -> Self {
+        handle.id
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
@@ -261,8 +309,8 @@ mod tests {
     }
 
     impl Vertical {
-        pub fn add(&mut self, id: ElementId) {
-            self.children.push(id);
+        pub fn add(&mut self, id: impl Into<ElementId>) {
+            self.children.push(id.into());
         }
     }
 
@@ -368,7 +416,7 @@ mod tests {
         let mut ctx = fynix.root_ctx(&mut world);
 
         ctx.set(field_accessor!(<Label>::text), "z");
-        let elem_a = ctx.add::<Label>();
+        let elem_a = ctx.add::<Label>().id();
 
         let mut elem_c = ElementId::PLACEHOLDER;
         let mut elem_d = ElementId::PLACEHOLDER;
@@ -403,7 +451,7 @@ mod tests {
                                     "d",
                                 );
                                 v.add({
-                                    elem_f = ctx.add::<Label>();
+                                    elem_f = ctx.add::<Label>().id();
                                     elem_f
                                 });
                             });

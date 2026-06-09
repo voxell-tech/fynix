@@ -203,8 +203,7 @@ impl ElementBuild for Pad {
 }
 
 #[derive(Init, Element)]
-pub struct Button<A: 'static> {
-    pub on_click: Option<A>,
+pub struct Button {
     #[init(Brush::Solid(Color::BLACK))]
     pub fill: Brush,
     pub stroke: Stroke,
@@ -215,17 +214,13 @@ pub struct Button<A: 'static> {
     pub child: Option<ElementId>,
 }
 
-impl<A> Button<A> {
+impl Button {
     pub fn set_child(&mut self, id: ElementId) {
         self.child = Some(id);
     }
-
-    pub fn set_on_click(&mut self, action: A) {
-        self.on_click = Some(action);
-    }
 }
 
-impl<A> ElementBuild for Button<A> {
+impl ElementBuild for Button {
     fn build(
         &self,
         _id: &ElementId,
