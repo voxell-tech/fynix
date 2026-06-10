@@ -90,6 +90,51 @@ impl Fynix {
         )
     }
 
+    /// Dispatches `interaction` to the nearest ancestor of `start`
+    /// (including `start` itself) that handles `I`, walking up the
+    /// parent chain and skipping elements with no handler for `I`.
+    ///
+    /// This is how hit-tested input reaches a handler: a click
+    /// resolves to the deepest element under the pointer, but the
+    /// handler is often on an ancestor (e.g. a button wrapping a
+    /// label). Since [`HandlerFn`] has no return value, delivering to
+    /// the nearest interested ancestor stands in for an explicit
+    /// consume/stop-propagation API.
+    ///
+    /// `should_bubble` gates each candidate before its handler is
+    /// considered: the walk stops as soon as it returns `false`. The
+    /// caller owns the stop condition because the element tree alone
+    /// cannot express it. For pointer input it is a hit-test gate, so
+    /// bubbling only reaches ancestors still under the pointer; pass
+    /// `|_| true` to always bubble to the root.
+    ///
+    /// Returns `true` if a handler ran.
+    ///
+    /// [`HandlerFn`]: crate::interaction::HandlerFn
+    pub fn dispatch_bubbling<I: 'static>(
+        &mut self,
+        start: &ElementId,
+        interaction: I,
+        should_bubble: impl Fn(&ElementId) -> bool,
+    ) -> bool {
+        let mut current = Some(*start);
+        while let Some(id) = current {
+            if !should_bubble(&id) {
+                break;
+            }
+            if self.interactions.contains::<I>(&id) {
+                return self.dispatch::<I>(&id, interaction);
+            }
+            current = self
+                .elements
+                .metas
+                .get(&id)
+                .and_then(|meta| meta.node.parent_id);
+        }
+
+        false
+    }
+
     /// Lays out every dirty subtree (see [`Elements::mark_dirty`]),
     /// draining the dirty set.
     #[inline]

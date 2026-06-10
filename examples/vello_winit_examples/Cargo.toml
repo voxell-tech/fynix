@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 fynix.workspace = true
+fynix_input.workspace = true
 fynix_elements.workspace = true
 imaging_vello.workspace = true
 vello.workspace = true

@@ -1,0 +1,18 @@
+[package]
+name = "fynix_input"
+description = "Input recognizers and focus state for fynix."
+keywords = ["ui", "gui", "input", "pointer", "focus"]
+categories = ["gui"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+fynix.workspace = true
+spatree.workspace = true
+
+[features]
+default = ["std"]
+std = ["fynix/std", "spatree/std"]
+libm = ["fynix/libm", "spatree/libm"]

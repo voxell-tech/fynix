@@ -230,6 +230,45 @@ impl Elements {
         }
     }
 
+    /// Visits the subtree rooted at `id` in paint order, calling
+    /// `visit` with each element's id and metadata.
+    ///
+    /// Order matches [`Self::render`]: a parent is visited before its
+    /// children, so a later visit is an element painted on top. Used
+    /// to feed an external hit-test index each element's absolute
+    /// rect (via `meta.node.world_translation` and `size`). Layout
+    /// must be complete for those values to be current.
+    pub fn visit_paint_order(
+        &self,
+        id: &ElementId,
+        mut visit: impl FnMut(&ElementId, &ElementMeta),
+    ) {
+        self.visit_paint_order_inner(id, &mut visit);
+    }
+
+    fn visit_paint_order_inner(
+        &self,
+        id: &ElementId,
+        visit: &mut dyn FnMut(&ElementId, &ElementMeta),
+    ) {
+        let Some(meta) = self.metas.get(id) else {
+            return;
+        };
+        visit(id, meta);
+
+        if let Some(type_meta) =
+            self.type_metas.get_column(id.col_id())
+        {
+            type_meta.for_each_child(
+                &self.elements,
+                id,
+                &mut |child| {
+                    self.visit_paint_order_inner(child, visit);
+                },
+            );
+        }
+    }
+
     /// Lays out the subtree of every dirty element, draining the
     /// dirty set. Nodes are reset when marked dirty, not here.
     pub fn layout(&mut self, resources: &mut Resources) {

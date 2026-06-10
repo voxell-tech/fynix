@@ -7,6 +7,7 @@ use fynix_elements::parley::fontique::{Blob, GenericFamily};
 use fynix_elements::{
     Button, Horizontal, Label, Pad, TextContext, Vertical,
 };
+use fynix_input::{Click, PointerEnter, PointerLeave};
 use vello::peniko::Color;
 use vello::peniko::color::palette::css;
 use vello_winit_examples::{FynixDemo, VelloWinitApp};
@@ -30,7 +31,24 @@ struct DemoWorld {
     /// True only on the frame `fps` changed, so the reactive counter
     /// rebuilds just then.
     fps_changed: bool,
+    /// Bumped by clicking the increment button.
+    count: u32,
+    /// True only on the frame `count` changed, so its reactive label
+    /// rebuilds just then.
+    count_changed: bool,
+    /// Whether the pointer is currently over the increment button.
+    hovering: bool,
+    /// True only on the frame `hovering` changed.
+    hovering_changed: bool,
 }
+
+/// Emitted by the increment button's click handler, drained into
+/// [`DemoWorld::count`] each frame.
+struct Increment;
+
+/// Emitted by the increment button's enter/leave handlers, carrying
+/// the new hover state. Pushed into a single queue so order is kept.
+struct Hover(bool);
 
 impl FynixDemo for HelloWorld {
     type World = DemoWorld;
@@ -41,6 +59,8 @@ impl FynixDemo for HelloWorld {
 
     fn update(&mut self, world: &mut DemoWorld, dt: Duration) {
         world.fps_changed = false;
+        world.count_changed = false;
+        world.hovering_changed = false;
         let secs = dt.as_secs_f32();
         if secs > 0.0 {
             let fps = (1.0 / secs).round() as u32;
@@ -48,6 +68,26 @@ impl FynixDemo for HelloWorld {
                 world.fps = fps;
                 world.fps_changed = true;
             }
+        }
+    }
+
+    fn apply_events(
+        &mut self,
+        world: &mut DemoWorld,
+        events: &mut Events,
+    ) {
+        let clicks = events.drain::<Increment>().count();
+        if clicks > 0 {
+            world.count += clicks as u32;
+            world.count_changed = true;
+        }
+
+        // The last hover event of the frame is the resting state.
+        if let Some(Hover(hovering)) = events.drain::<Hover>().last()
+            && hovering != world.hovering
+        {
+            world.hovering = hovering;
+            world.hovering_changed = true;
         }
     }
 
@@ -68,13 +108,11 @@ impl FynixDemo for HelloWorld {
 
     fn build(&mut self, ctx: &mut FynixCtx<DemoWorld>) -> ElementId {
         ctx.add_with::<Pad>(|p, ctx| {
+            ctx.set(path!(<Label>::fill), Color::WHITE.into());
+            ctx.set(path!(<Label>::font_size), 42.0);
+
             *p = Pad::all(20.0);
             p.set_child(ctx.add_with::<Vertical>(|v, ctx| {
-                ctx.set(
-                    path!(<Label>::fill),
-                    css::WHITE_SMOKE.into(),
-                );
-
                 // Reactive FPS counter: rebuilt only when the value
                 // changes (see `DemoWorld::update`).
                 v.add(ctx.reactive(
@@ -84,7 +122,6 @@ impl FynixDemo for HelloWorld {
                         Some(
                             ctx.add_with::<Label>(|label, _| {
                                 label.text = format!("FPS: {fps}");
-                                label.font_size = 20.0;
                             })
                             .id(),
                         )
@@ -93,7 +130,7 @@ impl FynixDemo for HelloWorld {
 
                 v.add(ctx.add_with::<Label>(|label, _ctx| {
                     label.text = "Hello, Fynix!".into();
-                    label.font_size = 24.0;
+                    label.font_size = 64.0;
                 }));
                 v.add(ctx.add_with::<Label>(|label, _ctx| {
                     label.text =
@@ -105,8 +142,9 @@ impl FynixDemo for HelloWorld {
                             .into();
                 }));
 
+                // ctx.set(path!(<Label>::font_size), 42.0);
+
                 v.add(ctx.add_with::<Horizontal>(|v, ctx| {
-                    ctx.set(path!(<Label>::font_size), 16.0);
                     ctx.set(path!(<Label>::fill), css::AQUA.into());
 
                     v.add(ctx.add_with::<Label>(|label, _ctx| {
@@ -127,16 +165,57 @@ impl FynixDemo for HelloWorld {
                     }));
                 }));
 
-                v.add(ctx.compose(TextButton { label: "Press me!" }));
-                v.add(ctx.compose(TextButton {
-                    label: "Other Button!",
-                }));
-                v.add(ctx.compose_with(
-                    TextButton {
-                        label: "Green Button?!",
+                // Click counter: the button emits `Increment`, which
+                // is drained into `world.count`, and this label
+                // rebuilds whenever the count changes.
+                ctx.set(path!(<Label>::font_size), 42.0);
+                v.add(ctx.reactive(
+                    |w| w.count_changed,
+                    |ctx| {
+                        let count = ctx.world.count;
+                        Some(
+                            ctx.add_with::<Label>(|label, _| {
+                                label.text =
+                                    format!("Count: {count}");
+                                label.fill = css::RED.into();
+                            })
+                            .id(),
+                        )
                     },
-                    |s| s.bg_color = Some(css::GREEN),
                 ));
+
+                // Hover state: the button's enter/leave handlers emit
+                // `Hover`, drained into `world.hovering`, and this
+                // label rebuilds when it changes.
+                v.add(ctx.reactive(
+                    |w| w.hovering_changed,
+                    |ctx| {
+                        let hovering = ctx.world.hovering;
+                        Some(
+                            ctx.add_with::<Label>(|label, _| {
+                                label.text = if hovering {
+                                    "Hovering: yes".into()
+                                } else {
+                                    "Hovering: no".into()
+                                };
+                            })
+                            .id(),
+                        )
+                    },
+                ));
+
+                v.add(
+                    ctx.compose(TextButton { label: "Increment" })
+                        .on::<Click>(|_, events| {
+                            events.push(Increment);
+                        })
+                        .on::<PointerEnter>(|_, events| {
+                            events.push(Hover(true));
+                        })
+                        .on::<PointerLeave>(|_, events| {
+                            events.push(Hover(false));
+                        }),
+                );
             }));
         })
         .id()

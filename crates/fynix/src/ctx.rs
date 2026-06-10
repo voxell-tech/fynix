@@ -139,7 +139,6 @@ impl<W> FynixCtx<'_, '_, W> {
         W: 'static,
     {
         self.commit_pending_styles();
-
         // Build the holder element and its reactive together: the
         // element's id is needed to register the reactive, and the
         // reactive's id is needed to construct the element.
@@ -283,7 +282,7 @@ impl From<ElementHandle<'_>> for ElementId {
 mod tests {
     use alloc::vec::Vec;
 
-    use field_path::field_accessor;
+    use field_path::field_accessor as path;
     use rectree::{Constraint, NodeContext, Size, Vec2};
 
     use super::*;
@@ -349,7 +348,7 @@ mod tests {
         let mut fynix = Fynix::new();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.set(field_accessor!(<Label>::text), "hello");
+            ctx.set(path!(<Label>::text), "hello");
             ctx.add_with::<Vertical>(|v, ctx| {
                 v.add(ctx.add::<Label>());
             })
@@ -370,11 +369,11 @@ mod tests {
         let mut fynix = Fynix::new();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.set(field_accessor!(<Label>::text), "outer");
+            ctx.set(path!(<Label>::text), "outer");
             ctx.add_with::<Vertical>(|v, ctx| {
                 // Inner scope overrides the label text.
                 let inner_id = ctx.add_with::<Vertical>(|v, ctx| {
-                    ctx.set(field_accessor!(<Label>::text), "inner");
+                    ctx.set(path!(<Label>::text), "inner");
                     v.add(ctx.add::<Label>());
                 });
 
@@ -401,9 +400,9 @@ mod tests {
         let mut fynix = Fynix::new();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.set(field_accessor!(<Label>::text), "parent");
+            ctx.set(path!(<Label>::text), "parent");
             ctx.add_with::<Vertical>(|v, ctx| {
-                ctx.set(field_accessor!(<Label>::text), "child");
+                ctx.set(path!(<Label>::text), "child");
                 v.add(ctx.add::<Label>());
             })
             .id()
@@ -423,7 +422,7 @@ mod tests {
         let mut fynix = Fynix::new();
         let mut ctx = fynix.root_ctx(&mut world);
 
-        ctx.set(field_accessor!(<Label>::text), "z");
+        ctx.set(path!(<Label>::text), "z");
         let elem_a = ctx.add::<Label>().id();
 
         let mut elem_c = ElementId::PLACEHOLDER;
@@ -432,51 +431,44 @@ mod tests {
         let mut elem_f = ElementId::PLACEHOLDER;
         let elem_b = ctx
             .add_with::<Vertical>(|v, ctx| {
-                ctx.set(field_accessor!(<Label>::text), "a");
+                ctx.set(path!(<Label>::text), "a");
 
                 v.add({
                     elem_c = ctx
                         .add_with::<Vertical>(|v, ctx| {
-                            ctx.set(
-                                field_accessor!(<Label>::text),
-                                "b",
-                            );
+                            ctx.set(path!(<Label>::text), "b");
 
                             v.add({
-                                elem_d =
-                                    ctx.add_with::<Vertical>(
-                                        |v, ctx| {
-                                            // Trigger `create_element` without
-                                            // any prior style.
-                                            v.add(ctx.add::<Label>());
+                                elem_d = ctx
+                                    .add_with::<Vertical>(|v, ctx| {
+                                        // Trigger `create_element`
+                                        // without any prior style.
+                                        v.add(ctx.add::<Label>());
 
-                                            ctx.set(
-                                                field_accessor!(
-                                                    <Label>::text
-                                                ),
-                                                "c",
-                                            );
-                                            v.add({
-                                                elem_e = ctx
-                                        .add_with::<Label>(|_, _| {})
-                                        .id();
-                                                elem_e
-                                            });
+                                        ctx.set(
+                                            path!(<Label>::text),
+                                            "c",
+                                        );
+                                        v.add({
+                                            elem_e = ctx
+                                                .add_with::<Label>(
+                                                    |_, _| {},
+                                                )
+                                                .id();
+                                            elem_e
+                                        });
 
-                                            ctx.set(
-                                                field_accessor!(
-                                                    <Label>::text
-                                                ),
-                                                "d",
-                                            );
-                                            v.add({
-                                                elem_f = ctx
-                                                    .add::<Label>()
-                                                    .id();
-                                                elem_f
-                                            });
-                                        },
-                                    )
+                                        ctx.set(
+                                            path!(<Label>::text),
+                                            "d",
+                                        );
+                                        v.add({
+                                            elem_f = ctx
+                                                .add::<Label>()
+                                                .id();
+                                            elem_f
+                                        });
+                                    })
                                     .id();
                                 elem_d
                             });
@@ -546,10 +538,7 @@ mod tests {
                     v.add({
                         elem_b = ctx
                             .add_with::<Vertical>(|v, ctx| {
-                                ctx.set(
-                                    field_accessor!(<Label>::text),
-                                    "a",
-                                );
+                                ctx.set(path!(<Label>::text), "a");
                                 v.add(ctx.add::<Label>());
                             })
                             .id();
@@ -572,6 +561,49 @@ mod tests {
         // [a] will be removed.
         fynix.remove_element(&elem_a);
         assert_eq!(fynix.styles.styles.len(), 0);
+    }
+
+    #[derive(Default)]
+    struct ReactiveWorld {
+        changed: bool,
+    }
+
+    #[test]
+    fn reactive_restores_style_set_before_it() {
+        use crate::reactive::ReactiveElement;
+
+        let mut world = ReactiveWorld::default();
+        let mut fynix = Fynix::new();
+
+        let holder = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            // A style set immediately before the reactive must apply
+            // to both the initial build and every rebuild.
+            ctx.set(path!(<Label>::text), "styled");
+            ctx.reactive(
+                |w| w.changed,
+                |ctx| Some(ctx.add::<Label>().id()),
+            )
+            .id()
+        };
+
+        let child_text = |fynix: &Fynix| {
+            let child = fynix
+                .elements
+                .get_typed::<ReactiveElement>(&holder)
+                .unwrap()
+                .child
+                .unwrap();
+            fynix.elements.get_typed::<Label>(&child).unwrap().text
+        };
+
+        // Initial build picks up the style.
+        assert_eq!(child_text(&fynix), "styled");
+
+        // Force a rebuild; the restored scope must keep the style.
+        world.changed = true;
+        fynix.update_reactives(&mut world);
+        assert_eq!(child_text(&fynix), "styled");
     }
 
     #[derive(Init)]
@@ -602,10 +634,7 @@ mod tests {
         let mut fynix = Fynix::new();
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.set(
-                field_accessor!(<LabelStyle>::text),
-                "from_chain",
-            );
+            ctx.set(path!(<LabelStyle>::text), "from_chain");
             ctx.compose(LabelComposer).id()
         };
 
@@ -619,10 +648,7 @@ mod tests {
         let mut fynix = Fynix::new();
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.set(
-                field_accessor!(<LabelStyle>::text),
-                "from_chain",
-            );
+            ctx.set(path!(<LabelStyle>::text), "from_chain");
             ctx.compose_with(LabelComposer, |s| s.text = "inline")
                 .id()
         };

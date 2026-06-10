@@ -49,6 +49,15 @@ impl Interactions {
         self.table.remove_row(id)
     }
 
+    /// Returns `true` if `id` has a handler for interaction type `I`,
+    /// without running it.
+    ///
+    /// Used by bubbling dispatch to find the nearest ancestor that
+    /// handles `I` before delivering the interaction.
+    pub fn contains<I: 'static>(&self, id: &ElementId) -> bool {
+        self.table.contains::<HandlerFn<I>>(id)
+    }
+
     /// Runs the handler attached to `id` for interaction `I`, if one
     /// exists. Returns `true` if a handler ran.
     pub fn dispatch<I: 'static>(
@@ -86,6 +95,23 @@ mod tests {
     struct Button;
 
     impl ElementBuild for Button {
+        fn build(
+            &self,
+            _id: &ElementId,
+            constraint: Constraint,
+            _nodes: &mut ElementNodes,
+        ) -> Size {
+            constraint.min
+        }
+    }
+
+    #[derive(Init, Element)]
+    struct Container {
+        #[elem(children)]
+        child: Option<ElementId>,
+    }
+
+    impl ElementBuild for Container {
         fn build(
             &self,
             _id: &ElementId,
@@ -171,5 +197,36 @@ mod tests {
 
         assert!(fynix.interactions.remove(&id));
         assert!(!fynix.dispatch(&id, Click));
+    }
+
+    #[test]
+    fn dispatch_bubbling_reaches_ancestor_handler() {
+        let mut world = ();
+        let mut fynix = Fynix::new();
+        let (parent, child) = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            // The child carries no handler; adding the container sets
+            // the child's `parent_id` to the container.
+            let child = ctx.add::<Button>().id();
+            let parent = ctx
+                .add_with::<Container>(|c, _| {
+                    c.child = Some(child);
+                })
+                .on::<Click>(|_, events| {
+                    events.push(Clicked(2));
+                })
+                .id();
+            (parent, child)
+        };
+
+        // Bubbling from the child skips it and reaches the parent.
+        assert!(fynix.dispatch_bubbling(&child, Click, |_| true));
+        assert_eq!(
+            fynix.events.iter::<Clicked>().next(),
+            Some(&Clicked(2))
+        );
+        // Direct dispatch to the child finds no handler.
+        assert!(!fynix.dispatch(&child, Click));
+        let _ = parent;
     }
 }

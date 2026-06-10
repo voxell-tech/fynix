@@ -4,6 +4,10 @@ use std::time::{Duration, Instant};
 
 use fynix::prelude::*;
 use fynix_elements::WindowSize;
+use fynix_input::{
+    HitTest, PointerButton, PointerId, PointerRecognizer, RawInput,
+    RawInputKind, is_hit_target,
+};
 use imaging_vello::VelloSceneSink;
 use vello::kurbo::Rect;
 use vello::peniko::Color;
@@ -13,7 +17,7 @@ use vello::{
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::Window;
 
@@ -36,6 +40,15 @@ pub trait FynixDemo {
     /// `dt` is the time elapsed since the previous frame.
     fn update(&mut self, _world: &mut Self::World, _dt: Duration) {}
 
+    /// Drains UI events emitted by interaction handlers into the
+    /// world, run once per frame before reactives update.
+    fn apply_events(
+        &mut self,
+        _world: &mut Self::World,
+        _events: &mut Events,
+    ) {
+    }
+
     fn build(&mut self, ctx: &mut FynixCtx<Self::World>)
     -> ElementId;
 }
@@ -46,6 +59,14 @@ pub struct VelloWinitApp<'s, D: FynixDemo> {
     demo: D,
     world: D::World,
     last_frame: Instant,
+    /// Start of the app, used to stamp raw input with a monotonic
+    /// millisecond timestamp.
+    start: Instant,
+    recognizer: PointerRecognizer,
+    /// Last known cursor position, in physical pixels. winit's
+    /// `MouseInput` carries no position, so it is paired with the
+    /// most recent `CursorMoved`.
+    cursor: (f64, f64),
     context: RenderContext,
     renderer: Option<Renderer>,
     state: RenderState<'s>,
@@ -80,6 +101,9 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
             demo,
             world,
             last_frame: Instant::now(),
+            start: Instant::now(),
+            recognizer: PointerRecognizer::new(),
+            cursor: (0.0, 0.0),
             context: RenderContext::new(),
             renderer: None,
             state: RenderState::Suspended(None),
@@ -136,6 +160,8 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
         let dt = now.duration_since(self.last_frame);
         self.last_frame = now;
         self.demo.update(&mut self.world, dt);
+        self.demo
+            .apply_events(&mut self.world, &mut self.fynix.events);
         self.fynix.update_reactives::<D::World>(&mut self.world);
 
         self.fynix.layout();
@@ -201,6 +227,63 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
         );
         dev.queue.submit([enc.finish()]);
         texture.present();
+    }
+
+    /// Lowers a winit mouse button event into [`RawInput`] at the
+    /// last known cursor position and feeds it through the
+    /// recognizer.
+    fn handle_mouse_input(
+        &mut self,
+        state: ElementState,
+        button: MouseButton,
+    ) {
+        let (x, y) = self.cursor;
+        let button = match button {
+            MouseButton::Left => PointerButton::Primary,
+            MouseButton::Right => PointerButton::Secondary,
+            MouseButton::Middle => PointerButton::Middle,
+            MouseButton::Other(n) => PointerButton::Other(n),
+            _ => PointerButton::Other(u16::MAX),
+        };
+        let kind = match state {
+            ElementState::Pressed => RawInputKind::PointerDown {
+                pointer: PointerId::MOUSE,
+                button,
+                x,
+                y,
+            },
+            ElementState::Released => RawInputKind::PointerUp {
+                pointer: PointerId::MOUSE,
+                button,
+                x,
+                y,
+            },
+        };
+        self.feed_input(kind);
+    }
+
+    /// Builds a [`HitTest`] over the current (previous-frame) layout
+    /// and runs `kind` through the recognizer, dispatching any
+    /// interactions it produces.
+    ///
+    /// Only elements with a pointer handler are indexed, so the
+    /// spatree stays small. A redraw is requested so the result is
+    /// visible promptly.
+    fn feed_input(&mut self, kind: RawInputKind) {
+        let input = RawInput {
+            time: self.start.elapsed().as_millis() as u64,
+            kind,
+        };
+        let hit = HitTest::build(
+            &self.fynix.elements,
+            &self.root_id,
+            |id| is_hit_target(&self.fynix.interactions, id),
+        );
+        self.recognizer.handle(&mut self.fynix, &hit, &input);
+
+        if let RenderState::Active { window, .. } = &self.state {
+            window.request_redraw();
+        }
     }
 }
 
@@ -284,6 +367,17 @@ impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
                 {
                     window.request_redraw();
                 }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor = (position.x, position.y);
+                self.feed_input(RawInputKind::PointerMoved {
+                    pointer: PointerId::MOUSE,
+                    x: position.x,
+                    y: position.y,
+                });
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.handle_mouse_input(state, button);
             }
             _ => {}
         }
