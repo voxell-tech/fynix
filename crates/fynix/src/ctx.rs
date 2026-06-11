@@ -116,9 +116,9 @@ impl<W> FynixCtx<'_, '_, W> {
     /// Binds a reactive to the element tree.
     ///
     /// `build` constructs a subtree and `changed` reports whether the
-    /// state it reads has changed since the last build. A holder
-    /// [`ReactiveElement`] owns the subtree, so when `changed` fires
-    /// the backend can rebuild just that subtree in place.
+    /// state it reads has changed since the last build. When
+    /// `changed` fires, the backend rebuild just that subtree in
+    /// place.
     ///
     /// The initial subtree is built immediately, under the current
     /// style scope. That scope is captured on the [`Reactive`] and
@@ -133,6 +133,8 @@ impl<W> FynixCtx<'_, '_, W> {
     where
         W: 'static,
     {
+        self.commit_pending_styles();
+
         // Build the holder element and its reactive together: the
         // element's id is needed to register the reactive, and the
         // reactive's id is needed to construct the element.
@@ -154,6 +156,7 @@ impl<W> FynixCtx<'_, '_, W> {
             let ctx = FynixCtx::new(self.fynix, self.world, style_id);
             build(ctx)
         };
+        // Clear any uncommitted style changes to prevent leaking.
         self.fynix.styles.clear_builder();
 
         if let Some(child_id) = child
@@ -206,27 +209,29 @@ impl<W> FynixCtx<'_, '_, W> {
     /// applies the current style chain to it.
     #[must_use]
     fn create_styled<S: Stylable>(&mut self) -> S {
-        if self.fynix.styles.should_commit() {
-            let committed_id = self.fynix.styles.current_id();
-
-            let is_nested = self.primary_style.is_none();
-
-            self.fynix
-                .styles
-                .commit_styles(self.prev_style, is_nested);
-            self.prev_style = Some(committed_id);
-
-            if is_nested {
-                self.primary_style = Some(committed_id);
-            }
-        }
-
+        self.commit_pending_styles();
         let mut instance = S::init();
         if let Some(id) = &self.prev_style {
             self.fynix.styles.apply(&mut instance, id);
         }
 
         instance
+    }
+
+    /// Commits any pending style changes into a new committed node,
+    /// advancing `prev_style` to it and recording it as
+    /// `primary_style` when it is the first commit in this scope.
+    fn commit_pending_styles(&mut self) {
+        if self.fynix.styles.should_commit() {
+            let committed_id = self.fynix.styles.current_id();
+
+            self.fynix.styles.commit_styles(self.prev_style);
+            self.prev_style = Some(committed_id);
+
+            if self.primary_style.is_none() {
+                self.primary_style = Some(committed_id);
+            }
+        }
     }
 }
 

@@ -68,16 +68,9 @@ impl Styles {
     /// node and advances to a fresh [`StyleId`].
     ///
     /// `parent_id` links the new node into the inheritance chain so
-    /// that [`Self::apply`] can walk up to ancestor defaults.
-    ///
-    /// `is_nested` controls which child slot on the parent is used:
-    /// `true` sets `nested_child` (one scope deeper), `false` sets
-    /// `adjacent_child` (same scope, next sibling).
-    pub fn commit_styles(
-        &mut self,
-        parent_id: Option<StyleId>,
-        is_nested: bool,
-    ) {
+    /// that [`Self::apply`] can walk up to ancestor defaults, and
+    /// registers the new node in the parent's first free child slot.
+    pub fn commit_styles(&mut self, parent_id: Option<StyleId>) {
         let committed_id = self.current_id;
         let style =
             core::mem::take(&mut self.style_builder).build(parent_id);
@@ -85,7 +78,7 @@ impl Styles {
         self.styles.insert(committed_id, style);
 
         if let Some(parent) = parent_id {
-            self.add_child_to_style(parent, committed_id, is_nested);
+            self.add_child_to_style(parent, committed_id);
         }
 
         self.current_id = self.id_generator.new_id();
@@ -95,18 +88,20 @@ impl Styles {
         &mut self,
         parent_id: StyleId,
         child_id: StyleId,
-        is_nested: bool,
     ) {
         let Some(parent) = self.styles.get_mut(&parent_id) else {
             return;
         };
 
-        if is_nested {
-            debug_assert!(parent.nested_child.is_none());
-            parent.nested_child = Some(child_id);
-        } else {
-            debug_assert!(parent.adjacent_child.is_none());
-            parent.adjacent_child = Some(child_id);
+        let slot =
+            parent.children.iter_mut().find(|slot| slot.is_none());
+
+        debug_assert!(
+            slot.is_some(),
+            "style {parent_id:?} already has two children"
+        );
+        if let Some(slot) = slot {
+            *slot = Some(child_id);
         }
     }
 
@@ -150,6 +145,17 @@ impl Styles {
             return false;
         };
         self.id_generator.recycle(*id);
+
+        // Free the slot on the parent so it holds no stale child id.
+        if let Some(parent_id) = style.parent_id
+            && let Some(parent) = self.styles.get_mut(&parent_id)
+        {
+            for slot in parent.children.iter_mut() {
+                if *slot == Some(*id) {
+                    *slot = None;
+                }
+            }
+        }
 
         for (_, key) in style.fields.iter() {
             self.style_values.dyn_remove(key);

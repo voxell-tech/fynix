@@ -27,15 +27,15 @@ pub use storage::Styles;
 /// inheritance chain that [`Styles::apply`] walks to resolve
 /// defaults.
 ///
-/// A node can have up to two children: `adjacent_child` (same scope,
-/// next sibling) and `nested_child` (one scope deeper). When a style
-/// is removed, all its descendants are also removed.
+/// A node can have up to two children, filled in commit order: the
+/// first style of a deeper scope opened under it, or the next commit
+/// in the same scope. When a style is removed, all its descendants
+/// are also removed and its slot on the parent is freed.
 pub struct Style {
     parent_id: Option<StyleId>,
     index_map: HashMap<TypeId, Span>,
     fields: Box<[(UntypedField, PoolKey)]>,
-    adjacent_child: Option<StyleId>,
-    nested_child: Option<StyleId>,
+    children: [Option<StyleId>; 2],
 }
 
 impl Style {
@@ -44,15 +44,7 @@ impl Style {
     }
 
     pub fn children(&self) -> [Option<&StyleId>; 2] {
-        [self.adjacent_child.as_ref(), self.nested_child.as_ref()]
-    }
-
-    pub fn adjacent_child(&self) -> Option<&StyleId> {
-        self.adjacent_child.as_ref()
-    }
-
-    pub fn nested_child(&self) -> Option<&StyleId> {
-        self.nested_child.as_ref()
+        [self.children[0].as_ref(), self.children[1].as_ref()]
     }
 
     fn get_fields(
@@ -119,8 +111,7 @@ impl StyleBuilder {
             parent_id,
             index_map,
             fields: all_fields.into_boxed_slice(),
-            adjacent_child: None,
-            nested_child: None,
+            children: [None; 2],
         }
     }
 }

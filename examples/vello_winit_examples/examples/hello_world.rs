@@ -70,7 +70,10 @@ impl FynixDemo for HelloWorld {
         ctx.add_with::<Pad>(|p, ctx| {
             *p = Pad::all(20.0);
             p.set_child(ctx.add_with::<Vertical>(|v, ctx| {
-                ctx.set(path!(<Label>::fill), Color::WHITE.into());
+                ctx.set(
+                    path!(<Label>::fill),
+                    css::WHITE_SMOKE.into(),
+                );
 
                 // Reactive FPS counter: rebuilt only when the value
                 // changes (see `DemoWorld::update`).
