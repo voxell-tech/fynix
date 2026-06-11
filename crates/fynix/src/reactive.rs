@@ -99,7 +99,7 @@ impl ElementBuild for ReactiveElement {
 
 pub type ChangedFn<W> = fn(&W) -> bool;
 
-pub type BuildFn<W> = fn(FynixCtx<W>) -> Option<ElementId>;
+pub type BuildFn<W> = fn(&mut FynixCtx<W>) -> Option<ElementId>;
 
 #[derive(Debug)]
 pub struct Reactive<W> {
@@ -142,7 +142,7 @@ impl<W> Reactive<W> {
         (self.changed_fn)(world)
     }
 
-    pub fn build(&self, ctx: FynixCtx<W>) -> Option<ElementId> {
+    pub fn build(&self, ctx: &mut FynixCtx<W>) -> Option<ElementId> {
         (self.build_fn)(ctx)
     }
 }

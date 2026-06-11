@@ -162,9 +162,9 @@ impl Fynix {
             // Rebuild under the reactive's captured style scope, then
             // drop any uncommitted style changes so they do not leak.
             let child = {
-                let ctx =
+                let mut ctx =
                     FynixCtx::new(self, world, reactive.style_id());
-                reactive.build(ctx)
+                reactive.build(&mut ctx)
             };
             self.styles.clear_builder();
 

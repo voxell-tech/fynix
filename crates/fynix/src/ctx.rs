@@ -154,13 +154,8 @@ impl<W> FynixCtx<'_, '_, W> {
             None,
         );
 
-        // Build the initial subtree under the current style scope,
-        // then drop any uncommitted style changes so they do not
-        // leak. The same scope is restored on every rebuild.
-        let child = {
-            let ctx = FynixCtx::new(self.fynix, self.world, style_id);
-            build(ctx)
-        };
+        // Build the initial subtree under the current style scope.
+        let child = build(self);
         // Clear any uncommitted style changes to prevent leaking.
         self.fynix.styles.clear_builder();
 

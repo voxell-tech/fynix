@@ -79,7 +79,7 @@ impl FynixDemo for HelloWorld {
                 // changes (see `DemoWorld::update`).
                 v.add(ctx.reactive(
                     |w| w.fps_changed,
-                    |mut ctx| {
+                    |ctx| {
                         let fps = ctx.world.fps;
                         Some(
                             ctx.add_with::<Label>(|label, _| {
