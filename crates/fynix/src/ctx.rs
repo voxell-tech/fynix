@@ -87,7 +87,8 @@ impl<W> FynixCtx<'_, '_, W> {
         composer: C,
     ) -> ElementHandle<'_> {
         let style = self.create_styled::<C::Style>();
-        let id = self.style_scoped(|ctx| composer.compose(style, ctx));
+        let id =
+            self.style_scoped(|ctx| composer.compose(style, ctx));
         ElementHandle::new(&mut self.fynix.interactions, id)
     }
 
@@ -101,7 +102,8 @@ impl<W> FynixCtx<'_, '_, W> {
     ) -> ElementHandle<'_> {
         let mut style = self.create_styled::<C::Style>();
         inline(&mut style);
-        let id = self.style_scoped(|ctx| composer.compose(style, ctx));
+        let id =
+            self.style_scoped(|ctx| composer.compose(style, ctx));
         ElementHandle::new(&mut self.fynix.interactions, id)
     }
 
@@ -428,49 +430,62 @@ mod tests {
         let mut elem_d = ElementId::PLACEHOLDER;
         let mut elem_e = ElementId::PLACEHOLDER;
         let mut elem_f = ElementId::PLACEHOLDER;
-        let elem_b = ctx.add_with::<Vertical>(|v, ctx| {
-            ctx.set(field_accessor!(<Label>::text), "a");
+        let elem_b = ctx
+            .add_with::<Vertical>(|v, ctx| {
+                ctx.set(field_accessor!(<Label>::text), "a");
 
-            v.add({
-                elem_c = ctx.add_with::<Vertical>(|v, ctx| {
-                    ctx.set(field_accessor!(<Label>::text), "b");
+                v.add({
+                    elem_c = ctx
+                        .add_with::<Vertical>(|v, ctx| {
+                            ctx.set(
+                                field_accessor!(<Label>::text),
+                                "b",
+                            );
 
-                    v.add({
-                        elem_d =
-                            ctx.add_with::<Vertical>(|v, ctx| {
-                                // Trigger `create_element` without
-                                // any prior style.
-                                v.add(ctx.add::<Label>());
+                            v.add({
+                                elem_d =
+                                    ctx.add_with::<Vertical>(
+                                        |v, ctx| {
+                                            // Trigger `create_element` without
+                                            // any prior style.
+                                            v.add(ctx.add::<Label>());
 
-                                ctx.set(
-                                    field_accessor!(<Label>::text),
-                                    "c",
-                                );
-                                v.add({
-                                    elem_e = ctx
+                                            ctx.set(
+                                                field_accessor!(
+                                                    <Label>::text
+                                                ),
+                                                "c",
+                                            );
+                                            v.add({
+                                                elem_e = ctx
                                         .add_with::<Label>(|_, _| {})
                                         .id();
-                                    elem_e
-                                });
+                                                elem_e
+                                            });
 
-                                ctx.set(
-                                    field_accessor!(<Label>::text),
-                                    "d",
-                                );
-                                v.add({
-                                    elem_f = ctx.add::<Label>().id();
-                                    elem_f
-                                });
-                            })
-                            .id();
-                        elem_d
-                    });
-                })
-                .id();
-                elem_c
-            });
-        })
-        .id();
+                                            ctx.set(
+                                                field_accessor!(
+                                                    <Label>::text
+                                                ),
+                                                "d",
+                                            );
+                                            v.add({
+                                                elem_f = ctx
+                                                    .add::<Label>()
+                                                    .id();
+                                                elem_f
+                                            });
+                                        },
+                                    )
+                                    .id();
+                                elem_d
+                            });
+                        })
+                        .id();
+                    elem_c
+                });
+            })
+            .id();
 
         let mut len = fynix.styles.styles.len();
         // Verify we have 6 styles [z, a, b, c, d].
@@ -530,19 +545,24 @@ mod tests {
         let mut ctx = fynix.root_ctx(&mut world);
 
         let mut elem_b = ElementId::PLACEHOLDER;
-        let elem_a = ctx.add_with::<Vertical>(|v, ctx| {
-            v.add(ctx.add_with::<Vertical>(|v, ctx| {
-                v.add({
-                    elem_b = ctx.add_with::<Vertical>(|v, ctx| {
-                        ctx.set(field_accessor!(<Label>::text), "a");
-                        v.add(ctx.add::<Label>());
+        let elem_a = ctx
+            .add_with::<Vertical>(|v, ctx| {
+                v.add(ctx.add_with::<Vertical>(|v, ctx| {
+                    v.add({
+                        elem_b = ctx
+                            .add_with::<Vertical>(|v, ctx| {
+                                ctx.set(
+                                    field_accessor!(<Label>::text),
+                                    "a",
+                                );
+                                v.add(ctx.add::<Label>());
+                            })
+                            .id();
+                        elem_b
                     })
-                    .id();
-                    elem_b
-                })
-            }));
-        })
-        .id();
+                }));
+            })
+            .id();
 
         // Verify we have 1 style [a].
         assert_eq!(fynix.styles.styles.len(), 1);
@@ -627,14 +647,18 @@ mod tests {
         let mut fynix = Fynix::new();
         let (inner_id, outer_id) = {
             let mut ctx = fynix.root_ctx(&mut world);
-            let inner = ctx.compose_with(LabelComposer, |s| {
-                s.text = "inner";
-            }).id();
+            let inner = ctx
+                .compose_with(LabelComposer, |s| {
+                    s.text = "inner";
+                })
+                .id();
             // Styles set inside compose must not affect elements
             // added after it returns.
-            let outer = ctx.add_with::<Label>(|l, _| {
-                l.text = "outer";
-            }).id();
+            let outer = ctx
+                .add_with::<Label>(|l, _| {
+                    l.text = "outer";
+                })
+                .id();
             (inner, outer)
         };
 
