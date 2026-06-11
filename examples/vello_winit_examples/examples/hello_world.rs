@@ -81,10 +81,13 @@ impl FynixDemo for HelloWorld {
                     |w| w.fps_changed,
                     |mut ctx| {
                         let fps = ctx.world.fps;
-                        Some(ctx.add_with::<Label>(|label, _| {
-                            label.text = format!("FPS: {fps}");
-                            label.font_size = 20.0;
-                        }))
+                        Some(
+                            ctx.add_with::<Label>(|label, _| {
+                                label.text = format!("FPS: {fps}");
+                                label.font_size = 20.0;
+                            })
+                            .id(),
+                        )
                     },
                 ));
 
@@ -136,6 +139,7 @@ impl FynixDemo for HelloWorld {
                 ));
             }));
         })
+        .id()
     }
 }
 
@@ -175,5 +179,6 @@ impl Composer<DemoWorld> for TextButton<'_> {
                 }));
             }));
         })
+        .id()
     }
 }

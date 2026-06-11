@@ -71,6 +71,7 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
             ctx.add_with::<WindowSize>(|w, ctx| {
                 w.set_child(demo.build(ctx));
             })
+            .id()
         };
 
         Self {

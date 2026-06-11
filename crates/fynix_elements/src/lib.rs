@@ -29,8 +29,8 @@ pub struct WindowSize {
 }
 
 impl WindowSize {
-    pub fn set_child(&mut self, id: ElementId) {
-        self.child = Some(id);
+    pub fn set_child(&mut self, id: impl Into<ElementId>) {
+        self.child = Some(id.into());
     }
 }
 
@@ -59,8 +59,8 @@ pub struct Horizontal {
 }
 
 impl Horizontal {
-    pub fn add(&mut self, id: ElementId) -> &mut Self {
-        self.children.push(id);
+    pub fn add(&mut self, id: impl Into<ElementId>) -> &mut Self {
+        self.children.push(id.into());
         self
     }
 }
@@ -93,8 +93,8 @@ pub struct Vertical {
 }
 
 impl Vertical {
-    pub fn add(&mut self, id: ElementId) -> &mut Self {
-        self.children.push(id);
+    pub fn add(&mut self, id: impl Into<ElementId>) -> &mut Self {
+        self.children.push(id.into());
         self
     }
 }
@@ -131,8 +131,8 @@ pub struct Pad {
 }
 
 impl Pad {
-    pub fn set_child(&mut self, id: ElementId) {
-        self.child = Some(id);
+    pub fn set_child(&mut self, id: impl Into<ElementId>) {
+        self.child = Some(id.into());
     }
 
     pub fn new(top: f32, right: f32, bottom: f32, left: f32) -> Self {
@@ -215,8 +215,8 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn set_child(&mut self, id: ElementId) {
-        self.child = Some(id);
+    pub fn set_child(&mut self, id: impl Into<ElementId>) {
+        self.child = Some(id.into());
     }
 }
 
