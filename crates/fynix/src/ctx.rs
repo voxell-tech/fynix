@@ -67,12 +67,13 @@ impl<W> FynixCtx<'_, '_, W> {
     pub fn add_with<E: Element>(
         &mut self,
         scope: impl FnOnce(&mut E, &mut Self),
-    ) -> ElementId {
+    ) -> ElementHandle<'_> {
         let mut element = self.create_styled::<E>();
-        self.style_scoped(|ctx| {
+        let id = self.style_scoped(|ctx| {
             scope(&mut element, ctx);
             ctx.fynix.elements.add(element, ctx.primary_style.take())
-        })
+        });
+        ElementHandle::new(&mut self.fynix.interactions, id)
     }
 
     /// Runs `composer`, passing it a style instance built from the
@@ -84,9 +85,10 @@ impl<W> FynixCtx<'_, '_, W> {
     pub fn compose<C: Composer<W>>(
         &mut self,
         composer: C,
-    ) -> ElementId {
+    ) -> ElementHandle<'_> {
         let style = self.create_styled::<C::Style>();
-        self.style_scoped(|ctx| composer.compose(style, ctx))
+        let id = self.style_scoped(|ctx| composer.compose(style, ctx));
+        ElementHandle::new(&mut self.fynix.interactions, id)
     }
 
     /// Like [`Self::compose`], but runs `inline` after the style
@@ -96,10 +98,11 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         composer: C,
         inline: impl FnOnce(&mut C::Style),
-    ) -> ElementId {
+    ) -> ElementHandle<'_> {
         let mut style = self.create_styled::<C::Style>();
         inline(&mut style);
-        self.style_scoped(|ctx| composer.compose(style, ctx))
+        let id = self.style_scoped(|ctx| composer.compose(style, ctx));
+        ElementHandle::new(&mut self.fynix.interactions, id)
     }
 
     /// Queues a style default: field `T` on type `S` will be set to
@@ -129,7 +132,7 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         changed: ChangedFn<W>,
         build: BuildFn<W>,
-    ) -> ElementId
+    ) -> ElementHandle<'_>
     where
         W: 'static,
     {
@@ -170,7 +173,7 @@ impl<W> FynixCtx<'_, '_, W> {
             elem.child = child;
         }
 
-        element_id
+        ElementHandle::new(&mut self.fynix.interactions, element_id)
     }
 
     /// Saves the current style scope, runs `scope`, then restores it.
@@ -348,6 +351,7 @@ mod tests {
             ctx.add_with::<Vertical>(|v, ctx| {
                 v.add(ctx.add::<Label>());
             })
+            .id()
         };
 
         let vertical =
@@ -376,6 +380,7 @@ mod tests {
                 v.add(inner_id);
                 v.add(ctx.add::<Label>());
             })
+            .id()
         };
 
         let vertical =
@@ -399,6 +404,7 @@ mod tests {
                 ctx.set(field_accessor!(<Label>::text), "child");
                 v.add(ctx.add::<Label>());
             })
+            .id()
         };
 
         let vertical =
@@ -442,7 +448,8 @@ mod tests {
                                 );
                                 v.add({
                                     elem_e = ctx
-                                        .add_with::<Label>(|_, _| {});
+                                        .add_with::<Label>(|_, _| {})
+                                        .id();
                                     elem_e
                                 });
 
@@ -454,13 +461,16 @@ mod tests {
                                     elem_f = ctx.add::<Label>().id();
                                     elem_f
                                 });
-                            });
+                            })
+                            .id();
                         elem_d
                     });
-                });
+                })
+                .id();
                 elem_c
             });
-        });
+        })
+        .id();
 
         let mut len = fynix.styles.styles.len();
         // Verify we have 6 styles [z, a, b, c, d].
@@ -526,11 +536,13 @@ mod tests {
                     elem_b = ctx.add_with::<Vertical>(|v, ctx| {
                         ctx.set(field_accessor!(<Label>::text), "a");
                         v.add(ctx.add::<Label>());
-                    });
+                    })
+                    .id();
                     elem_b
                 })
             }));
-        });
+        })
+        .id();
 
         // Verify we have 1 style [a].
         assert_eq!(fynix.styles.styles.len(), 1);
@@ -570,6 +582,7 @@ mod tests {
             ctx.add_with::<Label>(|l, _| {
                 l.text = style.text;
             })
+            .id()
         }
     }
 
@@ -583,7 +596,7 @@ mod tests {
                 field_accessor!(<LabelStyle>::text),
                 "from_chain",
             );
-            ctx.compose(LabelComposer)
+            ctx.compose(LabelComposer).id()
         };
 
         let label = fynix.elements.get_typed::<Label>(&id).unwrap();
@@ -601,6 +614,7 @@ mod tests {
                 "from_chain",
             );
             ctx.compose_with(LabelComposer, |s| s.text = "inline")
+                .id()
         };
 
         let label = fynix.elements.get_typed::<Label>(&id).unwrap();
@@ -615,12 +629,12 @@ mod tests {
             let mut ctx = fynix.root_ctx(&mut world);
             let inner = ctx.compose_with(LabelComposer, |s| {
                 s.text = "inner";
-            });
+            }).id();
             // Styles set inside compose must not affect elements
             // added after it returns.
             let outer = ctx.add_with::<Label>(|l, _| {
                 l.text = "outer";
-            });
+            }).id();
             (inner, outer)
         };
 
