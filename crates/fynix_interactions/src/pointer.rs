@@ -114,8 +114,7 @@ where
     }
 
     /// Resolves a button going up against its press, dispatching the
-    /// interaction its [`ButtonRole`] selects when the release lands
-    /// on the same element within [`CLICK_SLOP`].
+    /// interaction depending on its [`ButtonRole`].
     pub fn pointer_up(
         &mut self,
         fynix: &mut Fynix,
