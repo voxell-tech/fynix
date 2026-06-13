@@ -1,7 +1,7 @@
 [package]
-name = "fynix_input"
-description = "Input recognizers and focus state for fynix."
-keywords = ["ui", "gui", "input", "pointer", "focus"]
+name = "fynix_interactions"
+description = "Input recognizers and interactions for fynix."
+keywords = ["ui", "gui", "input", "pointer", "interactions"]
 categories = ["gui"]
 version.workspace = true
 edition.workspace = true

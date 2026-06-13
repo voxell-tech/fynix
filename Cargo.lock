@@ -609,7 +609,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fynix_input"
+name = "fynix_interactions"
 version = "0.1.0"
 dependencies = [
  "fynix",
@@ -1665,7 +1665,7 @@ dependencies = [
 [[package]]
 name = "rectree"
 version = "0.1.0"
-source = "git+https://github.com/voxell-tech/rectree?rev=c7eae45#c7eae45b78c84073a628fa832bcff70011118e3b"
+source = "git+https://github.com/voxell-tech/rectree?rev=93a3b02#93a3b02d4ddbcea1a31ef23e44727fdaf80d5924"
 dependencies = [
  "bitflags 2.11.1",
 ]
@@ -1934,7 +1934,7 @@ checksum = "ea8f483b9159a7efadd9a82915dc40fdc9cfef7985651bbb83a8db20b12bf629"
 [[package]]
 name = "spatree"
 version = "0.1.0"
-source = "git+https://github.com/voxell-tech/rectree?rev=c7eae45#c7eae45b78c84073a628fa832bcff70011118e3b"
+source = "git+https://github.com/voxell-tech/spatree?rev=61a3dab#61a3dab5aec44abd087ddba8d81ee122f36d5b8c"
 dependencies = [
  "kurbo",
 ]
@@ -2204,7 +2204,7 @@ version = "0.1.0"
 dependencies = [
  "fynix",
  "fynix_elements",
- "fynix_input",
+ "fynix_interactions",
  "imaging_vello",
  "pollster",
  "vello",

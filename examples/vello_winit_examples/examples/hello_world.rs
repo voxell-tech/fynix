@@ -7,7 +7,7 @@ use fynix_elements::parley::fontique::{Blob, GenericFamily};
 use fynix_elements::{
     Button, Horizontal, Label, Pad, TextContext, Vertical,
 };
-use fynix_input::{Click, PointerEnter, PointerLeave};
+use fynix_interactions::{Click, PointerEnter, PointerLeave};
 use vello::peniko::Color;
 use vello::peniko::color::palette::css;
 use vello_winit_examples::{FynixDemo, VelloWinitApp};

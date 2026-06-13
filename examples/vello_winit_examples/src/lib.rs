@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use fynix::prelude::*;
 use fynix_elements::WindowSize;
-use fynix_input::{
+use fynix_interactions::{
     HitTest, PointerButton, PointerId, PointerRecognizer, RawInput,
     RawInputKind, is_hit_target,
 };

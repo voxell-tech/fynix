@@ -15,6 +15,7 @@ use fynix::interaction::Interactions;
 
 pub mod hit_test;
 pub mod interaction;
+pub mod pointer;
 pub mod raw_input;
 pub mod recognizer;
 
