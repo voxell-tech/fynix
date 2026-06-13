@@ -102,8 +102,7 @@ impl PointerRecognizer {
                     Click {
                         pointer,
                         button,
-                        local_x: hit.local_x,
-                        local_y: hit.local_y,
+                        local: hit.local,
                     },
                     // Only bubble to ancestors still under the
                     // release point.

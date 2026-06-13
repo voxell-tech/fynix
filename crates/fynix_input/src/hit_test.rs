@@ -12,10 +12,8 @@ use spatree::{RectId, Spatree};
 pub struct Hit {
     /// The topmost element whose absolute rect contains the point.
     pub id: ElementId,
-    /// Pointer position relative to the hit element's origin
-    /// (`world_translation`).
-    pub local_x: f64,
-    pub local_y: f64,
+    /// Pointer position relative to the hit element's origin.
+    pub local: Point,
 }
 
 /// A spatial index over an element subtree's absolute rects, used to
@@ -96,8 +94,7 @@ impl HitTest {
         let rect = self.tree.get_rect(rect_id)?;
         Some(Hit {
             id,
-            local_x: point.x - rect.x0,
-            local_y: point.y - rect.y0,
+            local: Point::new(point.x - rect.x0, point.y - rect.y0),
         })
     }
 
