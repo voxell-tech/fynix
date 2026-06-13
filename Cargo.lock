@@ -609,11 +609,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "fynix_interactions"
+name = "fynix_hit_test"
 version = "0.1.0"
 dependencies = [
  "fynix",
  "hashbrown 0.16.1",
+ "spatree",
+]
+
+[[package]]
+name = "fynix_interactions"
+version = "0.1.0"
+dependencies = [
+ "fynix",
+ "fynix_hit_test",
  "spatree",
 ]
 

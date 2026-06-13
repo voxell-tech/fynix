@@ -1,3 +1,12 @@
+//! Spatial hit-testing for fynix.
+//!
+//! Resolves a pointer position to the element underneath it, using a
+//! spatial index built once after layout and queried per event.
+
+#![no_std]
+
+extern crate alloc;
+
 use alloc::vec::Vec;
 
 use fynix::element::ElementId;
@@ -40,12 +49,11 @@ impl HitTest {
     /// indexing only the elements `include` accepts.
     ///
     /// Most of a scene is not interactive, so only elements that can
-    /// receive a hit-tested interaction (those with a registered
-    /// handler, see [`crate::is_hit_target`]) need to be in the
-    /// spatree. The whole subtree is still walked, to reach
-    /// interactive descendants, but non-indexed elements add nothing
-    /// to the tree. Paint order is preserved among indexed elements,
-    /// so the topmost still wins.
+    /// receive a hit-tested interaction need to be in the spatree.
+    /// The whole subtree is still walked to reach interactive
+    /// descendants, but non-indexed elements add nothing to the
+    /// tree. Paint order is preserved among indexed elements, so
+    /// the topmost still wins.
     ///
     /// Layout must be complete so each element's `world_translation`
     /// and `size` are current.

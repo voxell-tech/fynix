@@ -1,7 +1,7 @@
 [package]
-name = "fynix_interactions"
-description = "Input recognizers and interactions for fynix."
-keywords = ["ui", "gui", "input", "pointer", "interactions"]
+name = "fynix_hit_test"
+description = "Spatial hit-testing for fynix."
+keywords = ["ui", "gui", "hit-test", "spatial"]
 categories = ["gui"]
 version.workspace = true
 edition.workspace = true
@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 fynix.workspace = true
-fynix_hit_test.workspace = true
+hashbrown.workspace = true
 spatree.workspace = true
 
 [features]

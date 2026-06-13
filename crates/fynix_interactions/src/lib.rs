@@ -13,13 +13,12 @@ extern crate alloc;
 use fynix::element::ElementId;
 use fynix::interaction::Interactions;
 
-pub mod hit_test;
 pub mod interaction;
 pub mod pointer;
 pub mod raw_input;
 pub mod recognizer;
 
-pub use hit_test::{Hit, HitTest};
+pub use fynix_hit_test::{Hit, HitTest};
 pub use interaction::{Click, PointerEnter, PointerLeave};
 pub use raw_input::{
     PointerButton, PointerId, RawInput, RawInputKind,

@@ -11,6 +11,7 @@ repository = "https://github.com/voxell-tech/fynix"
 
 [workspace.dependencies]
 fynix = { version = "0.1.0", path = "crates/fynix" }
+fynix_hit_test = { version = "0.1.0", path = "crates/fynix_hit_test" }
 fynix_interactions = { version = "0.1.0", path = "crates/fynix_interactions" }
 fynix_macros = { version = "0.1.0", path = "crates/fynix_macros" }
 fynix_elements = { version = "0.1.0", path = "crates/fynix_elements" }

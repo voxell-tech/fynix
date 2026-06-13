@@ -4,9 +4,9 @@ use alloc::vec::Vec;
 
 use fynix::Fynix;
 use fynix::element::ElementId;
+use fynix_hit_test::HitTest;
 use spatree::kurbo::Point;
 
-use crate::hit_test::HitTest;
 use crate::interaction::{Click, PointerEnter, PointerLeave};
 use crate::raw_input::{
     PointerButton, PointerId, RawInput, RawInputKind,
