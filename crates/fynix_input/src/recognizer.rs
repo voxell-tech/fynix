@@ -1,7 +1,10 @@
+//! [Easter Egg](https://youtu.be/vsD70GAtVac?si=PRQqJq7WZwtY3iMT)
+
 use alloc::vec::Vec;
 
 use fynix::Fynix;
 use fynix::element::ElementId;
+use spatree::kurbo::Point;
 
 use crate::hit_test::HitTest;
 use crate::interaction::{Click, PointerEnter, PointerLeave};
@@ -37,8 +40,7 @@ pub struct PointerRecognizer {
 struct Press {
     pointer: PointerId,
     button: PointerButton,
-    x: f64,
-    y: f64,
+    pos: Point,
     /// The element under the press, if any. The release must resolve
     /// to this same element for a click.
     target: Option<ElementId>,
@@ -64,12 +66,12 @@ impl PointerRecognizer {
                 x,
                 y,
             } => {
-                let target = hit_test.query(x, y).map(|hit| hit.id);
+                let pos = Point::new(x, y);
+                let target = hit_test.query(pos).map(|hit| hit.id);
                 self.presses.push(Press {
                     pointer,
                     button,
-                    x,
-                    y,
+                    pos,
                     target,
                 });
             }
@@ -87,10 +89,11 @@ impl PointerRecognizer {
                     return;
                 };
 
-                let Some(hit) = hit_test.query(x, y) else {
+                let pos = Point::new(x, y);
+                let Some(hit) = hit_test.query(pos) else {
                     return;
                 };
-                if hit.id != target || moved_past_slop(&press, x, y) {
+                if hit.id != target || moved_past_slop(&press, pos) {
                     return;
                 }
 
@@ -104,11 +107,12 @@ impl PointerRecognizer {
                     },
                     // Only bubble to ancestors still under the
                     // release point.
-                    |id| hit_test.contains(id, x, y),
+                    |id| hit_test.contains(id, pos),
                 );
             }
             RawInputKind::PointerMoved { pointer, x, y } => {
-                let target = hit_test.query(x, y).map(|hit| hit.id);
+                let pos = Point::new(x, y);
+                let target = hit_test.query(pos).map(|hit| hit.id);
                 if target == self.hovered {
                     return;
                 }
@@ -126,7 +130,7 @@ impl PointerRecognizer {
                     fynix.dispatch_bubbling::<PointerEnter>(
                         &entered,
                         PointerEnter { pointer },
-                        |id| hit_test.contains(id, x, y),
+                        |id| hit_test.contains(id, pos),
                     );
                 }
 
@@ -149,11 +153,11 @@ impl PointerRecognizer {
     }
 }
 
-/// Returns `true` when the release at `(x, y)` is further than
-/// [`CLICK_SLOP`] from where the press began.
-fn moved_past_slop(press: &Press, x: f64, y: f64) -> bool {
-    let dx = x - press.x;
-    let dy = y - press.y;
+/// Returns `true` when the release is further than [`CLICK_SLOP`]
+/// from where the press began.
+fn moved_past_slop(press: &Press, pos: Point) -> bool {
+    let dx = pos.x - press.pos.x;
+    let dy = pos.y - press.pos.y;
     dx * dx + dy * dy > CLICK_SLOP * CLICK_SLOP
 }
 

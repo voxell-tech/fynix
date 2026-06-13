@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 fynix.workspace = true
+hashbrown.workspace = true
 spatree.workspace = true
 
 [features]
