@@ -1,10 +1,10 @@
-//! Input layer for fynix.
+//! Interaction layer for fynix.
 //!
-//! Turns raw platform input into the semantic interaction types that
-//! element handlers consume. The backend emits [`RawInput`], the
-//! stateful recognizers in this crate resolve it against a
-//! [`HitTest`], and matched interactions are delivered through
-//! `fynix`'s existing dispatch.
+//! Turns semantic pointer actions into the interaction types element
+//! handlers consume. A backend translates its native input into calls
+//! on [`PointerRecognizer`], which resolves them against a
+//! [`HitTest`] and delivers matched interactions through `fynix`'s
+//! dispatch.
 
 #![no_std]
 
@@ -15,15 +15,12 @@ use fynix::interaction::Interactions;
 
 pub mod interaction;
 pub mod pointer;
-pub mod raw_input;
-pub mod recognizer;
 
 pub use fynix_hit_test::{Hit, HitTest};
-pub use interaction::{Click, PointerEnter, PointerLeave};
-pub use raw_input::{
-    PointerButton, PointerId, RawInput, RawInputKind,
+pub use interaction::{
+    Click, PointerEnter, PointerLeave, SecondaryClick,
 };
-pub use recognizer::PointerRecognizer;
+pub use pointer::{ButtonRole, ClassifyButton, PointerRecognizer};
 
 /// Returns `true` if `id` handles any hit-tested interaction, and so
 /// must be indexed by [`HitTest::build`].
@@ -37,6 +34,7 @@ pub fn is_hit_target(
     id: &ElementId,
 ) -> bool {
     interactions.contains::<Click>(id)
+        || interactions.contains::<SecondaryClick>(id)
         || interactions.contains::<PointerEnter>(id)
         || interactions.contains::<PointerLeave>(id)
 }

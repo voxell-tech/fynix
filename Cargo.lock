@@ -2213,6 +2213,7 @@ version = "0.1.0"
 dependencies = [
  "fynix",
  "fynix_elements",
+ "fynix_hit_test",
  "fynix_interactions",
  "imaging_vello",
  "pollster",
