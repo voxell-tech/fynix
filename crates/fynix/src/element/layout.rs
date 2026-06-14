@@ -2,7 +2,8 @@ use imaging::record::Scene;
 use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 
 use crate::element::ElementId;
-use crate::element::meta::{ElementMetas, ElementTypeMetas};
+use crate::element::meta::ElementMetas;
+use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
 use crate::typing::type_pool::TypePool;
 
@@ -80,17 +81,8 @@ impl ElementNodes<'_> {
         self.resources.get_mut()
     }
 
-    pub fn cache_scene(
-        &mut self,
-        id: &ElementId,
-        scene: Scene,
-    ) -> bool {
-        if let Some(meta) = self.metas.get_mut(id) {
-            meta.cached_scene = Some(scene);
-            return true;
-        }
-
-        false
+    pub fn cache_scene(&mut self, id: &ElementId, scene: Scene) {
+        self.metas.set_scene(id, scene);
     }
 }
 
@@ -103,13 +95,13 @@ impl RectNodes for ElementNodes<'_> {
         &self,
         id: &ElementId,
     ) -> Option<&RectNode<ElementId>> {
-        self.metas.get(id).map(|m| &m.node)
+        self.metas.node(id)
     }
 
     fn get_node_mut(
         &mut self,
         id: &ElementId,
     ) -> Option<&mut RectNode<ElementId>> {
-        self.metas.get_mut(id).map(|m| &mut m.node)
+        self.metas.node_mut(id)
     }
 }

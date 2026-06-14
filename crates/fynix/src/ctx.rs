@@ -160,10 +160,10 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.styles.clear_builder();
 
         if let Some(child_id) = child
-            && let Some(meta) =
-                self.fynix.elements.metas.get_mut(&child_id)
+            && let Some(node) =
+                self.fynix.elements.metas.node_mut(&child_id)
         {
-            meta.node.parent_id = Some(element_id);
+            node.parent_id = Some(element_id);
         }
         if let Some(elem) = self
             .fynix
@@ -185,7 +185,7 @@ impl<W> FynixCtx<'_, '_, W> {
     /// The first style committed inside `scope` becomes the element's
     /// [`primary_style`].
     ///
-    /// [`primary_style`]: crate::element::meta::ElementMeta::primary_style
+    /// [`primary_style`]: crate::element::meta::ElementMetas::primary_style
     #[must_use]
     fn style_scoped<T>(
         &mut self,
@@ -492,12 +492,7 @@ mod tests {
         assert_eq!(len, 5);
 
         let has_primary_style = |e: &ElementId| {
-            fynix
-                .elements
-                .metas
-                .get(e)
-                .and_then(|m| m.primary_style)
-                .is_some()
+            fynix.elements.metas.primary_style(e).is_some()
         };
 
         assert!(
@@ -568,12 +563,7 @@ mod tests {
         assert_eq!(fynix.styles.styles.len(), 1);
 
         let has_primary_style = |e: &ElementId| {
-            fynix
-                .elements
-                .metas
-                .get(e)
-                .and_then(|m| m.primary_style)
-                .is_some()
+            fynix.elements.metas.primary_style(e).is_some()
         };
 
         assert!(!has_primary_style(&elem_a));

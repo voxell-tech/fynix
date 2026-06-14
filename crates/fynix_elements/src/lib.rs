@@ -241,9 +241,9 @@ impl ElementBuild for Button {
         painter: &mut dyn PaintSink,
         metas: &ElementMetas,
     ) {
-        let Some(meta) = metas.get(id) else { return };
-        let pos = meta.node.world_translation;
-        let size = meta.node.size;
+        let Some(node) = metas.node(id) else { return };
+        let pos = node.world_translation;
+        let size = node.size;
         let shape = kurbo::RoundedRect::new(
             pos.x as f64,
             pos.y as f64,
@@ -361,11 +361,11 @@ impl ElementBuild for Label {
         painter: &mut dyn PaintSink,
         metas: &ElementMetas,
     ) {
-        let Some(meta) = metas.get(id) else { return };
-        let Some(scene) = meta.cached_scene.as_ref() else {
+        let Some(node) = metas.node(id) else { return };
+        let Some(scene) = metas.scene(id) else {
             return;
         };
-        let pos = meta.node.world_translation;
+        let pos = node.world_translation;
         let transform =
             Affine::translate((pos.x as f64, pos.y as f64));
         replay_transformed(scene, painter, transform);
