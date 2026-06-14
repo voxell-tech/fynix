@@ -8,7 +8,7 @@ use crate::init::Init;
 pub mod layout;
 pub mod meta;
 pub mod storage;
-pub mod type_meta;
+mod type_meta;
 
 pub use fynix_macros::Element;
 pub use storage::{ElementId, Elements};
