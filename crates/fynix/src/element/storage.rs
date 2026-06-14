@@ -5,7 +5,8 @@ use imaging::PaintSink;
 
 use super::Element;
 use super::layout::{ElementNodes, ElementTree};
-use super::meta::{ElementMeta, ElementMetas, ElementTypeMetas};
+use super::meta::ElementMetas;
+use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
 use crate::style::StyleId;
 use crate::typing::type_pool::{PoolKey, TypePool};
@@ -42,9 +43,9 @@ impl Elements {
     /// subtree.
     pub fn mark_dirty(&mut self, id: ElementId) {
         if self.dirty_elements.insert(id)
-            && let Some(meta) = self.metas.get_mut(&id)
+            && let Some(node) = self.metas.node_mut(&id)
         {
-            meta.node.state.reset();
+            node.state.reset();
         }
     }
 
@@ -84,8 +85,8 @@ impl Elements {
 
             // Set parent id on each child's meta node.
             for child_id in element.children() {
-                if let Some(meta) = self.metas.get_mut(child_id) {
-                    meta.node.parent_id = Some(id);
+                if let Some(node) = self.metas.node_mut(child_id) {
+                    node.parent_id = Some(id);
                 }
             }
             self.metas.init_element(id, primary_style);
@@ -137,27 +138,27 @@ impl Elements {
     /// Recursively removes the element subtree.
     ///
     /// `on_removed` runs for each removed element, in
-    /// parent-before-child order, with its id and meta. Use it to
-    /// clean up per-element resources such as styles and scopes.
+    /// parent-before-child order, with its id and `primary_style`.
+    /// Use it to clean up per-element resources such as styles and
+    /// scopes.
     ///
     /// Returns `true` if the element was present and removed.
     pub fn remove(
         &mut self,
         id: &ElementId,
-        mut on_removed: impl FnMut(&ElementId, &ElementMeta),
+        mut on_removed: impl FnMut(&ElementId, Option<StyleId>),
     ) -> bool {
         fn remove_recursive(
             id: &ElementId,
             metas: &mut ElementMetas,
             type_metas: &ElementTypeMetas,
             elements: &mut TypePool,
-            on_removed: &mut impl FnMut(&ElementId, &ElementMeta),
+            on_removed: &mut impl FnMut(&ElementId, Option<StyleId>),
         ) -> bool {
-            if let Some(meta) = metas.remove(id)
-                && let Some(type_meta) =
-                    type_metas.get_column(id.col_id())
+            if let Some(type_meta) =
+                type_metas.get_column(id.col_id())
             {
-                on_removed(id, &meta);
+                on_removed(id, metas.primary_style(id));
 
                 type_meta.for_each_child_mut(
                     elements,
@@ -170,6 +171,7 @@ impl Elements {
                     },
                 );
 
+                metas.remove(id);
                 elements.dyn_remove(id);
                 return true;
             }
@@ -180,7 +182,7 @@ impl Elements {
         // Mark the parent as dirty before dropped the child so we can
         // re-layout the parent's subtree once the child is gone.
         let parent_id =
-            self.metas.get(id).and_then(|meta| meta.node.parent_id);
+            self.metas.node(id).and_then(|node| node.parent_id);
 
         let removed = remove_recursive(
             id,
@@ -209,9 +211,9 @@ impl Elements {
         id: &ElementId,
         painter: &mut impl PaintSink,
     ) {
-        let Some(meta) = self.metas.get(id) else {
+        if self.metas.node(id).is_none() {
             return;
-        };
+        }
         if let Some(type_meta) =
             self.type_metas.get_column(id.col_id())
         {
@@ -226,7 +228,6 @@ impl Elements {
                 &mut |child| self.render(child, painter),
             );
         }
-        let _ = meta;
     }
 
     /// Lays out the subtree of every dirty element, draining the

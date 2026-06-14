@@ -121,9 +121,9 @@ impl Fynix {
         // styles are left for that subtree removal to handle.
         let mut has_removed_styles = false;
 
-        self.elements.remove(id, |id, meta| {
+        self.elements.remove(id, |id, primary_style| {
             if !has_removed_styles
-                && let Some(primary_style) = meta.primary_style
+                && let Some(primary_style) = primary_style
             {
                 has_removed_styles =
                     self.styles.remove(&primary_style);
@@ -169,10 +169,10 @@ impl Fynix {
             self.styles.clear_builder();
 
             if let Some(child_id) = child
-                && let Some(meta) =
-                    self.elements.metas.get_mut(&child_id)
+                && let Some(node) =
+                    self.elements.metas.node_mut(&child_id)
             {
-                meta.node.parent_id = Some(element_id);
+                node.parent_id = Some(element_id);
             }
             if let Some(elem) = self
                 .elements
