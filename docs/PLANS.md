@@ -3,9 +3,10 @@
 | Area                                 | Status                            |
 |--------------------------------------|-----------------------------------|
 | Unit system (`src/unit.rs`)          | Planned, not started              |
-| Interaction input layer              | Planned, design below             |
+| Interaction input layer              | Partly built, design below        |
 | Focus system                         | Planned, design below             |
 | Field bindings (`Bindings`)          | Planned, not started              |
+| Interaction animations               | Planned, design below             |
 
 ---
 
@@ -183,4 +184,124 @@ element is marked dirty so only its subtree re-lays-out and repaints.
    place, but the change-detection plumbing is identical.
 2. Dirty granularity: a binding that touches only paint (e.g. a color)
    should mark render-dirty without forcing re-layout.
+
+---
+
+## Interaction animations
+
+State-driven, time-varying styling tied to interaction state (hover
+tweens a button's bg and its label's text colour). Hard part: the
+hit target is not the styled set. `TextButton` is `Button > Pad >
+Label`, so one hover animates fields on several elements.
+
+### Target API
+
+```rust
+#[derive(Init)]
+struct TextButtonStyle {
+    #[init(8.0)]
+    pub corner_radius: f64,
+    #[init(8.0)]
+    pub pad_v: f32,
+    #[init(16.0)]
+    pub pad_h: f32,
+    pub bg_color: Option<Color>,
+}
+
+struct TextButton<'a> {
+    pub label: &'a str,
+}
+
+impl Composer<DemoWorld> for TextButton<'_> {
+    type Style = TextButtonStyle;
+
+    fn compose(
+        self,
+        style: TextButtonStyle,
+        ctx: &mut FynixCtx<'_, '_, DemoWorld>,
+    ) -> ElementId {
+        let on_enter: Animation<PointerEnter> =
+            ctx.create_animation_for::<PointerEnter>();
+
+        let button = ctx
+            .add_with::<Button>(|b, ctx| {
+                b.corner_radius = style.corner_radius;
+                if let Some(bg_color) = style.bg_color {
+                    b.fill = bg_color.into();
+                }
+
+                b.set_child(ctx.add_with::<Pad>(|p, ctx| {
+                    *p = Pad::symmetric(style.pad_v, style.pad_h);
+                    p.set_child(
+                        ctx.add_with::<Label>(|l, _| {
+                            l.text = self.label.into();
+                        })
+                        .animate(
+                            &on_enter,
+                            path!(<Label>::fill),
+                            css::BLACK.into(),
+                        ),
+                    );
+                }));
+            })
+            .animate(
+                &on_enter,
+                path!(<Button>::fill),
+                css::BLACK.into(),
+            )
+            .commit_animation(on_enter);
+
+        button.id()
+    }
+}
+```
+
+Mapping to existing machinery:
+
+- `create_animation_for::<I>()`: entry in a new `Animations` store
+  on `Fynix`, tagged with trigger `I`. `Animation<I>` is a `Copy`
+  id, so `&on_enter` is shared while entries live in `Fynix`.
+- `.animate(&anim, path!(<S>::field), target)`: records `(id,
+  UntypedAccessor, target)`. Reuses the style write path (`path!` ->
+  `FieldAccessor` -> `set_style::<S,T>`); a step is `set_style` with
+  a lerped value.
+- Same `on_enter` on Label and Button drives many elements from one
+  trigger. Composer owns both ids, so the composite is solved.
+- `.commit_animation`: sets the host, finalizes.
+- Tick: host hovered? ease `t`; per entry write `lerp(base, target,
+  t)`. Trigger source is `recognizer.hovered()`.
+
+### Constraints from the code
+
+- `Button.fill` is read live at render: free to animate.
+- `Label` bakes its brush into the cached `Scene` at layout, so
+  animating `Label.fill` needs `mark_dirty`, which reshapes text
+  every frame. `Scene` has no mutable draw access and
+  `replay_transformed` no brush override, so the gap is in imaging.
+- `ElementHandle` borrows only `&mut interactions`; `.animate` must
+  widen it to reach the `Animations` store.
+
+### Open decisions
+
+1. `Animation<PointerEnter>` binds to enter/leave *state* (auto
+   reverse), not a one-shot. Hover is the only stateful pair today.
+2. `is_hit_target` indexes only handler-bearing elements, so
+   `commit_animation` must make the host hit-testable.
+3. Tick marks animated elements dirty: Button cheap, Label reshapes.
+4. Animations need cleanup in `remove_element`; stale under
+   `ctx.reactive` rebuild (id changes).
+5. Hover only first, or generalize to press / focus.
+
+### Imaging fix
+
+Stop baking the brush: `Label` caches geometry, applies live
+`Label.fill` at replay, making text as cheap as `Button.fill`. Needs
+a glyph-run brush override on `replay_transformed`, or a
+`Scene::recolor_glyphs`.
+
+### First slice
+
+`Animations` store + `create_animation_for` / `animate` /
+`commit_animation` reusing `set_style`; host flagged hit-testable;
+tick from `recognizer.hovered()`. Button.fill first; Label later.
 

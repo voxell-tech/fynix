@@ -6,9 +6,15 @@ use fynix_interactions::{
 use vello::kurbo::Point;
 use winit::event::{ElementState, MouseButton, Touch, TouchPhase};
 
-/// The mouse pointer id. Touch ids are shifted by one so none can
-/// alias it.
-const MOUSE: u64 = 0;
+/// A pointer the recognizer can correlate presses for.
+///
+/// Mouse and touch are distinct variants, so a touch id can never
+/// alias the mouse and `touch.id` passes through untouched.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Id {
+    Mouse,
+    Touch(u64),
+}
 
 /// A winit mouse button the recognizer can classify.
 ///
@@ -34,7 +40,7 @@ impl ClassifyButton for Button {
 /// would move into a future `fynix_winit` crate.
 #[derive(Default)]
 pub struct WinitInput {
-    rec: PointerRecognizer<u64, Button>,
+    rec: PointerRecognizer<Id, Button>,
 }
 
 impl WinitInput {
@@ -51,6 +57,10 @@ impl WinitInput {
         self.rec.pointer_moved(fynix, hit, pos);
     }
 
+    pub fn on_cursor_left(&mut self, fynix: &mut Fynix) {
+        self.rec.cancel(fynix, Id::Mouse);
+    }
+
     pub fn on_mouse_button(
         &mut self,
         fynix: &mut Fynix,
@@ -62,11 +72,11 @@ impl WinitInput {
         let button = Button(button);
         match state {
             ElementState::Pressed => {
-                self.rec.pointer_down(hit, MOUSE, button, cursor);
+                self.rec.pointer_down(hit, Id::Mouse, button, cursor);
             }
             ElementState::Released => {
                 self.rec
-                    .pointer_up(fynix, hit, MOUSE, button, cursor);
+                    .pointer_up(fynix, hit, Id::Mouse, button, cursor);
             }
         }
     }
@@ -77,7 +87,7 @@ impl WinitInput {
         hit: &HitTest,
         touch: Touch,
     ) {
-        let id = touch.id.wrapping_add(1);
+        let id = Id::Touch(touch.id);
         let pos = Point::new(touch.location.x, touch.location.y);
         // Touch contacts have no distinct button, so they act as the
         // primary button.
@@ -93,7 +103,7 @@ impl WinitInput {
                 self.rec.pointer_up(fynix, hit, id, button, pos);
             }
             TouchPhase::Cancelled => {
-                self.rec.cancel(id);
+                self.rec.cancel(fynix, id);
             }
         }
     }

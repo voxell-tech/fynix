@@ -328,6 +328,9 @@ impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
                     window.request_redraw();
                 }
             }
+            WindowEvent::CursorLeft { .. } => {
+                self.input.on_cursor_left(&mut self.fynix);
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 let hit = self.hit_test();
                 self.input.on_mouse_button(

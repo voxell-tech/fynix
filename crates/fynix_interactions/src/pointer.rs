@@ -195,8 +195,22 @@ where
     /// Discards any in-flight press for `pointer`, used when the
     /// backend reports the pointer was cancelled (e.g. a touch was
     /// interrupted) so no spurious click fires later.
-    pub fn cancel(&mut self, pointer: Id) {
+    ///
+    /// A cancelled pointer cannot move off an element on its own, so
+    /// any hover it established is dropped here with a matching
+    /// [`PointerLeave`]. Hover is tracked as a single element rather
+    /// than per pointer, so the leave fires for whatever is currently
+    /// hovered.
+    pub fn cancel(&mut self, fynix: &mut Fynix, pointer: Id) {
         self.presses.retain(|press| press.pointer != pointer);
+
+        if let Some(left) = self.hovered.take() {
+            fynix.dispatch_bubbling::<PointerLeave>(
+                &left,
+                PointerLeave,
+                |_| true,
+            );
+        }
     }
 
     /// Removes and returns the press matching `pointer` and `button`,
@@ -408,7 +422,7 @@ mod tests {
         let mut rec = Rec::new();
 
         rec.pointer_down(&hit, 0, PRIMARY, Point::new(20.0, 20.0));
-        rec.cancel(0);
+        rec.cancel(&mut fynix, 0);
         rec.pointer_up(
             &mut fynix,
             &hit,
@@ -425,6 +439,34 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct Left;
+
+    #[test]
+    fn cancel_emits_leave_for_hovered() {
+        let mut fynix = Fynix::new();
+        let mut world = ();
+        let id = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.add::<Tile>()
+                .on::<PointerEnter>(|_, events| events.push(Entered))
+                .on::<PointerLeave>(|_, events| events.push(Left))
+                .id()
+        };
+        let meta = fynix.elements.metas.get_mut(&id).unwrap();
+        meta.node.world_translation = Vec2::new(10.0, 10.0);
+        meta.node.size = Size::new(100.0, 50.0);
+
+        let hit = hit_test(&fynix, &id);
+        let mut rec = Rec::new();
+
+        // Hover onto the tile, then cancel: the hover must be undone
+        // with a leave even though the pointer never moved off.
+        rec.pointer_moved(&mut fynix, &hit, Point::new(20.0, 20.0));
+        assert_eq!(fynix.events.iter::<Entered>().count(), 1);
+        assert_eq!(fynix.events.iter::<Left>().count(), 0);
+
+        rec.cancel(&mut fynix, 0);
+        assert_eq!(fynix.events.iter::<Left>().count(), 1);
+    }
 
     #[test]
     fn pointer_move_emits_enter_then_leave() {
