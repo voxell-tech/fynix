@@ -155,9 +155,8 @@ impl Elements {
             elements: &mut TypePool,
             on_removed: &mut impl FnMut(&ElementId, Option<StyleId>),
         ) -> bool {
-            if metas.node(id).is_some()
-                && let Some(type_meta) =
-                    type_metas.get_column(id.col_id())
+            if let Some(type_meta) =
+                type_metas.get_column(id.col_id())
             {
                 on_removed(id, metas.primary_style(id));
 
