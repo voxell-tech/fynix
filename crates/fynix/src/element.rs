@@ -6,8 +6,8 @@ use crate::element::table::ElementTable;
 use crate::init::Init;
 
 pub mod layout;
-pub mod table;
 pub mod storage;
+pub mod table;
 mod type_meta;
 
 pub use fynix_macros::Element;
