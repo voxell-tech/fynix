@@ -127,9 +127,9 @@ impl Fynix {
             }
             current = self
                 .elements
-                .metas
-                .get(&id)
-                .and_then(|meta| meta.node.parent_id);
+                .table
+                .node(&id)
+                .and_then(|node| node.parent_id);
         }
 
         false

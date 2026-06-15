@@ -302,9 +302,9 @@ mod tests {
                 .id()
         };
 
-        let meta = fynix.elements.metas.get_mut(&id).unwrap();
-        meta.node.world_translation = Vec2::new(10.0, 10.0);
-        meta.node.size = Size::new(100.0, 50.0);
+        let node = fynix.elements.table.node_mut(&id).unwrap();
+        node.world_translation = Vec2::new(10.0, 10.0);
+        node.size = Size::new(100.0, 50.0);
         id
     }
 
@@ -451,9 +451,9 @@ mod tests {
                 .on::<PointerLeave>(|_, events| events.push(Left))
                 .id()
         };
-        let meta = fynix.elements.metas.get_mut(&id).unwrap();
-        meta.node.world_translation = Vec2::new(10.0, 10.0);
-        meta.node.size = Size::new(100.0, 50.0);
+        let node = fynix.elements.table.node_mut(&id).unwrap();
+        node.world_translation = Vec2::new(10.0, 10.0);
+        node.size = Size::new(100.0, 50.0);
 
         let hit = hit_test(&fynix, &id);
         let mut rec = Rec::new();
@@ -479,9 +479,9 @@ mod tests {
                 .on::<PointerLeave>(|_, events| events.push(Left))
                 .id()
         };
-        let meta = fynix.elements.metas.get_mut(&id).unwrap();
-        meta.node.world_translation = Vec2::new(10.0, 10.0);
-        meta.node.size = Size::new(100.0, 50.0);
+        let node = fynix.elements.table.node_mut(&id).unwrap();
+        node.world_translation = Vec2::new(10.0, 10.0);
+        node.size = Size::new(100.0, 50.0);
 
         let hit = hit_test(&fynix, &id);
         let mut rec = Rec::new();

@@ -66,13 +66,13 @@ impl HitTest {
         let mut ids = Vec::new();
         let mut id_map = HashMap::new();
 
-        elements.visit_paint_order(root, |id, meta| {
+        elements.visit_paint_order(root, |id, node| {
             if !include(id) {
                 return;
             }
 
-            let origin = meta.node.world_translation;
-            let size = meta.node.size;
+            let origin = node.world_translation;
+            let size = node.size;
 
             let x0 = origin.x as f64;
             let y0 = origin.y as f64;

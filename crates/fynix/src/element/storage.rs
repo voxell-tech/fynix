@@ -7,6 +7,7 @@ use typarena::type_pool::{PoolKey, TypePool};
 use super::Element;
 use super::layout::{ElementNodes, ElementTree};
 use super::table::ElementTable;
+use crate::element::layout::ElementNode;
 use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
 use crate::style::StyleId;
@@ -241,7 +242,7 @@ impl Elements {
     pub fn visit_paint_order(
         &self,
         id: &ElementId,
-        mut visit: impl FnMut(&ElementId, &ElementMeta),
+        mut visit: impl FnMut(&ElementId, &ElementNode),
     ) {
         self.visit_paint_order_inner(id, &mut visit);
     }
@@ -249,12 +250,12 @@ impl Elements {
     fn visit_paint_order_inner(
         &self,
         id: &ElementId,
-        visit: &mut dyn FnMut(&ElementId, &ElementMeta),
+        visit: &mut dyn FnMut(&ElementId, &ElementNode),
     ) {
-        let Some(meta) = self.metas.get(id) else {
+        let Some(node) = self.table.node(id) else {
             return;
         };
-        visit(id, meta);
+        visit(id, node);
 
         if let Some(type_meta) =
             self.type_metas.get_column(id.col_id())
