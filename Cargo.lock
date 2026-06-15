@@ -592,6 +592,7 @@ name = "fynix"
 version = "0.1.0"
 dependencies = [
  "field_path",
+ "fynix_event",
  "fynix_macros",
  "hashbrown 0.16.1",
  "imaging",
@@ -606,6 +607,13 @@ dependencies = [
  "field_path",
  "fynix",
  "parley",
+]
+
+[[package]]
+name = "fynix_event"
+version = "0.1.0"
+dependencies = [
+ "typarena",
 ]
 
 [[package]]

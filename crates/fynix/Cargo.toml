@@ -10,6 +10,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+fynix_event.workspace = true
 fynix_macros.workspace = true
 typarena.workspace = true
 rectree.workspace = true

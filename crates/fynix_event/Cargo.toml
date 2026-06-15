@@ -1,0 +1,12 @@
+[package]
+name = "fynix_event"
+description = "Typed message queue for fynix."
+keywords = ["ui", "gui", "events", "no_std"]
+categories = ["gui", "no-std"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+typarena.workspace = true
