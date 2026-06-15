@@ -170,7 +170,7 @@ impl Fynix {
 
             if let Some(child_id) = child
                 && let Some(node) =
-                    self.elements.metas.node_mut(&child_id)
+                    self.elements.table.node_mut(&child_id)
             {
                 node.parent_id = Some(element_id);
             }
