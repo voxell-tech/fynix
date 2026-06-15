@@ -3,8 +3,8 @@ use rectree::RectNode;
 
 use crate::element::ElementId;
 use crate::style::StyleId;
-use crate::typing::ColumnId;
-use crate::typing::type_table::TypeTable;
+use typarena::ColumnId;
+use typarena::type_table::TypeTable;
 
 /// Per-element metadata storage, keyed by [`ElementId`].
 ///
@@ -104,7 +104,7 @@ mod tests {
     use super::*;
     use crate::element::ElementId;
     use crate::style::StyleIdGenerator;
-    use crate::typing::type_pool::TypePool;
+    use typarena::type_pool::TypePool;
 
     /// Mints two distinct element ids via a throwaway pool.
     fn two_ids() -> (ElementId, ElementId) {

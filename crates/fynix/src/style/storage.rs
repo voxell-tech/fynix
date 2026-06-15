@@ -9,7 +9,7 @@ use crate::style::{
     SetStyle, Stylable, Style, StyleBuilder, StyleId,
     StyleIdGenerator, StyleValue, UntypedSetStyle,
 };
-use crate::typing::type_pool::TypePool;
+use typarena::type_pool::TypePool;
 
 /// Central style manager.
 ///

@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 
 use crate::id::{GenId, IdGenerator};
 use crate::init::Init;
-use crate::typing::type_pool::{PoolKey, TypePool};
+use typarena::type_pool::{PoolKey, TypePool};
 
 pub mod storage;
 

@@ -1,4 +1,4 @@
-use crate::typing::type_pool::TypePool;
+use typarena::type_pool::TypePool;
 
 /// Fynix-owned queue of typed messages flowing from the UI to the
 /// host world.

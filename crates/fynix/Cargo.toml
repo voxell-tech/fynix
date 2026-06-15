@@ -11,11 +11,10 @@ repository.workspace = true
 
 [dependencies]
 fynix_macros.workspace = true
+typarena.workspace = true
 rectree.workspace = true
 hashbrown.workspace = true
 field_path.workspace = true
-sparse_map.workspace = true
-indexmap.workspace = true
 imaging.workspace = true
 
 [features]

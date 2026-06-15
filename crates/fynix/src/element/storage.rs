@@ -9,7 +9,7 @@ use super::table::ElementTable;
 use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
 use crate::style::StyleId;
-use crate::typing::type_pool::{PoolKey, TypePool};
+use typarena::type_pool::{PoolKey, TypePool};
 
 /// Type-erased storage for all element instances.
 ///

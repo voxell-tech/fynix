@@ -13,6 +13,7 @@ repository = "https://github.com/voxell-tech/fynix"
 fynix = { version = "0.1.0", path = "crates/fynix" }
 fynix_macros = { version = "0.1.0", path = "crates/fynix_macros" }
 fynix_elements = { version = "0.1.0", path = "crates/fynix_elements" }
+typarena = { version = "0.1.0", path = "crates/typarena" }
 
 rectree = { git = "https://github.com/voxell-tech/rectree", rev = "e9729bf" }
 field_path = "0.4.1"
