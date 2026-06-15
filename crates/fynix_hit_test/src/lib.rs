@@ -51,9 +51,9 @@ impl HitTest {
     /// Most of a scene is not interactive, so only elements that can
     /// receive a hit-tested interaction need to be in the spatree.
     /// The whole subtree is still walked to reach interactive
-    /// descendants, but non-indexed elements add nothing to the
-    /// tree. Paint order is preserved among indexed elements, so
-    /// the topmost still wins.
+    /// descendants, but non-indexed elements add nothing to the tree.
+    /// Paint order is preserved among indexed elements, so the
+    /// topmost still wins.
     ///
     /// Layout must be complete so each element's `world_translation`
     /// and `size` are current.
