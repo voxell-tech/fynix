@@ -1,10 +1,10 @@
 use imaging::record::Scene;
 use rectree::RectNode;
+use typarena::ColumnId;
+use typarena::type_table::TypeTable;
 
 use crate::element::ElementId;
 use crate::style::StyleId;
-use crate::typing::ColumnId;
-use crate::typing::type_table::TypeTable;
 
 /// Per-element metadata storage, keyed by [`ElementId`].
 ///
@@ -101,10 +101,11 @@ impl Default for ElementTable {
 
 #[cfg(test)]
 mod tests {
+    use typarena::type_pool::TypePool;
+
     use super::*;
     use crate::element::ElementId;
     use crate::style::StyleIdGenerator;
-    use crate::typing::type_pool::TypePool;
 
     /// Mints two distinct element ids via a throwaway pool.
     fn two_ids() -> (ElementId, ElementId) {

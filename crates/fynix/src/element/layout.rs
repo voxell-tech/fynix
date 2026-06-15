@@ -1,11 +1,11 @@
 use imaging::record::Scene;
 use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
+use typarena::type_pool::TypePool;
 
 use crate::element::ElementId;
 use crate::element::table::ElementTable;
 use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
-use crate::typing::type_pool::TypePool;
 
 /// Immutable view of the element tree used to implement [`Rectree`].
 pub struct ElementTree<'a> {

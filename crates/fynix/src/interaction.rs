@@ -1,6 +1,7 @@
+use typarena::type_table::TypeTable;
+
 use crate::element::ElementId;
 use crate::events::Events;
-use crate::typing::type_table::TypeTable;
 
 /// User-written interaction handler: reacts to interaction `I`,
 /// emitting messages into [`Events`].

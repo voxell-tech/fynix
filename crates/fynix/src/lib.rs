@@ -24,7 +24,6 @@ pub mod interaction;
 pub mod reactive;
 pub mod resource;
 pub mod style;
-pub mod typing;
 
 pub mod prelude {
     // Intentionally exposing only `NodeContext` and hiding

@@ -1,8 +1,9 @@
 use alloc::vec::Vec;
 
+use typarena::ColumnId;
+use typarena::type_pool::TypePool;
+
 use crate::element::{Element, ElementId};
-use crate::typing::ColumnId;
-use crate::typing::type_pool::TypePool;
 
 /// Per-type dispatch table registry, column-indexed.
 pub struct ElementTypeMetas {

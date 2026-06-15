@@ -6,8 +6,8 @@ use hashbrown::HashMap;
 use hashbrown::hash_map::Entry;
 use sparse_map::{Key, SparseMap};
 
-use crate::typing::ColumnId;
-use crate::typing::any_sparse_map::DynSparseMap;
+use crate::ColumnId;
+use crate::any_sparse_map::DynSparseMap;
 
 /// Handle returned by [`TypePool::insert`].
 ///

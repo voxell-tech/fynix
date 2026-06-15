@@ -7,8 +7,8 @@ use hashbrown::hash_map::Entry;
 use hashbrown::{DefaultHashBuilder, HashMap};
 use indexmap::IndexMap;
 
-use crate::typing::ColumnId;
-use crate::typing::any_index_map::DynIndexMap;
+use crate::ColumnId;
+use crate::any_index_map::DynIndexMap;
 
 /// Heterogeneous, key-addressed table.
 ///

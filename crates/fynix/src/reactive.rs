@@ -2,13 +2,13 @@ use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use rectree::{Constraint, NodeContext, Size, Vec2};
+use typarena::type_pool::{PoolKey, TypePool};
 
 use crate::ctx::FynixCtx;
 use crate::element::layout::ElementNodes;
 use crate::element::{Element, ElementBuild, ElementId};
 use crate::init::Init;
 use crate::style::StyleId;
-use crate::typing::type_pool::{PoolKey, TypePool};
 
 pub struct Reactives {
     reactives: TypePool,
