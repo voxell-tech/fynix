@@ -2,12 +2,12 @@ use imaging::PaintSink;
 use rectree::{Constraint, Size};
 
 use crate::element::layout::ElementNodes;
-use crate::element::meta::ElementMetas;
+use crate::element::table::ElementTable;
 use crate::init::Init;
 
 pub mod layout;
-pub mod meta;
 pub mod storage;
+pub mod table;
 mod type_meta;
 
 pub use fynix_macros::Element;
@@ -83,7 +83,7 @@ pub trait ElementBuild {
         &self,
         id: &ElementId,
         painter: &mut dyn PaintSink,
-        metas: &ElementMetas,
+        table: &ElementTable,
     ) {
     }
 }

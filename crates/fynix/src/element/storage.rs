@@ -5,7 +5,7 @@ use imaging::PaintSink;
 
 use super::Element;
 use super::layout::{ElementNodes, ElementTree};
-use super::meta::ElementMetas;
+use super::table::ElementTable;
 use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
 use crate::style::StyleId;
@@ -19,7 +19,7 @@ pub struct Elements {
     // TODO(nixon): Make these private and provide a more
     // elegant API!
     pub elements: TypePool,
-    pub metas: ElementMetas,
+    pub table: ElementTable,
     pub type_metas: ElementTypeMetas,
     /// Elements whose subtree changed and needs re-layout/render,
     /// e.g. after a reactive scope rebuilt its child.
@@ -30,7 +30,7 @@ impl Elements {
     pub fn new() -> Self {
         Self {
             elements: TypePool::new(),
-            metas: ElementMetas::new(),
+            table: ElementTable::new(),
             type_metas: ElementTypeMetas::new(),
             dirty_elements: HashSet::new(),
         }
@@ -43,7 +43,7 @@ impl Elements {
     /// subtree.
     pub fn mark_dirty(&mut self, id: ElementId) {
         if self.dirty_elements.insert(id)
-            && let Some(node) = self.metas.node_mut(&id)
+            && let Some(node) = self.table.node_mut(&id)
         {
             node.state.reset();
         }
@@ -83,13 +83,13 @@ impl Elements {
             let id = ElementId(key);
             let element = create(id);
 
-            // Set parent id on each child's meta node.
+            // Set parent id on each child's table node.
             for child_id in element.children() {
-                if let Some(node) = self.metas.node_mut(child_id) {
+                if let Some(node) = self.table.node_mut(child_id) {
                     node.parent_id = Some(id);
                 }
             }
-            self.metas.init_element(id, primary_style);
+            self.table.init_element(id, primary_style);
             element
         });
 
@@ -150,7 +150,7 @@ impl Elements {
     ) -> bool {
         fn remove_recursive(
             id: &ElementId,
-            metas: &mut ElementMetas,
+            table: &mut ElementTable,
             type_metas: &ElementTypeMetas,
             elements: &mut TypePool,
             on_removed: &mut impl FnMut(&ElementId, Option<StyleId>),
@@ -158,20 +158,20 @@ impl Elements {
             if let Some(type_meta) =
                 type_metas.get_column(id.col_id())
             {
-                on_removed(id, metas.primary_style(id));
+                on_removed(id, table.primary_style(id));
 
                 type_meta.for_each_child_mut(
                     elements,
                     id,
                     &mut |child_id, elements| {
                         remove_recursive(
-                            child_id, metas, type_metas, elements,
+                            child_id, table, type_metas, elements,
                             on_removed,
                         );
                     },
                 );
 
-                metas.remove(id);
+                table.remove(id);
                 elements.dyn_remove(id);
                 return true;
             }
@@ -182,11 +182,11 @@ impl Elements {
         // Mark the parent as dirty before dropped the child so we can
         // re-layout the parent's subtree once the child is gone.
         let parent_id =
-            self.metas.node(id).and_then(|node| node.parent_id);
+            self.table.node(id).and_then(|node| node.parent_id);
 
         let removed = remove_recursive(
             id,
-            &mut self.metas,
+            &mut self.table,
             &self.type_metas,
             &mut self.elements,
             &mut on_removed,
@@ -211,7 +211,7 @@ impl Elements {
         id: &ElementId,
         painter: &mut impl PaintSink,
     ) {
-        if self.metas.node(id).is_none() {
+        if self.table.node(id).is_none() {
             return;
         }
         if let Some(type_meta) =
@@ -220,7 +220,7 @@ impl Elements {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
             {
-                element.render(id, painter, &self.metas);
+                element.render(id, painter, &self.table);
             }
             type_meta.for_each_child(
                 &self.elements,
@@ -239,7 +239,7 @@ impl Elements {
         };
 
         let mut nodes = ElementNodes {
-            metas: &mut self.metas,
+            table: &mut self.table,
             resources,
         };
 

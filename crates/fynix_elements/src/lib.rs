@@ -6,7 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use fynix::element::layout::ElementNodes;
-use fynix::element::meta::ElementMetas;
+use fynix::element::table::ElementTable;
 use fynix::imaging::kurbo::{Affine, Stroke};
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
@@ -239,9 +239,9 @@ impl ElementBuild for Button {
         &self,
         id: &ElementId,
         painter: &mut dyn PaintSink,
-        metas: &ElementMetas,
+        table: &ElementTable,
     ) {
-        let Some(node) = metas.node(id) else { return };
+        let Some(node) = table.node(id) else { return };
         let pos = node.world_translation;
         let size = node.size;
         let shape = kurbo::RoundedRect::new(
@@ -359,10 +359,10 @@ impl ElementBuild for Label {
         &self,
         id: &ElementId,
         painter: &mut dyn PaintSink,
-        metas: &ElementMetas,
+        table: &ElementTable,
     ) {
-        let Some(node) = metas.node(id) else { return };
-        let Some(scene) = metas.scene(id) else {
+        let Some(node) = table.node(id) else { return };
+        let Some(scene) = table.scene(id) else {
             return;
         };
         let pos = node.world_translation;

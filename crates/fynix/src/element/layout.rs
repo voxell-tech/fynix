@@ -2,7 +2,7 @@ use imaging::record::Scene;
 use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 
 use crate::element::ElementId;
-use crate::element::meta::ElementMetas;
+use crate::element::table::ElementTable;
 use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
 use crate::typing::type_pool::TypePool;
@@ -68,7 +68,7 @@ impl<'a> Rectree for ElementTree<'a> {
 }
 
 pub struct ElementNodes<'a> {
-    pub(crate) metas: &'a mut ElementMetas,
+    pub(crate) table: &'a mut ElementTable,
     pub(crate) resources: &'a mut Resources,
 }
 
@@ -82,7 +82,7 @@ impl ElementNodes<'_> {
     }
 
     pub fn cache_scene(&mut self, id: &ElementId, scene: Scene) {
-        self.metas.set_scene(id, scene);
+        self.table.set_scene(id, scene);
     }
 }
 
@@ -95,13 +95,13 @@ impl RectNodes for ElementNodes<'_> {
         &self,
         id: &ElementId,
     ) -> Option<&RectNode<ElementId>> {
-        self.metas.node(id)
+        self.table.node(id)
     }
 
     fn get_node_mut(
         &mut self,
         id: &ElementId,
     ) -> Option<&mut RectNode<ElementId>> {
-        self.metas.node_mut(id)
+        self.table.node_mut(id)
     }
 }

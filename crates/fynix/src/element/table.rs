@@ -16,14 +16,14 @@ use crate::typing::type_table::TypeTable;
 /// The three columns are created up front and their [`ColumnId`]s
 /// cached, so every accessor reaches its column by index and skips
 /// the per-call [`TypeId`](core::any::TypeId) hash lookup.
-pub struct ElementMetas {
+pub struct ElementTable {
     table: TypeTable<ElementId>,
     node_col: ColumnId,
     scene_col: ColumnId,
     style_col: ColumnId,
 }
 
-impl ElementMetas {
+impl ElementTable {
     pub fn new() -> Self {
         let mut table = TypeTable::new();
         let node_col = table.ensure_column::<RectNode<ElementId>>();
@@ -93,7 +93,7 @@ impl ElementMetas {
     }
 }
 
-impl Default for ElementMetas {
+impl Default for ElementTable {
     fn default() -> Self {
         Self::new()
     }
@@ -116,52 +116,52 @@ mod tests {
     fn init_seeds_node_and_primary_style() {
         let (id, _) = two_ids();
         let style = StyleIdGenerator::new().new_id();
-        let mut metas = ElementMetas::new();
-        metas.init_element(id, Some(style));
+        let mut table = ElementTable::new();
+        table.init_element(id, Some(style));
 
-        assert!(metas.node(&id).is_some());
-        assert_eq!(metas.primary_style(&id), Some(style));
+        assert!(table.node(&id).is_some());
+        assert_eq!(table.primary_style(&id), Some(style));
         // No scene is cached until one is set.
-        assert!(metas.scene(&id).is_none());
+        assert!(table.scene(&id).is_none());
     }
 
     #[test]
     fn init_without_primary_style_leaves_it_absent() {
         let (id, _) = two_ids();
-        let mut metas = ElementMetas::new();
-        metas.init_element(id, None);
+        let mut table = ElementTable::new();
+        table.init_element(id, None);
 
-        assert!(metas.node(&id).is_some());
-        assert_eq!(metas.primary_style(&id), None);
+        assert!(table.node(&id).is_some());
+        assert_eq!(table.primary_style(&id), None);
     }
 
     #[test]
     fn set_scene_round_trips() {
         let (id, _) = two_ids();
-        let mut metas = ElementMetas::new();
-        metas.init_element(id, None);
+        let mut table = ElementTable::new();
+        table.init_element(id, None);
 
-        assert!(metas.scene(&id).is_none());
-        metas.set_scene(&id, Scene::new());
-        assert_eq!(metas.scene(&id), Some(&Scene::new()));
+        assert!(table.scene(&id).is_none());
+        table.set_scene(&id, Scene::new());
+        assert_eq!(table.scene(&id), Some(&Scene::new()));
     }
 
     #[test]
     fn remove_drops_every_column() {
         let (id, other) = two_ids();
         let style = StyleIdGenerator::new().new_id();
-        let mut metas = ElementMetas::new();
-        metas.init_element(id, Some(style));
-        metas.init_element(other, None);
-        metas.set_scene(&id, Scene::new());
+        let mut table = ElementTable::new();
+        table.init_element(id, Some(style));
+        table.init_element(other, None);
+        table.set_scene(&id, Scene::new());
 
-        assert!(metas.remove(&id));
-        assert!(metas.node(&id).is_none());
-        assert!(metas.scene(&id).is_none());
-        assert_eq!(metas.primary_style(&id), None);
+        assert!(table.remove(&id));
+        assert!(table.node(&id).is_none());
+        assert!(table.scene(&id).is_none());
+        assert_eq!(table.primary_style(&id), None);
         // A second removal finds nothing left.
-        assert!(!metas.remove(&id));
+        assert!(!table.remove(&id));
         // Sibling metadata is untouched.
-        assert!(metas.node(&other).is_some());
+        assert!(table.node(&other).is_some());
     }
 }
