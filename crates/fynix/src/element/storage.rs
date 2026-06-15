@@ -5,7 +5,7 @@ use imaging::PaintSink;
 use typarena::type_pool::{PoolKey, TypePool};
 
 use super::Element;
-use super::layout::{ElementNodes, ElementTree};
+use super::layout::{ElementNode, ElementNodes, ElementTree};
 use super::table::ElementTable;
 use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
@@ -226,6 +226,45 @@ impl Elements {
                 &self.elements,
                 id,
                 &mut |child| self.render(child, painter),
+            );
+        }
+    }
+
+    /// Visits the subtree rooted at `id` in paint order, calling
+    /// `visit` with each element's id and layout node.
+    ///
+    /// Order matches [`Self::render`]: a parent is visited before its
+    /// children, so a later visit is an element painted on top. Used
+    /// to feed an external hit-test index each element's absolute
+    /// rect (via `node.world_translation` and `node.size`). Layout
+    /// must be complete for those values to be current.
+    pub fn visit_paint_order(
+        &self,
+        id: &ElementId,
+        mut visit: impl FnMut(&ElementId, &ElementNode),
+    ) {
+        self.visit_paint_order_inner(id, &mut visit);
+    }
+
+    fn visit_paint_order_inner(
+        &self,
+        id: &ElementId,
+        visit: &mut dyn FnMut(&ElementId, &ElementNode),
+    ) {
+        let Some(node) = self.table.node(id) else {
+            return;
+        };
+        visit(id, node);
+
+        if let Some(type_meta) =
+            self.type_metas.get_column(id.col_id())
+        {
+            type_meta.for_each_child(
+                &self.elements,
+                id,
+                &mut |child| {
+                    self.visit_paint_order_inner(child, visit);
+                },
             );
         }
     }

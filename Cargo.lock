@@ -609,6 +609,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fynix_hit_test"
+version = "0.1.0"
+dependencies = [
+ "fynix",
+ "hashbrown 0.16.1",
+ "spatree",
+]
+
+[[package]]
 name = "fynix_macros"
 version = "0.1.0"
 dependencies = [
@@ -1921,6 +1930,14 @@ name = "sparse_map"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea8f483b9159a7efadd9a82915dc40fdc9cfef7985651bbb83a8db20b12bf629"
+
+[[package]]
+name = "spatree"
+version = "0.1.0"
+source = "git+https://github.com/voxell-tech/spatree?rev=61a3dab#61a3dab5aec44abd087ddba8d81ee122f36d5b8c"
+dependencies = [
+ "kurbo",
+]
 
 [[package]]
 name = "spirv"
