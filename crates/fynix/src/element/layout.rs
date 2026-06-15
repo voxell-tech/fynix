@@ -91,17 +91,16 @@ impl ElementNodes<'_> {
 impl RectNodes for ElementNodes<'_> {
     type Id = ElementId;
 
-    fn get_node(
-        &self,
-        id: &ElementId,
-    ) -> Option<&RectNode<ElementId>> {
+    fn get_node(&self, id: &ElementId) -> Option<&ElementNode> {
         self.table.node(id)
     }
 
     fn get_node_mut(
         &mut self,
         id: &ElementId,
-    ) -> Option<&mut RectNode<ElementId>> {
+    ) -> Option<&mut ElementNode> {
         self.table.node_mut(id)
     }
 }
+
+pub(crate) type ElementNode = RectNode<ElementId>;

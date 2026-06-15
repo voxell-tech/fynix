@@ -1,0 +1,19 @@
+[package]
+name = "fynix_hit_test"
+description = "Spatial hit-testing for fynix."
+keywords = ["ui", "gui", "hit-test", "spatial"]
+categories = ["gui"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+fynix.workspace = true
+hashbrown.workspace = true
+spatree.workspace = true
+
+[features]
+default = ["std"]
+std = ["fynix/std", "spatree/std"]
+libm = ["fynix/libm", "spatree/libm"]

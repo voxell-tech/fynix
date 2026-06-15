@@ -1,9 +1,9 @@
 use imaging::record::Scene;
-use rectree::RectNode;
 use typarena::ColumnId;
 use typarena::type_table::TypeTable;
 
 use crate::element::ElementId;
+use crate::element::layout::ElementNode;
 use crate::style::StyleId;
 
 /// Per-element metadata storage, keyed by [`ElementId`].
@@ -26,7 +26,7 @@ pub struct ElementTable {
 impl ElementTable {
     pub fn new() -> Self {
         let mut table = TypeTable::new();
-        let node_col = table.ensure_column::<RectNode<ElementId>>();
+        let node_col = table.ensure_column::<ElementNode>();
         let scene_col = table.ensure_column::<Scene>();
         let style_col = table.ensure_column::<StyleId>();
         Self {
@@ -44,7 +44,7 @@ impl ElementTable {
         id: ElementId,
         primary_style: Option<StyleId>,
     ) {
-        self.table.insert(id, RectNode::<ElementId>::new(None));
+        self.table.insert(id, ElementNode::new(None));
         if let Some(style) = primary_style {
             self.table.insert(id, style);
         }
@@ -57,10 +57,7 @@ impl ElementTable {
     }
 
     /// Returns the layout node for `id`, if present.
-    pub fn node(
-        &self,
-        id: &ElementId,
-    ) -> Option<&RectNode<ElementId>> {
+    pub fn node(&self, id: &ElementId) -> Option<&ElementNode> {
         self.table.get_by_column(self.node_col, id)
     }
 
@@ -68,7 +65,7 @@ impl ElementTable {
     pub fn node_mut(
         &mut self,
         id: &ElementId,
-    ) -> Option<&mut RectNode<ElementId>> {
+    ) -> Option<&mut ElementNode> {
         self.table.get_mut_by_column(self.node_col, id)
     }
 
