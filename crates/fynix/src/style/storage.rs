@@ -4,12 +4,12 @@ use field_path::accessor::UntypedAccessor;
 use field_path::field::UntypedField;
 use field_path::field_accessor::FieldAccessor;
 use hashbrown::{HashMap, HashSet};
+use typarena::type_pool::TypePool;
 
 use crate::style::{
     SetStyle, Stylable, Style, StyleBuilder, StyleId,
     StyleIdGenerator, StyleValue, UntypedSetStyle,
 };
-use typarena::type_pool::TypePool;
 
 /// Central style manager.
 ///
