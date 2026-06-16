@@ -4,12 +4,12 @@
 extern crate alloc;
 
 pub use field_path;
+use fynix_event::Events;
 pub use imaging;
 use imaging::PaintSink;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
-use crate::events::Events;
 use crate::interaction::Interactions;
 use crate::reactive::{ReactiveElement, Reactives};
 use crate::resource::Resources;
@@ -18,7 +18,6 @@ use crate::style::{StyleId, Styles};
 pub mod composer;
 pub mod ctx;
 pub mod element;
-pub mod events;
 pub mod init;
 pub mod interaction;
 pub mod reactive;
@@ -37,7 +36,6 @@ pub mod prelude {
     pub use crate::element::{
         Element, ElementBuild, ElementChildren, ElementId,
     };
-    pub use crate::events::Events;
     pub use crate::init::Init;
     pub use crate::style::{Stylable, path};
 }

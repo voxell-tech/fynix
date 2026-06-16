@@ -1,7 +1,7 @@
+use fynix_event::Events;
 use typarena::type_table::TypeTable;
 
 use crate::element::ElementId;
-use crate::events::Events;
 
 /// User-written interaction handler: reacts to interaction `I`,
 /// emitting messages into [`Events`].

@@ -1,3 +1,12 @@
+//! Typed message queue for fynix.
+//!
+//! A small queue of typed messages flowing from the UI to the host
+//! world, for backends that do not provide their own event system.
+
+#![no_std]
+
+extern crate alloc;
+
 use typarena::type_pool::TypePool;
 
 /// Fynix-owned queue of typed messages flowing from the UI to the
