@@ -1,17 +1,16 @@
 use field_path::accessor::func_pointers::MutFn;
 use field_path::field_accessor::FieldAccessor;
 
-use crate::binding::{Binding, GetFn};
+use crate::Fynix;
 use crate::composer::Composer;
 use crate::element::storage::ElementHandle;
 use crate::element::{Element, ElementId};
 use crate::init::Init;
 use crate::interaction::HandlerFn;
-use crate::reactive::{
-    BuildFn, ChangedFn, Reactive, ReactiveElement,
-};
+use crate::reactive::ChangedFn;
+use crate::reactive::binding::{Binding, GetFn};
+use crate::reactive::watch::{BuildFn, Watch, WatchElement};
 use crate::style::{Stylable, StyleId, StyleValue};
-use crate::{Fynix, binding};
 
 /// Build-time context for constructing the element tree and declaring
 /// style defaults.
@@ -121,39 +120,38 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.styles.set(field_accessor, value);
     }
 
-    /// Binds a reactive to the element tree.
+    /// Attaches a watch to the element tree.
     ///
     /// `build` constructs a subtree and `changed` reports whether the
     /// state it reads has changed since the last build. When
-    /// `changed` fires, the backend rebuild just that subtree in
+    /// `changed` fires, the backend rebuilds just that subtree in
     /// place.
     ///
     /// The initial subtree is built immediately, under the current
-    /// style scope. That scope is captured on the [`Reactive`] and
+    /// style scope. That scope is captured on the [`Watch`] and
     /// restored on every rebuild, so a rebuilt subtree is styled like
     /// the first.
     #[must_use]
-    pub fn reactive(
+    pub fn watch(
         &mut self,
         changed: ChangedFn<W>,
         build: BuildFn<W>,
-    ) -> ElementCtx<'_, W, ReactiveElement> {
+    ) -> ElementCtx<'_, W, WatchElement>
+    where
+        W: 'static,
+    {
         self.commit_pending_styles();
 
-        // Build the holder element and its reactive together: the
-        // element's id is needed to register the reactive, and the
-        // reactive's id is needed to construct the element.
+        // Build the holder element, then attach the watch as a
+        // component keyed by the holder's id.
         let style_id = self.prev_style;
-        let element_handle = self.fynix.elements.add_with_id(
-            |element_id| {
-                self.fynix.reactives.add(Reactive::new(
-                    changed, build, element_id, style_id,
-                ));
-                ReactiveElement::init()
-            },
-            None,
-        );
+        let element_handle =
+            self.fynix.elements.add(WatchElement::init(), None);
         let element_id = element_handle.as_id();
+        self.fynix.elements.table.insert_component(
+            element_id,
+            Watch::new(changed, build, style_id),
+        );
 
         // Build the initial subtree under the current style scope.
         let child = build(self);
@@ -169,7 +167,7 @@ impl<W> FynixCtx<'_, '_, W> {
         if let Some(elem) = self
             .fynix
             .elements
-            .get_typed_mut::<ReactiveElement>(&element_id)
+            .get_typed_mut::<WatchElement>(&element_id)
         {
             elem.child = child;
         }
@@ -259,23 +257,25 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     ///
     /// When `changed_fn` reports a change, `get_fn` reads the new
     /// value from the world and it is written through `mut_fn` into
-    /// this element, which is then marked dirty. Unlike a reactive
-    /// scope, nothing is rebuilt: only the field is updated in place.
+    /// this element, which is then marked dirty. Unlike a watch,
+    /// nothing is rebuilt: only the field is updated in place.
     ///
     /// Chainable, and applied each frame by
-    /// [`Fynix::update_reactives`](crate::Fynix::update_reactives).
+    /// [`Fynix::update_watches`](crate::Fynix::update_watches).
     pub fn bind<T>(
         self,
-        changed_fn: binding::ChangedFn<W>,
+        changed_fn: ChangedFn<W>,
         get_fn: GetFn<W, T>,
         mut_fn: MutFn<E, T>,
-    ) -> Self {
-        self.fynix.bindings.add(Binding::new(
-            changed_fn,
-            get_fn,
-            mut_fn,
-            self.id(),
-        ));
+    ) -> Self
+    where
+        W: 'static,
+    {
+        let id = self.id();
+        self.fynix.elements.table.insert_component(
+            id,
+            Binding::new(changed_fn, get_fn, mut_fn),
+        );
         self
     }
 

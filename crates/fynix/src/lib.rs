@@ -3,20 +3,21 @@
 
 extern crate alloc;
 
+use alloc::vec::Vec;
+
 pub use field_path;
 use fynix_event::Events;
 pub use imaging;
 use imaging::PaintSink;
 
-use crate::binding::Bindings;
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
 use crate::interaction::Interactions;
-use crate::reactive::{ReactiveElement, Reactives};
+use crate::reactive::binding::Binding;
+use crate::reactive::watch::Watch;
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
-pub mod binding;
 pub mod composer;
 pub mod ctx;
 pub mod element;
@@ -53,10 +54,12 @@ pub struct Fynix<W> {
     pub resources: Resources,
     elements: Elements,
     styles: Styles,
-    reactives: Reactives<W>,
-    bindings: Bindings<W>,
     events: Events,
     interactions: Interactions,
+    /// Single backend world type. Watches and bindings are stored as
+    /// components on the element table, so `W` only appears in the
+    /// build-time and update APIs.
+    _world: core::marker::PhantomData<fn(&mut W)>,
 }
 
 impl<W> Fynix<W> {
@@ -65,10 +68,9 @@ impl<W> Fynix<W> {
             resources: Resources::new(),
             elements: Elements::new(),
             styles: Styles::new(),
-            reactives: Reactives::new(),
-            bindings: Bindings::new(),
             events: Events::new(),
             interactions: Interactions::new(),
+            _world: core::marker::PhantomData,
         }
     }
 
@@ -113,11 +115,13 @@ impl<W> Fynix<W> {
     /// Returns `true` if the element existed
     #[inline]
     pub fn remove_element(&mut self, id: &ElementId) -> bool {
-        // Removes the element subtree, cleaning up the styles and
-        // reactives each removed element owns. The first primary
-        // style encountered drops itself and all its
-        // descendants in the style tree, so deeper primary
-        // styles are left for that subtree removal to handle.
+        // Removes the element subtree, cleaning up the styles each
+        // removed element owns. The first primary style encountered
+        // drops itself and all its descendants in the style tree, so
+        // deeper primary styles are left for that subtree removal to
+        // handle. Watches and bindings ride the element table and are
+        // dropped with the element, so only styles and interaction
+        // handlers need explicit cleanup here.
         let mut has_removed_styles = false;
 
         self.elements.remove(id, |id, primary_style| {
@@ -128,66 +132,43 @@ impl<W> Fynix<W> {
                     self.styles.remove(&primary_style);
             }
 
-            // Drop any reactive and interaction handlers this
-            // element owns.
-            self.reactives.remove_for_element(id);
-            self.bindings.remove_for_element(id);
             self.interactions.remove(id);
         })
     }
 
-    /// Re-runs every reactive whose `changed_fn` reports a change,
-    /// rebuilding its subtree in place.
+    /// Flushes every changed watch and binding: rebuilds each watched
+    /// subtree, then writes each bound field in place.
     ///
-    /// Intended to be called by the backend once per frame.
-    pub fn update_reactives(&mut self, world: &mut W) {
-        for reactive in self.reactives.snapshot_changed(world) {
-            let element_id = reactive.element_id();
+    /// Intended to be called by the backend once per frame. Each
+    /// [`Watch`] and [`Binding`] is [`Copy`], so the changed ones are
+    /// snapshotted out of the element table first, freeing it to be
+    /// mutated while each one is applied.
+    pub fn update_watches(&mut self, world: &mut W)
+    where
+        W: 'static,
+    {
+        let watches = self
+            .elements
+            .table
+            .components::<Watch<W>>()
+            .filter(|(_, watch)| watch.is_changed(world))
+            .map(|(id, watch)| (*id, *watch))
+            .collect::<Vec<_>>();
 
-            // The holder may have been discarded earlier this flush
-            // by an ancestor's rebuild. If so, the reactive was
-            // dropped with it, so skip the stale snapshot entry.
-            let Some(old_child) = self
-                .elements
-                .get_typed_mut::<ReactiveElement>(&element_id)
-                .map(|elem| elem.child.take())
-            else {
-                continue;
-            };
-
-            if let Some(old_child) = old_child {
-                self.remove_element(&old_child);
-            }
-
-            // Rebuild under the reactive's captured style scope, then
-            // drop any uncommitted style changes so they do not leak.
-            let child = {
-                let mut ctx =
-                    self.create_ctx(world, reactive.style_id());
-                reactive.build(&mut ctx)
-            };
-            self.styles.clear_builder();
-
-            if let Some(child_id) = child
-                && let Some(node) =
-                    self.elements.table.node_mut(&child_id)
-            {
-                node.parent_id = Some(element_id);
-            }
-            if let Some(elem) = self
-                .elements
-                .get_typed_mut::<ReactiveElement>(&element_id)
-            {
-                elem.child = child;
-            }
-
-            // Mark the rebuilt subtree dirty so it is re-laid-out
-            // and re-rendered.
-            self.elements.mark_dirty(element_id);
+        for (id, watch) in watches {
+            watch.build(id, self, world);
         }
 
-        for binding in self.bindings.snapshot_changed(world) {
-            binding.apply(&mut self.elements, world);
+        let bindings = self
+            .elements
+            .table
+            .components::<Binding<W>>()
+            .filter(|(_, binding)| binding.is_changed(world))
+            .map(|(id, binding)| (*id, *binding))
+            .collect::<Vec<_>>();
+
+        for (id, binding) in bindings {
+            binding.build(&id, &mut self.elements, world);
         }
     }
 

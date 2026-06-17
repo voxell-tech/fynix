@@ -44,9 +44,13 @@ impl ElementTable {
         id: ElementId,
         primary_style: Option<StyleId>,
     ) {
-        self.table.insert(id, ElementNode::new(None));
+        self.table.insert_by_column(
+            id,
+            ElementNode::new(None),
+            self.node_col,
+        );
         if let Some(style) = primary_style {
-            self.table.insert(id, style);
+            self.table.insert_by_column(id, style, self.style_col);
         }
     }
 
@@ -76,7 +80,7 @@ impl ElementTable {
 
     /// Caches `scene` for `id`.
     pub fn set_scene(&mut self, id: &ElementId, scene: Scene) {
-        self.table.insert(*id, scene);
+        self.table.insert_by_column(*id, scene, self.scene_col);
     }
 
     /// Returns the `primary_style` recorded for `id`, if any.
@@ -87,6 +91,58 @@ impl ElementTable {
         self.table
             .get_by_column::<StyleId>(self.style_col, id)
             .copied()
+    }
+}
+
+/// Arbitrary per-element components.
+///
+/// Beyond the fixed node, scene, and style columns, an element can
+/// carry at most one value of any other type `T`, stored in a column
+/// created on first insert. Used for the at-most-one-per-element data
+/// such as a watch or a field binding. Components are
+/// dropped with the element when its row is removed.
+impl ElementTable {
+    /// Attaches `value` to `id`, replacing any previous component of
+    /// type `T`. Returns the replaced value, if any.
+    pub fn insert_component<T: 'static>(
+        &mut self,
+        id: ElementId,
+        value: T,
+    ) -> Option<T> {
+        self.table.insert(id, value)
+    }
+
+    /// Removes and returns `id`'s component of type `T`, if present.
+    pub fn remove_component<T: 'static>(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<T> {
+        self.table.remove(id)
+    }
+
+    /// Returns `id`'s component of type `T`, if present.
+    pub fn get_component<T: 'static>(
+        &self,
+        id: &ElementId,
+    ) -> Option<&T> {
+        self.table.get::<T>(id)
+    }
+
+    /// Returns a mutable reference to `id`'s component of type `T`,
+    /// if present.
+    pub fn get_component_mut<T: 'static>(
+        &mut self,
+        id: &ElementId,
+    ) -> Option<&mut T> {
+        self.table.get_mut::<T>(id)
+    }
+
+    /// Iterates `(id, &T)` over every element carrying a component of
+    /// type `T`, in unspecified order.
+    pub fn components<T: 'static>(
+        &self,
+    ) -> impl Iterator<Item = (&ElementId, &T)> {
+        self.table.iter::<T>()
     }
 }
 
@@ -161,5 +217,29 @@ mod tests {
         assert!(!table.remove(&id));
         // Sibling metadata is untouched.
         assert!(table.node(&other).is_some());
+    }
+
+    #[test]
+    fn component_round_trips_and_is_dropped_on_remove() {
+        let (id, other) = two_ids();
+        let mut table = ElementTable::new();
+        table.init_element(id, None);
+        table.init_element(other, None);
+
+        assert_eq!(table.insert_component(id, 7u32), None);
+        assert_eq!(table.get_component::<u32>(&id), Some(&7));
+        *table.get_component_mut::<u32>(&id).unwrap() = 9;
+        assert_eq!(table.get_component::<u32>(&id), Some(&9));
+
+        // Iteration yields only elements carrying the component.
+        let ids = table
+            .components::<u32>()
+            .map(|(id, _)| *id)
+            .collect::<alloc::vec::Vec<_>>();
+        assert_eq!(ids, [id]);
+
+        // Removing the element drops its component with it.
+        assert!(table.remove(&id));
+        assert_eq!(table.get_component::<u32>(&id), None);
     }
 }

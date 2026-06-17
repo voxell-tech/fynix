@@ -23,7 +23,7 @@ pub struct Elements {
     pub table: ElementTable,
     pub type_metas: ElementTypeMetas,
     /// Elements whose subtree changed and needs re-layout/render,
-    /// e.g. after a reactive scope rebuilt its child.
+    /// e.g. after a watch rebuilt its child.
     pub dirty_elements: HashSet<ElementId>,
 }
 

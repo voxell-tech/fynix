@@ -202,6 +202,24 @@ where
         column.insert(key, value)
     }
 
+    /// Like [`Self::insert`], but reaches the column by a
+    /// pre-resolved [`ColumnId`] instead of hashing `V`'s
+    /// [`TypeId`].
+    ///
+    /// No-op if `col` is out of bounds or its column holds a
+    /// different type.
+    pub fn insert_by_column<V: 'static>(
+        &mut self,
+        key: K,
+        value: V,
+        col: ColumnId,
+    ) -> Option<V> {
+        self.columns
+            .get_mut(col.index())?
+            .downcast_mut::<V>()?
+            .insert(key, value)
+    }
+
     /// Ensures the column for `V` exists and returns its
     /// [`ColumnId`].
     ///

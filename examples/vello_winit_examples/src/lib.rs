@@ -29,7 +29,7 @@ pub trait DemoWorld: Sized {
     /// initial build.
     fn init(&mut self, fynix: &mut Fynix<Self>);
 
-    /// Advances world state before reactive scopes are updated.
+    /// Advances world state before watches are updated.
     /// `dt` is the time elapsed since the previous frame.
     fn update(&mut self, dt: Duration);
 
@@ -107,13 +107,13 @@ impl<W: DemoWorld> VelloWinitApp<'_, W> {
             );
         }
 
-        // Advance world state with this frame's delta, then rebuild
-        // any reactives whose inputs changed, before layout.
+        // Advance world state with this frame's delta, then flush any
+        // watches and bindings whose inputs changed, before layout.
         let now = Instant::now();
         let dt = now.duration_since(self.last_frame);
         self.last_frame = now;
         self.world.update(dt);
-        self.fynix.update_reactives(&mut self.world);
+        self.fynix.update_watches(&mut self.world);
 
         self.fynix.layout();
 
