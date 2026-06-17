@@ -1,4 +1,5 @@
 use core::any::TypeId;
+use core::marker::PhantomData;
 
 use hashbrown::HashSet;
 use imaging::PaintSink;
@@ -56,7 +57,7 @@ impl Elements {
         &mut self,
         element: E,
         primary_style: Option<StyleId>,
-    ) -> ElementId {
+    ) -> ElementHandle<E> {
         self.add_with_id(
             #[inline(always)]
             |_| element,
@@ -75,7 +76,7 @@ impl Elements {
         &mut self,
         create: impl FnOnce(ElementId) -> E,
         primary_style: Option<StyleId>,
-    ) -> ElementId {
+    ) -> ElementHandle<E> {
         let col = self.elements.ensure_column::<E>();
         self.type_metas.register::<E>(col);
 
@@ -95,7 +96,7 @@ impl Elements {
 
         let id = ElementId(key);
         self.mark_dirty(id);
-        id
+        ElementHandle::new(id)
     }
 
     /// Returns a type-erased reference to the element.
@@ -293,6 +294,39 @@ impl Elements {
 impl Default for Elements {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Debug)]
+pub struct ElementHandle<E: Element> {
+    id: ElementId,
+    _marker: PhantomData<fn() -> E>,
+}
+
+impl<E: Element> ElementHandle<E> {
+    pub fn new(id: ElementId) -> Self {
+        Self {
+            id,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn as_id(self) -> ElementId {
+        self.id
+    }
+}
+
+impl<E: Element> Copy for ElementHandle<E> {}
+
+impl<E: Element> Clone for ElementHandle<E> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<E: Element> From<ElementHandle<E>> for ElementId {
+    fn from(value: ElementHandle<E>) -> Self {
+        value.id
     }
 }
 

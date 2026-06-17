@@ -1,5 +1,6 @@
 use crate::ctx::FynixCtx;
-use crate::element::ElementId;
+use crate::element::Element;
+use crate::element::storage::ElementHandle;
 use crate::style::Stylable;
 
 /// Builds a subtree from caller-supplied inputs and a pre-styled data
@@ -19,12 +20,13 @@ use crate::style::Stylable;
 /// that can override individual fields after the chain is applied.
 pub trait Composer<W> {
     type Style: Stylable;
+    type Element: Element;
 
     fn compose(
         self,
         style: Self::Style,
         ctx: &mut FynixCtx<'_, '_, W>,
-    ) -> ElementId
+    ) -> ElementHandle<Self::Element>
     where
         Self: Sized;
 }

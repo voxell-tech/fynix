@@ -1,14 +1,17 @@
+use field_path::accessor::func_pointers::MutFn;
 use field_path::field_accessor::FieldAccessor;
 
-use crate::Fynix;
+use crate::binding::{Binding, GetFn};
 use crate::composer::Composer;
+use crate::element::storage::ElementHandle;
 use crate::element::{Element, ElementId};
 use crate::init::Init;
-use crate::interaction::{HandlerFn, Interactions};
+use crate::interaction::HandlerFn;
 use crate::reactive::{
     BuildFn, ChangedFn, Reactive, ReactiveElement,
 };
 use crate::style::{Stylable, StyleId, StyleValue};
+use crate::{Fynix, binding};
 
 /// Build-time context for constructing the element tree and declaring
 /// style defaults.
@@ -55,10 +58,10 @@ impl<W> FynixCtx<'_, '_, W> {
     /// Elements created with `add` dont own any styles, so their
     /// `primary_style` is `None`
     #[must_use]
-    pub fn add<E: Element>(&mut self) -> ElementHandle<'_> {
+    pub fn add<E: Element>(&mut self) -> ElementCtx<'_, W, E> {
         let element = self.create_styled::<E>();
         let id = self.fynix.elements.add(element, None);
-        ElementHandle::new(&mut self.fynix.interactions, id)
+        ElementCtx::new(self.fynix, id)
     }
 
     /// Like [`Self::add`], but also runs `scope` for inline mutations
@@ -67,13 +70,13 @@ impl<W> FynixCtx<'_, '_, W> {
     pub fn add_with<E: Element>(
         &mut self,
         scope: impl FnOnce(&mut E, &mut Self),
-    ) -> ElementHandle<'_> {
+    ) -> ElementCtx<'_, W, E> {
         let mut element = self.create_styled::<E>();
         let id = self.style_scoped(|ctx| {
             scope(&mut element, ctx);
             ctx.fynix.elements.add(element, ctx.primary_style.take())
         });
-        ElementHandle::new(&mut self.fynix.interactions, id)
+        ElementCtx::new(self.fynix, id)
     }
 
     /// Runs `composer`, passing it a style instance built from the
@@ -85,11 +88,11 @@ impl<W> FynixCtx<'_, '_, W> {
     pub fn compose<C: Composer<W>>(
         &mut self,
         composer: C,
-    ) -> ElementHandle<'_> {
+    ) -> ElementCtx<'_, W, C::Element> {
         let style = self.create_styled::<C::Style>();
         let id =
             self.style_scoped(|ctx| composer.compose(style, ctx));
-        ElementHandle::new(&mut self.fynix.interactions, id)
+        ElementCtx::new(self.fynix, id)
     }
 
     /// Like [`Self::compose`], but runs `inline` after the style
@@ -99,12 +102,12 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         composer: C,
         inline: impl FnOnce(&mut C::Style),
-    ) -> ElementHandle<'_> {
+    ) -> ElementCtx<'_, W, C::Element> {
         let mut style = self.create_styled::<C::Style>();
         inline(&mut style);
         let id =
             self.style_scoped(|ctx| composer.compose(style, ctx));
-        ElementHandle::new(&mut self.fynix.interactions, id)
+        ElementCtx::new(self.fynix, id)
     }
 
     /// Queues a style default: field `T` on type `S` will be set to
@@ -134,14 +137,14 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         changed: ChangedFn<W>,
         build: BuildFn<W>,
-    ) -> ElementHandle<'_> {
+    ) -> ElementCtx<'_, W, ReactiveElement> {
         self.commit_pending_styles();
 
         // Build the holder element and its reactive together: the
         // element's id is needed to register the reactive, and the
         // reactive's id is needed to construct the element.
         let style_id = self.prev_style;
-        let element_id = self.fynix.elements.add_with_id(
+        let element_handle = self.fynix.elements.add_with_id(
             |element_id| {
                 self.fynix.reactives.add(Reactive::new(
                     changed, build, element_id, style_id,
@@ -150,6 +153,7 @@ impl<W> FynixCtx<'_, '_, W> {
             },
             None,
         );
+        let element_id = element_handle.as_id();
 
         // Build the initial subtree under the current style scope.
         let child = build(self);
@@ -170,7 +174,7 @@ impl<W> FynixCtx<'_, '_, W> {
             elem.child = child;
         }
 
-        ElementHandle::new(&mut self.fynix.interactions, element_id)
+        ElementCtx::new(self.fynix, element_handle)
     }
 
     /// Saves the current style scope, runs `scope`, then restores it.
@@ -232,23 +236,32 @@ impl<W> FynixCtx<'_, '_, W> {
     }
 }
 
-/// A freshly added element, borrowed for the length of one build
-/// statement so interaction handlers can be attached to it.
-///
-/// Returned by [`FynixCtx::add`]. Converts into the element's
-/// [`ElementId`] via [`Self::id`] or the [`From`]/[`Into`] impls, so
-/// it drops into any API that wants an id.
-pub struct ElementHandle<'a> {
-    interactions: &'a mut Interactions,
-    id: ElementId,
+pub struct ElementCtx<'f, W, E: Element> {
+    fynix: &'f mut Fynix<W>,
+    handle: ElementHandle<E>,
 }
 
-impl<'a> ElementHandle<'a> {
+impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     fn new(
-        interactions: &'a mut Interactions,
-        id: ElementId,
+        fynix: &'f mut Fynix<W>,
+        handle: ElementHandle<E>,
     ) -> Self {
-        Self { interactions, id }
+        Self { fynix, handle }
+    }
+
+    pub fn bind<T>(
+        self,
+        changed_fn: binding::ChangedFn<W>,
+        get_fn: GetFn<W, T>,
+        mut_fn: MutFn<E, T>,
+    ) -> Self {
+        self.fynix.bindings.add(Binding::new(
+            changed_fn,
+            get_fn,
+            mut_fn,
+            self.id(),
+        ));
+        self
     }
 
     /// Attaches a handler for interaction type `I` to this element.
@@ -260,19 +273,30 @@ impl<'a> ElementHandle<'a> {
     /// The handler is a [`HandlerFn`], so a non-capturing closure
     /// coerces into one; a capturing closure does not.
     pub fn on<I: 'static>(self, handler: HandlerFn<I>) -> Self {
-        self.interactions.register::<I>(self.id, handler);
+        self.fynix.interactions.register::<I>(self.id(), handler);
         self
     }
 
-    /// Returns the element's id, ending the borrow of the context.
-    pub fn id(self) -> ElementId {
-        self.id
+    /// Returns the element's handle.
+    pub fn handle(&self) -> ElementHandle<E> {
+        self.handle
+    }
+
+    /// Returns the element's id.
+    pub fn id(&self) -> ElementId {
+        self.handle.as_id()
     }
 }
 
-impl From<ElementHandle<'_>> for ElementId {
-    fn from(handle: ElementHandle<'_>) -> Self {
-        handle.id
+impl<W, E: Element> From<ElementCtx<'_, W, E>> for ElementId {
+    fn from(ctx: ElementCtx<'_, W, E>) -> Self {
+        ctx.id()
+    }
+}
+
+impl<W, E: Element> From<ElementCtx<'_, W, E>> for ElementHandle<E> {
+    fn from(ctx: ElementCtx<'_, W, E>) -> Self {
+        ctx.handle()
     }
 }
 
@@ -580,16 +604,17 @@ mod tests {
 
     impl Composer<()> for LabelComposer {
         type Style = LabelStyle;
+        type Element = Label;
 
         fn compose(
             self,
             style: LabelStyle,
             ctx: &mut FynixCtx<'_, '_, ()>,
-        ) -> ElementId {
+        ) -> ElementHandle<Self::Element> {
             ctx.add_with::<Label>(|l, _| {
                 l.text = style.text;
             })
-            .id()
+            .handle()
         }
     }
 
