@@ -88,6 +88,46 @@ impl<W> Fynix<W> {
         true
     }
 
+    /// Dispatches `interaction` to the nearest ancestor of `start`
+    /// (including `start` itself) that handles `I`, walking up the
+    /// parent chain and skipping elements with no handler.
+    ///
+    /// `should_bubble` gates each candidate: the walk stops as soon
+    /// as it returns `false`. Pass `|_| true` to always bubble to
+    /// the root, or a hit-test gate to stop at the pointer's
+    /// edge.
+    ///
+    /// Returns `true` if a handler ran.
+    pub fn dispatch_bubbling<I: 'static>(
+        &mut self,
+        start: &ElementId,
+        interaction: I,
+        world: &mut W,
+        should_bubble: impl Fn(&ElementId) -> bool,
+    ) -> bool {
+        let mut current = Some(*start);
+        while let Some(id) = current {
+            if !should_bubble(&id) {
+                break;
+            }
+            if self
+                .elements
+                .table
+                .get_component::<HandlerFn<I, W>>(&id)
+                .is_some()
+            {
+                return self.dispatch::<I>(&id, interaction, world);
+            }
+            current = self
+                .elements
+                .table
+                .node(&id)
+                .and_then(|node| node.parent_id);
+        }
+
+        false
+    }
+
     /// Lays out every dirty subtree (see [`Elements::mark_dirty`]),
     /// draining the dirty set.
     #[inline]
@@ -144,7 +184,7 @@ impl<W> Fynix<W> {
             .collect::<Vec<_>>();
 
         for (id, watcher) in watchers {
-            watcher.rebuild(id, self, world);
+            watcher.rebuild(&id, self, world);
         }
 
         let bindings = self
@@ -156,7 +196,7 @@ impl<W> Fynix<W> {
             .collect::<Vec<_>>();
 
         for (id, binding) in bindings {
-            binding.build(&id, &mut self.elements, world);
+            binding.apply(&id, &mut self.elements, world);
         }
     }
 

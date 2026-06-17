@@ -59,13 +59,23 @@ impl<W> Binding<W> {
 
     /// Reads the new value from `world` and writes it into `id`,
     /// marking it dirty.
-    pub fn build(
+    pub fn apply(
         &self,
         id: &ElementId,
         elements: &mut Elements<W>,
         world: &W,
     ) {
-        (self.apply_fn)(world, elements, id, self.get_fn, self.mut_fn)
+        let success = (self.apply_fn)(
+            world,
+            elements,
+            id,
+            self.get_fn,
+            self.mut_fn,
+        );
+
+        if success {
+            elements.mark_dirty(*id);
+        }
     }
 }
 
@@ -86,7 +96,7 @@ type ApplyFn<W> = fn(
     id: &ElementId,
     get_fn: GetFnPtr,
     get_mut: MutFnPtr,
-);
+) -> bool;
 
 /// Reads `T` from `world`, writes it into element `E`'s field, and
 /// marks the element dirty. A no-op write if the element is absent
@@ -97,15 +107,17 @@ fn apply<W, E: Element, T>(
     id: &ElementId,
     get_fn: GetFnPtr,
     get_mut: MutFnPtr,
-) {
+) -> bool {
     if let Some(element) = elements.get_typed_mut::<E>(id) {
         let get_fn = unsafe { get_fn.typed_unchecked::<W, T>() };
         let get_mut = unsafe { get_mut.typed_unchecked::<E, T>() };
 
         let v = get_fn(world);
         *get_mut(element) = v;
+
+        return true;
     }
-    elements.mark_dirty(*id);
+    false
 }
 
 /// A type-erased [`GetFn`] (the world value reader) stored on a

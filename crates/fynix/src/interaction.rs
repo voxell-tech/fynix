@@ -30,6 +30,23 @@ mod tests {
         }
     }
 
+    #[derive(Init, Element)]
+    struct Container {
+        #[elem(children)]
+        child: Option<ElementId>,
+    }
+
+    impl ElementBuild for Container {
+        fn build(
+            &self,
+            _id: &ElementId,
+            constraint: Constraint,
+            _nodes: &mut ElementNodes,
+        ) -> Size {
+            constraint.min
+        }
+    }
+
     struct Click;
 
     #[derive(Default)]
@@ -104,5 +121,58 @@ mod tests {
         // drops them with it.
         assert!(fynix.remove_element(&id));
         assert!(!fynix.dispatch(&id, Click, &mut world));
+    }
+
+    #[test]
+    fn bubbling_reaches_ancestor_handler() {
+        let mut world = World::default();
+        let mut fynix = Fynix::new();
+        let (parent, child) = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            // The child carries no handler; adding the container sets
+            // the child's `parent_id` to the container.
+            let child = ctx.add::<Button>().id();
+            let parent = ctx
+                .add_with::<Container>(|c, _| c.child = Some(child))
+                .on::<Click>(|_, world| world.clicks += 1)
+                .id();
+            (parent, child)
+        };
+
+        // Bubbling from the child skips it and reaches the parent.
+        assert!(fynix.dispatch_bubbling(
+            &child,
+            Click,
+            &mut world,
+            |_| true,
+        ));
+        assert_eq!(world.clicks, 1);
+        // Direct dispatch to the child still finds no handler.
+        assert!(!fynix.dispatch(&child, Click, &mut world));
+        let _ = parent;
+    }
+
+    #[test]
+    fn bubbling_stops_when_gate_returns_false() {
+        let mut world = World::default();
+        let mut fynix = Fynix::new();
+        let child = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            let child = ctx.add::<Button>().id();
+            ctx.add_with::<Container>(|c, _| c.child = Some(child))
+                .on::<Click>(|_, world| world.clicks += 1)
+                .id();
+            child
+        };
+
+        // The gate rejects the start element, so the walk never
+        // reaches the parent's handler.
+        assert!(!fynix.dispatch_bubbling(
+            &child,
+            Click,
+            &mut world,
+            |_| false,
+        ));
+        assert_eq!(world.clicks, 0);
     }
 }

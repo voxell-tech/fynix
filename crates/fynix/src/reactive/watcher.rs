@@ -89,13 +89,13 @@ impl<W> Watcher<W> {
     /// was dropped with it).
     pub fn rebuild(
         &self,
-        id: ElementId,
+        id: &ElementId,
         fynix: &mut Fynix<W>,
         world: &mut W,
     ) {
         let Some(old_child) = fynix
             .elements
-            .get_typed_mut::<WatcherElement>(&id)
+            .get_typed_mut::<WatcherElement>(id)
             .map(|elem| elem.child.take())
         else {
             return;
@@ -117,17 +117,17 @@ impl<W> Watcher<W> {
             && let Some(node) =
                 fynix.elements.table.node_mut(&child_id)
         {
-            node.parent_id = Some(id);
+            node.parent_id = Some(*id);
         }
         if let Some(elem) =
-            fynix.elements.get_typed_mut::<WatcherElement>(&id)
+            fynix.elements.get_typed_mut::<WatcherElement>(id)
         {
             elem.child = child;
         }
 
         // Mark the rebuilt subtree dirty so it is re-laid-out and
         // re-rendered.
-        fynix.elements.mark_dirty(id);
+        fynix.elements.mark_dirty(*id);
     }
 }
 
