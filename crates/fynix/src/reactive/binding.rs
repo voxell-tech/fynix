@@ -98,9 +98,9 @@ type ApplyFn<W> = fn(
     get_mut: MutFnPtr,
 ) -> bool;
 
-/// Reads `T` from `world`, writes it into element `E`'s field, and
-/// marks the element dirty. A no-op write if the element is absent
-/// or of a different type, but it is still marked dirty.
+/// Reads `T` from `world`, writes it into element `E`'s field.
+///
+/// Returns `false` if element is absent.
 fn apply<W, E: Element, T>(
     world: &W,
     elements: &mut Elements<W>,
