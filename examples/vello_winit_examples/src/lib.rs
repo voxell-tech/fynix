@@ -259,11 +259,7 @@ impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
                 let size =
                     Size::new(phys.width as f32, phys.height as f32);
                 self.world.set_window_size(size);
-                if let RenderState::Active { window, .. } =
-                    &self.state
-                {
-                    window.request_redraw();
-                }
+                self.render();
             }
             _ => {}
         }
