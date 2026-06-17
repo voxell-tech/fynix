@@ -380,6 +380,6 @@ pub struct TextContext {
 
 /// Initialize the resources needed for the elements in this crate to
 /// work correctly.
-pub fn init_resources(fynix: &mut Fynix) {
+pub fn init_resources<W>(fynix: &mut Fynix<W>) {
     fynix.resources.init::<TextContext>();
 }

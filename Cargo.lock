@@ -597,6 +597,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "imaging",
  "rectree",
+ "sparse_map",
  "typarena",
 ]
 
