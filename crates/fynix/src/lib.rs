@@ -6,13 +6,12 @@ extern crate alloc;
 use alloc::vec::Vec;
 
 pub use field_path;
-use fynix_event::Events;
 pub use imaging;
 use imaging::PaintSink;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
-use crate::interaction::Interactions;
+use crate::interaction::HandlerFn;
 use crate::reactive::binding::Binding;
 use crate::reactive::watch::Watch;
 use crate::resource::Resources;
@@ -54,11 +53,9 @@ pub struct Fynix<W> {
     pub resources: Resources,
     elements: Elements,
     styles: Styles,
-    events: Events,
-    interactions: Interactions,
-    /// Single backend world type. Watches and bindings are stored as
-    /// components on the element table, so `W` only appears in the
-    /// build-time and update APIs.
+    /// Single backend world type. Watches, bindings, and interaction
+    /// handlers are stored as components on the element table, so
+    /// `W` only appears in the build-time and update APIs.
     _world: core::marker::PhantomData<fn(&mut W)>,
 }
 
@@ -68,28 +65,35 @@ impl<W> Fynix<W> {
             resources: Resources::new(),
             elements: Elements::new(),
             styles: Styles::new(),
-            events: Events::new(),
-            interactions: Interactions::new(),
             _world: core::marker::PhantomData,
         }
     }
 
-    /// Dispatches `interaction` to the handler registered for `id`'s
-    /// element type and the interaction type `I`, if one exists.
+    /// Dispatches `interaction` to the handler attached to `id` for
+    /// the interaction type `I`, if one exists, letting it mutate
+    /// `world`.
     ///
-    /// Returns `true` if a handler ran. Messages the handler emits
-    /// land in the event queue.
+    /// Returns `true` if a handler ran.
     #[inline]
     pub fn dispatch<I: 'static>(
         &mut self,
         id: &ElementId,
         interaction: I,
-    ) -> bool {
-        self.interactions.dispatch::<I>(
-            id,
-            interaction,
-            &mut self.events,
-        )
+        world: &mut W,
+    ) -> bool
+    where
+        W: 'static,
+    {
+        let Some(handler) = self
+            .elements
+            .table
+            .get_component::<HandlerFn<I, W>>(id)
+            .copied()
+        else {
+            return false;
+        };
+        handler(interaction, world);
+        true
     }
 
     /// Lays out every dirty subtree (see [`Elements::mark_dirty`]),
@@ -119,20 +123,18 @@ impl<W> Fynix<W> {
         // removed element owns. The first primary style encountered
         // drops itself and all its descendants in the style tree, so
         // deeper primary styles are left for that subtree removal to
-        // handle. Watches and bindings ride the element table and are
-        // dropped with the element, so only styles and interaction
-        // handlers need explicit cleanup here.
+        // handle. Watches, bindings, and interaction handlers ride
+        // the element table and are dropped with the element,
+        // so only styles need explicit cleanup here.
         let mut has_removed_styles = false;
 
-        self.elements.remove(id, |id, primary_style| {
+        self.elements.remove(id, |_id, primary_style| {
             if !has_removed_styles
                 && let Some(primary_style) = primary_style
             {
                 has_removed_styles =
                     self.styles.remove(&primary_style);
             }
-
-            self.interactions.remove(id);
         })
     }
 

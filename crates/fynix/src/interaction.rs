@@ -1,85 +1,19 @@
-use fynix_event::Events;
-use typarena::type_table::TypeTable;
-
-use crate::element::ElementId;
-
-/// User-written interaction handler: reacts to interaction `I`,
-/// emitting messages into [`Events`].
+/// User-written interaction handler: reacts to interaction `I` by
+/// mutating the world `W`.
 ///
 /// A plain function pointer, so a non-capturing closure coerces into
-/// one at the [`on`](crate::ctx::ElementCtx::on) call site.
-pub type HandlerFn<I> = fn(I, &mut Events);
-
-/// Per-instance interaction store.
-///
-/// Each element instance carries its own handlers, attached at build
-/// time via [`FynixCtx::add`] and [`ElementCtx::on`]. The
-/// [`TypeTable`] keeps one column of [`HandlerFn<I>`] per interaction
-/// type `I`, addressed by [`ElementId`], so dispatching `I` to an id
-/// is a single typed column lookup.
-///
-/// [`FynixCtx::add`]: crate::ctx::FynixCtx::add
-/// [`ElementCtx::on`]: crate::ctx::ElementCtx::on
-pub struct Interactions {
-    table: TypeTable<ElementId>,
-}
-
-impl Interactions {
-    /// Creates an empty store.
-    pub fn new() -> Self {
-        Self {
-            table: TypeTable::new(),
-        }
-    }
-
-    /// Attaches `handler` to `id` for interaction type `I`.
-    ///
-    /// Replaces any handler previously attached to `id` for `I`.
-    pub fn register<I: 'static>(
-        &mut self,
-        id: ElementId,
-        handler: HandlerFn<I>,
-    ) {
-        self.table.insert(id, handler);
-    }
-
-    /// Drops every handler attached to `id`, across all interaction
-    /// types. Returns `true` if any were present.
-    pub fn remove(&mut self, id: &ElementId) -> bool {
-        self.table.remove_row(id)
-    }
-
-    /// Runs the handler attached to `id` for interaction `I`, if one
-    /// exists. Returns `true` if a handler ran.
-    pub fn dispatch<I: 'static>(
-        &self,
-        id: &ElementId,
-        interaction: I,
-        events: &mut Events,
-    ) -> bool {
-        if let Some(handler) = self.table.get::<HandlerFn<I>>(id) {
-            handler(interaction, events);
-            return true;
-        }
-
-        false
-    }
-}
-
-impl Default for Interactions {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/// one at the [`on`](crate::ctx::ElementCtx::on) call site. Stored
+/// per instance as an element-table component, one per `(element,
+/// I)`.
+pub type HandlerFn<I, W> = fn(I, &mut W);
 
 #[cfg(test)]
 mod tests {
     use rectree::{Constraint, Size};
 
-    use super::*;
     use crate::Fynix;
     use crate::element::layout::ElementNodes;
-    use crate::element::{Element, ElementBuild};
+    use crate::element::{Element, ElementBuild, ElementId};
     use crate::init::Init;
 
     #[derive(Init, Element)]
@@ -98,34 +32,31 @@ mod tests {
 
     struct Click;
 
-    #[derive(Debug, PartialEq)]
-    struct Clicked(u32);
+    #[derive(Default)]
+    struct World {
+        clicks: u32,
+    }
 
     #[test]
     fn dispatch_runs_attached_handler() {
-        let mut world = ();
+        let mut world = World::default();
         let mut fynix = Fynix::new();
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on::<Click>(|_, events| {
-                    events.push(Clicked(1));
-                })
+                .on::<Click>(|_, world| world.clicks += 1)
                 .id()
         };
 
-        let ran = fynix.dispatch(&id, Click);
+        let ran = fynix.dispatch(&id, Click, &mut world);
 
         assert!(ran);
-        assert_eq!(
-            fynix.events.iter::<Clicked>().next(),
-            Some(&Clicked(1))
-        );
+        assert_eq!(world.clicks, 1);
     }
 
     #[test]
     fn dispatch_without_handler_returns_false() {
-        let mut world = ();
+        let mut world = World::default();
         let mut fynix = Fynix::new();
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
@@ -133,43 +64,45 @@ mod tests {
         };
 
         struct Unhandled;
-        let ran = fynix.dispatch(&id, Unhandled);
+        let ran = fynix.dispatch(&id, Unhandled, &mut world);
 
         assert!(!ran);
     }
 
     #[test]
     fn handlers_are_per_instance() {
-        let mut world = ();
+        let mut world = World::default();
         let mut fynix = Fynix::new();
         let (handled, plain) = {
             let mut ctx = fynix.root_ctx(&mut world);
             let handled = ctx
                 .add::<Button>()
-                .on::<Click>(|_, events| events.push(Clicked(1)))
+                .on::<Click>(|_, world| world.clicks += 1)
                 .id();
             // A second instance of the same type with no handler.
             let plain = ctx.add::<Button>().id();
             (handled, plain)
         };
 
-        assert!(fynix.dispatch(&handled, Click));
-        assert!(!fynix.dispatch(&plain, Click));
-        assert_eq!(fynix.events.iter::<Clicked>().count(), 1);
+        assert!(fynix.dispatch(&handled, Click, &mut world));
+        assert!(!fynix.dispatch(&plain, Click, &mut world));
+        assert_eq!(world.clicks, 1);
     }
 
     #[test]
-    fn remove_drops_handlers() {
-        let mut world = ();
+    fn removing_element_drops_handlers() {
+        let mut world = World::default();
         let mut fynix = Fynix::new();
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on::<Click>(|_, events| events.push(Clicked(1)))
+                .on::<Click>(|_, world| world.clicks += 1)
                 .id()
         };
 
-        assert!(fynix.interactions.remove(&id));
-        assert!(!fynix.dispatch(&id, Click));
+        // Handlers ride the element table, so removing the element
+        // drops them with it.
+        assert!(fynix.remove_element(&id));
+        assert!(!fynix.dispatch(&id, Click, &mut world));
     }
 }

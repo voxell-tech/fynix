@@ -229,7 +229,9 @@ mod tests {
 
     #[test]
     fn component_round_trips_and_is_dropped_on_remove() {
-        let (id, other) = two_ids();
+        let mut generator = IdGenerator::default();
+        let id = generator.generate();
+        let other = generator.generate();
         let mut table = ElementTable::new();
         table.init_element(id, None);
         table.init_element(other, None);

@@ -287,8 +287,14 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     ///
     /// The handler is a [`HandlerFn`], so a non-capturing closure
     /// coerces into one; a capturing closure does not.
-    pub fn on<I: 'static>(self, handler: HandlerFn<I>) -> Self {
-        self.fynix.interactions.register::<I>(self.id(), handler);
+    pub fn on<I: 'static>(self, handler: HandlerFn<I, W>) -> Self
+    where
+        W: 'static,
+    {
+        self.fynix
+            .elements
+            .table
+            .insert_component::<HandlerFn<I, W>>(self.id(), handler);
         self
     }
 
