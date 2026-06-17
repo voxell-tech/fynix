@@ -80,7 +80,7 @@ impl<W> Clone for Binding<W> {
 /// Type-erased writer stored on a [`Binding`]. Monomorphized per
 /// `(W, E, T)`, it restores the erased accessors and performs the
 /// field write.
-pub type ApplyFn<W> = fn(
+type ApplyFn<W> = fn(
     world: &W,
     elements: &mut Elements,
     id: &ElementId,
@@ -111,14 +111,14 @@ fn apply<W, E: Element, T>(
 /// A type-erased [`GetFn`] (the world value reader) stored on a
 /// [`Binding`] so it carries no `T` parameter.
 #[derive(Debug, Clone, Copy)]
-pub struct GetFnPtr(*const ());
+struct GetFnPtr(*const ());
 
 unsafe impl Send for GetFnPtr {}
 unsafe impl Sync for GetFnPtr {}
 
 impl GetFnPtr {
     /// Erases a [`GetFn<W, T>`].
-    pub const fn new<W, T>(f: GetFn<W, T>) -> Self {
+    const fn new<W, T>(f: GetFn<W, T>) -> Self {
         Self(f as *const ())
     }
 
@@ -129,7 +129,7 @@ impl GetFnPtr {
     ///
     /// Undefined behavior if `S` and `T` do not match the types used
     /// when constructing this pointer.
-    pub const unsafe fn typed_unchecked<S, T>(&self) -> GetFn<S, T> {
+    const unsafe fn typed_unchecked<S, T>(&self) -> GetFn<S, T> {
         unsafe {
             core::mem::transmute::<*const (), GetFn<S, T>>(self.0)
         }
