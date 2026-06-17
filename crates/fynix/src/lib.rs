@@ -156,7 +156,7 @@ impl<W> Fynix<W> {
             .collect::<Vec<_>>();
 
         for (id, watch) in watches {
-            watch.build(id, self, world);
+            watch.rebuild(id, self, world);
         }
 
         let bindings = self

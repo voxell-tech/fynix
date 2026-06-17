@@ -86,7 +86,7 @@ impl<W> Watch<W> {
     /// A no-op if the holder is gone, e.g. when an ancestor's rebuild
     /// already discarded it earlier in the same flush (the watch was
     /// dropped with it).
-    pub fn build(
+    pub fn rebuild(
         &self,
         id: ElementId,
         fynix: &mut Fynix<W>,
