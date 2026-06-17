@@ -138,3 +138,129 @@ impl GetFnPtr {
 
 /// Reads a value of type `T` from the world.
 pub type GetFn<W, T> = fn(&W) -> T;
+
+#[cfg(test)]
+mod tests {
+    use rectree::{Constraint, Size};
+
+    use crate::Fynix;
+    use crate::element::layout::ElementNodes;
+    use crate::element::{Element, ElementBuild, ElementId};
+    use crate::init::Init;
+
+    #[derive(Init, Element)]
+    struct Counter {
+        n: u32,
+    }
+
+    impl ElementBuild for Counter {
+        fn build(
+            &self,
+            _id: &ElementId,
+            constraint: Constraint,
+            _nodes: &mut ElementNodes,
+        ) -> Size {
+            constraint.min
+        }
+    }
+
+    #[derive(Default)]
+    struct World {
+        changed: bool,
+        value: u32,
+    }
+
+    /// A binding writes the world value into the field only on a
+    /// flush where `changed` reports true, leaving it untouched
+    /// otherwise.
+    #[test]
+    fn writes_field_only_when_changed() {
+        let mut world = World {
+            changed: false,
+            value: 1,
+        };
+        let mut fynix = Fynix::<World>::new();
+
+        let id = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.add::<Counter>()
+                .bind(|w| w.changed, |w| w.value, |c| &mut c.n)
+                .id()
+        };
+
+        let n = |fynix: &Fynix<World>| {
+            fynix.elements.get_typed::<Counter>(&id).unwrap().n
+        };
+
+        // Binding does not apply on attach; the field keeps its
+        // initial value.
+        assert_eq!(n(&fynix), 0);
+
+        // Value changes but `changed` is false: no write.
+        world.value = 2;
+        fynix.sync(&mut world);
+        assert_eq!(n(&fynix), 0);
+
+        // Flip `changed`: the field picks up the current value.
+        world.changed = true;
+        fynix.sync(&mut world);
+        assert_eq!(n(&fynix), 2);
+    }
+
+    /// A binding writes only into the element it was attached to,
+    /// leaving sibling instances of the same type alone.
+    #[test]
+    fn applies_only_to_bound_instance() {
+        let mut world = World {
+            changed: true,
+            value: 7,
+        };
+        let mut fynix = Fynix::<World>::new();
+
+        let (bound, plain) = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            let bound = ctx
+                .add::<Counter>()
+                .bind(|w| w.changed, |w| w.value, |c| &mut c.n)
+                .id();
+            let plain = ctx.add::<Counter>().id();
+            (bound, plain)
+        };
+
+        fynix.sync(&mut world);
+
+        assert_eq!(
+            fynix.elements.get_typed::<Counter>(&bound).unwrap().n,
+            7
+        );
+        assert_eq!(
+            fynix.elements.get_typed::<Counter>(&plain).unwrap().n,
+            0
+        );
+    }
+
+    /// Removing the element drops its binding with it, so a later
+    /// flush is a no-op for that id rather than a stale write.
+    #[test]
+    fn removing_element_drops_binding() {
+        let mut world = World {
+            changed: true,
+            value: 5,
+        };
+        let mut fynix = Fynix::<World>::new();
+
+        let id = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.add::<Counter>()
+                .bind(|w| w.changed, |w| w.value, |c| &mut c.n)
+                .id()
+        };
+
+        assert!(fynix.remove_element(&id));
+
+        // The binding rode the element table and is gone, so this
+        // flush finds nothing to apply and does not panic.
+        fynix.sync(&mut world);
+        assert!(fynix.elements.get_typed::<Counter>(&id).is_none());
+    }
+}
