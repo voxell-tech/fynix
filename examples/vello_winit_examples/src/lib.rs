@@ -16,7 +16,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::Window;
 
-pub trait DemoWorld: Sized {
+pub trait DemoWorld: Sized + 'static {
     fn window_title(&self) -> &'static str {
         "Fynix"
     }
