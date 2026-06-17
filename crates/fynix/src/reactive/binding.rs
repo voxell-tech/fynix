@@ -6,8 +6,8 @@
 //! whole subtree, a binding reads one value from the world and writes
 //! it into one element field, then marks that element dirty. Bindings
 //! are attached per instance via
-//! [`ElementCtx::bind`](crate::ctx::ElementCtx::bind) and flushed each
-//! frame by [`Fynix::update_watches`](crate::Fynix::update_watches).
+//! [`ElementCtx::bind`](crate::ctx::ElementCtx::bind) and flushed
+//! each frame by [`Fynix::sync`](crate::Fynix::sync).
 
 use field_path::accessor::func_pointers::{MutFn, MutFnPtr};
 

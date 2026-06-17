@@ -261,7 +261,7 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     /// nothing is rebuilt: only the field is updated in place.
     ///
     /// Chainable, and applied each frame by
-    /// [`Fynix::update_watches`](crate::Fynix::update_watches).
+    /// [`Fynix::sync`](crate::Fynix::sync).
     pub fn bind<T>(
         self,
         changed_fn: ChangedFn<W>,

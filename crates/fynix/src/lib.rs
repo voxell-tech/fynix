@@ -136,14 +136,11 @@ impl<W> Fynix<W> {
         })
     }
 
-    /// Flushes every changed watch and binding: rebuilds each watched
-    /// subtree, then writes each bound field in place.
+    /// Reconciles the element tree with the current world state,
+    /// applying every change-driven update whose source changed.
     ///
-    /// Intended to be called by the backend once per frame. Each
-    /// [`Watch`] and [`Binding`] is [`Copy`], so the changed ones are
-    /// snapshotted out of the element table first, freeing it to be
-    /// mutated while each one is applied.
-    pub fn update_watches(&mut self, world: &mut W)
+    /// Intended to be called by the backend once per frame.
+    pub fn sync(&mut self, world: &mut W)
     where
         W: 'static,
     {

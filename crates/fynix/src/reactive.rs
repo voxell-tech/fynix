@@ -7,7 +7,7 @@
 //!
 //! Both are stored as per-element components on the element table and
 //! flushed together each frame by
-//! [`Fynix::update_watches`](crate::Fynix::update_watches).
+//! [`Fynix::sync`](crate::Fynix::sync).
 
 pub mod binding;
 pub mod watch;

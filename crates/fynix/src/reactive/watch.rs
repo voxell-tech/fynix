@@ -5,7 +5,7 @@
 //! writes one field in place, a watch rebuilds a whole subtree when
 //! the world state it reads changes. Watches are attached via
 //! [`FynixCtx::watch`](crate::ctx::FynixCtx::watch) and flushed each
-//! frame by [`Fynix::update_watches`](crate::Fynix::update_watches).
+//! frame by [`Fynix::sync`](crate::Fynix::sync).
 
 use rectree::{Constraint, NodeContext, Size, Vec2};
 
@@ -215,14 +215,14 @@ mod tests {
 
         // Value changes but `changed` is false: no rebuild.
         world.value = 2;
-        fynix.update_watches(&mut world);
+        fynix.sync(&mut world);
         let (child, n) = child_n(&fynix);
         assert_eq!(child, first_child);
         assert_eq!(n, 1);
 
         // Flip `changed`: subtree rebuilds with the new value.
         world.changed = true;
-        fynix.update_watches(&mut world);
+        fynix.sync(&mut world);
         let (_, n) = child_n(&fynix);
         assert_eq!(n, 2);
     }

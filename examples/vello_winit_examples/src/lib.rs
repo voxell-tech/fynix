@@ -113,7 +113,7 @@ impl<W: DemoWorld> VelloWinitApp<'_, W> {
         let dt = now.duration_since(self.last_frame);
         self.last_frame = now;
         self.world.update(dt);
-        self.fynix.update_watches(&mut self.world);
+        self.fynix.sync(&mut self.world);
 
         self.fynix.layout();
 
