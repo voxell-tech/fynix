@@ -160,15 +160,20 @@ mod tests {
     use crate::element::ElementId;
     use crate::style::StyleIdGenerator;
 
-    /// Mints two distinct element ids via a throwaway pool.
-    fn two_ids() -> (ElementId, ElementId) {
-        let mut pool = TypePool::new();
-        (ElementId(pool.insert(0u8)), ElementId(pool.insert(1u8)))
+    #[derive(Default)]
+    struct IdGenerator {
+        pool: TypePool,
+    }
+
+    impl IdGenerator {
+        fn generate(&mut self) -> ElementId {
+            ElementId(self.pool.insert(1))
+        }
     }
 
     #[test]
     fn init_seeds_node_and_primary_style() {
-        let (id, _) = two_ids();
+        let id = IdGenerator::default().generate();
         let style = StyleIdGenerator::new().new_id();
         let mut table = ElementTable::new();
         table.init_element(id, Some(style));
@@ -181,7 +186,7 @@ mod tests {
 
     #[test]
     fn init_without_primary_style_leaves_it_absent() {
-        let (id, _) = two_ids();
+        let id = IdGenerator::default().generate();
         let mut table = ElementTable::new();
         table.init_element(id, None);
 
@@ -191,7 +196,7 @@ mod tests {
 
     #[test]
     fn set_scene_round_trips() {
-        let (id, _) = two_ids();
+        let id = IdGenerator::default().generate();
         let mut table = ElementTable::new();
         table.init_element(id, None);
 
@@ -202,21 +207,24 @@ mod tests {
 
     #[test]
     fn remove_drops_every_column() {
-        let (id, other) = two_ids();
+        let mut generator = IdGenerator::default();
+        let id0 = generator.generate();
+        let id1 = generator.generate();
+
         let style = StyleIdGenerator::new().new_id();
         let mut table = ElementTable::new();
-        table.init_element(id, Some(style));
-        table.init_element(other, None);
-        table.set_scene(&id, Scene::new());
+        table.init_element(id0, Some(style));
+        table.init_element(id1, None);
+        table.set_scene(&id0, Scene::new());
 
-        assert!(table.remove(&id));
-        assert!(table.node(&id).is_none());
-        assert!(table.scene(&id).is_none());
-        assert_eq!(table.primary_style(&id), None);
+        assert!(table.remove(&id0));
+        assert!(table.node(&id0).is_none());
+        assert!(table.scene(&id0).is_none());
+        assert_eq!(table.primary_style(&id0), None);
         // A second removal finds nothing left.
-        assert!(!table.remove(&id));
+        assert!(!table.remove(&id0));
         // Sibling metadata is untouched.
-        assert!(table.node(&other).is_some());
+        assert!(table.node(&id1).is_some());
     }
 
     #[test]
