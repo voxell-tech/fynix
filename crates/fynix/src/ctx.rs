@@ -236,6 +236,12 @@ impl<W> FynixCtx<'_, '_, W> {
     }
 }
 
+/// A freshly added element of type `E`, returned by
+/// [`FynixCtx::add`] and friends and borrowed for one build
+/// statement to configure it.
+///
+/// Carries `E` so configuration can be type-checked against the
+/// element. Converts into its [`ElementId`] or [`ElementHandle`].
 pub struct ElementCtx<'f, W, E: Element> {
     fynix: &'f mut Fynix<W>,
     handle: ElementHandle<E>,
@@ -249,6 +255,15 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
         Self { fynix, handle }
     }
 
+    /// Binds one of this element's fields to the world.
+    ///
+    /// When `changed_fn` reports a change, `get_fn` reads the new
+    /// value from the world and it is written through `mut_fn` into
+    /// this element, which is then marked dirty. Unlike a reactive
+    /// scope, nothing is rebuilt: only the field is updated in place.
+    ///
+    /// Chainable, and applied each frame by
+    /// [`Fynix::update_reactives`](crate::Fynix::update_reactives).
     pub fn bind<T>(
         self,
         changed_fn: binding::ChangedFn<W>,

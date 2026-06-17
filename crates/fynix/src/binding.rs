@@ -1,3 +1,13 @@
+//! Field bindings: in-place updates of a single element's field,
+//! driven by world change detection.
+//!
+//! A binding is the lightweight counterpart to a reactive scope.
+//! Where a scope rebuilds a whole subtree, a binding reads one value
+//! from the world and writes it into one element field, then marks
+//! that element dirty. Bindings are attached per instance via
+//! [`ElementCtx::bind`](crate::ctx::ElementCtx::bind) and applied
+//! each frame by [`Fynix::update_reactives`](crate::Fynix).
+
 use alloc::vec::Vec;
 
 use field_path::accessor::func_pointers::{MutFn, MutFnPtr};
@@ -6,18 +16,19 @@ use sparse_map::{Key, SparseMap};
 
 use crate::element::{Element, ElementId, Elements};
 
-/// Store of every reactive bound to the element tree, fixed to the
+/// Store of every binding attached to the element tree, fixed to the
 /// single world type `W`.
 ///
 /// Backed by a concrete [`SparseMap`] keyed by [`BindingId`].
 pub struct Bindings<W> {
     bindings: SparseMap<Binding<W>>,
-    /// Reverse index from each holder element to its reactive, used
-    /// to remove the reactive when the element is removed.
+    /// Reverse index from each element to its binding, used to
+    /// remove the binding when the element is removed.
     element_map: HashMap<ElementId, BindingId>,
 }
 
 impl<W> Bindings<W> {
+    /// Creates an empty store.
     pub fn new() -> Self {
         Self {
             bindings: SparseMap::new(),
@@ -25,6 +36,7 @@ impl<W> Bindings<W> {
         }
     }
 
+    /// Registers `binding`, returning its [`BindingId`].
     pub fn add(&mut self, binding: Binding<W>) -> BindingId {
         let element_id = binding.element_id;
         let binding_id = BindingId(self.bindings.insert(binding));
@@ -70,15 +82,24 @@ impl<W> Default for Bindings<W> {
     }
 }
 
+/// A single field binding: reads `T` from the world and writes it
+/// into element `E`'s field when the source changes.
+///
+/// `get_fn` and `mut_fn` are type-erased to keep `Binding` free of
+/// the `E`/`T` parameters; `apply_fn` is the monomorphized writer
+/// that restores them and performs the write.
 #[derive(Debug)]
 pub struct Binding<W> {
-    /// Function that determines if something has changed and require
-    /// a re-creation of [`ReactiveElement::child`].
+    /// Reports whether the bound source changed since the last
+    /// apply.
     changed_fn: ChangedFn<W>,
+    /// Type-erased `fn(&W) -> T` reading the new value.
     get_fn: GetFnPtr,
+    /// Type-erased `fn(&mut E) -> &mut T` to the target field.
     mut_fn: MutFnPtr,
-    /// Apply the binding value.
+    /// Monomorphized writer that re-types and applies the value.
     apply_fn: ApplyFn<W>,
+    /// The element whose field this binding writes.
     element_id: ElementId,
 }
 
@@ -98,14 +119,18 @@ impl<W> Binding<W> {
         }
     }
 
+    /// The element this binding writes into.
     pub fn element_id(&self) -> ElementId {
         self.element_id
     }
 
+    /// Returns `true` if the bound source changed.
     pub fn is_changed(&self, world: &W) -> bool {
         (self.changed_fn)(world)
     }
 
+    /// Reads the new value from `world` and writes it into the
+    /// element, marking it dirty.
     pub fn apply(&self, elements: &mut Elements, world: &W) {
         (self.apply_fn)(
             world,
@@ -125,8 +150,12 @@ impl<W> Clone for Binding<W> {
     }
 }
 
+/// Reports whether a binding's source changed since the last apply.
 pub type ChangedFn<W> = fn(&W) -> bool;
 
+/// Type-erased writer stored on a [`Binding`]. Monomorphized per
+/// `(W, E, T)`, it restores the erased accessors and performs the
+/// field write.
 pub type ApplyFn<W> = fn(
     world: &W,
     elements: &mut Elements,
@@ -135,6 +164,9 @@ pub type ApplyFn<W> = fn(
     get_mut: MutFnPtr,
 );
 
+/// Reads `T` from `world`, writes it into element `E`'s field, and
+/// marks the element dirty. A no-op write if the element is absent
+/// or of a different type, but it is still marked dirty.
 fn apply<W, E: Element, T>(
     world: &W,
     elements: &mut Elements,
@@ -152,7 +184,8 @@ fn apply<W, E: Element, T>(
     elements.mark_dirty(*id);
 }
 
-/// A type-erased mutable field accessor function pointer.
+/// A type-erased [`GetFn`] (the world value reader) stored on a
+/// [`Binding`] so it carries no `T` parameter.
 #[derive(Debug, Clone, Copy)]
 pub struct GetFnPtr(*const ());
 
@@ -160,12 +193,12 @@ unsafe impl Send for GetFnPtr {}
 unsafe impl Sync for GetFnPtr {}
 
 impl GetFnPtr {
-    /// Creates a new erased type of [`MutFn<S, T>`].
+    /// Erases a [`GetFn<W, T>`].
     pub const fn new<W, T>(f: GetFn<W, T>) -> Self {
         Self(f as *const ())
     }
 
-    /// Re-interprets this pointer as a typed [`MutFn`] without
+    /// Re-interprets this pointer as a typed [`GetFn`] without
     /// checking type correctness.
     ///
     /// # Safety
@@ -179,14 +212,15 @@ impl GetFnPtr {
     }
 }
 
+/// Reads a value of type `T` from the world.
 pub type GetFn<W, T> = fn(&W) -> T;
 
-/// Generational ID for reactive instances.
+/// Generational ID for binding instances.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BindingId(Key);
 
 impl BindingId {
-    /// A sentinel id that will never refer to a live reactive.
+    /// A sentinel id that will never refer to a live binding.
     pub const PLACEHOLDER: Self = Self(Key::PLACEHOLDER);
 }
 

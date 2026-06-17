@@ -297,6 +297,12 @@ impl Default for Elements {
     }
 }
 
+/// A typed, [`Copy`] reference to a stored element: an [`ElementId`]
+/// tagged with its element type `E`.
+///
+/// The type tag is what lets `bind` type-check a field accessor
+/// against the element it targets. The `fn() -> E` marker keeps the
+/// handle neutral on variance and auto traits while owning no `E`.
 #[derive(Debug)]
 pub struct ElementHandle<E: Element> {
     id: ElementId,
@@ -304,6 +310,7 @@ pub struct ElementHandle<E: Element> {
 }
 
 impl<E: Element> ElementHandle<E> {
+    /// Tags `id` with the element type `E`.
     pub fn new(id: ElementId) -> Self {
         Self {
             id,
@@ -311,6 +318,7 @@ impl<E: Element> ElementHandle<E> {
         }
     }
 
+    /// Drops the type tag, returning the bare [`ElementId`].
     pub fn as_id(self) -> ElementId {
         self.id
     }
