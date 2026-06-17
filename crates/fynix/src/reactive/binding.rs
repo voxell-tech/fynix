@@ -2,10 +2,10 @@
 //! driven by world change detection.
 //!
 //! A binding is the lightweight counterpart to a
-//! [`Watch`](crate::reactive::watch::Watch). Where a watch rebuilds a
-//! whole subtree, a binding reads one value from the world and writes
-//! it into one element field, then marks that element dirty. Bindings
-//! are attached per instance via
+//! [`Watcher`](crate::reactive::watcher::Watcher). Where a watcher
+//! rebuilds a whole subtree, a binding reads one value from the world
+//! and writes it into one element field, then marks it dirty.
+//! Bindings are attached per instance via
 //! [`ElementCtx::bind`](crate::ctx::ElementCtx::bind) and flushed
 //! each frame by [`Fynix::sync`](crate::Fynix::sync).
 
@@ -26,7 +26,7 @@ use crate::reactive::ChangedFn;
 ///
 /// [`ElementTable::insert_component`]: crate::element::table::ElementTable::insert_component
 #[derive(Debug)]
-pub struct Binding<W> {
+pub struct Binding<W: 'static> {
     /// Reports whether the bound source changed since the last
     /// apply.
     changed_fn: ChangedFn<W>,
@@ -62,7 +62,7 @@ impl<W> Binding<W> {
     pub fn build(
         &self,
         id: &ElementId,
-        elements: &mut Elements,
+        elements: &mut Elements<W>,
         world: &W,
     ) {
         (self.apply_fn)(world, elements, id, self.get_fn, self.mut_fn)
@@ -82,7 +82,7 @@ impl<W> Clone for Binding<W> {
 /// field write.
 type ApplyFn<W> = fn(
     world: &W,
-    elements: &mut Elements,
+    elements: &mut Elements<W>,
     id: &ElementId,
     get_fn: GetFnPtr,
     get_mut: MutFnPtr,
@@ -93,7 +93,7 @@ type ApplyFn<W> = fn(
 /// or of a different type, but it is still marked dirty.
 fn apply<W, E: Element, T>(
     world: &W,
-    elements: &mut Elements,
+    elements: &mut Elements<W>,
     id: &ElementId,
     get_fn: GetFnPtr,
     get_mut: MutFnPtr,

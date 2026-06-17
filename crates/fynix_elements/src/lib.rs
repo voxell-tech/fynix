@@ -6,7 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use fynix::element::layout::ElementNodes;
-use fynix::element::table::ElementTable;
+use fynix::element::table::RenderElementTable;
 use fynix::imaging::kurbo::{Affine, Stroke};
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
 use fynix::imaging::record::{Glyph, Scene, replay_transformed};
@@ -239,7 +239,7 @@ impl ElementBuild for Button {
         &self,
         id: &ElementId,
         painter: &mut dyn PaintSink,
-        table: &ElementTable,
+        table: RenderElementTable,
     ) {
         let Some(node) = table.node(id) else { return };
         let pos = node.world_translation;
@@ -359,7 +359,7 @@ impl ElementBuild for Label {
         &self,
         id: &ElementId,
         painter: &mut dyn PaintSink,
-        table: &ElementTable,
+        table: RenderElementTable,
     ) {
         let Some(node) = table.node(id) else { return };
         let Some(scene) = table.scene(id) else {

@@ -2,7 +2,7 @@
 //!
 //! Two flavors share one change-detection signal, the [`ChangedFn`]:
 //!
-//! - A [`watch`] rebuilds a whole subtree when its source changes.
+//! - A [`watcher`] rebuilds a whole subtree when its source changes.
 //! - A [`binding`] writes one field in place when its source changes.
 //!
 //! Both are stored as per-element components on the element table and
@@ -10,7 +10,7 @@
 //! [`Fynix::sync`](crate::Fynix::sync).
 
 pub mod binding;
-pub mod watch;
+pub mod watcher;
 
 /// Reports whether a reactive source changed since the last flush.
 pub type ChangedFn<W> = fn(&W) -> bool;

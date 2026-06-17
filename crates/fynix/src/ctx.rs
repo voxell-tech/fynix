@@ -9,7 +9,7 @@ use crate::init::Init;
 use crate::interaction::HandlerFn;
 use crate::reactive::ChangedFn;
 use crate::reactive::binding::{Binding, GetFn};
-use crate::reactive::watch::{BuildFn, Watch, WatchElement};
+use crate::reactive::watcher::{BuildFn, Watcher, WatcherElement};
 use crate::style::{Stylable, StyleId, StyleValue};
 
 /// Build-time context for constructing the element tree and declaring
@@ -28,7 +28,7 @@ use crate::style::{Stylable, StyleId, StyleValue};
 /// leak outward.
 ///
 /// [`Style`]: crate::style::Style
-pub struct FynixCtx<'f, 'w, W> {
+pub struct FynixCtx<'f, 'w, W: 'static> {
     fynix: &'f mut Fynix<W>,
     pub world: &'w mut W,
 
@@ -120,7 +120,7 @@ impl<W> FynixCtx<'_, '_, W> {
         self.fynix.styles.set(field_accessor, value);
     }
 
-    /// Attaches a watch to the element tree.
+    /// Attaches a watcher to the element tree.
     ///
     /// `build` constructs a subtree and `changed` reports whether the
     /// state it reads has changed since the last build. When
@@ -128,7 +128,7 @@ impl<W> FynixCtx<'_, '_, W> {
     /// place.
     ///
     /// The initial subtree is built immediately, under the current
-    /// style scope. That scope is captured on the [`Watch`] and
+    /// style scope. That scope is captured on the [`Watcher`] and
     /// restored on every rebuild, so a rebuilt subtree is styled like
     /// the first.
     #[must_use]
@@ -136,21 +136,18 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         changed: ChangedFn<W>,
         build: BuildFn<W>,
-    ) -> ElementCtx<'_, W, WatchElement>
-    where
-        W: 'static,
-    {
+    ) -> ElementCtx<'_, W, WatcherElement> {
         self.commit_pending_styles();
 
-        // Build the holder element, then attach the watch as a
+        // Build the holder element, then attach the watcher as a
         // component keyed by the holder's id.
         let style_id = self.prev_style;
         let element_handle =
-            self.fynix.elements.add(WatchElement::init(), None);
+            self.fynix.elements.add(WatcherElement::init(), None);
         let element_id = element_handle.as_id();
-        self.fynix.elements.table.insert_component(
+        self.fynix.elements.table.insert_watcher(
             element_id,
-            Watch::new(changed, build, style_id),
+            Watcher::new(changed, build, style_id),
         );
 
         // Build the initial subtree under the current style scope.
@@ -167,7 +164,7 @@ impl<W> FynixCtx<'_, '_, W> {
         if let Some(elem) = self
             .fynix
             .elements
-            .get_typed_mut::<WatchElement>(&element_id)
+            .get_typed_mut::<WatcherElement>(&element_id)
         {
             elem.child = child;
         }
@@ -240,7 +237,7 @@ impl<W> FynixCtx<'_, '_, W> {
 ///
 /// Carries `E` so configuration can be type-checked against the
 /// element. Converts into its [`ElementId`] or [`ElementHandle`].
-pub struct ElementCtx<'f, W, E: Element> {
+pub struct ElementCtx<'f, W: 'static, E: Element> {
     fynix: &'f mut Fynix<W>,
     handle: ElementHandle<E>,
 }
@@ -257,7 +254,7 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     ///
     /// When `changed_fn` reports a change, `get_fn` reads the new
     /// value from the world and it is written through `mut_fn` into
-    /// this element, which is then marked dirty. Unlike a watch,
+    /// this element, which is then marked dirty. Unlike a watcher,
     /// nothing is rebuilt: only the field is updated in place.
     ///
     /// Chainable, and applied each frame by
@@ -267,12 +264,9 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
         changed_fn: ChangedFn<W>,
         get_fn: GetFn<W, T>,
         mut_fn: MutFn<E, T>,
-    ) -> Self
-    where
-        W: 'static,
-    {
+    ) -> Self {
         let id = self.id();
-        self.fynix.elements.table.insert_component(
+        self.fynix.elements.table.insert_binding(
             id,
             Binding::new(changed_fn, get_fn, mut_fn),
         );
@@ -287,10 +281,7 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     ///
     /// The handler is a [`HandlerFn`], so a non-capturing closure
     /// coerces into one; a capturing closure does not.
-    pub fn on<I: 'static>(self, handler: HandlerFn<I, W>) -> Self
-    where
-        W: 'static,
-    {
+    pub fn on<I: 'static>(self, handler: HandlerFn<I, W>) -> Self {
         self.fynix
             .elements
             .table

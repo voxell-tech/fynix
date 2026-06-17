@@ -13,7 +13,7 @@ use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
 use crate::interaction::HandlerFn;
 use crate::reactive::binding::Binding;
-use crate::reactive::watch::Watch;
+use crate::reactive::watcher::Watcher;
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
@@ -49,14 +49,10 @@ mod id;
 ///
 /// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building the
 /// user interface.
-pub struct Fynix<W> {
+pub struct Fynix<W: 'static> {
     pub resources: Resources,
-    elements: Elements,
+    elements: Elements<W>,
     styles: Styles,
-    /// Single backend world type. Watches, bindings, and interaction
-    /// handlers are stored as components on the element table, so
-    /// `W` only appears in the build-time and update APIs.
-    _world: core::marker::PhantomData<fn(&mut W)>,
 }
 
 impl<W> Fynix<W> {
@@ -65,7 +61,6 @@ impl<W> Fynix<W> {
             resources: Resources::new(),
             elements: Elements::new(),
             styles: Styles::new(),
-            _world: core::marker::PhantomData,
         }
     }
 
@@ -80,10 +75,7 @@ impl<W> Fynix<W> {
         id: &ElementId,
         interaction: I,
         world: &mut W,
-    ) -> bool
-    where
-        W: 'static,
-    {
+    ) -> bool {
         let Some(handler) = self
             .elements
             .table
@@ -123,7 +115,7 @@ impl<W> Fynix<W> {
         // removed element owns. The first primary style encountered
         // drops itself and all its descendants in the style tree, so
         // deeper primary styles are left for that subtree removal to
-        // handle. Watches, bindings, and interaction handlers ride
+        // handle. Watchers, bindings, and interaction handlers ride
         // the element table and are dropped with the element,
         // so only styles need explicit cleanup here.
         let mut has_removed_styles = false;
@@ -142,20 +134,17 @@ impl<W> Fynix<W> {
     /// applying every change-driven update whose source changed.
     ///
     /// Intended to be called by the backend once per frame.
-    pub fn sync(&mut self, world: &mut W)
-    where
-        W: 'static,
-    {
-        let watches = self
+    pub fn sync(&mut self, world: &mut W) {
+        let watchers = self
             .elements
             .table
-            .components::<Watch<W>>()
-            .filter(|(_, watch)| watch.is_changed(world))
-            .map(|(id, watch)| (*id, *watch))
+            .components::<Watcher<W>>()
+            .filter(|(_, watcher)| watcher.is_changed(world))
+            .map(|(id, watcher)| (*id, *watcher))
             .collect::<Vec<_>>();
 
-        for (id, watch) in watches {
-            watch.rebuild(id, self, world);
+        for (id, watcher) in watchers {
+            watcher.rebuild(id, self, world);
         }
 
         let bindings = self
