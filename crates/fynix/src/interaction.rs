@@ -7,19 +7,19 @@ use crate::element::ElementId;
 /// emitting messages into [`Events`].
 ///
 /// A plain function pointer, so a non-capturing closure coerces into
-/// one at the [`on`](crate::ctx::ElementHandle::on) call site.
+/// one at the [`on`](crate::ctx::ElementCtx::on) call site.
 pub type HandlerFn<I> = fn(I, &mut Events);
 
 /// Per-instance interaction store.
 ///
 /// Each element instance carries its own handlers, attached at build
-/// time via [`FynixCtx::add`] and [`ElementHandle::on`]. The
+/// time via [`FynixCtx::add`] and [`ElementCtx::on`]. The
 /// [`TypeTable`] keeps one column of [`HandlerFn<I>`] per interaction
 /// type `I`, addressed by [`ElementId`], so dispatching `I` to an id
 /// is a single typed column lookup.
 ///
 /// [`FynixCtx::add`]: crate::ctx::FynixCtx::add
-/// [`ElementHandle::on`]: crate::ctx::ElementHandle::on
+/// [`ElementCtx::on`]: crate::ctx::ElementCtx::on
 pub struct Interactions {
     table: TypeTable<ElementId>,
 }

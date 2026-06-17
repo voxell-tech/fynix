@@ -18,21 +18,21 @@ pub struct Reactives<W> {
     reactives: SparseMap<Reactive<W>>,
     /// Reverse index from each holder element to its reactive, used
     /// to remove the reactive when the element is removed.
-    by_element: HashMap<ElementId, ReactiveId>,
+    element_map: HashMap<ElementId, ReactiveId>,
 }
 
 impl<W> Reactives<W> {
     pub fn new() -> Self {
         Self {
             reactives: SparseMap::new(),
-            by_element: HashMap::new(),
+            element_map: HashMap::new(),
         }
     }
 
     pub fn add(&mut self, reactive: Reactive<W>) -> ReactiveId {
         let element_id = reactive.element_id;
         let reactive_id = ReactiveId(self.reactives.insert(reactive));
-        self.by_element.insert(element_id, reactive_id);
+        self.element_map.insert(element_id, reactive_id);
         reactive_id
     }
 
@@ -43,7 +43,7 @@ impl<W> Reactives<W> {
         &mut self,
         element_id: &ElementId,
     ) {
-        if let Some(reactive_id) = self.by_element.remove(element_id)
+        if let Some(reactive_id) = self.element_map.remove(element_id)
         {
             self.reactives.remove(&reactive_id.0);
         }

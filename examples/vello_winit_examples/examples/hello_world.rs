@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use fynix::element::storage::ElementHandle;
 use fynix::prelude::*;
 use fynix_elements::parley::FontStyle;
 use fynix_elements::parley::fontique::{Blob, GenericFamily};
@@ -26,21 +27,17 @@ fn main_layout(ctx: &mut FynixCtx<HelloWorld>) -> ElementId {
         p.set_child(ctx.add_with::<Vertical>(|v, ctx| {
             ctx.set(path!(<Label>::fill), css::WHITE_SMOKE.into());
 
-            // Reactive FPS counter: rebuilt only when the value
-            // changes (see `DemoWorld::update`).
-            v.add(ctx.reactive(
-                |w| w.fps_changed,
-                |ctx| {
-                    let fps = ctx.world.fps;
-                    Some(
-                        ctx.add_with::<Label>(|label, _| {
-                            label.text = format!("FPS: {fps}");
-                            label.font_size = 20.0;
-                        })
-                        .id(),
-                    )
-                },
-            ));
+            v.add(
+                ctx.add_with::<Label>(|label, ctx| {
+                    label.text = format!("FPS: {}", ctx.world.fps);
+                    label.font_size = 20.0;
+                })
+                .bind(
+                    |w| w.fps_changed,
+                    |w| format!("FPS: {}", w.fps),
+                    |label| &mut label.text,
+                ),
+            );
 
             v.add(ctx.add_with::<Label>(|label, _ctx| {
                 label.text = "Hello, Fynix!".into();
@@ -96,14 +93,13 @@ fn main_layout(ctx: &mut FynixCtx<HelloWorld>) -> ElementId {
 /// frame delta, plus the latest window size.
 #[derive(Default)]
 struct HelloWorld {
+    /// The current fps of the app.
     fps: u32,
-    /// True only on the frame `fps` changed, so the reactive counter
-    /// rebuilds just then.
+    /// True only on the frame `fps` changed.
     fps_changed: bool,
     /// Latest window size pushed in by the backend.
     window_size: Size,
-    /// True when `window_size` changed, so the reactive window
-    /// subtree rebuilds just then.
+    /// True when `window_size` changed.
     window_size_changed: bool,
 }
 
@@ -145,21 +141,16 @@ impl DemoWorld for HelloWorld {
     }
 
     fn build(ctx: &mut FynixCtx<Self>) -> ElementId {
-        // Reactive window subtree: rebuilt only when the window size
-        // changes (see `set_window_size`).
-        ctx.reactive(
+        let size = ctx.world.window_size;
+        ctx.world.window_size_changed = false;
+        ctx.add_with::<WindowSize>(|win, ctx| {
+            win.size = size;
+            win.set_child(main_layout(ctx));
+        })
+        .bind(
             |w| w.window_size_changed,
-            |ctx| {
-                let size = ctx.world.window_size;
-                ctx.world.window_size_changed = false;
-                Some(
-                    ctx.add_with::<WindowSize>(|win, ctx| {
-                        win.size = size;
-                        win.set_child(main_layout(ctx));
-                    })
-                    .id(),
-                )
-            },
+            |w| w.window_size,
+            |win| &mut win.size,
         )
         .id()
     }
@@ -182,12 +173,13 @@ struct TextButton<'a> {
 
 impl Composer<HelloWorld> for TextButton<'_> {
     type Style = TextButtonStyle;
+    type Element = Button;
 
     fn compose(
         self,
         style: TextButtonStyle,
         ctx: &mut FynixCtx<'_, '_, HelloWorld>,
-    ) -> ElementId {
+    ) -> ElementHandle<Self::Element> {
         ctx.add_with::<Button>(|b, ctx| {
             b.corner_radius = style.corner_radius;
             if let Some(bg_color) = style.bg_color {
@@ -201,6 +193,6 @@ impl Composer<HelloWorld> for TextButton<'_> {
                 }));
             }));
         })
-        .id()
+        .handle()
     }
 }

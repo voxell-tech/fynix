@@ -8,6 +8,7 @@ use fynix_event::Events;
 pub use imaging;
 use imaging::PaintSink;
 
+use crate::binding::Bindings;
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
 use crate::interaction::Interactions;
@@ -15,6 +16,7 @@ use crate::reactive::{ReactiveElement, Reactives};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
+pub mod binding;
 pub mod composer;
 pub mod ctx;
 pub mod element;
@@ -52,6 +54,7 @@ pub struct Fynix<W> {
     elements: Elements,
     styles: Styles,
     reactives: Reactives<W>,
+    bindings: Bindings<W>,
     events: Events,
     interactions: Interactions,
 }
@@ -63,6 +66,7 @@ impl<W> Fynix<W> {
             elements: Elements::new(),
             styles: Styles::new(),
             reactives: Reactives::new(),
+            bindings: Bindings::new(),
             events: Events::new(),
             interactions: Interactions::new(),
         }
@@ -127,6 +131,7 @@ impl<W> Fynix<W> {
             // Drop any reactive and interaction handlers this
             // element owns.
             self.reactives.remove_for_element(id);
+            self.bindings.remove_for_element(id);
             self.interactions.remove(id);
         })
     }
@@ -179,6 +184,10 @@ impl<W> Fynix<W> {
             // Mark the rebuilt subtree dirty so it is re-laid-out
             // and re-rendered.
             self.elements.mark_dirty(element_id);
+        }
+
+        for binding in self.bindings.snapshot_changed(world) {
+            binding.apply(&mut self.elements, world);
         }
     }
 
