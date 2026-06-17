@@ -27,7 +27,7 @@ use crate::style::{Stylable, StyleId, StyleValue};
 ///
 /// [`Style`]: crate::style::Style
 pub struct FynixCtx<'f, 'w, W> {
-    fynix: &'f mut Fynix,
+    fynix: &'f mut Fynix<W>,
     pub world: &'w mut W,
 
     prev_style: Option<StyleId>,
@@ -37,7 +37,7 @@ pub struct FynixCtx<'f, 'w, W> {
 
 impl<W> FynixCtx<'_, '_, W> {
     pub(crate) fn new<'f, 'w>(
-        fynix: &'f mut Fynix,
+        fynix: &'f mut Fynix<W>,
         world: &'w mut W,
         prev_style: Option<StyleId>,
     ) -> FynixCtx<'f, 'w, W> {
@@ -134,10 +134,7 @@ impl<W> FynixCtx<'_, '_, W> {
         &mut self,
         changed: ChangedFn<W>,
         build: BuildFn<W>,
-    ) -> ElementHandle<'_>
-    where
-        W: 'static,
-    {
+    ) -> ElementHandle<'_> {
         self.commit_pending_styles();
 
         // Build the holder element and its reactive together: the

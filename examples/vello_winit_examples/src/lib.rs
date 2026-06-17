@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use fynix::prelude::*;
-use fynix_elements::WindowSize;
 use imaging_vello::VelloSceneSink;
 use vello::kurbo::Rect;
 use vello::peniko::Color;
@@ -17,11 +16,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::Window;
 
-pub trait FynixDemo {
-    /// World state passed to [`Self::build`] and advanced each frame
-    /// in [`Self::update`]. Reactive scopes read from it.
-    type World: Default + 'static;
-
+pub trait DemoWorld: Sized {
     fn window_title(&self) -> &'static str {
         "Fynix"
     }
@@ -30,21 +25,26 @@ pub trait FynixDemo {
         (800.0, 600.0)
     }
 
-    fn init(&mut self, _fynix: &mut Fynix) {}
+    /// Registers any resources or assets the demo needs before the
+    /// initial build.
+    fn init(&mut self, fynix: &mut Fynix<Self>);
 
     /// Advances world state before reactive scopes are updated.
     /// `dt` is the time elapsed since the previous frame.
-    fn update(&mut self, _world: &mut Self::World, _dt: Duration) {}
+    fn update(&mut self, dt: Duration);
 
-    fn build(&mut self, ctx: &mut FynixCtx<Self::World>)
-    -> ElementId;
+    /// Pushes the new window size into the world whenever it changes.
+    fn set_window_size(&mut self, size: Size);
+
+    /// Builds the initial tree. The world is already borrowed by
+    /// `ctx`, so read it via `ctx.world`.
+    fn build(ctx: &mut FynixCtx<Self>) -> ElementId;
 }
 
-pub struct VelloWinitApp<'s, D: FynixDemo> {
-    fynix: Fynix,
+pub struct VelloWinitApp<'s, W: DemoWorld> {
+    fynix: Fynix<W>,
+    world: W,
     root_id: ElementId,
-    demo: D,
-    world: D::World,
     last_frame: Instant,
     context: RenderContext,
     renderer: Option<Renderer>,
@@ -60,24 +60,19 @@ pub enum RenderState<'s> {
     },
 }
 
-impl<D: FynixDemo> VelloWinitApp<'_, D> {
-    pub fn new(mut demo: D) -> Self {
+impl<W: DemoWorld> VelloWinitApp<'_, W> {
+    pub fn new(mut world: W) -> Self {
         let mut fynix = Fynix::new();
-        demo.init(&mut fynix);
+        world.init(&mut fynix);
 
-        let mut world = D::World::default();
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
-            ctx.add_with::<WindowSize>(|w, ctx| {
-                w.set_child(demo.build(ctx));
-            })
-            .id()
+            W::build(&mut ctx)
         };
 
         Self {
             fynix,
             root_id,
-            demo,
             world,
             last_frame: Instant::now(),
             context: RenderContext::new(),
@@ -112,31 +107,13 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
             );
         }
 
-        // Resize the root only when the window size changes, marking
-        // it dirty so the whole tree re-lays out then (and on the
-        // first frame).
-        let size = Size::new(phys.width as f32, phys.height as f32);
-        let resized = self
-            .fynix
-            .elements
-            .get_typed_mut::<WindowSize>(&self.root_id)
-            .is_some_and(|root| {
-                let changed = root.size.width != size.width
-                    || root.size.height != size.height;
-                root.size = size;
-                changed
-            });
-        if resized {
-            self.fynix.elements.mark_dirty(self.root_id);
-        }
-
         // Advance world state with this frame's delta, then rebuild
         // any reactives whose inputs changed, before layout.
         let now = Instant::now();
         let dt = now.duration_since(self.last_frame);
         self.last_frame = now;
-        self.demo.update(&mut self.world, dt);
-        self.fynix.update_reactives::<D::World>(&mut self.world);
+        self.world.update(dt);
+        self.fynix.update_reactives(&mut self.world);
 
         self.fynix.layout();
 
@@ -204,18 +181,18 @@ impl<D: FynixDemo> VelloWinitApp<'_, D> {
     }
 }
 
-impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
+impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let RenderState::Suspended(cached_window) = &mut self.state
         else {
             return;
         };
 
-        let (w, h) = self.demo.initial_logical_size();
+        let (w, h) = self.world.initial_logical_size();
         let window = cached_window.take().unwrap_or_else(|| {
             let attr = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(w, h))
-                .with_title(self.demo.window_title());
+                .with_title(self.world.window_title());
             Arc::new(event_loop.create_window(attr).unwrap())
         });
 
@@ -278,7 +255,10 @@ impl<D: FynixDemo> ApplicationHandler for VelloWinitApp<'_, D> {
                     window.request_redraw();
                 }
             }
-            WindowEvent::Resized(_) => {
+            WindowEvent::Resized(phys) => {
+                let size =
+                    Size::new(phys.width as f32, phys.height as f32);
+                self.world.set_window_size(size);
                 if let RenderState::Active { window, .. } =
                     &self.state
                 {

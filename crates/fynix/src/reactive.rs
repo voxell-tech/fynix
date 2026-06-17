@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use rectree::{Constraint, NodeContext, Size, Vec2};
-use typarena::type_pool::{PoolKey, TypePool};
+use sparse_map::{Key, SparseMap};
 
 use crate::ctx::FynixCtx;
 use crate::element::layout::ElementNodes;
@@ -10,25 +10,26 @@ use crate::element::{Element, ElementBuild, ElementId};
 use crate::init::Init;
 use crate::style::StyleId;
 
-pub struct Reactives {
-    reactives: TypePool,
+/// Store of every reactive bound to the element tree, fixed to the
+/// single world type `W`.
+///
+/// Backed by a concrete [`SparseMap`] keyed by [`ReactiveId`].
+pub struct Reactives<W> {
+    reactives: SparseMap<Reactive<W>>,
     /// Reverse index from each holder element to its reactive, used
     /// to remove the reactive when the element is removed.
     by_element: HashMap<ElementId, ReactiveId>,
 }
 
-impl Reactives {
+impl<W> Reactives<W> {
     pub fn new() -> Self {
         Self {
-            reactives: TypePool::new(),
+            reactives: SparseMap::new(),
             by_element: HashMap::new(),
         }
     }
 
-    pub fn add<W: 'static>(
-        &mut self,
-        reactive: Reactive<W>,
-    ) -> ReactiveId {
+    pub fn add(&mut self, reactive: Reactive<W>) -> ReactiveId {
         let element_id = reactive.element_id;
         let reactive_id = ReactiveId(self.reactives.insert(reactive));
         self.by_element.insert(element_id, reactive_id);
@@ -44,29 +45,29 @@ impl Reactives {
     ) {
         if let Some(reactive_id) = self.by_element.remove(element_id)
         {
-            self.reactives.dyn_remove(&reactive_id.0);
+            self.reactives.remove(&reactive_id.0);
         }
     }
 
-    /// Snapshots every reactive of world type `W` whose `changed_fn`
-    /// reports a change against `world`.
+    /// Snapshots every reactive whose `changed_fn` reports a change
+    /// against `world`.
     ///
     /// [`Reactive`] is [`Copy`], so the snapshot detaches the changed
-    /// reactives from the pool, letting the caller borrow the rest of
-    /// `Fynix` while it rebuilds each one.
-    pub(crate) fn snapshot_changed<W: 'static>(
+    /// reactives from the store, letting the caller borrow the rest
+    /// of `Fynix` while it rebuilds each one.
+    pub(crate) fn snapshot_changed(
         &self,
         world: &W,
     ) -> Vec<Reactive<W>> {
         self.reactives
-            .iter::<Reactive<W>>()
+            .iter()
             .filter(|reactive| reactive.is_changed(world))
             .copied()
             .collect()
     }
 }
 
-impl Default for Reactives {
+impl<W> Default for Reactives<W> {
     fn default() -> Self {
         Self::new()
     }
@@ -157,16 +158,106 @@ impl<W> Clone for Reactive<W> {
 
 /// Generational ID for reactive instances.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ReactiveId(PoolKey);
+pub struct ReactiveId(Key);
 
 impl ReactiveId {
     /// A sentinel id that will never refer to a live reactive.
-    pub const PLACEHOLDER: Self = Self(PoolKey::PLACEHOLDER);
+    pub const PLACEHOLDER: Self = Self(Key::PLACEHOLDER);
 }
 
 impl core::ops::Deref for ReactiveId {
-    type Target = PoolKey;
-    fn deref(&self) -> &PoolKey {
+    type Target = Key;
+    fn deref(&self) -> &Key {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Fynix;
+    use crate::element::ElementBuild;
+    use crate::element::layout::ElementNodes;
+
+    #[derive(Init, Element, Clone)]
+    struct Counter {
+        n: u32,
+    }
+
+    impl ElementBuild for Counter {
+        fn build(
+            &self,
+            _id: &ElementId,
+            constraint: Constraint,
+            _nodes: &mut ElementNodes,
+        ) -> Size {
+            constraint.min
+        }
+    }
+
+    #[derive(Default)]
+    struct World {
+        changed: bool,
+        value: u32,
+    }
+
+    /// The reactive captures `value` at build time and only rebuilds
+    /// when `changed` reports true, picking up the new value then.
+    #[test]
+    fn rebuilds_only_when_changed() {
+        let mut world = World {
+            changed: false,
+            value: 1,
+        };
+        let mut fynix = Fynix::<World>::new();
+
+        let holder = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            ctx.reactive(
+                |w| w.changed,
+                |ctx| {
+                    let value = ctx.world.value;
+                    Some(
+                        ctx.add_with::<Counter>(|c, _| c.n = value)
+                            .id(),
+                    )
+                },
+            )
+            .id()
+        };
+
+        let child_n = |fynix: &Fynix<World>| {
+            let child = fynix
+                .elements
+                .get_typed::<ReactiveElement>(&holder)
+                .unwrap()
+                .child
+                .unwrap();
+            (
+                child,
+                fynix
+                    .elements
+                    .get_typed::<Counter>(&child)
+                    .unwrap()
+                    .n,
+            )
+        };
+
+        // Initial build captured value 1.
+        let (first_child, n) = child_n(&fynix);
+        assert_eq!(n, 1);
+
+        // Value changes but `changed` is false: no rebuild.
+        world.value = 2;
+        fynix.update_reactives(&mut world);
+        let (child, n) = child_n(&fynix);
+        assert_eq!(child, first_child);
+        assert_eq!(n, 1);
+
+        // Flip `changed`: subtree rebuilds with the new value.
+        world.changed = true;
+        fynix.update_reactives(&mut world);
+        let (_, n) = child_n(&fynix);
+        assert_eq!(n, 2);
     }
 }

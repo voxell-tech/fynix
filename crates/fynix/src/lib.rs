@@ -46,24 +46,22 @@ mod id;
 /// style state.
 ///
 /// Obtain a [`FynixCtx`] via [`Self::root_ctx`] to start building the
-/// UI.
-pub struct Fynix {
-    // TODO(nixon): Make these private and provide a more elegant
-    // API!
-    pub elements: Elements,
-    pub styles: Styles,
+/// user interface.
+pub struct Fynix<W> {
     pub resources: Resources,
-    pub reactives: Reactives,
-    pub events: Events,
-    pub interactions: Interactions,
+    elements: Elements,
+    styles: Styles,
+    reactives: Reactives<W>,
+    events: Events,
+    interactions: Interactions,
 }
 
-impl Fynix {
+impl<W> Fynix<W> {
     pub fn new() -> Self {
         Self {
+            resources: Resources::new(),
             elements: Elements::new(),
             styles: Styles::new(),
-            resources: Resources::new(),
             reactives: Reactives::new(),
             events: Events::new(),
             interactions: Interactions::new(),
@@ -74,7 +72,7 @@ impl Fynix {
     /// element type and the interaction type `I`, if one exists.
     ///
     /// Returns `true` if a handler ran. Messages the handler emits
-    /// land in [`Self::events`].
+    /// land in the event queue.
     #[inline]
     pub fn dispatch<I: 'static>(
         &mut self,
@@ -133,12 +131,12 @@ impl Fynix {
         })
     }
 
-    /// Re-runs every reactive of world type `W` whose `changed_fn`
-    /// reports a change, rebuilding its subtree in place.
+    /// Re-runs every reactive whose `changed_fn` reports a change,
+    /// rebuilding its subtree in place.
     ///
     /// Intended to be called by the backend once per frame.
-    pub fn update_reactives<W: 'static>(&mut self, world: &mut W) {
-        for reactive in self.reactives.snapshot_changed::<W>(world) {
+    pub fn update_reactives(&mut self, world: &mut W) {
+        for reactive in self.reactives.snapshot_changed(world) {
             let element_id = reactive.element_id();
 
             // The holder may have been discarded earlier this flush
@@ -160,7 +158,7 @@ impl Fynix {
             // drop any uncommitted style changes so they do not leak.
             let child = {
                 let mut ctx =
-                    FynixCtx::new(self, world, reactive.style_id());
+                    self.create_ctx(world, reactive.style_id());
                 reactive.build(&mut ctx)
             };
             self.styles.clear_builder();
@@ -187,7 +185,7 @@ impl Fynix {
     /// Returns a [`FynixCtx`] rooted at the top of the style
     /// hierarchy.
     #[inline]
-    pub fn root_ctx<'f, 'w, W>(
+    pub fn root_ctx<'f, 'w>(
         &'f mut self,
         world: &'w mut W,
     ) -> FynixCtx<'f, 'w, W> {
@@ -199,7 +197,7 @@ impl Fynix {
     /// Use [`Self::root_ctx`] unless you need to resume building from
     /// a previously committed [`StyleId`].
     #[inline]
-    pub fn create_ctx<'f, 'w, W>(
+    pub fn create_ctx<'f, 'w>(
         &'f mut self,
         world: &'w mut W,
         parent_style: Option<StyleId>,
@@ -208,7 +206,7 @@ impl Fynix {
     }
 }
 
-impl Default for Fynix {
+impl<W> Default for Fynix<W> {
     fn default() -> Self {
         Self::new()
     }
