@@ -16,18 +16,18 @@ use crate::style::StyleId;
 ///
 /// Internally holds one column per element type inside a
 /// [`TypePool`].
-pub struct Elements {
+pub struct Elements<W: 'static> {
     // TODO(nixon): Make these private and provide a more
     // elegant API!
     pub elements: TypePool,
-    pub table: ElementTable,
+    pub table: ElementTable<W>,
     pub type_metas: ElementTypeMetas,
     /// Elements whose subtree changed and needs re-layout/render,
-    /// e.g. after a watch rebuilt its child.
+    /// e.g. after a watcher rebuilt its child.
     pub dirty_elements: HashSet<ElementId>,
 }
 
-impl Elements {
+impl<W> Elements<W> {
     pub fn new() -> Self {
         Self {
             elements: TypePool::new(),
@@ -149,9 +149,9 @@ impl Elements {
         id: &ElementId,
         mut on_removed: impl FnMut(&ElementId, Option<StyleId>),
     ) -> bool {
-        fn remove_recursive(
+        fn remove_recursive<W: 'static>(
             id: &ElementId,
-            table: &mut ElementTable,
+            table: &mut ElementTable<W>,
             type_metas: &ElementTypeMetas,
             elements: &mut TypePool,
             on_removed: &mut impl FnMut(&ElementId, Option<StyleId>),
@@ -221,7 +221,11 @@ impl Elements {
             if let Some(element) =
                 type_meta.get_dyn(&self.elements, id)
             {
-                element.render(id, painter, &self.table);
+                element.render(
+                    id,
+                    painter,
+                    self.table.render_table(),
+                );
             }
             type_meta.for_each_child(
                 &self.elements,
@@ -279,7 +283,7 @@ impl Elements {
         };
 
         let mut nodes = ElementNodes {
-            table: &mut self.table,
+            table: self.table.layout_table(),
             resources,
         };
 
@@ -291,7 +295,7 @@ impl Elements {
     }
 }
 
-impl Default for Elements {
+impl<W> Default for Elements<W> {
     fn default() -> Self {
         Self::new()
     }

@@ -10,11 +10,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-fynix_event.workspace = true
 fynix_macros.workspace = true
 typarena.workspace = true
 rectree.workspace = true
-sparse_map.workspace = true
 hashbrown.workspace = true
 field_path.workspace = true
 imaging.workspace = true

@@ -3,7 +3,7 @@ use rectree::{Constraint, RectNode, RectNodes, Rectree, Size};
 use typarena::type_pool::TypePool;
 
 use crate::element::ElementId;
-use crate::element::table::ElementTable;
+use crate::element::table::LayoutElementTable;
 use crate::element::type_meta::ElementTypeMetas;
 use crate::resource::Resources;
 
@@ -68,7 +68,7 @@ impl<'a> Rectree for ElementTree<'a> {
 }
 
 pub struct ElementNodes<'a> {
-    pub(crate) table: &'a mut ElementTable,
+    pub(crate) table: LayoutElementTable<'a>,
     pub(crate) resources: &'a mut Resources,
 }
 

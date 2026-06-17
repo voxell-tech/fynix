@@ -2,7 +2,7 @@ use imaging::PaintSink;
 use rectree::{Constraint, Size};
 
 use crate::element::layout::ElementNodes;
-use crate::element::table::ElementTable;
+use crate::element::table::RenderElementTable;
 use crate::init::Init;
 
 pub mod layout;
@@ -83,7 +83,7 @@ pub trait ElementBuild {
         &self,
         id: &ElementId,
         painter: &mut dyn PaintSink,
-        table: &ElementTable,
+        table: RenderElementTable,
     ) {
     }
 }

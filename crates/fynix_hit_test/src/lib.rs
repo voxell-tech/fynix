@@ -57,8 +57,8 @@ impl HitTest {
     ///
     /// Layout must be complete so each element's `world_translation`
     /// and `size` are current.
-    pub fn build(
-        elements: &Elements,
+    pub fn build<W: 'static>(
+        elements: &Elements<W>,
         root: &ElementId,
         include: impl Fn(&ElementId) -> bool,
     ) -> Self {

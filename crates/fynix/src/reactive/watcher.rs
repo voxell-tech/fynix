@@ -1,9 +1,9 @@
-//! Watches: subtree rebuilds driven by world change detection.
+//! Watchers: subtree rebuilds driven by world change detection.
 //!
-//! A watch is the heavyweight counterpart to a
+//! A watcher is the heavyweight counterpart to a
 //! [`Binding`](crate::reactive::binding::Binding). Where a binding
-//! writes one field in place, a watch rebuilds a whole subtree when
-//! the world state it reads changes. Watches are attached via
+//! writes one field in place, a watcher rebuilds a whole subtree when
+//! the world state it reads changes. Watchers are attached via
 //! [`FynixCtx::watch`](crate::ctx::FynixCtx::watch) and flushed each
 //! frame by [`Fynix::sync`](crate::Fynix::sync).
 
@@ -18,12 +18,12 @@ use crate::reactive::ChangedFn;
 use crate::style::StyleId;
 
 #[derive(Init, Element)]
-pub struct WatchElement {
+pub struct WatcherElement {
     #[elem(children)]
     pub(crate) child: Option<ElementId>,
 }
 
-impl ElementBuild for WatchElement {
+impl ElementBuild for WatcherElement {
     fn build(
         &self,
         _id: &ElementId,
@@ -44,24 +44,25 @@ impl ElementBuild for WatchElement {
 
 pub type BuildFn<W> = fn(&mut FynixCtx<W>) -> Option<ElementId>;
 
-/// A watch, stored as a component on its [`WatchElement`] holder (see
-/// [`ElementTable::insert_component`]). The holder's [`ElementId`] is
-/// the component key, so the watch carries no id of its own.
+/// A watcher, stored as a component on its [`WatcherElement`] holder
+/// (see [`ElementTable::insert_component`]). The holder's
+/// [`ElementId`] is the component key, so the watcher carries no id
+/// of its own.
 ///
 /// [`ElementTable::insert_component`]: crate::element::table::ElementTable::insert_component
 #[derive(Debug)]
-pub struct Watch<W> {
+pub struct Watcher<W: 'static> {
     /// Reports whether the watched source changed since the last
-    /// flush, requiring a rebuild of [`WatchElement::child`].
+    /// flush, requiring a rebuild of [`WatcherElement::child`].
     changed_fn: ChangedFn<W>,
-    /// Builds the replacement for [`WatchElement::child`].
+    /// Builds the replacement for [`WatcherElement::child`].
     build_fn: BuildFn<W>,
-    /// Style scope active when the watch was created. Restored on
+    /// Style scope active when the watcher was created. Restored on
     /// each rebuild so the subtree is styled like its first build.
     style_id: Option<StyleId>,
 }
 
-impl<W> Watch<W> {
+impl<W> Watcher<W> {
     pub(crate) fn new(
         changed_fn: ChangedFn<W>,
         build_fn: BuildFn<W>,
@@ -79,22 +80,22 @@ impl<W> Watch<W> {
         (self.changed_fn)(world)
     }
 
-    /// Rebuilds the subtree under the [`WatchElement`] at `id`: drops
-    /// the old child, builds a fresh one under the captured style
-    /// scope, re-parents it, and marks the holder dirty.
+    /// Rebuilds the subtree under the [`WatcherElement`] at `id`:
+    /// drops the old child, builds a fresh one under the captured
+    /// style scope, re-parents it, and marks the holder dirty.
     ///
     /// A no-op if the holder is gone, e.g. when an ancestor's rebuild
-    /// already discarded it earlier in the same flush (the watch was
-    /// dropped with it).
+    /// already discarded it earlier in the same flush (the watcher
+    /// was dropped with it).
     pub fn rebuild(
         &self,
-        id: ElementId,
+        id: &ElementId,
         fynix: &mut Fynix<W>,
         world: &mut W,
     ) {
         let Some(old_child) = fynix
             .elements
-            .get_typed_mut::<WatchElement>(&id)
+            .get_typed_mut::<WatcherElement>(id)
             .map(|elem| elem.child.take())
         else {
             return;
@@ -104,7 +105,7 @@ impl<W> Watch<W> {
             fynix.remove_element(&old_child);
         }
 
-        // Rebuild under the watch's captured style scope, then drop
+        // Rebuild under the watcher's captured style scope, then drop
         // any uncommitted style changes so they do not leak.
         let child = {
             let mut ctx = fynix.create_ctx(world, self.style_id);
@@ -116,23 +117,23 @@ impl<W> Watch<W> {
             && let Some(node) =
                 fynix.elements.table.node_mut(&child_id)
         {
-            node.parent_id = Some(id);
+            node.parent_id = Some(*id);
         }
         if let Some(elem) =
-            fynix.elements.get_typed_mut::<WatchElement>(&id)
+            fynix.elements.get_typed_mut::<WatcherElement>(id)
         {
             elem.child = child;
         }
 
         // Mark the rebuilt subtree dirty so it is re-laid-out and
         // re-rendered.
-        fynix.elements.mark_dirty(id);
+        fynix.elements.mark_dirty(*id);
     }
 }
 
-impl<W> Copy for Watch<W> {}
+impl<W> Copy for Watcher<W> {}
 
-impl<W> Clone for Watch<W> {
+impl<W> Clone for Watcher<W> {
     fn clone(&self) -> Self {
         *self
     }
@@ -167,7 +168,7 @@ mod tests {
         value: u32,
     }
 
-    /// The watch captures `value` at build time and only rebuilds
+    /// The watcher captures `value` at build time and only rebuilds
     /// when `changed` reports true, picking up the new value then.
     #[test]
     fn rebuilds_only_when_changed() {
@@ -195,7 +196,7 @@ mod tests {
         let child_n = |fynix: &Fynix<World>| {
             let child = fynix
                 .elements
-                .get_typed::<WatchElement>(&holder)
+                .get_typed::<WatcherElement>(&holder)
                 .unwrap()
                 .child
                 .unwrap();
