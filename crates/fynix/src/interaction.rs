@@ -69,49 +69,44 @@ impl<W> DerefMut for Response<'_, W> {
 /// A user-written interaction handler reacting to interaction `I` by
 /// mutating the world through the [`Response`].
 ///
-/// Stored per instance as an element-table component, one per
-/// `(element, I)`. A non-capturing handler stays a bare function
-/// pointer ([`Self::Ptr`], no allocation, attached via
-/// [`interact`](crate::ctx::ElementCtx::interact)); a capturing one
-/// is boxed ([`Self::Boxed`], attached via
-/// [`interact_with`](crate::ctx::ElementCtx::interact_with)). The
-/// handler consumes the interaction by default; call
+/// A boxed closure, so it may capture its environment. Stored per
+/// instance as an element-table component, one per `(element, I)`,
+/// and attached via [`interact`](crate::ctx::ElementCtx::interact).
+/// The handler consumes the interaction by default; call
 /// [`Response::propagate`] to let it bubble instead.
-pub enum Handler<I, W> {
-    /// A non-capturing handler, stored as a plain function pointer.
-    Ptr(fn(I, &mut Response<'_, W>)),
-    /// A capturing handler, stored boxed.
-    #[expect(clippy::type_complexity)]
-    Boxed(Box<dyn Fn(I, &mut Response<'_, W>)>),
-}
+pub struct Handler<I, W>(Box<dyn HandlerFn<I, W>>);
 
 impl<I, W> Handler<I, W> {
-    /// Runs the handler, passing `interaction` and the `response`.
+    /// Boxes `handler` for storage.
+    pub fn new(handler: impl HandlerFn<I, W>) -> Self {
+        Self(Box::new(handler))
+    }
+
+    /// Runs the handler with `interaction` and the `response`.
     #[inline]
     pub fn call(
         &self,
         interaction: I,
         response: &mut Response<'_, W>,
     ) {
-        match self {
-            Self::Ptr(f) => f(interaction, response),
-            Self::Boxed(f) => f(interaction, response),
-        }
+        (self.0)(interaction, response)
     }
 }
 
-impl<I, W> From<fn(I, &mut Response<'_, W>)> for Handler<I, W> {
-    fn from(handler: fn(I, &mut Response<'_, W>)) -> Self {
-        Self::Ptr(handler)
+impl<I, W, F: HandlerFn<I, W>> From<F> for Handler<I, W> {
+    fn from(handler: F) -> Self {
+        Self::new(handler)
     }
 }
 
-impl<I, W> From<Box<dyn Fn(I, &mut Response<'_, W>)>>
-    for Handler<I, W>
+pub trait HandlerFn<I, W>:
+    Fn(I, &mut Response<'_, W>) + 'static
 {
-    fn from(handler: Box<dyn Fn(I, &mut Response<'_, W>)>) -> Self {
-        Self::Boxed(handler)
-    }
+}
+
+impl<I, W, F> HandlerFn<I, W> for F where
+    F: Fn(I, &mut Response<'_, W>) + 'static
+{
 }
 
 #[cfg(test)]

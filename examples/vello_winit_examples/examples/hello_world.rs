@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use fynix::interaction::Handler;
+use fynix::interaction::{Handler, HandlerFn};
 use fynix::prelude::*;
 use fynix_elements::parley::fontique::{Blob, GenericFamily};
 use fynix_elements::{
@@ -309,36 +309,36 @@ impl ActionButton {
     /// Sets the primary (left) click handler.
     fn on_click(
         mut self,
-        handler: fn(PrimaryClick<Mouse>, &mut Response<HelloWorld>),
+        handler: impl HandlerFn<PrimaryClick<Mouse>, HelloWorld>,
     ) -> Self {
-        self.on_click = Some(Handler::Ptr(handler));
+        self.on_click = Some(handler.into());
         self
     }
 
     /// Sets the secondary (right) click handler.
     fn on_right_click(
         mut self,
-        handler: fn(SecondaryClick<Mouse>, &mut Response<HelloWorld>),
+        handler: impl HandlerFn<SecondaryClick<Mouse>, HelloWorld>,
     ) -> Self {
-        self.on_right_click = Some(Handler::Ptr(handler));
+        self.on_right_click = Some(Handler::new(handler));
         self
     }
 
     /// Sets the pointer-enter handler, run after the cursor change.
     fn on_enter(
         mut self,
-        handler: fn(PointerEnter<Mouse>, &mut Response<HelloWorld>),
+        handler: impl HandlerFn<PointerEnter<Mouse>, HelloWorld>,
     ) -> Self {
-        self.on_enter = Some(Handler::Ptr(handler));
+        self.on_enter = Some(Handler::new(handler));
         self
     }
 
     /// Sets the pointer-leave handler, run after the cursor change.
     fn on_leave(
         mut self,
-        handler: fn(PointerLeave<Mouse>, &mut Response<HelloWorld>),
+        handler: impl HandlerFn<PointerLeave<Mouse>, HelloWorld>,
     ) -> Self {
-        self.on_leave = Some(Handler::Ptr(handler));
+        self.on_leave = Some(Handler::new(handler));
         self
     }
 }
@@ -377,20 +377,20 @@ impl Composer<HelloWorld> for ActionButton {
                 }));
             })
             // Enter/leave set the cursor, then run any user handler.
-            .interact_with::<PointerEnter<Mouse>>(move |i, res| {
+            .interact::<PointerEnter<Mouse>>(move |i, res| {
                 res.cursor_icon = CursorIcon::Pointer;
                 if let Some(on_enter) = &on_enter {
                     on_enter.call(i, res);
                 }
             })
-            .interact_with::<PointerLeave<Mouse>>(move |i, res| {
+            .interact::<PointerLeave<Mouse>>(move |i, res| {
                 res.cursor_icon = CursorIcon::Default;
                 if let Some(on_leave) = &on_leave {
                     on_leave.call(i, res);
                 }
             });
 
-        // Forward the click handlers as built `Handler`s.
+        // Forward the built click handlers directly.
         if let Some(on_click) = on_click {
             button = button.interact_raw(on_click);
         }

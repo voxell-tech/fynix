@@ -1,5 +1,3 @@
-use alloc::boxed::Box;
-
 use field_path::accessor::func_pointers::MutFn;
 use field_path::field_accessor::FieldAccessor;
 
@@ -8,7 +6,7 @@ use crate::composer::Composer;
 use crate::element::storage::ElementHandle;
 use crate::element::{Element, ElementId};
 use crate::init::Init;
-use crate::interaction::{Handler, Response};
+use crate::interaction::{Handler, HandlerFn};
 use crate::reactive::ChangedFn;
 use crate::reactive::binding::{Binding, GetFn};
 use crate::reactive::watcher::{BuildFn, Watcher, WatcherElement};
@@ -259,8 +257,7 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     /// this element, which is then marked dirty. Unlike a watcher,
     /// nothing is rebuilt: only the field is updated in place.
     ///
-    /// Chainable, and applied each frame by
-    /// [`Fynix::sync`](crate::Fynix::sync).
+    /// Chainable, and applied each frame by [`Fynix::sync`].
     #[must_use]
     pub fn bind<T>(
         self,
@@ -279,10 +276,9 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
     /// Attaches an already-built [`Handler`] for interaction type `I`
     /// to this element.
     ///
-    /// The lower-level entry point behind [`Self::interact`] and
-    /// [`Self::interact_with`]; useful for forwarding a stored
-    /// handler. A later call for the same `I` replaces the earlier
-    /// one.
+    /// The lower-level entry point behind [`Self::interact`]; useful
+    /// for forwarding a stored handler. A later call for the same `I`
+    /// replaces the earlier one.
     #[must_use]
     pub fn interact_raw<I: 'static>(
         self,
@@ -295,29 +291,17 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
         self
     }
 
-    /// Attaches a non-capturing handler (without heap allocation) for
-    /// interaction type `I` to this element.
+    /// Attaches a handler for interaction type `I` to this element.
     ///
-    /// For a capturing closure, use [`Self::interact_with`].
+    /// `I` is inferred from the handler's parameter. The closure may
+    /// capture its environment. A later call for the same `I`
+    /// replaces the earlier one.
     #[must_use]
     pub fn interact<I: 'static>(
         self,
-        handler: fn(I, &mut Response<'_, W>),
+        handler: impl HandlerFn<I, W>,
     ) -> Self {
-        self.interact_raw(Handler::Ptr(handler))
-    }
-
-    /// Attaches a capturing handler for interaction type `I` to this
-    /// element, stored boxed.
-    ///
-    /// Like [`Self::interact`], but accepts any closure that captures
-    /// its environment, at the cost of a heap allocation.
-    #[must_use]
-    pub fn interact_with<I: 'static>(
-        self,
-        handler: impl Fn(I, &mut Response<'_, W>) + 'static,
-    ) -> Self {
-        self.interact_raw(Handler::Boxed(Box::new(handler)))
+        self.interact_raw(Handler::new(handler))
     }
 
     /// Returns the element's handle.

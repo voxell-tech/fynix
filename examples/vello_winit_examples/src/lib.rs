@@ -6,7 +6,7 @@ use fynix::prelude::*;
 use fynix_interaction::pointer;
 use fynix_interaction::prelude::*;
 use imaging_vello::VelloSceneSink;
-use vello::kurbo::{Point, Rect};
+use vello::kurbo::{Affine, Point, Rect};
 use vello::peniko::Color;
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
@@ -71,10 +71,14 @@ pub struct VelloWinitApp<'s, W: DemoWorld> {
     root_id: ElementId,
     interactor: Interactor<(), (), MouseButton>,
     cursor: Point,
+    /// Physical-pixels-per-logical-pixel, from the window.
+    scale_factor: f64,
     last_frame: Instant,
     context: RenderContext,
     renderer: Option<Renderer>,
     state: RenderState<'s>,
+    /// The UI scene in logical coordinates, scaled into `scene`.
+    ui_scene: Scene,
     scene: Scene,
 }
 
@@ -112,10 +116,12 @@ impl<W: DemoWorld> VelloWinitApp<'_, W> {
             world,
             interactor,
             cursor: Point::ZERO,
+            scale_factor: 1.0,
             last_frame: Instant::now(),
             context: RenderContext::new(),
             renderer: None,
             state: RenderState::Suspended(None),
+            ui_scene: Scene::new(),
             scene: Scene::new(),
         }
     }
@@ -158,15 +164,24 @@ impl<W: DemoWorld> VelloWinitApp<'_, W> {
         // the fresh layout on the next pointer event.
         self.interactor.invalidate();
 
+        // Render the UI in logical coordinates, then scale it into
+        // the physical-pixel scene so it fills the surface at any
+        // DPI.
         let bounds = Rect::new(
             0.0,
             0.0,
-            phys.width as f64,
-            phys.height as f64,
+            phys.width as f64 / self.scale_factor,
+            phys.height as f64 / self.scale_factor,
         );
-        let mut sink = VelloSceneSink::new(&mut self.scene, bounds);
+        self.ui_scene.reset();
+        let mut sink =
+            VelloSceneSink::new(&mut self.ui_scene, bounds);
         self.fynix.render(&self.root_id, &mut sink);
         sink.finish().unwrap();
+        self.scene.append(
+            &self.ui_scene,
+            Some(Affine::scale(self.scale_factor)),
+        );
 
         let dev = &self.context.devices[surface.dev_id];
         let texture = match surface.surface.get_current_texture() {
@@ -237,6 +252,8 @@ impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
             Arc::new(event_loop.create_window(attr).unwrap())
         });
 
+        self.scale_factor = window.scale_factor();
+
         let phys = window.inner_size();
         let surface_future = self.context.create_surface(
             window.clone(),
@@ -298,13 +315,23 @@ impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
                 }
             }
             WindowEvent::Resized(phys) => {
-                let size =
-                    Size::new(phys.width as f32, phys.height as f32);
-                self.world.set_window_size(size);
+                let logical =
+                    phys.to_logical::<f32>(self.scale_factor);
+                self.world.set_window_size(Size::new(
+                    logical.width,
+                    logical.height,
+                ));
                 self.render();
             }
+            WindowEvent::ScaleFactorChanged {
+                scale_factor, ..
+            } => {
+                self.scale_factor = scale_factor;
+            }
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor = Point::new(position.x, position.y);
+                let pos =
+                    position.to_logical::<f64>(self.scale_factor);
+                self.cursor = Point::new(pos.x, pos.y);
                 self.interactor.moved(
                     &mut self.fynix,
                     &mut self.world,
