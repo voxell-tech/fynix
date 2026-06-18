@@ -1,11 +1,80 @@
-/// User-written interaction handler: reacts to interaction `I` by
-/// mutating the world `W`.
+use core::ops::{Deref, DerefMut};
+
+/// Whether an interaction keeps bubbling after a handler runs.
+///
+/// Handlers consume by default ([`Self::Stop`]); a handler opts into
+/// bubbling with [`Response::propagate`], which sets
+/// [`Self::Continue`] so the interaction reaches the next ancestor
+/// handler.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Propagation {
+    /// Consumed; bubbling stops here.
+    #[default]
+    Stop,
+    /// Keep bubbling to the next ancestor handler.
+    Continue,
+}
+
+/// What a handler is given to react to an interaction: mutable access
+/// to the world, and control over whether the interaction keeps
+/// bubbling.
+///
+/// [`Deref`]/[`DerefMut`] target the world, so a handler reaches
+/// world fields directly (`res.score += 1`). The interaction is
+/// consumed by default; call [`Self::propagate`] to let it continue
+/// to the next ancestor handler.
+pub struct Response<'w, W> {
+    /// The backend world, free for the handler to mutate.
+    pub world: &'w mut W,
+    propagation: Propagation,
+}
+
+impl<'w, W> Response<'w, W> {
+    /// Creates a response over `world`, consuming by default.
+    pub fn new(world: &'w mut W) -> Self {
+        Self {
+            world,
+            propagation: Propagation::default(),
+        }
+    }
+
+    /// Lets the interaction keep bubbling to ancestor handlers
+    /// instead of consuming it here.
+    pub fn propagate(&mut self) {
+        self.propagation = Propagation::Continue;
+    }
+
+    /// Returns `true` if the interaction was consumed, i.e. bubbling
+    /// stops here.
+    pub fn consumed(&self) -> bool {
+        matches!(self.propagation, Propagation::Stop)
+    }
+}
+
+impl<W> Deref for Response<'_, W> {
+    type Target = W;
+
+    fn deref(&self) -> &W {
+        &*self.world
+    }
+}
+
+impl<W> DerefMut for Response<'_, W> {
+    fn deref_mut(&mut self) -> &mut W {
+        &mut *self.world
+    }
+}
+
+/// User-written interaction handler: a non-capturing
+/// `fn(I, &mut Response<W>)` that reacts to interaction `I` by
+/// mutating the world through the [`Response`].
 ///
 /// A plain function pointer, so a non-capturing closure coerces into
 /// one at the [`on`](crate::ctx::ElementCtx::on) call site. Stored
 /// per instance as an element-table component, one per `(element,
-/// I)`.
-pub type HandlerFn<I, W> = fn(I, &mut W);
+/// I)`. The handler consumes the interaction by default; call
+/// [`Response::propagate`] to let it bubble instead.
+pub type HandlerFn<I, W> = fn(I, &mut Response<'_, W>);
 
 #[cfg(test)]
 mod tests {
@@ -47,6 +116,7 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Copy)]
     struct Click;
 
     #[derive(Default)]
@@ -61,7 +131,7 @@ mod tests {
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on::<Click>(|_, world| world.clicks += 1)
+                .on::<Click>(|_, res| res.clicks += 1)
                 .id()
         };
 
@@ -94,7 +164,7 @@ mod tests {
             let mut ctx = fynix.root_ctx(&mut world);
             let handled = ctx
                 .add::<Button>()
-                .on::<Click>(|_, world| world.clicks += 1)
+                .on::<Click>(|_, res| res.clicks += 1)
                 .id();
             // A second instance of the same type with no handler.
             let plain = ctx.add::<Button>().id();
@@ -113,7 +183,7 @@ mod tests {
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on::<Click>(|_, world| world.clicks += 1)
+                .on::<Click>(|_, res| res.clicks += 1)
                 .id()
         };
 
@@ -134,7 +204,7 @@ mod tests {
             let child = ctx.add::<Button>().id();
             let parent = ctx
                 .add_with::<Container>(|c, _| c.child = Some(child))
-                .on::<Click>(|_, world| world.clicks += 1)
+                .on::<Click>(|_, res| res.clicks += 1)
                 .id();
             (parent, child)
         };
@@ -160,7 +230,7 @@ mod tests {
             let mut ctx = fynix.root_ctx(&mut world);
             let child = ctx.add::<Button>().id();
             ctx.add_with::<Container>(|c, _| c.child = Some(child))
-                .on::<Click>(|_, world| world.clicks += 1)
+                .on::<Click>(|_, res| res.clicks += 1)
                 .id();
             child
         };
@@ -174,5 +244,36 @@ mod tests {
             |_| false,
         ));
         assert_eq!(world.clicks, 0);
+    }
+
+    #[test]
+    fn bubbling_continues_past_declined_handler() {
+        let mut world = World::default();
+        let mut fynix = Fynix::new();
+        let child = {
+            let mut ctx = fynix.root_ctx(&mut world);
+            // Child handles `Click` but lets it propagate, so
+            // bubbling should continue to the parent.
+            let child = ctx
+                .add::<Button>()
+                .on::<Click>(|_, res| {
+                    res.clicks += 1;
+                    res.propagate();
+                })
+                .id();
+            ctx.add_with::<Container>(|c, _| c.child = Some(child))
+                .on::<Click>(|_, res| res.clicks += 1)
+                .id();
+            child
+        };
+
+        // Both the child (propagates) and the parent (consumes) run.
+        assert!(fynix.dispatch_bubbling(
+            &child,
+            Click,
+            &mut world,
+            |_| true,
+        ));
+        assert_eq!(world.clicks, 2);
     }
 }

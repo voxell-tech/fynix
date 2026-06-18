@@ -11,7 +11,7 @@ use imaging::PaintSink;
 
 use crate::ctx::FynixCtx;
 use crate::element::{ElementId, Elements};
-use crate::interaction::HandlerFn;
+use crate::interaction::{HandlerFn, Response};
 use crate::reactive::binding::Binding;
 use crate::reactive::watcher::Watcher;
 use crate::resource::Resources;
@@ -39,6 +39,7 @@ pub mod prelude {
         Element, ElementBuild, ElementChildren, ElementId,
     };
     pub use crate::init::Init;
+    pub use crate::interaction::{Propagation, Response};
     pub use crate::style::{Stylable, path};
 }
 
@@ -84,21 +85,22 @@ impl<W> Fynix<W> {
         else {
             return false;
         };
-        handler(interaction, world);
+        handler(interaction, &mut Response::new(world));
         true
     }
 
-    /// Dispatches `interaction` to the nearest ancestor of `start`
-    /// (including `start` itself) that handles `I`, walking up the
-    /// parent chain and skipping elements with no handler.
+    /// Dispatches `interaction` up the parent chain from `start`
+    /// (inclusive): each ancestor that handles `I` runs, and bubbling
+    /// continues only while handlers let it (see
+    /// [`Response::propagate`]), stopping at the first that consumes.
     ///
     /// `should_bubble` gates each candidate: the walk stops as soon
     /// as it returns `false`. Pass `|_| true` to always bubble to
-    /// the root, or a hit-test gate to stop at the pointer's
-    /// edge.
+    /// the root, or a hit-test gate to stop at the pointer's edge.
     ///
-    /// Returns `true` if a handler ran.
-    pub fn dispatch_bubbling<I: 'static>(
+    /// Returns `true` if a handler consumed the interaction. `I` must
+    /// be [`Copy`] since it may be delivered to several handlers.
+    pub fn dispatch_bubbling<I: 'static + Copy>(
         &mut self,
         start: &ElementId,
         interaction: I,
@@ -110,13 +112,17 @@ impl<W> Fynix<W> {
             if !should_bubble(&id) {
                 break;
             }
-            if self
+            if let Some(handler) = self
                 .elements
                 .table
                 .get_component::<HandlerFn<I, W>>(&id)
-                .is_some()
+                .copied()
             {
-                return self.dispatch::<I>(&id, interaction, world);
+                let mut response = Response::new(&mut *world);
+                handler(interaction, &mut response);
+                if response.consumed() {
+                    return true;
+                }
             }
             current = self
                 .elements

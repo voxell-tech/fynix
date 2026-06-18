@@ -11,10 +11,10 @@ repository = "https://github.com/voxell-tech/fynix"
 
 [workspace.dependencies]
 fynix = { version = "0.1.0", path = "crates/fynix", default-features = false }
-fynix_event = { version = "0.1.0", path = "crates/fynix_event" }
 fynix_macros = { version = "0.1.0", path = "crates/fynix_macros" }
 fynix_elements = { version = "0.1.0", path = "crates/fynix_elements", default-features = false }
 fynix_hit_test = { version = "0.1.0", path = "crates/fynix_hit_test", default-features = false }
+fynix_event = { version = "0.1.0", path = "crates/fynix_event" }
 typarena = { version = "0.1.0", path = "crates/typarena" }
 
 rectree = { git = "https://github.com/voxell-tech/rectree", rev = "e9729bf" }
