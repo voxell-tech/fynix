@@ -3,8 +3,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use fynix::prelude::*;
+use fynix_interaction::pointer;
+use fynix_interaction::prelude::*;
 use imaging_vello::VelloSceneSink;
-use vello::kurbo::Rect;
+use vello::kurbo::{Point, Rect};
 use vello::peniko::Color;
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
@@ -12,9 +14,27 @@ use vello::{
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::window::Window;
+use winit::window::{CursorIcon, Window};
+
+/// The single mouse pointer the demo backend feeds to the
+/// interactor. Demos that handle pointer interactions key their
+/// handlers on `PointerId<(), ()>`.
+const MOUSE: PointerId<(), ()> = PointerId {
+    device: (),
+    pointer: (),
+};
+
+/// Maps a winit mouse button to its semantic [`ButtonRole`].
+fn classify_button(button: MouseButton) -> ButtonRole {
+    match button {
+        MouseButton::Left => ButtonRole::Primary,
+        MouseButton::Right => ButtonRole::Secondary,
+        MouseButton::Middle => ButtonRole::Middle,
+        _ => ButtonRole::Other,
+    }
+}
 
 pub trait DemoWorld: Sized + 'static {
     fn window_title(&self) -> &'static str {
@@ -39,12 +59,18 @@ pub trait DemoWorld: Sized + 'static {
     /// Builds the initial tree. The world is already borrowed by
     /// `ctx`, so read it via `ctx.world`.
     fn build(ctx: &mut FynixCtx<Self>) -> ElementId;
+
+    fn cursor(&self) -> CursorIcon {
+        CursorIcon::default()
+    }
 }
 
 pub struct VelloWinitApp<'s, W: DemoWorld> {
     fynix: Fynix<W>,
     world: W,
     root_id: ElementId,
+    interactor: Interactor<(), (), MouseButton>,
+    cursor: Point,
     last_frame: Instant,
     context: RenderContext,
     renderer: Option<Renderer>,
@@ -65,15 +91,27 @@ impl<W: DemoWorld> VelloWinitApp<'_, W> {
         let mut fynix = Fynix::new();
         world.init(&mut fynix);
 
+        // Register the hit-target observers before building, so the
+        // handlers attached during `build` mark their elements.
+        pointer::init::<(), (), W>(&mut fynix);
+
         let root_id = {
             let mut ctx = fynix.root_ctx(&mut world);
             W::build(&mut ctx)
         };
 
+        let interactor = Interactor::new(
+            root_id,
+            Config::default(),
+            classify_button,
+        );
+
         Self {
             fynix,
             root_id,
             world,
+            interactor,
+            cursor: Point::ZERO,
             last_frame: Instant::now(),
             context: RenderContext::new(),
             renderer: None,
@@ -116,6 +154,9 @@ impl<W: DemoWorld> VelloWinitApp<'_, W> {
         self.fynix.sync(&mut self.world);
 
         self.fynix.layout();
+        // Geometry may have moved, so the hit-test is rebuilt against
+        // the fresh layout on the next pointer event.
+        self.interactor.invalidate();
 
         let bounds = Rect::new(
             0.0,
@@ -253,6 +294,7 @@ impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
                     &self.state
                 {
                     window.request_redraw();
+                    window.set_cursor(self.world.cursor());
                 }
             }
             WindowEvent::Resized(phys) => {
@@ -260,6 +302,31 @@ impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
                     Size::new(phys.width as f32, phys.height as f32);
                 self.world.set_window_size(size);
                 self.render();
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor = Point::new(position.x, position.y);
+                self.interactor.moved(
+                    &mut self.fynix,
+                    &mut self.world,
+                    MOUSE,
+                    self.cursor,
+                );
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                match state {
+                    ElementState::Pressed => self.interactor.down(
+                        &mut self.fynix,
+                        MOUSE,
+                        button,
+                        self.cursor,
+                    ),
+                    ElementState::Released => self.interactor.up(
+                        &mut self.fynix,
+                        &mut self.world,
+                        MOUSE,
+                        self.cursor,
+                    ),
+                }
             }
             _ => {}
         }

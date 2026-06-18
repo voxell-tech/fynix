@@ -10,8 +10,9 @@ pub use imaging;
 use imaging::PaintSink;
 
 use crate::ctx::FynixCtx;
+use crate::element::observer::ObserverFn;
 use crate::element::{ElementId, Elements};
-use crate::interaction::{HandlerFn, Response};
+use crate::interaction::{Handler, Response};
 use crate::reactive::binding::Binding;
 use crate::reactive::watcher::Watcher;
 use crate::resource::Resources;
@@ -77,15 +78,12 @@ impl<W> Fynix<W> {
         interaction: I,
         world: &mut W,
     ) -> bool {
-        let Some(handler) = self
-            .elements
-            .table
-            .get_component::<HandlerFn<I, W>>(id)
-            .copied()
+        let Some(handler) =
+            self.elements.table.get_component::<Handler<I, W>>(id)
         else {
             return false;
         };
-        handler(interaction, &mut Response::new(world));
+        handler.call(interaction, &mut Response::new(world));
         true
     }
 
@@ -115,11 +113,10 @@ impl<W> Fynix<W> {
             if let Some(handler) = self
                 .elements
                 .table
-                .get_component::<HandlerFn<I, W>>(&id)
-                .copied()
+                .get_component::<Handler<I, W>>(&id)
             {
                 let mut response = Response::new(&mut *world);
-                handler(interaction, &mut response);
+                handler.call(interaction, &mut response);
                 if response.consumed() {
                     return true;
                 }
@@ -132,6 +129,27 @@ impl<W> Fynix<W> {
         }
 
         false
+    }
+
+    /// The element store, for read-only access such as building a
+    /// spatial index over the laid-out tree.
+    #[inline]
+    pub fn elements(&self) -> &Elements<W> {
+        &self.elements
+    }
+
+    /// Registers `observer` to run after a component of type `T` is
+    /// inserted on any element.
+    #[inline]
+    pub fn on_insert<T: 'static>(&mut self, observer: ObserverFn<W>) {
+        self.elements.table.on_insert::<T>(observer);
+    }
+
+    /// Registers `observer` to run after a component of type `T` is
+    /// removed on any element.
+    #[inline]
+    pub fn on_remove<T: 'static>(&mut self, observer: ObserverFn<W>) {
+        self.elements.table.on_remove::<T>(observer);
     }
 
     /// Lays out every dirty subtree (see [`Elements::mark_dirty`]),

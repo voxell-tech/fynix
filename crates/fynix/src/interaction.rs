@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use core::ops::{Deref, DerefMut};
 
 /// Whether an interaction keeps bubbling after a handler runs.
@@ -65,16 +66,53 @@ impl<W> DerefMut for Response<'_, W> {
     }
 }
 
-/// User-written interaction handler: a non-capturing
-/// `fn(I, &mut Response<W>)` that reacts to interaction `I` by
+/// A user-written interaction handler reacting to interaction `I` by
 /// mutating the world through the [`Response`].
 ///
-/// A plain function pointer, so a non-capturing closure coerces into
-/// one at the [`on`](crate::ctx::ElementCtx::on) call site. Stored
-/// per instance as an element-table component, one per `(element,
-/// I)`. The handler consumes the interaction by default; call
+/// Stored per instance as an element-table component, one per
+/// `(element, I)`. A non-capturing handler stays a bare function
+/// pointer ([`Self::Ptr`], no allocation, attached via
+/// [`interact`](crate::ctx::ElementCtx::interact)); a capturing one
+/// is boxed ([`Self::Boxed`], attached via
+/// [`interact_with`](crate::ctx::ElementCtx::interact_with)). The
+/// handler consumes the interaction by default; call
 /// [`Response::propagate`] to let it bubble instead.
-pub type HandlerFn<I, W> = fn(I, &mut Response<'_, W>);
+pub enum Handler<I, W> {
+    /// A non-capturing handler, stored as a plain function pointer.
+    Ptr(fn(I, &mut Response<'_, W>)),
+    /// A capturing handler, stored boxed.
+    #[expect(clippy::type_complexity)]
+    Boxed(Box<dyn Fn(I, &mut Response<'_, W>)>),
+}
+
+impl<I, W> Handler<I, W> {
+    /// Runs the handler, passing `interaction` and the `response`.
+    #[inline]
+    pub fn call(
+        &self,
+        interaction: I,
+        response: &mut Response<'_, W>,
+    ) {
+        match self {
+            Self::Ptr(f) => f(interaction, response),
+            Self::Boxed(f) => f(interaction, response),
+        }
+    }
+}
+
+impl<I, W> From<fn(I, &mut Response<'_, W>)> for Handler<I, W> {
+    fn from(handler: fn(I, &mut Response<'_, W>)) -> Self {
+        Self::Ptr(handler)
+    }
+}
+
+impl<I, W> From<Box<dyn Fn(I, &mut Response<'_, W>)>>
+    for Handler<I, W>
+{
+    fn from(handler: Box<dyn Fn(I, &mut Response<'_, W>)>) -> Self {
+        Self::Boxed(handler)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -131,7 +169,7 @@ mod tests {
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on::<Click>(|_, res| res.clicks += 1)
+                .interact::<Click>(|_, res| res.clicks += 1)
                 .id()
         };
 
@@ -164,7 +202,7 @@ mod tests {
             let mut ctx = fynix.root_ctx(&mut world);
             let handled = ctx
                 .add::<Button>()
-                .on::<Click>(|_, res| res.clicks += 1)
+                .interact::<Click>(|_, res| res.clicks += 1)
                 .id();
             // A second instance of the same type with no handler.
             let plain = ctx.add::<Button>().id();
@@ -183,7 +221,7 @@ mod tests {
         let id = {
             let mut ctx = fynix.root_ctx(&mut world);
             ctx.add::<Button>()
-                .on::<Click>(|_, res| res.clicks += 1)
+                .interact::<Click>(|_, res| res.clicks += 1)
                 .id()
         };
 
@@ -204,7 +242,7 @@ mod tests {
             let child = ctx.add::<Button>().id();
             let parent = ctx
                 .add_with::<Container>(|c, _| c.child = Some(child))
-                .on::<Click>(|_, res| res.clicks += 1)
+                .interact::<Click>(|_, res| res.clicks += 1)
                 .id();
             (parent, child)
         };
@@ -229,8 +267,9 @@ mod tests {
         let child = {
             let mut ctx = fynix.root_ctx(&mut world);
             let child = ctx.add::<Button>().id();
-            ctx.add_with::<Container>(|c, _| c.child = Some(child))
-                .on::<Click>(|_, res| res.clicks += 1)
+            let _ = ctx
+                .add_with::<Container>(|c, _| c.child = Some(child))
+                .interact::<Click>(|_, res| res.clicks += 1)
                 .id();
             child
         };
@@ -256,13 +295,14 @@ mod tests {
             // bubbling should continue to the parent.
             let child = ctx
                 .add::<Button>()
-                .on::<Click>(|_, res| {
+                .interact::<Click>(|_, res| {
                     res.clicks += 1;
                     res.propagate();
                 })
                 .id();
-            ctx.add_with::<Container>(|c, _| c.child = Some(child))
-                .on::<Click>(|_, res| res.clicks += 1)
+            let _ = ctx
+                .add_with::<Container>(|c, _| c.child = Some(child))
+                .interact::<Click>(|_, res| res.clicks += 1)
                 .id();
             child
         };

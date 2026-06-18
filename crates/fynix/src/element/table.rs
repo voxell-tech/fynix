@@ -251,6 +251,11 @@ impl<W> ElementTable<W> {
         self.table.get_mut::<T>(id)
     }
 
+    /// Returns `true` if `id` carries a component of type `T`.
+    pub fn contains<T: 'static>(&self, id: &ElementId) -> bool {
+        self.get_component::<T>(id).is_some()
+    }
+
     /// Iterates `(id, &T)` over every element carrying a component of
     /// type `T`, in unspecified order.
     pub fn components<T: 'static>(
