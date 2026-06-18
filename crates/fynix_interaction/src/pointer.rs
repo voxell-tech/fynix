@@ -37,7 +37,7 @@ pub mod prelude {
 /// inserted by the observers [`init`] registers. The hit-test indexes
 /// only elements carrying it, so most of the scene stays out of the
 /// spatree.
-struct HitTarget;
+pub struct HitTarget;
 
 /// Registers, on `fynix`, an insert observer for each pointer handler
 /// type so that attaching any of them marks the element with
