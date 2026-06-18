@@ -120,6 +120,23 @@ where
         self.column_mut::<V>()?.swap_remove(key)
     }
 
+    /// Like [`Self::remove`], but reaches the column by a
+    /// pre-resolved [`ColumnId`] instead of hashing `V`'s
+    /// [`TypeId`].
+    ///
+    /// Returns `None` if `col` is out of bounds, its column holds a
+    /// different type, or `key` is absent.
+    pub fn remove_by_column<V: 'static>(
+        &mut self,
+        key: &K,
+        col: ColumnId,
+    ) -> Option<V> {
+        self.columns
+            .get_mut(col.index())?
+            .downcast_mut::<V>()?
+            .swap_remove(key)
+    }
+
     /// Removes `key` from every column, dropping the whole row.
     ///
     /// Each column is swap-removed independently without knowing its

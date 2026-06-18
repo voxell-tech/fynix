@@ -625,6 +625,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fynix_interaction"
+version = "0.1.0"
+dependencies = [
+ "fynix",
+ "fynix_hit_test",
+ "hashbrown 0.16.1",
+ "spatree",
+]
+
+[[package]]
 name = "fynix_macros"
 version = "0.1.0"
 dependencies = [
@@ -2211,6 +2221,7 @@ version = "0.1.0"
 dependencies = [
  "fynix",
  "fynix_elements",
+ "fynix_interaction",
  "imaging_vello",
  "pollster",
  "vello",

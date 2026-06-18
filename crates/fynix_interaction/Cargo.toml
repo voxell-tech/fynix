@@ -1,0 +1,20 @@
+[package]
+name = "fynix_interaction"
+description = "Pointer interaction layer for fynix."
+keywords = ["ui", "gui", "interaction", "pointer", "gesture"]
+categories = ["gui"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+fynix.workspace = true
+fynix_hit_test.workspace = true
+hashbrown.workspace = true
+spatree.workspace = true
+
+[features]
+default = ["std"]
+std = ["fynix/std", "fynix_hit_test/std", "spatree/std"]
+libm = ["fynix/libm", "fynix_hit_test/libm", "spatree/libm"]
