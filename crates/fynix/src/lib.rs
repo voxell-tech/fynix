@@ -141,15 +141,23 @@ impl<W> Fynix<W> {
     /// Registers `observer` to run after a component of type `T` is
     /// inserted on any element.
     #[inline]
-    pub fn on_insert<T: 'static>(&mut self, observer: ObserverFn<W>) {
+    pub fn on_insert<T: 'static>(
+        &mut self,
+        observer: ObserverFn<W>,
+    ) -> &mut Self {
         self.elements.table.on_insert::<T>(observer);
+        self
     }
 
     /// Registers `observer` to run after a component of type `T` is
     /// removed on any element.
     #[inline]
-    pub fn on_remove<T: 'static>(&mut self, observer: ObserverFn<W>) {
+    pub fn on_remove<T: 'static>(
+        &mut self,
+        observer: ObserverFn<W>,
+    ) -> &mut Self {
         self.elements.table.on_remove::<T>(observer);
+        self
     }
 
     /// Lays out every dirty subtree (see [`Elements::mark_dirty`]),

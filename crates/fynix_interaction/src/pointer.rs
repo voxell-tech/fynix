@@ -56,13 +56,14 @@ pub fn init<D: 'static, P: 'static, W: 'static>(
     }
 
     type Id<Device, Pointer> = PointerId<Device, Pointer>;
-    fynix.on_insert::<Handler<RawClick<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<PrimaryClick<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<SecondaryClick<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<PointerEnter<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<PointerLeave<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<Hover<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<DragStart<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<Drag<Id<D, P>>, W>>(mark);
-    fynix.on_insert::<Handler<DragEnd<Id<D, P>>, W>>(mark);
+    fynix
+        .on_insert::<Handler<RawClick<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<PrimaryClick<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<SecondaryClick<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<PointerEnter<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<PointerLeave<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<Hover<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<DragStart<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<Drag<Id<D, P>>, W>>(mark)
+        .on_insert::<Handler<DragEnd<Id<D, P>>, W>>(mark);
 }
