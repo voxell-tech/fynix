@@ -6,6 +6,7 @@ use crate::element::table::RenderElementTable;
 use crate::init::Init;
 
 pub mod layout;
+pub mod observer;
 pub mod storage;
 pub mod table;
 mod type_meta;

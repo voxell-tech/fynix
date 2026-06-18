@@ -6,6 +6,7 @@ use typarena::type_table::TypeTable;
 
 use crate::element::ElementId;
 use crate::element::layout::ElementNode;
+use crate::element::observer::{ObserverFn, Observers};
 use crate::reactive::binding::Binding;
 use crate::reactive::watcher::Watcher;
 use crate::style::StyleId;
@@ -14,8 +15,14 @@ use crate::style::StyleId;
 ///
 /// Each component field lives in its own [`TypeTable`] column
 /// (struct-of-arrays).
+///
+/// # Observers
+///
+/// Per-column [`Observers`] fire after a component is inserted or
+/// removed. Register with [`Self::on_insert`] / [`Self::on_remove`].
 pub struct ElementTable<W: 'static> {
     table: TypeTable<ElementId>,
+    observers: Observers<W>,
     node_col: ColumnId,
     scene_col: ColumnId,
     style_col: ColumnId,
@@ -37,6 +44,7 @@ impl<W> ElementTable<W> {
 
         Self {
             table,
+            observers: Observers::new(),
             node_col,
             scene_col,
             style_col,
@@ -46,6 +54,23 @@ impl<W> ElementTable<W> {
         }
     }
 
+    /// Registers `observer` to run after a component of type `T` is
+    /// inserted on any element (every insert), receiving the table
+    /// and that element's id. One observer per `T`; a later call
+    /// replaces it.
+    pub fn on_insert<T: 'static>(&mut self, observer: ObserverFn<W>) {
+        let col = self.table.ensure_column::<T>();
+        self.observers.set_on_insert(col, observer);
+    }
+
+    /// Registers `observer` to run after a component of type `T` is
+    /// removed from an element. One observer per `T`; a later call
+    /// replaces it.
+    pub fn on_remove<T: 'static>(&mut self, observer: ObserverFn<W>) {
+        let col = self.table.ensure_column::<T>();
+        self.observers.set_on_remove(col, observer);
+    }
+
     /// Seeds the layout node for `id` and records its
     /// `primary_style` when one is given.
     pub(super) fn init_element(
@@ -53,21 +78,27 @@ impl<W> ElementTable<W> {
         id: ElementId,
         primary_style: Option<StyleId>,
     ) {
-        self.table.insert_by_column(
+        self.insert_component_by_column(
             id,
             ElementNode::new(None),
             self.node_col,
         );
         if let Some(style) = primary_style {
-            self.table.insert_by_column(id, style, self.style_col);
+            self.insert_component_by_column(
+                id,
+                style,
+                self.style_col,
+            );
         }
     }
 }
 
 /// Rendering & layouting.
 impl<W> ElementTable<W> {
-    /// Drops every metadata column for `id`. Returns `true` if any
-    /// column held it.
+    /// Drops every column for `id` (the whole row), returning `true`
+    /// if any held it. Bulk teardown does not fire `on_remove`
+    /// observers; only [`remove_component`](Self::remove_component)
+    /// does.
     pub(super) fn remove(&mut self, id: &ElementId) -> bool {
         self.table.remove_row(id)
     }
@@ -110,7 +141,7 @@ impl<W> ElementTable<W> {
 
     /// Caches `scene` for `id`.
     pub fn set_scene(&mut self, id: ElementId, scene: Scene) {
-        self.table.insert_by_column(id, scene, self.scene_col);
+        self.insert_component_by_column(id, scene, self.scene_col);
     }
 
     /// Returns the `primary_style` recorded for `id`, if any.
@@ -126,25 +157,63 @@ impl<W> ElementTable<W> {
 
 /// Reactive.
 impl<W> ElementTable<W> {
+    /// Attaches `watcher` to `id`, replacing any previous one.
+    /// Returns the replaced watcher, if any.
     pub fn insert_watcher(
         &mut self,
         id: ElementId,
-        watch: Watcher<W>,
+        watcher: Watcher<W>,
     ) -> Option<Watcher<W>> {
-        self.table.insert_by_column(id, watch, self.watch_col)
+        self.insert_component_by_column(id, watcher, self.watch_col)
     }
 
+    /// Attaches `binding` to `id`, replacing any previous one.
+    /// Returns the replaced binding, if any.
     pub fn insert_binding(
         &mut self,
         id: ElementId,
         binding: Binding<W>,
     ) -> Option<Binding<W>> {
-        self.table.insert_by_column(id, binding, self.binding_col)
+        self.insert_component_by_column(id, binding, self.binding_col)
     }
 }
 
-/// Arbitrary per-element components.
+/// Arbitrary components.
 impl<W> ElementTable<W> {
+    /// Inserts via a pre-resolved column, then fires the `on_insert`
+    /// observer for that column if one is registered. Every typed
+    /// insert routes through here, so observers see every insert.
+    #[inline]
+    fn insert_component_by_column<T: 'static>(
+        &mut self,
+        id: ElementId,
+        value: T,
+        col: ColumnId,
+    ) -> Option<T> {
+        let previous = self.table.insert_by_column(id, value, col);
+        if let Some(observer) = self.observers.get_on_insert(col) {
+            observer(self, id);
+        }
+        previous
+    }
+
+    /// Removes via a pre-resolved column, then fires the `on_remove`
+    /// observer for that column if a value was actually removed.
+    #[inline]
+    fn remove_component_by_column<T: 'static>(
+        &mut self,
+        id: &ElementId,
+        col: ColumnId,
+    ) -> Option<T> {
+        let removed = self.table.remove_by_column::<T>(id, col);
+        if removed.is_some()
+            && let Some(observer) = self.observers.get_on_remove(col)
+        {
+            observer(self, *id);
+        }
+        removed
+    }
+
     /// Attaches `value` to `id`, replacing any previous component of
     /// type `T`. Returns the replaced value, if any.
     pub fn insert_component<T: 'static>(
@@ -152,7 +221,8 @@ impl<W> ElementTable<W> {
         id: ElementId,
         value: T,
     ) -> Option<T> {
-        self.table.insert(id, value)
+        let col = self.table.ensure_column::<T>();
+        self.insert_component_by_column(id, value, col)
     }
 
     /// Removes and returns `id`'s component of type `T`, if present.
@@ -160,7 +230,8 @@ impl<W> ElementTable<W> {
         &mut self,
         id: &ElementId,
     ) -> Option<T> {
-        self.table.remove(id)
+        let col = self.table.type_column::<T>()?;
+        self.remove_component_by_column::<T>(id, col)
     }
 
     /// Returns `id`'s component of type `T`, if present.
@@ -195,6 +266,8 @@ impl<W> Default for ElementTable<W> {
     }
 }
 
+/// A read-only view of the node and scene columns, handed to the
+/// renderer.
 pub struct RenderElementTable<'a> {
     table: &'a TypeTable<ElementId>,
     node_col: ColumnId,
@@ -213,6 +286,7 @@ impl RenderElementTable<'_> {
     }
 }
 
+/// A mutable view of the node and scene columns, used during layout.
 pub struct LayoutElementTable<'a> {
     table: &'a mut TypeTable<ElementId>,
     node_col: ColumnId,
@@ -345,5 +419,41 @@ mod tests {
         // Removing the element drops its component with it.
         assert!(table.remove(&id));
         assert_eq!(table.get_component::<u32>(&id), None);
+    }
+
+    #[test]
+    fn on_insert_observer_derives_component() {
+        let id = IdGenerator::default().generate();
+        let mut table = TestElementTable::new();
+        table.init_element(id, None);
+
+        // Inserting a `u32` derives an `i64` marker on the same id.
+        table.on_insert::<u32>(|table, id| {
+            table.insert_component(id, 99i64);
+        });
+
+        table.insert_component(id, 7u32);
+        assert_eq!(table.get_component::<u32>(&id), Some(&7));
+        assert_eq!(table.get_component::<i64>(&id), Some(&99));
+    }
+
+    #[test]
+    fn on_remove_observer_runs_when_a_value_is_removed() {
+        let id = IdGenerator::default().generate();
+        let mut table = TestElementTable::new();
+        table.init_element(id, None);
+
+        table.on_remove::<u32>(|table, id| {
+            table.insert_component(id, -1i64);
+        });
+
+        // No value to remove: the observer does not run.
+        assert_eq!(table.remove_component::<u32>(&id), None);
+        assert_eq!(table.get_component::<i64>(&id), None);
+
+        // Now there is a value: removing it runs the observer.
+        table.insert_component(id, 7u32);
+        assert_eq!(table.remove_component::<u32>(&id), Some(7));
+        assert_eq!(table.get_component::<i64>(&id), Some(&-1));
     }
 }
