@@ -30,8 +30,8 @@ pub enum ButtonRole {
 /// Maps a backend's native button type to a [`ButtonRole`].
 ///
 /// The backend supplies one of these to the [`Interactor`] so the
-/// crate never hardcodes a button mapping. A plain function pointer is
-/// enough; no trait needed.
+/// crate never hardcodes a button mapping. A plain function pointer
+/// is enough; no trait needed.
 ///
 /// [`Interactor`]: crate::pointer::interactor::Interactor
 pub type ClassifyButton<Btn> = fn(Btn) -> ButtonRole;

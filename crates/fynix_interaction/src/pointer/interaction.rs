@@ -4,8 +4,8 @@ use spatree::kurbo::{Point, Vec2};
 /// button.
 ///
 /// Button specificity comes from the typed variants [`PrimaryClick`]
-/// and [`SecondaryClick`]; the originating button is classified inside
-/// the recognizer and never surfaced here.
+/// and [`SecondaryClick`]; the originating button is classified
+/// inside the recognizer and never surfaced here.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RawClick<Id> {
     pub id: Id,
