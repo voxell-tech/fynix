@@ -7,6 +7,8 @@
 //! [`FynixCtx::watch`](crate::ctx::FynixCtx::watch) and flushed each
 //! frame by [`Fynix::sync`](crate::Fynix::sync).
 
+use alloc::boxed::Box;
+
 use rectree::{Constraint, NodeContext, Size, Vec2};
 
 use crate::Fynix;
@@ -14,7 +16,7 @@ use crate::ctx::FynixCtx;
 use crate::element::layout::ElementNodes;
 use crate::element::{Element, ElementBuild, ElementId};
 use crate::init::Init;
-use crate::reactive::ChangedFn;
+use crate::reactive::{Changed, ChangedFn};
 use crate::style::StyleId;
 
 #[derive(Init, Element)]
@@ -42,7 +44,17 @@ impl ElementBuild for WatcherElement {
     }
 }
 
-pub type BuildFn<W> = fn(&mut FynixCtx<W>) -> Option<ElementId>;
+/// Shorthand for the subtree builder a watcher accepts: any
+/// `Fn(&mut FynixCtx<W>) -> Option<ElementId> + 'static`.
+pub trait BuildFn<W>:
+    Fn(&mut FynixCtx<W>) -> Option<ElementId> + 'static
+{
+}
+
+impl<W, F> BuildFn<W> for F where
+    F: Fn(&mut FynixCtx<W>) -> Option<ElementId> + 'static
+{
+}
 
 /// A watcher, stored as a component on its [`WatcherElement`] holder
 /// (see [`ElementTable::insert_component`]). The holder's
@@ -50,13 +62,12 @@ pub type BuildFn<W> = fn(&mut FynixCtx<W>) -> Option<ElementId>;
 /// of its own.
 ///
 /// [`ElementTable::insert_component`]: crate::element::table::ElementTable::insert_component
-#[derive(Debug)]
 pub struct Watcher<W: 'static> {
     /// Reports whether the watched source changed since the last
     /// flush, requiring a rebuild of [`WatcherElement::child`].
-    changed_fn: ChangedFn<W>,
+    changed: Changed<W>,
     /// Builds the replacement for [`WatcherElement::child`].
-    build_fn: BuildFn<W>,
+    build: Box<dyn BuildFn<W>>,
     /// Style scope active when the watcher was created. Restored on
     /// each rebuild so the subtree is styled like its first build.
     style_id: Option<StyleId>,
@@ -64,20 +75,20 @@ pub struct Watcher<W: 'static> {
 
 impl<W> Watcher<W> {
     pub(crate) fn new(
-        changed_fn: ChangedFn<W>,
-        build_fn: BuildFn<W>,
+        changed: impl ChangedFn<W>,
+        build: impl BuildFn<W>,
         style_id: Option<StyleId>,
     ) -> Self {
         Self {
-            changed_fn,
-            build_fn,
+            changed: Changed::new(changed),
+            build: Box::new(build),
             style_id,
         }
     }
 
     /// Returns `true` if the watched source changed.
     pub fn is_changed(&self, world: &W) -> bool {
-        (self.changed_fn)(world)
+        self.changed.is_changed(world)
     }
 
     /// Rebuilds the subtree under the [`WatcherElement`] at `id`:
@@ -109,7 +120,7 @@ impl<W> Watcher<W> {
         // any uncommitted style changes so they do not leak.
         let child = {
             let mut ctx = fynix.create_ctx(world, self.style_id);
-            (self.build_fn)(&mut ctx)
+            (self.build)(&mut ctx)
         };
         fynix.styles.clear_builder();
 
@@ -128,14 +139,6 @@ impl<W> Watcher<W> {
         // Mark the rebuilt subtree dirty so it is re-laid-out and
         // re-rendered.
         fynix.elements.mark_dirty(*id);
-    }
-}
-
-impl<W> Copy for Watcher<W> {}
-
-impl<W> Clone for Watcher<W> {
-    fn clone(&self) -> Self {
-        *self
     }
 }
 

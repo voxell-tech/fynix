@@ -14,7 +14,7 @@ use crate::element::observer::ObserverFn;
 use crate::element::{ElementId, Elements};
 use crate::interaction::{Handler, Response};
 use crate::reactive::binding::Binding;
-use crate::reactive::watcher::Watcher;
+use crate::reactive::watcher::{Watcher, WatcherElement};
 use crate::resource::Resources;
 use crate::style::{StyleId, Styles};
 
@@ -207,28 +207,55 @@ impl<W> Fynix<W> {
     ///
     /// Intended to be called by the backend once per frame.
     pub fn sync(&mut self, world: &mut W) {
-        let watchers = self
+        // Watchers and bindings are not `Copy`, so take each changed
+        // one out of the table, run it (which is then free to mutate
+        // the table), then re-attach it.
+        let watcher_ids = self
             .elements
             .table
             .components::<Watcher<W>>()
             .filter(|(_, watcher)| watcher.is_changed(world))
-            .map(|(id, watcher)| (*id, *watcher))
+            .map(|(id, _)| *id)
             .collect::<Vec<_>>();
 
-        for (id, watcher) in watchers {
+        for id in watcher_ids {
+            let Some(watcher) = self
+                .elements
+                .table
+                .remove_component::<Watcher<W>>(&id)
+            else {
+                continue;
+            };
             watcher.rebuild(&id, self, world);
+            // An ancestor rebuild may have discarded the holder; only
+            // re-attach if it survived.
+            if self
+                .elements
+                .get_typed::<WatcherElement>(&id)
+                .is_some()
+            {
+                self.elements.table.insert_watcher(id, watcher);
+            }
         }
 
-        let bindings = self
+        let binding_ids = self
             .elements
             .table
             .components::<Binding<W>>()
             .filter(|(_, binding)| binding.is_changed(world))
-            .map(|(id, binding)| (*id, *binding))
+            .map(|(id, _)| *id)
             .collect::<Vec<_>>();
 
-        for (id, binding) in bindings {
+        for id in binding_ids {
+            let Some(binding) = self
+                .elements
+                .table
+                .remove_component::<Binding<W>>(&id)
+            else {
+                continue;
+            };
             binding.apply(&id, &mut self.elements, world);
+            self.elements.table.insert_binding(id, binding);
         }
     }
 

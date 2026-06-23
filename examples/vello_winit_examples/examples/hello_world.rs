@@ -56,7 +56,7 @@ fn main_layout(ctx: &mut FynixCtx<HelloWorld>) -> ElementId {
             // Header.
             let title = ctx
                 .add_with::<Label>(|l, _| {
-                    l.text = "Fynix Interactions".into();
+                    l.text = "Counter".into();
                     l.font_size = 34.0;
                 })
                 .id();
@@ -217,7 +217,7 @@ struct HelloWorld {
 
 impl DemoWorld for HelloWorld {
     fn window_title(&self) -> &'static str {
-        "Fynix Interactions"
+        "Hello World"
     }
 
     fn update(&mut self, dt: Duration) {

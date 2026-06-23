@@ -1,4 +1,3 @@
-use field_path::accessor::func_pointers::MutFn;
 use field_path::field_accessor::FieldAccessor;
 
 use crate::Fynix;
@@ -8,7 +7,7 @@ use crate::element::{Element, ElementId};
 use crate::init::Init;
 use crate::interaction::{Handler, HandlerFn};
 use crate::reactive::ChangedFn;
-use crate::reactive::binding::{Binding, GetFn};
+use crate::reactive::binding::{Binding, GetFn, SetFn};
 use crate::reactive::watcher::{BuildFn, Watcher, WatcherElement};
 use crate::style::{Stylable, StyleId, StyleValue};
 
@@ -134,8 +133,8 @@ impl<W> FynixCtx<'_, '_, W> {
     #[must_use]
     pub fn watch(
         &mut self,
-        changed: ChangedFn<W>,
-        build: BuildFn<W>,
+        changed: impl ChangedFn<W>,
+        build: impl BuildFn<W>,
     ) -> ElementCtx<'_, W, WatcherElement> {
         self.commit_pending_styles();
 
@@ -145,15 +144,17 @@ impl<W> FynixCtx<'_, '_, W> {
         let element_handle =
             self.fynix.elements.add(WatcherElement::init(), None);
         let element_id = element_handle.as_id();
+
+        // Build the initial subtree under the current style scope,
+        // before `build` is moved into the watcher.
+        let child = build(self);
+        // Clear any uncommitted style changes to prevent leaking.
+        self.fynix.styles.clear_builder();
+
         self.fynix.elements.table.insert_watcher(
             element_id,
             Watcher::new(changed, build, style_id),
         );
-
-        // Build the initial subtree under the current style scope.
-        let child = build(self);
-        // Clear any uncommitted style changes to prevent leaking.
-        self.fynix.styles.clear_builder();
 
         if let Some(child_id) = child
             && let Some(node) =
@@ -252,24 +253,24 @@ impl<'f, W, E: Element> ElementCtx<'f, W, E> {
 
     /// Binds one of this element's fields to the world.
     ///
-    /// When `changed_fn` reports a change, `get_fn` reads the new
-    /// value from the world and it is written through `mut_fn` into
-    /// this element, which is then marked dirty. Unlike a watcher,
-    /// nothing is rebuilt: only the field is updated in place.
+    /// When `changed` reports a change, `get` reads the new value
+    /// from the world and it is written through `set` into this
+    /// element, which is then marked dirty. Unlike a watcher, nothing
+    /// is rebuilt: only the field is updated in place.
     ///
     /// Chainable, and applied each frame by [`Fynix::sync`].
     #[must_use]
-    pub fn bind<T>(
+    pub fn bind<T: 'static>(
         self,
-        changed_fn: ChangedFn<W>,
-        get_fn: GetFn<W, T>,
-        mut_fn: MutFn<E, T>,
+        changed: impl ChangedFn<W>,
+        get: impl GetFn<W, T>,
+        set: impl SetFn<E, T>,
     ) -> Self {
         let id = self.id();
-        self.fynix.elements.table.insert_binding(
-            id,
-            Binding::new(changed_fn, get_fn, mut_fn),
-        );
+        self.fynix
+            .elements
+            .table
+            .insert_binding(id, Binding::new(changed, get, set));
         self
     }
 
