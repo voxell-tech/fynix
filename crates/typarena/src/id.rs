@@ -1,3 +1,5 @@
+//! Generational IDs, independent of any value storage.
+
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::fmt::{Debug, Display, Formatter, Result};
@@ -9,11 +11,8 @@ use core::marker::PhantomData;
 /// The `generation` counter is bumped each time a raw `id` slot is
 /// recycled, preventing stale handles from accidentally matching a
 /// newly allocated ID (ABA problem). The phantom `T` makes IDs for
-/// different domains (e.g. [`ElementId`] vs [`StyleId`] incompatible
-/// at the type level).
-///
-/// [`ElementId`]: crate::element::ElementId
-/// [`StyleId`]: crate::style::StyleId
+/// different domains incompatible at the type level, even if their
+/// raw `id`/`generation` values collide.
 pub struct GenId<T> {
     id: u32,
     generation: u32,

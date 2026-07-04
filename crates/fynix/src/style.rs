@@ -5,9 +5,9 @@ use core::any::TypeId;
 use field_path::accessor::UntypedAccessor;
 use field_path::field::UntypedField;
 use hashbrown::HashMap;
+use typarena::id::{GenId, IdGenerator};
 use typarena::type_pool::{PoolKey, TypePool};
 
-use crate::id::{GenId, IdGenerator};
 use crate::init::Init;
 
 pub mod storage;

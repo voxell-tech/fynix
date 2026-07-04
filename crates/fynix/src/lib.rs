@@ -44,8 +44,6 @@ pub mod prelude {
     pub use crate::style::{Stylable, path};
 }
 
-mod id;
-
 /// Root application context. Owns the element tree, layout state, and
 /// style state.
 ///
