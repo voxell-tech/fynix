@@ -2146,7 +2146,7 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 [[package]]
 name = "typarena"
 version = "0.1.0"
-source = "git+https://github.com/voxell-tech/typarena?rev=10bdeb6#10bdeb6118fb1aa3ffa19aa861aaf0511b61bf6b"
+source = "git+https://github.com/voxell-tech/typarena?rev=f57f564#f57f5643efea9934ddb8b1039a60720fc719631c"
 dependencies = [
  "hashbrown 0.16.1",
  "indexmap",

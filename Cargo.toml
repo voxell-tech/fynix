@@ -17,7 +17,7 @@ fynix_hit_test = { version = "0.1.0", path = "crates/fynix_hit_test", default-fe
 fynix_event = { version = "0.1.0", path = "crates/fynix_event" }
 fynix_interaction = { version = "0.1.0", path = "crates/fynix_interaction", default-features = false }
 
-typarena = { git = "https://github.com/voxell-tech/typarena", rev = "10bdeb6" }
+typarena = { git = "https://github.com/voxell-tech/typarena", rev = "f57f564" }
 rectree = { git = "https://github.com/voxell-tech/rectree", rev = "e9729bf" }
 spatree = { git = "https://github.com/voxell-tech/spatree", rev = "61a3dab", default-features = false }
 field_path = "0.4.1"
