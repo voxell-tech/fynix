@@ -476,8 +476,12 @@ pub enum Align {
     End,
 }
 
-#[derive(Init, Clone, Copy, Debug)]
-pub struct OverlayStyle {
+#[derive(Init, Debug, Clone)]
+pub struct Overlay {
+    #[init(None)]
+    pub content: Option<ElementId>,
+    #[init(Default::default())]
+    pub overlays: Vec<ElementId>,
     #[init(Align::Start)]
     pub h_align: Align,
     #[init(Align::Center)]
@@ -494,16 +498,6 @@ pub struct OverlayStyle {
     pub gap: f32,
     #[init(true)]
     pub flip: bool,
-}
-
-#[derive(Init, Debug, Clone)]
-pub struct Overlay {
-    #[init(None)]
-    pub content: Option<ElementId>,
-    #[init(Default::default())]
-    pub overlays: Vec<ElementId>,
-    #[init(OverlayStyle::init())]
-    pub style: OverlayStyle,
 }
 
 impl Overlay {
@@ -552,22 +546,21 @@ impl ElementBuild for Overlay {
 
         let mut result = content_size;
 
-        let clip = self.style.clip;
-        let side = self.style.side;
-        let gap = self.style.gap;
-        let offset = self.style.offset;
-        let h_align = self.style.h_align;
-        let v_align = self.style.v_align;
+        let clip = self.clip;
+        let side = self.side;
+        let gap = self.gap;
+        let offset = self.offset;
+        let h_align = self.h_align;
+        let v_align = self.v_align;
         let cross = match side {
             Side::Top | Side::Bottom => h_align,
             Side::Left | Side::Right => v_align,
         };
         let anchor_data = self
-            .style
             .anchor
             .and_then(|a| compute_anchor_pos(a, *id, nodes));
         let has_anchor = anchor_data.is_some();
-        let viewport = if self.style.flip && has_anchor {
+        let viewport = if self.flip && has_anchor {
             nodes.get_resource::<Viewport>().copied()
         } else {
             None
@@ -884,42 +877,25 @@ impl Default for OverlayComposer {
 }
 
 impl<W> Composer<W> for OverlayComposer {
-    type Style = OverlayStyle;
+    type Style = Overlay;
     type Element = Overlay;
 
     fn compose(
         self,
-        mut style: Self::Style,
+        style: Self::Style,
         ctx: &mut FynixCtx<'_, '_, W>,
     ) -> ElementHandle<Overlay> {
-        if let Some(a) = self.anchor {
-            style.anchor = Some(a);
-        }
-        if let Some(s) = self.side {
-            style.side = s;
-        }
-        if let Some(g) = self.gap {
-            style.gap = g;
-        }
-        if let Some(h) = self.h_align {
-            style.h_align = h;
-        }
-        if let Some(v) = self.v_align {
-            style.v_align = v;
-        }
-        if let Some(o) = self.offset {
-            style.offset = o;
-        }
-        if let Some(c) = self.clip {
-            style.clip = c;
-        }
-        if let Some(f) = self.flip {
-            style.flip = f;
-        }
-        ctx.add_with::<Overlay>(|o, _| {
+        ctx.add_with::<Overlay>(move |o, _| {
             o.content = self.content;
             o.overlays = self.overlays;
-            o.style = style;
+            o.h_align = self.h_align.unwrap_or(style.h_align);
+            o.v_align = self.v_align.unwrap_or(style.v_align);
+            o.offset = self.offset.unwrap_or(style.offset);
+            o.clip = self.clip.unwrap_or(style.clip);
+            o.anchor = self.anchor.or(style.anchor);
+            o.side = self.side.unwrap_or(style.side);
+            o.gap = self.gap.unwrap_or(style.gap);
+            o.flip = self.flip.unwrap_or(style.flip);
         })
         .handle()
     }
