@@ -225,9 +225,10 @@ fn undo_redo_buttons(ctx: &mut FynixCtx<CadWorld>) -> ElementId {
             |w| !w.undo_stack.is_empty(),
             |w| w.undo_hovered,
             move |w| {
-                let current = (w.undo_hovered, w.undo_stack.len());
-                let changed = cell_diff(&prev_undo, current);
-                changed
+                cell_diff(
+                    &prev_undo,
+                    (w.undo_hovered, w.undo_stack.len()),
+                )
             },
             |w, v| w.undo_hovered = v,
             move |_, res| {
@@ -244,9 +245,10 @@ fn undo_redo_buttons(ctx: &mut FynixCtx<CadWorld>) -> ElementId {
             |w| !w.redo_stack.is_empty(),
             |w| w.redo_hovered,
             move |w| {
-                let current = (w.redo_hovered, w.redo_stack.len());
-                let changed = cell_diff(&prev_redo, current);
-                changed
+                cell_diff(
+                    &prev_redo,
+                    (w.redo_hovered, w.redo_stack.len()),
+                )
             },
             |w, v| w.redo_hovered = v,
             move |_, res| {
