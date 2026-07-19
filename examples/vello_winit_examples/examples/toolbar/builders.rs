@@ -14,7 +14,7 @@ use winit::window::CursorIcon;
 
 use crate::CadWorld;
 use crate::elements::{
-    IconLabelButton, ToolButton, ToolIcon, ToolbarRow,
+    IconLabelButton, MenuBarItem, ToolButton, ToolIcon, ToolbarRow,
 };
 use crate::helpers::*;
 use crate::theme::*;
@@ -273,24 +273,7 @@ fn build_menu_bar(ctx: &mut FynixCtx<CadWorld>) -> ElementId {
             }
             first = false;
 
-            h.add(
-                ctx.add_with::<Button>(|b, ctx| {
-                    let label_text = item.to_string();
-                    let label_id = ctx
-                        .add_with::<Label>(|l, _| {
-                            l.text = label_text;
-                        })
-                        .id();
-                    b.set_child(
-                        ctx.add_with::<Pad>(|p, _| {
-                            *p = Pad::symmetric(2.0, 6.0);
-                            p.set_child(label_id);
-                        })
-                        .id(),
-                    );
-                })
-                .id(),
-            );
+            h.add(ctx.compose(MenuBarItem::new(item)).id());
         }
     })
     .id()

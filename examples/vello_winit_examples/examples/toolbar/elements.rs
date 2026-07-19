@@ -441,3 +441,45 @@ impl Composer<CadWorld> for ToolButton {
         }
     }
 }
+
+#[derive(Init)]
+pub(crate) struct MenuBarItemStyle;
+
+pub(crate) struct MenuBarItem {
+    label: String,
+}
+
+impl MenuBarItem {
+    pub(crate) fn new(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+        }
+    }
+}
+
+impl Composer<CadWorld> for MenuBarItem {
+    type Style = MenuBarItemStyle;
+    type Element = Button;
+
+    fn compose(
+        self,
+        _style: MenuBarItemStyle,
+        ctx: &mut FynixCtx<'_, '_, CadWorld>,
+    ) -> ElementHandle<Button> {
+        let label_id = ctx
+            .add_with::<Label>(|l, _| {
+                l.text = self.label;
+            })
+            .id();
+        ctx.add_with::<Button>(|b, ctx| {
+            b.set_child(
+                ctx.add_with::<Pad>(|p, _| {
+                    *p = Pad::symmetric(2.0, 6.0);
+                    p.set_child(label_id);
+                })
+                .id(),
+            );
+        })
+        .handle()
+    }
+}

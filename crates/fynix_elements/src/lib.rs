@@ -520,26 +520,7 @@ impl Overlay {
 
 impl ElementChildren for Overlay {
     fn children(&self) -> impl IntoIterator<Item = &ElementId> {
-        OverlayChildIter {
-            content: self.content.as_ref(),
-            overlays: self.overlays.iter(),
-        }
-    }
-}
-
-struct OverlayChildIter<'a> {
-    content: Option<&'a ElementId>,
-    overlays: core::slice::Iter<'a, ElementId>,
-}
-
-impl<'a> Iterator for OverlayChildIter<'a> {
-    type Item = &'a ElementId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(id) = self.content.take() {
-            return Some(id);
-        }
-        self.overlays.next()
+        self.content.iter().chain(self.overlays.iter())
     }
 }
 
