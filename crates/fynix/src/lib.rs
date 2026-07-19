@@ -8,6 +8,7 @@ use alloc::vec::Vec;
 pub use field_path;
 pub use imaging;
 use imaging::PaintSink;
+pub use rectree::RectNodes;
 
 use crate::ctx::FynixCtx;
 use crate::element::observer::ObserverFn;

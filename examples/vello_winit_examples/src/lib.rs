@@ -14,7 +14,9 @@ use vello::{
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::event::{
+    ElementState, KeyEvent, Modifiers, MouseButton, WindowEvent,
+};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{CursorIcon, Window};
 
@@ -63,6 +65,10 @@ pub trait DemoWorld: Sized + 'static {
     fn cursor(&self) -> CursorIcon {
         CursorIcon::default()
     }
+
+    /// Called when a keyboard key is pressed. Override to handle
+    /// keyboard shortcuts. The default does nothing.
+    fn on_keyboard(&mut self, _event: &KeyEvent, _mods: &Modifiers) {}
 }
 
 pub struct VelloWinitApp<'s, W: DemoWorld> {
@@ -71,6 +77,8 @@ pub struct VelloWinitApp<'s, W: DemoWorld> {
     root_id: ElementId,
     interactor: Interactor<(), (), MouseButton>,
     cursor: Point,
+    /// Tracks keyboard modifiers for dispatching to the world.
+    modifiers: Modifiers,
     /// Physical-pixels-per-logical-pixel, from the window.
     scale_factor: f64,
     last_frame: Instant,
@@ -116,6 +124,7 @@ impl<W: DemoWorld> VelloWinitApp<'_, W> {
             world,
             interactor,
             cursor: Point::ZERO,
+            modifiers: Modifiers::default(),
             scale_factor: 1.0,
             last_frame: Instant::now(),
             context: RenderContext::new(),
@@ -354,6 +363,15 @@ impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
                         self.cursor,
                     ),
                 }
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed {
+                    self.world.on_keyboard(&event, &self.modifiers);
+                    self.render();
+                }
+            }
+            WindowEvent::ModifiersChanged(mods) => {
+                self.modifiers = mods;
             }
             _ => {}
         }
