@@ -528,16 +528,16 @@ impl Overlay {
     fn anchor_translation(
         side: Side,
         gap: f32,
-        cross: Align,
+        cross_align: Align,
         anchor_pos: Vec2,
         anchor_size: Size,
         child_size: Size,
     ) -> Vec2 {
-        let (main, cross_val) = match side {
+        let (main_offset, cross_offset) = match side {
             Side::Top => (
                 anchor_pos.y - child_size.height - gap,
                 Self::cross_align(
-                    cross,
+                    cross_align,
                     anchor_pos.x,
                     anchor_size.width,
                     child_size.width,
@@ -546,7 +546,7 @@ impl Overlay {
             Side::Bottom => (
                 anchor_pos.y + anchor_size.height + gap,
                 Self::cross_align(
-                    cross,
+                    cross_align,
                     anchor_pos.x,
                     anchor_size.width,
                     child_size.width,
@@ -554,7 +554,7 @@ impl Overlay {
             ),
             Side::Left => (
                 Self::cross_align(
-                    cross,
+                    cross_align,
                     anchor_pos.y,
                     anchor_size.height,
                     child_size.height,
@@ -563,7 +563,7 @@ impl Overlay {
             ),
             Side::Right => (
                 Self::cross_align(
-                    cross,
+                    cross_align,
                     anchor_pos.y,
                     anchor_size.height,
                     child_size.height,
@@ -572,8 +572,12 @@ impl Overlay {
             ),
         };
         match side {
-            Side::Top | Side::Bottom => Vec2::new(cross_val, main),
-            Side::Left | Side::Right => Vec2::new(main, cross_val),
+            Side::Top | Side::Bottom => {
+                Vec2::new(cross_offset, main_offset)
+            }
+            Side::Left | Side::Right => {
+                Vec2::new(main_offset, cross_offset)
+            }
         }
     }
 
@@ -585,67 +589,70 @@ impl Overlay {
     ) -> Option<(Vec2, Size)> {
         let anchor_node = nodes.get_node(&anchor_id)?;
         let size = anchor_node.size;
-        let mut pos = anchor_node.translation;
-        let mut current = anchor_node.parent_id?;
+        let mut accumulated_pos = anchor_node.translation;
+        let mut current_id = anchor_node.parent_id?;
         loop {
-            if current == overlay_id {
-                return Some((pos, size));
+            if current_id == overlay_id {
+                return Some((accumulated_pos, size));
             }
-            let node = nodes.get_node(&current)?;
-            pos = pos + node.translation;
-            current = node.parent_id?;
+            let node = nodes.get_node(&current_id)?;
+            accumulated_pos = accumulated_pos + node.translation;
+            current_id = node.parent_id?;
         }
     }
 
     fn resolve_anchor_offset(
         &self,
-        pos: Vec2,
+        anchor_pos: Vec2,
         anchor_size: Size,
-        ov_size: Size,
+        overlay_size: Size,
         viewport: Option<Size>,
     ) -> Vec2 {
-        let cross = match self.side {
+        let cross_align = match self.side {
             Side::Top | Side::Bottom => self.h_align,
             Side::Left | Side::Right => self.v_align,
         };
-        let t = Self::anchor_translation(
+        let translation = Self::anchor_translation(
             self.side,
             self.gap,
-            cross,
-            pos,
+            cross_align,
+            anchor_pos,
             anchor_size,
-            ov_size,
+            overlay_size,
         ) + self.offset;
-        let Some(vp) = viewport else {
-            return t;
+        let Some(viewport_size) = viewport else {
+            return translation;
         };
-        let overflows = |p: Vec2, sz: Size| -> bool {
-            p.x < 0.0
-                || p.y < 0.0
-                || p.x + sz.width > vp.width
-                || p.y + sz.height > vp.height
+        let overflows = |pos: Vec2, child_size: Size| -> bool {
+            pos.x < 0.0
+                || pos.y < 0.0
+                || pos.x + child_size.width > viewport_size.width
+                || pos.y + child_size.height > viewport_size.height
         };
-        if !overflows(t, ov_size) {
-            return t;
+        if !overflows(translation, overlay_size) {
+            return translation;
         }
-        let flipped = Self::anchor_translation(
+        let flipped_translation = Self::anchor_translation(
             self.side.opposite(),
             self.gap,
-            cross,
-            pos,
+            cross_align,
+            anchor_pos,
             anchor_size,
-            ov_size,
+            overlay_size,
         ) + self.offset;
-        let candidate = if overflows(flipped, ov_size) {
-            t
-        } else {
-            flipped
-        };
-        let max_x = (vp.width - ov_size.width).max(0.0);
-        let max_y = (vp.height - ov_size.height).max(0.0);
+        let best_candidate =
+            if overflows(flipped_translation, overlay_size) {
+                translation
+            } else {
+                flipped_translation
+            };
+        let clamp_x =
+            (viewport_size.width - overlay_size.width).max(0.0);
+        let clamp_y =
+            (viewport_size.height - overlay_size.height).max(0.0);
         Vec2::new(
-            candidate.x.max(0.0).min(max_x),
-            candidate.y.max(0.0).min(max_y),
+            best_candidate.x.max(0.0).min(clamp_x),
+            best_candidate.y.max(0.0).min(clamp_y),
         )
     }
 }
@@ -670,9 +677,9 @@ impl ElementBuild for Overlay {
         let content_size = self
             .content
             .as_ref()
-            .map(|c| {
-                nodes.set_translation(c, Vec2::ZERO);
-                nodes.get_size(c)
+            .map(|content_id| {
+                nodes.set_translation(content_id, Vec2::ZERO);
+                nodes.get_size(content_id)
             })
             .unwrap_or(Size::ZERO);
 
@@ -684,9 +691,9 @@ impl ElementBuild for Overlay {
 
         let mut result = content_size;
 
-        let anchor_data = self
-            .anchor
-            .and_then(|a| self.compute_anchor_pos(a, *id, nodes));
+        let anchor_data = self.anchor.and_then(|anchor_id| {
+            self.compute_anchor_pos(anchor_id, *id, nodes)
+        });
         let has_anchor = anchor_data.is_some();
         let viewport = if self.flip && has_anchor {
             Some(constraint.max)
@@ -694,48 +701,60 @@ impl ElementBuild for Overlay {
             None
         };
 
-        for ov in &self.overlays {
-            let ov_size = nodes.get_size(ov);
-            let t = if let Some((pos, size)) = anchor_data {
+        for overlay_id in &self.overlays {
+            let overlay_size = nodes.get_size(overlay_id);
+            let translation = if let Some((pos, size)) = anchor_data {
                 self.resolve_anchor_offset(
-                    pos, size, ov_size, viewport,
+                    pos,
+                    size,
+                    overlay_size,
+                    viewport,
                 )
             } else {
-                let x = match self.h_align {
+                let align_x = match self.h_align {
                     Align::Start => 0.0,
                     Align::Center => {
-                        (content_size.width - ov_size.width) / 2.0
-                    }
-                    Align::End => content_size.width - ov_size.width,
-                };
-                let y = match self.v_align {
-                    Align::Start => 0.0,
-                    Align::Center => {
-                        (content_size.height - ov_size.height) / 2.0
+                        (content_size.width - overlay_size.width)
+                            / 2.0
                     }
                     Align::End => {
-                        content_size.height - ov_size.height
+                        content_size.width - overlay_size.width
                     }
                 };
-                let mut p = Vec2::new(x, y) + self.offset;
+                let align_y = match self.v_align {
+                    Align::Start => 0.0,
+                    Align::Center => {
+                        (content_size.height - overlay_size.height)
+                            / 2.0
+                    }
+                    Align::End => {
+                        content_size.height - overlay_size.height
+                    }
+                };
+                let mut pos =
+                    Vec2::new(align_x, align_y) + self.offset;
                 if self.clip {
-                    let max_x =
-                        (content_size.width - ov_size.width).max(0.0);
-                    let max_y = (content_size.height
-                        - ov_size.height)
+                    let clamp_x = (content_size.width
+                        - overlay_size.width)
                         .max(0.0);
-                    p = Vec2::new(
-                        p.x.max(0.0).min(max_x),
-                        p.y.max(0.0).min(max_y),
+                    let clamp_y = (content_size.height
+                        - overlay_size.height)
+                        .max(0.0);
+                    pos = Vec2::new(
+                        pos.x.max(0.0).min(clamp_x),
+                        pos.y.max(0.0).min(clamp_y),
                     );
                 }
-                p
+                pos
             };
-            nodes.set_translation(ov, t);
+            nodes.set_translation(overlay_id, translation);
             if !has_anchor && !self.clip {
-                result.width = result.width.max(t.x + ov_size.width);
-                result.height =
-                    result.height.max(t.y + ov_size.height);
+                result.width = result
+                    .width
+                    .max(translation.x + overlay_size.width);
+                result.height = result
+                    .height
+                    .max(translation.y + overlay_size.height);
             }
         }
 
