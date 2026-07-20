@@ -5,8 +5,8 @@ use fynix::interaction::{Handler, HandlerFn};
 use fynix::prelude::*;
 use fynix::reactive::ChangedFn;
 use fynix_elements::{
-    Align, Button, Frame, Horizontal, Label, OverlayComposer, Pad,
-    Side, Vertical,
+    Align, Button, Frame, Horizontal, Label, Overlay, Pad, Side,
+    Vertical,
 };
 use fynix_interaction::prelude::*;
 use vello::peniko::{Brush, Color};
@@ -453,15 +453,14 @@ fn build_toolbar(ctx: &mut FynixCtx<CadWorld>) -> ElementId {
             DropdownId::Draw => draw_arrow,
             DropdownId::Modify => modify_arrow,
         };
-        ctx.compose(
-            OverlayComposer::new()
-                .content(frame_id)
-                .overlay(dropdown)
-                .anchor(arrow_id)
-                .side(Side::Bottom)
-                .h_align(Align::Start)
-                .gap(GAP_V),
-        )
+        ctx.add_with::<Overlay>(|o, _| {
+            o.content = Some(frame_id);
+            o.overlays.push(dropdown);
+            o.anchor = Some(arrow_id);
+            o.side = Side::Bottom;
+            o.h_align = Align::Start;
+            o.gap = GAP_V;
+        })
         .id()
     } else {
         frame_id

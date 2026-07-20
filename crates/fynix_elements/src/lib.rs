@@ -7,7 +7,6 @@ use alloc::vec::Vec;
 
 use fynix::RectNodes;
 use fynix::element::layout::ElementNodes;
-use fynix::element::storage::ElementHandle;
 use fynix::element::table::RenderElementTable;
 use fynix::imaging::kurbo::{Affine, Stroke};
 use fynix::imaging::peniko::{Brush, BrushRef, Color, Fill, Style};
@@ -510,6 +509,145 @@ impl Overlay {
         self.overlays.push(id.into());
         self
     }
+
+    fn cross_align(
+        align: Align,
+        anchor_start: f32,
+        anchor_span: f32,
+        child_span: f32,
+    ) -> f32 {
+        match align {
+            Align::Start => anchor_start,
+            Align::Center => {
+                anchor_start + (anchor_span - child_span) / 2.0
+            }
+            Align::End => anchor_start + anchor_span - child_span,
+        }
+    }
+
+    fn anchor_translation(
+        side: Side,
+        gap: f32,
+        cross: Align,
+        anchor_pos: Vec2,
+        anchor_size: Size,
+        child_size: Size,
+    ) -> Vec2 {
+        let (main, cross_val) = match side {
+            Side::Top => (
+                anchor_pos.y - child_size.height - gap,
+                Self::cross_align(
+                    cross,
+                    anchor_pos.x,
+                    anchor_size.width,
+                    child_size.width,
+                ),
+            ),
+            Side::Bottom => (
+                anchor_pos.y + anchor_size.height + gap,
+                Self::cross_align(
+                    cross,
+                    anchor_pos.x,
+                    anchor_size.width,
+                    child_size.width,
+                ),
+            ),
+            Side::Left => (
+                Self::cross_align(
+                    cross,
+                    anchor_pos.y,
+                    anchor_size.height,
+                    child_size.height,
+                ),
+                anchor_pos.x - child_size.width - gap,
+            ),
+            Side::Right => (
+                Self::cross_align(
+                    cross,
+                    anchor_pos.y,
+                    anchor_size.height,
+                    child_size.height,
+                ),
+                anchor_pos.x + anchor_size.width + gap,
+            ),
+        };
+        match side {
+            Side::Top | Side::Bottom => Vec2::new(cross_val, main),
+            Side::Left | Side::Right => Vec2::new(main, cross_val),
+        }
+    }
+
+    fn compute_anchor_pos(
+        &self,
+        anchor_id: ElementId,
+        overlay_id: ElementId,
+        nodes: &ElementNodes,
+    ) -> Option<(Vec2, Size)> {
+        let anchor_node = nodes.get_node(&anchor_id)?;
+        let size = anchor_node.size;
+        let mut pos = anchor_node.translation;
+        let mut current = anchor_node.parent_id?;
+        loop {
+            if current == overlay_id {
+                return Some((pos, size));
+            }
+            let node = nodes.get_node(&current)?;
+            pos = pos + node.translation;
+            current = node.parent_id?;
+        }
+    }
+
+    fn resolve_anchor_offset(
+        &self,
+        pos: Vec2,
+        anchor_size: Size,
+        ov_size: Size,
+        viewport: Option<Viewport>,
+    ) -> Vec2 {
+        let cross = match self.side {
+            Side::Top | Side::Bottom => self.h_align,
+            Side::Left | Side::Right => self.v_align,
+        };
+        let t = Self::anchor_translation(
+            self.side,
+            self.gap,
+            cross,
+            pos,
+            anchor_size,
+            ov_size,
+        ) + self.offset;
+        let Some(vp) = viewport else {
+            return t;
+        };
+        let overflows = |p: Vec2, sz: Size| -> bool {
+            p.x < 0.0
+                || p.y < 0.0
+                || p.x + sz.width > vp.width
+                || p.y + sz.height > vp.height
+        };
+        if !overflows(t, ov_size) {
+            return t;
+        }
+        let flipped = Self::anchor_translation(
+            self.side.opposite(),
+            self.gap,
+            cross,
+            pos,
+            anchor_size,
+            ov_size,
+        ) + self.offset;
+        let candidate = if overflows(flipped, ov_size) {
+            t
+        } else {
+            flipped
+        };
+        let max_x = (vp.width - ov_size.width).max(0.0);
+        let max_y = (vp.height - ov_size.height).max(0.0);
+        Vec2::new(
+            candidate.x.max(0.0).min(max_x),
+            candidate.y.max(0.0).min(max_y),
+        )
+    }
 }
 
 impl ElementChildren for Overlay {
@@ -546,19 +684,9 @@ impl ElementBuild for Overlay {
 
         let mut result = content_size;
 
-        let clip = self.clip;
-        let side = self.side;
-        let gap = self.gap;
-        let offset = self.offset;
-        let h_align = self.h_align;
-        let v_align = self.v_align;
-        let cross = match side {
-            Side::Top | Side::Bottom => h_align,
-            Side::Left | Side::Right => v_align,
-        };
         let anchor_data = self
             .anchor
-            .and_then(|a| compute_anchor_pos(a, *id, nodes));
+            .and_then(|a| self.compute_anchor_pos(a, *id, nodes));
         let has_anchor = anchor_data.is_some();
         let viewport = if self.flip && has_anchor {
             nodes.get_resource::<Viewport>().copied()
@@ -569,25 +697,42 @@ impl ElementBuild for Overlay {
         for ov in &self.overlays {
             let ov_size = nodes.get_size(ov);
             let t = if let Some((pos, size)) = anchor_data {
-                resolve_anchor_offset(
-                    side, cross, gap, offset, pos, size, ov_size,
-                    viewport,
+                self.resolve_anchor_offset(
+                    pos, size, ov_size, viewport,
                 )
             } else {
-                let p = alignment_offset(
-                    h_align,
-                    v_align,
-                    content_size,
-                    ov_size,
-                ) + offset;
-                if clip {
-                    clamp_to_bounds(p, ov_size, content_size)
-                } else {
-                    p
+                let x = match self.h_align {
+                    Align::Start => 0.0,
+                    Align::Center => {
+                        (content_size.width - ov_size.width) / 2.0
+                    }
+                    Align::End => content_size.width - ov_size.width,
+                };
+                let y = match self.v_align {
+                    Align::Start => 0.0,
+                    Align::Center => {
+                        (content_size.height - ov_size.height) / 2.0
+                    }
+                    Align::End => {
+                        content_size.height - ov_size.height
+                    }
+                };
+                let mut p = Vec2::new(x, y) + self.offset;
+                if self.clip {
+                    let max_x =
+                        (content_size.width - ov_size.width).max(0.0);
+                    let max_y = (content_size.height
+                        - ov_size.height)
+                        .max(0.0);
+                    p = Vec2::new(
+                        p.x.max(0.0).min(max_x),
+                        p.y.max(0.0).min(max_y),
+                    );
                 }
+                p
             };
             nodes.set_translation(ov, t);
-            if !has_anchor && !clip {
+            if !has_anchor && !self.clip {
                 result.width = result.width.max(t.x + ov_size.width);
                 result.height =
                     result.height.max(t.y + ov_size.height);
@@ -595,287 +740,6 @@ impl ElementBuild for Overlay {
         }
 
         constraint.constrain(result)
-    }
-}
-
-fn alignment_offset(
-    h_align: Align,
-    v_align: Align,
-    content: Size,
-    child: Size,
-) -> Vec2 {
-    let x = match h_align {
-        Align::Start => 0.0,
-        Align::Center => (content.width - child.width) / 2.0,
-        Align::End => content.width - child.width,
-    };
-    let y = match v_align {
-        Align::Start => 0.0,
-        Align::Center => (content.height - child.height) / 2.0,
-        Align::End => content.height - child.height,
-    };
-    Vec2::new(x, y)
-}
-
-fn clamp_to_bounds(
-    pos: Vec2,
-    child_size: Size,
-    bounds: Size,
-) -> Vec2 {
-    let max_x = (bounds.width - child_size.width).max(0.0);
-    let max_y = (bounds.height - child_size.height).max(0.0);
-    Vec2::new(pos.x.max(0.0).min(max_x), pos.y.max(0.0).min(max_y))
-}
-
-fn resolve_anchor_offset(
-    side: Side,
-    cross: Align,
-    gap: f32,
-    offset: Vec2,
-    pos: Vec2,
-    anchor_size: Size,
-    ov_size: Size,
-    viewport: Option<Viewport>,
-) -> Vec2 {
-    let t = anchor_translation(
-        side,
-        cross,
-        gap,
-        pos,
-        anchor_size,
-        ov_size,
-    ) + offset;
-    let Some(vp) = viewport else {
-        return t;
-    };
-    if !anchor_overflows(t, ov_size, &vp) {
-        return t;
-    }
-    let flipped = anchor_translation(
-        side.opposite(),
-        cross,
-        gap,
-        pos,
-        anchor_size,
-        ov_size,
-    ) + offset;
-    let candidate = if anchor_overflows(flipped, ov_size, &vp) {
-        t
-    } else {
-        flipped
-    };
-    clamp_to_bounds(
-        candidate,
-        ov_size,
-        Size::new(vp.width, vp.height),
-    )
-}
-
-fn compute_anchor_pos(
-    anchor_id: ElementId,
-    overlay_id: ElementId,
-    nodes: &ElementNodes,
-) -> Option<(Vec2, Size)> {
-    let anchor_node = nodes.get_node(&anchor_id)?;
-    let size = anchor_node.size;
-    let mut pos = anchor_node.translation;
-    let mut current = anchor_node.parent_id?;
-    loop {
-        if current == overlay_id {
-            return Some((pos, size));
-        }
-        let node = nodes.get_node(&current)?;
-        pos = pos + node.translation;
-        current = node.parent_id?;
-    }
-}
-
-fn anchor_translation(
-    side: Side,
-    cross: Align,
-    gap: f32,
-    anchor_pos: Vec2,
-    anchor_size: Size,
-    child_size: Size,
-) -> Vec2 {
-    let (main, cross_val) = match side {
-        Side::Top => (
-            anchor_pos.y - child_size.height - gap,
-            cross_align(
-                cross,
-                anchor_pos.x,
-                anchor_size.width,
-                child_size.width,
-            ),
-        ),
-        Side::Bottom => (
-            anchor_pos.y + anchor_size.height + gap,
-            cross_align(
-                cross,
-                anchor_pos.x,
-                anchor_size.width,
-                child_size.width,
-            ),
-        ),
-        Side::Left => (
-            cross_align(
-                cross,
-                anchor_pos.y,
-                anchor_size.height,
-                child_size.height,
-            ),
-            anchor_pos.x - child_size.width - gap,
-        ),
-        Side::Right => (
-            cross_align(
-                cross,
-                anchor_pos.y,
-                anchor_size.height,
-                child_size.height,
-            ),
-            anchor_pos.x + anchor_size.width + gap,
-        ),
-    };
-    match side {
-        Side::Top | Side::Bottom => Vec2::new(cross_val, main),
-        Side::Left | Side::Right => Vec2::new(main, cross_val),
-    }
-}
-
-fn cross_align(
-    align: Align,
-    anchor_start: f32,
-    anchor_span: f32,
-    child_span: f32,
-) -> f32 {
-    match align {
-        Align::Start => anchor_start,
-        Align::Center => {
-            anchor_start + (anchor_span - child_span) / 2.0
-        }
-        Align::End => anchor_start + anchor_span - child_span,
-    }
-}
-
-fn anchor_overflows(
-    pos: Vec2,
-    size: Size,
-    viewport: &Viewport,
-) -> bool {
-    pos.x < 0.0
-        || pos.y < 0.0
-        || pos.x + size.width > viewport.width
-        || pos.y + size.height > viewport.height
-}
-
-pub struct OverlayComposer {
-    content: Option<ElementId>,
-    overlays: Vec<ElementId>,
-    anchor: Option<ElementId>,
-    side: Option<Side>,
-    gap: Option<f32>,
-    h_align: Option<Align>,
-    v_align: Option<Align>,
-    offset: Option<Vec2>,
-    clip: Option<bool>,
-    flip: Option<bool>,
-}
-
-impl OverlayComposer {
-    pub fn new() -> Self {
-        Self {
-            content: None,
-            overlays: Vec::new(),
-            anchor: None,
-            side: None,
-            gap: None,
-            h_align: None,
-            v_align: None,
-            offset: None,
-            clip: None,
-            flip: None,
-        }
-    }
-
-    pub fn content(mut self, id: impl Into<ElementId>) -> Self {
-        self.content = Some(id.into());
-        self
-    }
-
-    pub fn overlay(mut self, id: impl Into<ElementId>) -> Self {
-        self.overlays.push(id.into());
-        self
-    }
-
-    pub fn anchor(mut self, id: impl Into<ElementId>) -> Self {
-        self.anchor = Some(id.into());
-        self
-    }
-
-    pub fn side(mut self, s: Side) -> Self {
-        self.side = Some(s);
-        self
-    }
-
-    pub fn gap(mut self, g: f32) -> Self {
-        self.gap = Some(g);
-        self
-    }
-
-    pub fn h_align(mut self, a: Align) -> Self {
-        self.h_align = Some(a);
-        self
-    }
-
-    pub fn v_align(mut self, a: Align) -> Self {
-        self.v_align = Some(a);
-        self
-    }
-
-    pub fn offset(mut self, v: Vec2) -> Self {
-        self.offset = Some(v);
-        self
-    }
-
-    pub fn clip(mut self, b: bool) -> Self {
-        self.clip = Some(b);
-        self
-    }
-
-    pub fn flip(mut self, b: bool) -> Self {
-        self.flip = Some(b);
-        self
-    }
-}
-
-impl Default for OverlayComposer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<W> Composer<W> for OverlayComposer {
-    type Style = Overlay;
-    type Element = Overlay;
-
-    fn compose(
-        self,
-        style: Self::Style,
-        ctx: &mut FynixCtx<'_, '_, W>,
-    ) -> ElementHandle<Overlay> {
-        ctx.add_with::<Overlay>(move |o, _| {
-            o.content = self.content;
-            o.overlays = self.overlays;
-            o.h_align = self.h_align.unwrap_or(style.h_align);
-            o.v_align = self.v_align.unwrap_or(style.v_align);
-            o.offset = self.offset.unwrap_or(style.offset);
-            o.clip = self.clip.unwrap_or(style.clip);
-            o.anchor = self.anchor.or(style.anchor);
-            o.side = self.side.unwrap_or(style.side);
-            o.gap = self.gap.unwrap_or(style.gap);
-            o.flip = self.flip.unwrap_or(style.flip);
-        })
-        .handle()
     }
 }
 
