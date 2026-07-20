@@ -121,6 +121,7 @@ pub(crate) fn apply_base(ctx: &mut FynixCtx<CadWorld>) {
     ctx.set(path!(<Button>::corner_radius), CORNER_RADIUS);
     ctx.set(path!(<Button>::stroke), Stroke::new(0.0));
     ctx.set(path!(<Frame>::corner_radius), CORNER_RADIUS);
+    ctx.set(path!(<Frame>::fill), Brush::Solid(SEPARATOR));
 }
 
 pub(crate) fn apply_menu_bar(ctx: &mut FynixCtx<CadWorld>) {

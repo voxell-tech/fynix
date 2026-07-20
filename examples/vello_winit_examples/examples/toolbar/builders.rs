@@ -398,7 +398,6 @@ fn toolbar_group(
 
         let separator_id = ctx
             .add_with::<Frame>(|f, _| {
-                f.fill = Brush::Solid(SEPARATOR);
                 f.corner_radius = 0.0;
                 f.top = 2.0;
                 f.bottom = 1.0;

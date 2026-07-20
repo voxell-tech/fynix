@@ -5,6 +5,7 @@ use fynix::prelude::*;
 use fynix_elements::{Button, Frame, Label, Pad};
 use fynix_interaction::prelude::*;
 use vello::peniko::{Brush, Color};
+use winit::window::CursorIcon;
 
 use crate::CadWorld;
 use crate::theme::*;
@@ -22,7 +23,6 @@ pub(crate) fn add_separator(
     ctx: &mut FynixCtx<CadWorld>,
 ) -> ElementId {
     ctx.add_with::<Frame>(|line, _| {
-        line.fill = Brush::Solid(SEPARATOR);
         line.corner_radius = 0.0;
         line.top = 0.5;
         line.bottom = 0.5;
@@ -34,7 +34,6 @@ pub(crate) fn add_vertical_separator(
     ctx: &mut FynixCtx<CadWorld>,
 ) -> ElementId {
     ctx.add_with::<Frame>(|f, _| {
-        f.fill = Brush::Solid(SEPARATOR);
         f.corner_radius = 0.0;
         f.top = 0.0;
         f.bottom = 0.0;
@@ -81,6 +80,25 @@ pub(crate) fn dismiss_dropdown_handler()
             res.expanded_dropdown = None;
         },
     )
+}
+
+pub(crate) fn tool_enter_handler(
+    tool: Tool,
+) -> Handler<PointerEnter<Mouse>, CadWorld> {
+    Handler::new(move |_, res: &mut Response<'_, CadWorld>| {
+        res.hovered_tool = Some(tool);
+        res.hovered_hint = Some(tool.hint());
+        res.cursor_icon = CursorIcon::Pointer;
+    })
+}
+
+pub(crate) fn tool_leave_handler()
+-> Handler<PointerLeave<Mouse>, CadWorld> {
+    Handler::new(|_, res: &mut Response<'_, CadWorld>| {
+        res.hovered_tool = None;
+        res.hovered_hint = None;
+        res.cursor_icon = CursorIcon::Default;
+    })
 }
 
 pub(crate) fn dismiss_on_click(

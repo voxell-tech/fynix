@@ -7,11 +7,11 @@ use fynix::prelude::*;
 use fynix_elements::{Button, Frame, Horizontal, Label, Pad};
 use fynix_interaction::prelude::*;
 use vello::peniko::{Brush, Color};
-use winit::window::CursorIcon;
 
 use crate::CadWorld;
 use crate::helpers::{
-    hovered_tool_changed, unified_fg, unified_fill,
+    hovered_tool_changed, tool_enter_handler, tool_leave_handler,
+    unified_fg, unified_fill,
 };
 use crate::theme::*;
 
@@ -406,24 +406,8 @@ impl Composer<CadWorld> for ToolButton {
             fg: unified_fg(true),
             enabled: true,
             on_click,
-            on_enter: tool.map(|t| {
-                Handler::new(
-                    move |_, res: &mut Response<'_, CadWorld>| {
-                        res.hovered_tool = Some(t);
-                        res.hovered_hint = Some(t.hint());
-                        res.cursor_icon = CursorIcon::Pointer;
-                    },
-                )
-            }),
-            on_leave: tool.map(|_t| {
-                Handler::new(
-                    move |_, res: &mut Response<'_, CadWorld>| {
-                        res.hovered_tool = None;
-                        res.hovered_hint = None;
-                        res.cursor_icon = CursorIcon::Default;
-                    },
-                )
-            }),
+            on_enter: tool.map(tool_enter_handler),
+            on_leave: tool.is_some().then(tool_leave_handler),
         });
         if let Some(t) = tool {
             handle
