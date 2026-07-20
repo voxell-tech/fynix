@@ -671,28 +671,6 @@ fn resolve_anchor_offset(
     )
 }
 
-fn walk_to_root(
-    start: Option<ElementId>,
-    nodes: &ElementNodes,
-) -> Vec2 {
-    let mut pos = Vec2::ZERO;
-    let mut current = match start {
-        Some(id) => id,
-        None => return Vec2::ZERO,
-    };
-    loop {
-        let Some(node) = nodes.get_node(&current) else {
-            break;
-        };
-        pos = pos + node.translation;
-        match node.parent_id {
-            Some(parent_id) => current = parent_id,
-            None => break,
-        }
-    }
-    pos
-}
-
 fn compute_anchor_pos(
     anchor_id: ElementId,
     overlay_id: ElementId,
@@ -700,16 +678,16 @@ fn compute_anchor_pos(
 ) -> Option<(Vec2, Size)> {
     let anchor_node = nodes.get_node(&anchor_id)?;
     let size = anchor_node.size;
-    let anchor_root = anchor_node.translation
-        + walk_to_root(anchor_node.parent_id, nodes);
-    let overlay_root = walk_to_root(Some(overlay_id), nodes);
-    Some((
-        Vec2::new(
-            anchor_root.x - overlay_root.x,
-            anchor_root.y - overlay_root.y,
-        ),
-        size,
-    ))
+    let mut pos = anchor_node.translation;
+    let mut current = anchor_node.parent_id?;
+    loop {
+        if current == overlay_id {
+            return Some((pos, size));
+        }
+        let node = nodes.get_node(&current)?;
+        pos = pos + node.translation;
+        current = node.parent_id?;
+    }
 }
 
 fn anchor_translation(
