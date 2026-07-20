@@ -124,32 +124,24 @@ impl DemoWorld for CadWorld {
         let ctrl = mods.state().control_key();
         let shift = mods.state().shift_key();
 
-        if ctrl && shift {
-            if let Key::Character(ch) = &event.logical_key {
-                if ch.as_str().eq_ignore_ascii_case("z") {
-                    self.redo();
-                    return;
-                }
-            }
-        }
-
-        if ctrl {
-            if let Key::Character(ch) = &event.logical_key {
-                if ch.as_str().eq_ignore_ascii_case("z") {
-                    self.undo();
-                    return;
-                }
-            }
-        }
-
-        if !ctrl && !shift {
-            if let Some(text) = &event.text {
-                if let Some(ch) = text.chars().next() {
-                    if let Some(tool) = Tool::from_key(ch) {
-                        self.select_tool(tool);
-                    }
-                }
-            }
+        if ctrl
+            && shift
+            && let Key::Character(ch) = &event.logical_key
+            && ch.as_str().eq_ignore_ascii_case("z")
+        {
+            self.redo();
+        } else if ctrl
+            && let Key::Character(ch) = &event.logical_key
+            && ch.as_str().eq_ignore_ascii_case("z")
+        {
+            self.undo();
+        } else if !ctrl
+            && !shift
+            && let Some(text) = &event.text
+            && let Some(ch) = text.chars().next()
+            && let Some(tool) = Tool::from_key(ch)
+        {
+            self.select_tool(tool);
         }
     }
 

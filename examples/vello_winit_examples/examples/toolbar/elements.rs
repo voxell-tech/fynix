@@ -176,10 +176,8 @@ impl Composer<CadWorld> for IconLabelButton {
             }));
         });
 
-        if enabled {
-            if let Some(on_click) = on_click {
-                button = button.interact_raw(on_click);
-            }
+        if enabled && let Some(on_click) = on_click {
+            button = button.interact_raw(on_click);
         }
         if let Some(on_enter) = on_enter {
             button = button.interact_raw(on_enter);

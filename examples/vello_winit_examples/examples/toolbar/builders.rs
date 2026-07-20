@@ -161,22 +161,16 @@ fn toggle_flag(
     .id()
 }
 
-fn shortcut_button<GetE, GetH>(
+fn shortcut_button(
     ctx: &mut FynixCtx<CadWorld>,
     icon: &str,
     label: &str,
-    get_enabled: GetE,
-    get_hovered: GetH,
+    get_state: fn(&CadWorld) -> (bool, bool),
     get_changed: impl ChangedFn<CadWorld>,
     set_hovered: impl Fn(&mut CadWorld, bool) + 'static + Copy,
     on_click: impl HandlerFn<PrimaryClick<Mouse>, CadWorld>,
-) -> ElementId
-where
-    GetE: Fn(&CadWorld) -> bool + 'static + Copy,
-    GetH: Fn(&CadWorld) -> bool + 'static + Copy,
-{
-    let enabled = get_enabled(ctx.world);
-    let hovered = get_hovered(ctx.world);
+) -> ElementId {
+    let (enabled, hovered) = get_state(ctx.world);
 
     ctx.compose(IconLabelButton {
         label: label.into(),
@@ -199,8 +193,7 @@ where
     .bind(
         get_changed,
         move |w| {
-            let e = get_enabled(w);
-            let h = get_hovered(w);
+            let (e, h) = get_state(w);
             unified_fill(false, h, e)
         },
         |b: &mut Button| &mut b.fill,
@@ -222,8 +215,7 @@ fn undo_redo_buttons(ctx: &mut FynixCtx<CadWorld>) -> ElementId {
             ctx,
             "\u{21A9}",
             "Undo",
-            |w| !w.undo_stack.is_empty(),
-            |w| w.undo_hovered,
+            |w| (!w.undo_stack.is_empty(), w.undo_hovered),
             move |w| {
                 cell_diff(
                     &prev_undo,
@@ -242,8 +234,7 @@ fn undo_redo_buttons(ctx: &mut FynixCtx<CadWorld>) -> ElementId {
             ctx,
             "\u{21AA}",
             "Redo",
-            |w| !w.redo_stack.is_empty(),
-            |w| w.redo_hovered,
+            |w| (!w.redo_stack.is_empty(), w.redo_hovered),
             move |w| {
                 cell_diff(
                     &prev_redo,
