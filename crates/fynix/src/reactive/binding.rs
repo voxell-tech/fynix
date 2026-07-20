@@ -44,7 +44,8 @@ type ApplyFn<W> =
 ///
 /// [`ElementTable::insert_component`]: crate::element::table::ElementTable::insert_component
 pub struct Binding<W: 'static> {
-    /// Reports whether the bound source changed since the last apply.
+    /// Reports whether the bound source changed since the last
+    /// apply.
     changed: Changed<W>,
     /// Reads the world and writes the captured field.
     apply: ApplyFn<W>,
