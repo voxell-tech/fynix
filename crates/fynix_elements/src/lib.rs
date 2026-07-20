@@ -647,6 +647,25 @@ impl Overlay {
             best_candidate.y.max(0.0).min(clamp_y),
         )
     }
+
+    /// Walks from `from_id` up to the root node. Returns the
+    /// accumulated translation (world position of `from_id`) and
+    /// the root node's size (the viewport).
+    fn walk_to_root(
+        from_id: ElementId,
+        nodes: &ElementNodes,
+    ) -> Option<(Vec2, Size)> {
+        let mut offset = Vec2::ZERO;
+        let mut current_id = from_id;
+        loop {
+            let node = nodes.get_node(&current_id)?;
+            offset = offset + node.translation;
+            match node.parent_id {
+                Some(parent) => current_id = parent,
+                None => return Some((offset, node.size)),
+            }
+        }
+    }
 }
 
 impl ElementChildren for Overlay {
@@ -687,8 +706,15 @@ impl ElementBuild for Overlay {
             self.compute_anchor_pos(anchor_id, *id, nodes)
         });
         let has_anchor = anchor_data.is_some();
+        let (overlay_root_offset, root_viewport) =
+            if self.flip && has_anchor {
+                Self::walk_to_root(*id, nodes)
+                    .unwrap_or((Vec2::ZERO, Size::ZERO))
+            } else {
+                (Vec2::ZERO, Size::ZERO)
+            };
         let viewport = if self.flip && has_anchor {
-            Some(constraint.max)
+            Some(root_viewport)
         } else {
             None
         };
@@ -696,11 +722,15 @@ impl ElementBuild for Overlay {
         for overlay_id in &self.overlays {
             let overlay_size = nodes.get_size(overlay_id);
             let translation = if let Some((pos, size)) = anchor_data {
-                self.resolve_anchor_offset(
-                    pos,
+                let root_translation = self.resolve_anchor_offset(
+                    pos + overlay_root_offset,
                     size,
                     overlay_size,
                     viewport,
+                );
+                Vec2::new(
+                    root_translation.x - overlay_root_offset.x,
+                    root_translation.y - overlay_root_offset.y,
                 )
             } else {
                 let align_x = Self::cross_align(
