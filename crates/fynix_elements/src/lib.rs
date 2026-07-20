@@ -711,26 +711,18 @@ impl ElementBuild for Overlay {
                     viewport,
                 )
             } else {
-                let align_x = match self.h_align {
-                    Align::Start => 0.0,
-                    Align::Center => {
-                        (content_size.width - overlay_size.width)
-                            / 2.0
-                    }
-                    Align::End => {
-                        content_size.width - overlay_size.width
-                    }
-                };
-                let align_y = match self.v_align {
-                    Align::Start => 0.0,
-                    Align::Center => {
-                        (content_size.height - overlay_size.height)
-                            / 2.0
-                    }
-                    Align::End => {
-                        content_size.height - overlay_size.height
-                    }
-                };
+                let align_x = Self::cross_align(
+                    self.h_align,
+                    0.0,
+                    content_size.width,
+                    overlay_size.width,
+                );
+                let align_y = Self::cross_align(
+                    self.v_align,
+                    0.0,
+                    content_size.height,
+                    overlay_size.height,
+                );
                 let mut pos =
                     Vec2::new(align_x, align_y) + self.offset;
                 if self.clip {
