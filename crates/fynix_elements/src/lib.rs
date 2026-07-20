@@ -602,7 +602,7 @@ impl Overlay {
         pos: Vec2,
         anchor_size: Size,
         ov_size: Size,
-        viewport: Option<Viewport>,
+        viewport: Option<Size>,
     ) -> Vec2 {
         let cross = match self.side {
             Side::Top | Side::Bottom => self.h_align,
@@ -689,7 +689,7 @@ impl ElementBuild for Overlay {
             .and_then(|a| self.compute_anchor_pos(a, *id, nodes));
         let has_anchor = anchor_data.is_some();
         let viewport = if self.flip && has_anchor {
-            nodes.get_resource::<Viewport>().copied()
+            Some(constraint.max)
         } else {
             None
         };
@@ -741,14 +741,6 @@ impl ElementBuild for Overlay {
 
         constraint.constrain(result)
     }
-}
-
-/// Viewport bounds for overflow detection and flip behavior.
-/// Stored as a resource; read automatically by Overlay during build.
-#[derive(Clone, Copy, Debug)]
-pub struct Viewport {
-    pub width: f32,
-    pub height: f32,
 }
 
 #[derive(Default, Clone)]

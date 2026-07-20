@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use fynix::prelude::*;
 use fynix_elements::parley::fontique::{Blob, GenericFamily};
-use fynix_elements::{TextContext, Viewport, WindowSize};
+use fynix_elements::{TextContext, WindowSize};
 use helpers::cell_diff;
 use theme::{DropdownId, Tool, ToolbarState};
 use vello_winit_examples::{DemoWorld, VelloWinitApp};
@@ -99,11 +99,6 @@ impl DemoWorld for CadWorld {
 
     fn init(&mut self, fynix: &mut Fynix<Self>) {
         fynix_elements::init_resources(fynix);
-        let initial_size = self.initial_logical_size();
-        fynix.resources.insert(Viewport {
-            width: initial_size.0 as f32,
-            height: initial_size.1 as f32,
-        });
 
         if let Some(text_cx) =
             fynix.resources.get_mut::<TextContext>()

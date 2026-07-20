@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use fynix::prelude::*;
-use fynix_elements::Viewport;
 use fynix_interaction::pointer;
 use fynix_interaction::prelude::*;
 use imaging_vello::VelloSceneSink;
@@ -331,12 +330,6 @@ impl<D: DemoWorld> ApplicationHandler for VelloWinitApp<'_, D> {
                     logical.width,
                     logical.height,
                 ));
-                if let Some(vp) =
-                    self.fynix.resources.get_mut::<Viewport>()
-                {
-                    vp.width = logical.width;
-                    vp.height = logical.height;
-                }
                 self.render();
             }
             WindowEvent::ScaleFactorChanged {
