@@ -533,51 +533,43 @@ impl Overlay {
         anchor_size: Size,
         child_size: Size,
     ) -> Vec2 {
-        let (main_offset, cross_offset) = match side {
-            Side::Top => (
-                anchor_pos.y - child_size.height - gap,
-                Self::cross_align(
-                    cross_align,
-                    anchor_pos.x,
-                    anchor_size.width,
-                    child_size.width,
-                ),
-            ),
-            Side::Bottom => (
-                anchor_pos.y + anchor_size.height + gap,
-                Self::cross_align(
-                    cross_align,
-                    anchor_pos.x,
-                    anchor_size.width,
-                    child_size.width,
-                ),
-            ),
-            Side::Left => (
-                Self::cross_align(
-                    cross_align,
-                    anchor_pos.y,
-                    anchor_size.height,
-                    child_size.height,
-                ),
-                anchor_pos.x - child_size.width - gap,
-            ),
-            Side::Right => (
-                Self::cross_align(
-                    cross_align,
-                    anchor_pos.y,
-                    anchor_size.height,
-                    child_size.height,
-                ),
-                anchor_pos.x + anchor_size.width + gap,
-            ),
-        };
         match side {
-            Side::Top | Side::Bottom => {
-                Vec2::new(cross_offset, main_offset)
-            }
-            Side::Left | Side::Right => {
-                Vec2::new(main_offset, cross_offset)
-            }
+            Side::Top => Vec2::new(
+                Self::cross_align(
+                    cross_align,
+                    anchor_pos.x,
+                    anchor_size.width,
+                    child_size.width,
+                ),
+                anchor_pos.y - child_size.height - gap,
+            ),
+            Side::Bottom => Vec2::new(
+                Self::cross_align(
+                    cross_align,
+                    anchor_pos.x,
+                    anchor_size.width,
+                    child_size.width,
+                ),
+                anchor_pos.y + anchor_size.height + gap,
+            ),
+            Side::Left => Vec2::new(
+                anchor_pos.x - child_size.width - gap,
+                Self::cross_align(
+                    cross_align,
+                    anchor_pos.y,
+                    anchor_size.height,
+                    child_size.height,
+                ),
+            ),
+            Side::Right => Vec2::new(
+                anchor_pos.x + anchor_size.width + gap,
+                Self::cross_align(
+                    cross_align,
+                    anchor_pos.y,
+                    anchor_size.height,
+                    child_size.height,
+                ),
+            ),
         }
     }
 
