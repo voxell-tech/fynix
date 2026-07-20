@@ -678,7 +678,7 @@ impl ElementBuild for Overlay {
         let content_size = constraint.constrain(content_size);
 
         if self.overlays.is_empty() {
-            return constraint.constrain(content_size);
+            return content_size;
         }
 
         let mut result = content_size;
