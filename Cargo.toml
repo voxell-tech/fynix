@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/voxell-tech/fynix"
+
+[workspace.dependencies]
+# fynix
+fynix = { version = "0.1.0", path = "crates/fynix", default-features = false }
+fynix_macros = { version = "0.1.0", path = "crates/fynix_macros" }
+bevy_fynix = { version = "0.1.0", path = "crates/bevy_fynix", default-features = false }
+
+# motiongfx
+motiongfx_interp = { git = "https://github.com/voxell-tech/motiongfx", rev = "f2d473c", default-features = false }
+
+# bevy
+bevy_app = { version = "0.19", default-features = false }
+bevy_ecs = { version = "0.19", default-features = false }
+bevy_picking = { version = "0.19", default-features = false }
+bevy_time = { version = "0.19", default-features = false }
+bevy_ui = { version = "0.19", default-features = false }
+
+# other
+lenz = { version = "0.1", git = "https://github.com/nixonyh/lenz" }
+typarena = { version = "0.1.2", features = ["send", "sync"] }
+hashbrown = { version = "0.17", default-features = false }
+
+[workspace.lints.clippy]
+redundant_type_annotations = "warn"
+
+# Enable a small amount of optimization in the dev profile.
+[profile.dev]
+opt-level = 1
+
+# Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3

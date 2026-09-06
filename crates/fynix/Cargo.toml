@@ -1,6 +1,10 @@
 [package]
 name = "fynix"
 description = "A reactive element tree: watchers, bindings, and transitions over a backend world."
+exclude = ["/examples/"]
+keywords = ["reactive", "element", "ui", "tree", "agnostic"]
+categories = ["no-std", "gui"]
+readme = "./README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

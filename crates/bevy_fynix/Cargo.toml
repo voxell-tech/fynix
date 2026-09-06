@@ -1,6 +1,9 @@
 [package]
 name = "bevy_fynix"
 description = "Bevy backend for fynix."
+keywords = ["fynix", "bevy", "ui", "reactive", "plugin"]
+categories = ["gui", "game-development"]
+readme = "./README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
