@@ -25,7 +25,7 @@ bevy_time = { version = "0.19", default-features = false }
 bevy_ui = { version = "0.19", default-features = false }
 
 # other
-lenz = { version = "0.1", git = "https://github.com/nixonyh/lenz" }
+lenz = { version = "0.1.0", default-features = false }
 typarena = { version = "0.1.2", features = ["send", "sync"] }
 hashbrown = { version = "0.17", default-features = false }
 
