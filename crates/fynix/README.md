@@ -102,7 +102,7 @@ write, and the value. On flush, if the "when" closure returns
 
 ```rust
 # #[path = "docs/host.rs"] mod _doc; use _doc::*;
-use fynix::ui::Ui;
+use fynix::prelude::*;
 
 fn view(ui: &mut Ui<FynixHost>) {
     ui.elem(elem!(Button)).bind(
@@ -130,7 +130,7 @@ is tagged rather than snapping.
 
 ```rust
 # #[path = "docs/host.rs"] mod _doc; use _doc::*;
-use fynix::element::element;
+use fynix::prelude::*;
 use fynix::motiongfx_interp::ease;
 
 #[element(host = FynixHost)]

@@ -3,6 +3,18 @@
 pub mod host;
 pub mod tag;
 
+/// Everything from [`fynix::prelude`], plus this backend's own surface.
+pub mod prelude {
+    pub use fynix::prelude::*;
+
+    pub use crate::host::BevyHost;
+    pub use crate::tag::{Hovered, Pressed, TagExt};
+    pub use crate::{
+        BevyFynix, BevyUi, FynixPlugin, FynixSet, WorldEntityMut,
+        WorldEntityRef,
+    };
+}
+
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 

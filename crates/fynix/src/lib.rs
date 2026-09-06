@@ -33,6 +33,19 @@ pub use ::lenz;
 /// re-exported so `anim(ease = ...)` lines can name it.
 pub use ::motiongfx_interp;
 
+/// Everything needed to drive a tree and define elements.
+pub mod prelude {
+    pub use crate::anim::Tag;
+    pub use crate::element::{Element, element};
+    pub use crate::host::Host;
+    pub use crate::style::{Seed, Style};
+    pub use crate::ui::{
+        Build, ElementHandle, ElementMut, FieldPatch, Patch, Ui,
+    };
+    pub use crate::world_node::{WorldNodeMut, WorldNodeRef};
+    pub use crate::{Fynix, elem, lenz, motiongfx_interp};
+}
+
 /// Owns every watcher and binding, and the tree they maintain.
 pub struct Fynix<H: Host> {
     watchers: Vec<Watcher<H>>,

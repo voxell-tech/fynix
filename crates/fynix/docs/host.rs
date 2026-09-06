@@ -3,10 +3,7 @@
 
 #![allow(dead_code)]
 
-pub use fynix::element::element;
-pub use fynix::host::Host;
-pub use fynix::ui::{FieldPatch, Patch};
-pub use fynix::{Fynix, WorldNodeRef, elem};
+pub use fynix::prelude::*;
 
 use std::collections::HashMap;
 use std::time::Duration;
