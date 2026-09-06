@@ -43,9 +43,9 @@ fynix.watch(
     once(),
     |ui| {
         ui.elem(elem!(Button, padding = 8u32)).bind(
-            |button| button.label().text(),                 // which field
-            |WorldNodeRef { world, .. }| world.doc.dirty,    // when to write
-            |WorldNodeRef { world, .. }| world.doc.title.clone(), // the value
+            |button| button.label().text(),
+            |WorldNodeRef { world, .. }| world.doc.dirty,
+            |WorldNodeRef { world, .. }| world.doc.title.clone(),
         );
     },
     &mut world,
@@ -53,11 +53,11 @@ fynix.watch(
 
 let button = FynixHost::children(&world, root)[0];
 let label = FynixHost::children(&world, button)[0];
-assert_eq!(world.get(label).text, "Label"); // the label's own base
-assert_eq!(world.get(button).padding, 8); // the call site
+assert_eq!(world.get(label).text, "Label");
+assert_eq!(world.get(button).padding, 8);
 
 // A change, announced. The next flush patches just that one field
-// onto the node already there - no rebuild.
+// onto the node already there.
 world.doc.title = "report.md".into();
 world.doc.dirty = true;
 fynix.flush(&mut world);
@@ -106,9 +106,12 @@ use fynix::prelude::*;
 
 fn view(ui: &mut Ui<FynixHost>) {
     ui.elem(elem!(Button)).bind(
-        |button| button.label().text(),                       // which field
-        |WorldNodeRef { world, .. }| world.doc.dirty,          // when to write
-        |WorldNodeRef { world, .. }| world.doc.title.clone(),  // the value
+        // Which field?
+        |button| button.label().text(),
+        // When to write (changed fn)?
+        |WorldNodeRef { world, .. }| world.doc.dirty,
+        // The value to write.
+        |WorldNodeRef { world, .. }| world.doc.title.clone(),
     );
 }
 ```
@@ -194,7 +197,8 @@ next active line, or to the field's base.
 # #[path = "docs/host.rs"] mod _doc; use _doc::*;
 # use std::time::Duration;
 let (mut world, root) = World::with_root();
-world.delta = Duration::from_millis(120); // a full 120ms line per flush
+// A full 120ms line per flush.
+world.delta = Duration::from_millis(120);
 
 let mut fynix = Fynix::new(());
 fynix.watch(
