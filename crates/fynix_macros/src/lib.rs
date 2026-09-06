@@ -1,8 +1,4 @@
-//! Derive macros for `fynix`.
-//!
-//! `#[derive(Lenz)]` for field paths lives in the `lenz` crate,
-//! re-exported by `fynix`; `#[element]` emits what it and its own
-//! dispatch would.
+#![doc = include_str!("../README.md")]
 
 mod common;
 mod element;

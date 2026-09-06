@@ -1,5 +1,4 @@
-//! A mock of the fynix element model.
-
+#![doc = include_str!("../README.md")]
 #![no_std]
 
 extern crate alloc;
@@ -30,6 +29,9 @@ pub use crate::world_node::{WorldNodeMut, WorldNodeRef};
 /// Field paths - the [`lenz`] crate, re-exported so `fynix::lenz::…`
 /// keeps naming it.
 pub use ::lenz;
+/// Easing and interpolation - the [`motiongfx_interp`] crate,
+/// re-exported so `anim(ease = ...)` lines can name it.
+pub use ::motiongfx_interp;
 
 /// Owns every watcher and binding, and the tree they maintain.
 pub struct Fynix<H: Host> {

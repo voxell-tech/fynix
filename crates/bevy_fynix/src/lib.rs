@@ -1,8 +1,4 @@
-//! Bevy backend for [`fynix`].
-//!
-//! The seam, and nothing else: nodes are entities, the world is
-//! [`World`], and the kernel is a resource flushed once a frame.
-//! Elements and styles live above this.
+#![doc = include_str!("../README.md")]
 
 pub mod host;
 pub mod tag;

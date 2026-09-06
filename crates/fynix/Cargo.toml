@@ -1,6 +1,6 @@
 [package]
 name = "fynix"
-description = "A reactive element tree: watchers, bindings, and transitions over a backend world."
+description = "A backend agnostic reactive element tree."
 exclude = ["/examples/"]
 keywords = ["reactive", "element", "ui", "tree", "agnostic"]
 categories = ["no-std", "gui"]
