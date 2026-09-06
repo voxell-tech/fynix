@@ -17,5 +17,9 @@ hashbrown = { workspace = true, features = ["default-hasher"] }
 motiongfx_interp = { workspace = true }
 typarena = { workspace = true }
 
+[features]
+default = ["std"]
+std = ["motiongfx_interp/std"]
+
 [lints]
 workspace = true

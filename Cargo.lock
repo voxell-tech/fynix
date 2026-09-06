@@ -1852,7 +1852,8 @@ dependencies = [
 [[package]]
 name = "motiongfx_interp"
 version = "0.3.0"
-source = "git+https://github.com/voxell-tech/motiongfx?rev=f2d473c#f2d473c3deb2541cd310b0485f5aa1129e37572f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "614789b361720e38269ad58814b5888764114c816c307a06ebcc2182475b3c16"
 dependencies = [
  "libm",
 ]
