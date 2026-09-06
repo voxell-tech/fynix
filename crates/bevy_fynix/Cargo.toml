@@ -20,5 +20,12 @@ bevy_picking = { workspace = true }
 bevy_time = { workspace = true }
 bevy_ui = { workspace = true }
 
+[features]
+default = ["std"]
+std = ["fynix/std"]
+
+[dev-dependencies]
+bevy = "0.19"
+
 [lints]
 workspace = true
