@@ -22,7 +22,7 @@ jobs:
         with:
           shared-key: ci
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev
+      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev libwayland-dev libxkbcommon-dev
       - run: cargo check --workspace --all-features --all-targets
 
   clippy:
@@ -34,7 +34,7 @@ jobs:
         with:
           shared-key: ci
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev
+      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev libwayland-dev libxkbcommon-dev
       - run: rustup component add clippy
       - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
 
@@ -47,7 +47,7 @@ jobs:
         with:
           shared-key: ci
           save-if: false
-      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev
+      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev libwayland-dev libxkbcommon-dev
       - run: cargo doc --workspace --all-features --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: -D warnings
@@ -61,7 +61,7 @@ jobs:
         with:
           shared-key: test
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev
+      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev libwayland-dev libxkbcommon-dev
       - run: cargo test --workspace --all-features --all-targets
 
   doctest:
@@ -73,5 +73,5 @@ jobs:
         with:
           shared-key: test
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev
+      - run: sudo apt-get update; sudo apt-get install --no-install-recommends libudev-dev libwayland-dev libxkbcommon-dev
       - run: cargo test --workspace --all-features --doc
