@@ -10,6 +10,10 @@ use bevy::prelude::*;
 use bevy_fynix::prelude::*;
 use bevy_fynix::watch_root;
 
+type FynixHost = BevyHost<Palette>;
+type FynixBuild<'a, E> = Build<'a, FynixHost, E>;
+type FynixPatch<'a> = Patch<'a, FynixHost>;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -66,11 +70,9 @@ impl Default for Palette {
     }
 }
 
-type Host = BevyHost<Palette>;
-
 /// A padded button whose fill eases from `idle` to `hover` while the
 /// pointer is over it, with a text label as its child.
-#[element(host = Host, build = button_chrome)]
+#[element(build = Self::build)]
 pub struct CounterButton {
     #[elem(child)]
     pub label: Label,
@@ -78,7 +80,7 @@ pub struct CounterButton {
     // 0 at rest, eased to 1 while `Hovered`. `WriteFill` mixes the
     // two theme colours by it.
     #[elem(default = 0.0, patch = WriteFill, anim(
-        ms = 140,
+        ms = 200,
         ease = ease::cubic::ease_in_out,
         on(Hovered, read = lit),
     ))]
@@ -89,56 +91,39 @@ pub struct CounterButton {
     pub lit: f32,
 }
 
-fn button_chrome(
-    _: &CounterButton,
-    b: &mut Build<Host, CounterButton>,
-) {
-    b.insert((
-        Button,
-        Node {
-            padding: UiRect::axes(Val::Px(28.0), Val::Px(16.0)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..default()
-        },
-    ));
-    b.observe(|_: On<Pointer<Click>>, mut clicks: ResMut<Clicks>| {
-        clicks.0 += 1;
-    });
-}
-
-pub struct WriteFill;
-
-impl FieldPatch<Host> for WriteFill {
-    type Target = f32;
-
-    fn patch(patch: &mut Patch<Host>, heat: &f32) {
-        let fill = patch.theme.idle.mix(&patch.theme.hover, *heat);
-        let node = patch.id();
-        patch.world.entity_mut(node).insert(BackgroundColor(fill));
+impl CounterButton {
+    fn build(&self, build: &mut FynixBuild<Self>) {
+        build.insert((
+            Button,
+            Node {
+                padding: UiRect::axes(Val::Px(28.0), Val::Px(16.0)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+        ));
+        build.observe(
+            |_: On<Pointer<Click>>, mut clicks: ResMut<Clicks>| {
+                clicks.0 += 1;
+            },
+        );
     }
 }
 
 /// One text field, written straight into a `Text` component.
-#[element(host = Host, build = label_chrome)]
+#[element(build = Self::build)]
 pub struct Label {
     #[elem(default = String::new(), patch = WriteText)]
     pub text: String,
 }
 
-fn label_chrome(_: &Label, b: &mut Build<Host, Label>) {
-    let color = b.theme.text;
-    b.insert((TextColor(color), TextFont::from_font_size(30.0)));
-}
-
-pub struct WriteText;
-
-impl FieldPatch<Host> for WriteText {
-    type Target = String;
-
-    fn patch(patch: &mut Patch<Host>, text: &String) {
-        let node = patch.id();
-        patch.world.entity_mut(node).insert(Text::new(text.clone()));
+impl Label {
+    fn build(&self, build: &mut FynixBuild<Self>) {
+        let color = build.theme.text;
+        build.insert((
+            TextColor(color),
+            TextFont::from_font_size(30.0),
+        ));
     }
 }
 
@@ -147,5 +132,28 @@ fn label_for(clicks: u32) -> String {
         0 => "click me".to_owned(),
         1 => "1 click".to_owned(),
         n => format!("{n} clicks"),
+    }
+}
+
+pub struct WriteFill;
+
+impl FieldPatch<FynixHost> for WriteFill {
+    type Target = f32;
+
+    fn patch(patch: &mut FynixPatch, heat: &f32) {
+        let fill = patch.theme.idle.mix(&patch.theme.hover, *heat);
+        let node = patch.id();
+        patch.world.entity_mut(node).insert(BackgroundColor(fill));
+    }
+}
+
+pub struct WriteText;
+
+impl FieldPatch<FynixHost> for WriteText {
+    type Target = String;
+
+    fn patch(patch: &mut FynixPatch, text: &String) {
+        let node = patch.id();
+        patch.world.entity_mut(node).insert(Text::new(text.clone()));
     }
 }
