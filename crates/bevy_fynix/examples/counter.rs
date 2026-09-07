@@ -82,13 +82,18 @@ pub struct CounterButton {
     #[elem(default = 0.0, patch = WriteFill, anim(
         ms = 200,
         ease = ease::cubic::ease_in_out,
-        on(Hovered, read = lit),
+        on(Pressed, read = press_lit),
+        on(Hovered, read = hover_lit),
     ))]
     pub heat: f32,
 
     // Where the hover line heads, read in place, never written out.
     #[elem(default = 1.0)]
-    pub lit: f32,
+    pub hover_lit: f32,
+
+    // Where the press line heads, read in place, never written out.
+    #[elem(default = 2.0)]
+    pub press_lit: f32,
 }
 
 impl CounterButton {
@@ -123,6 +128,7 @@ impl Label {
         build.insert((
             TextColor(color),
             TextFont::from_font_size(30.0),
+            Pickable::IGNORE,
         ));
     }
 }
