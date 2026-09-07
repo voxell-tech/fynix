@@ -132,7 +132,7 @@ fn tween_of(
     let interp = match interp {
         Some(interp) => quote!(#interp),
         None => quote! {
-            <#field_ty as #root::tween::Interpolation<_>>::interp
+            <#field_ty as #root::motiongfx_interp::interpolation::Interpolation<_>>::interp
         },
     };
     let tween = match duration {

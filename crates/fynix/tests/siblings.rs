@@ -4,7 +4,7 @@
 mod common;
 
 use common::{FynixHost, Label, LabelCursor, World};
-use fynix::element::{Element, ElementBase, element};
+use fynix::prelude::*;
 use fynix::records::Records;
 
 /// Two labels that already say which is which, so a test can tell one

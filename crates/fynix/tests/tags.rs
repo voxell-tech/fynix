@@ -6,10 +6,7 @@ mod common;
 use core::time::Duration;
 
 use common::{FynixHost, World};
-use fynix::element::element;
-use fynix::host::Host;
-use fynix::{Fynix, WorldNodeRef, elem};
-use motiongfx_interp::ease;
+use fynix::prelude::*;
 
 /// Tags are plain types. Nothing here implements a fynix trait.
 #[derive(Clone, Copy, PartialEq, Eq)]

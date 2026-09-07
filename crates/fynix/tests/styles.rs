@@ -9,11 +9,7 @@ use core::marker::PhantomData;
 mod common;
 
 use common::{FynixHost, Label, World};
-use fynix::Fynix;
-use fynix::elem;
-use fynix::element::ElementBase;
-use fynix::host::Host;
-use fynix::style::Style;
+use fynix::prelude::*;
 
 /// Runs an [`elem!`]'s cascade with the mock theme.
 fn create<E>(build: impl FnOnce(&()) -> E) -> E {

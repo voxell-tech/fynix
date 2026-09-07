@@ -3,12 +3,9 @@
 use bevy_app::prelude::*;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::*;
-use bevy_fynix::host::BevyHost;
-use bevy_fynix::{FynixPlugin, WorldEntityRef as _, watch_root};
+use bevy_fynix::prelude::*;
+use bevy_fynix::watch_root;
 use bevy_ui::Node;
-use fynix::elem;
-use fynix::element::element;
-use fynix::ui::{FieldPatch, Patch};
 
 /// Nothing in these tests reads a theme - a host still needs one.
 #[derive(Resource, Clone, Default)]

@@ -6,9 +6,8 @@ mod common;
 use core::marker::PhantomData;
 
 use common::{FynixHost, Label, LabelCursor, World};
-use fynix::element::{Element, ElementBase, element};
+use fynix::prelude::*;
 use fynix::records::Records;
-use fynix::ui::{FieldPatch, Patch};
 
 /// `Default`, so an element generic over its look starts from one.
 /// `Send`/`Sync` too, since `Themed<L>` is an `Element`.

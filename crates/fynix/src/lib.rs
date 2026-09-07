@@ -12,6 +12,7 @@ use alloc::vec::Vec;
 use crate::host::Host;
 use crate::records::{BuildFn, ChangedFn, Records, Watcher};
 use crate::ui::Ui;
+use crate::world_node::WorldNodeRef;
 
 pub mod anim;
 pub mod composer;
@@ -25,18 +26,13 @@ pub mod tween;
 pub mod ui;
 pub mod world_node;
 
-pub use crate::world_node::{WorldNodeMut, WorldNodeRef};
-/// Field paths - the [`lenz`] crate, re-exported so `fynix::lenz::…`
-/// keeps naming it.
-pub use ::lenz;
-/// Easing and interpolation - the [`motiongfx_interp`] crate,
-/// re-exported so `anim(ease = ...)` lines can name it.
-pub use ::motiongfx_interp;
+pub use lenz;
+pub use motiongfx_interp;
 
 /// Everything needed to drive a tree and define elements.
 pub mod prelude {
     pub use crate::anim::Tag;
-    pub use crate::element::{Element, element};
+    pub use crate::element::{Element, ElementBase, element};
     pub use crate::host::Host;
     pub use crate::style::{Seed, Style};
     pub use crate::ui::{
@@ -44,6 +40,8 @@ pub mod prelude {
     };
     pub use crate::world_node::{WorldNodeMut, WorldNodeRef};
     pub use crate::{Fynix, elem, lenz, motiongfx_interp};
+
+    pub use motiongfx_interp::ease;
 }
 
 /// Owns every watcher and binding, and the tree they maintain.

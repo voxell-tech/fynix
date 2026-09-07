@@ -4,11 +4,10 @@
 mod common;
 
 use common::{FynixHost, Label, LabelCursor, World};
-use fynix::elem;
-use fynix::element::{Element, ElementBase, element};
-use fynix::host::Host;
-use fynix::lenz::{FieldPath, Lenz};
+use fynix::lenz::Lenz;
+use fynix::prelude::*;
 use fynix::records::Records;
+use lenz::FieldPath as _;
 
 #[element]
 pub struct Icon {

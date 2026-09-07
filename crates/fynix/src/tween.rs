@@ -4,13 +4,10 @@
 
 use core::time::Duration;
 
+use motiongfx_interp::ease::EaseFn;
+
 /// Interpolates between two `T` by a factor in `0..=1`.
 pub type InterpFn<T> = fn(&T, &T, f32) -> T;
-
-pub use motiongfx_interp::ease::EaseFn;
-/// How a value walks between two of itself. What `#[elem(anim(...))]`
-/// reaches for unless the field names its own `interp = ...`.
-pub use motiongfx_interp::interpolation::Interpolation;
 
 /// A field's curve to a new value: duration, easing, interpolation.
 pub struct Tween<T> {

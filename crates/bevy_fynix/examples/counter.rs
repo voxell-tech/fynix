@@ -9,7 +9,40 @@ use bevy::color::palettes::css;
 use bevy::prelude::*;
 use bevy_fynix::prelude::*;
 use bevy_fynix::watch_root;
-use fynix::motiongfx_interp::ease;
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(FynixPlugin::<Palette>::default())
+        .init_resource::<Clicks>()
+        .add_systems(Startup, setup)
+        .run();
+}
+
+fn setup(world: &mut World) {
+    world.spawn(Camera2d);
+
+    let root = world
+        .spawn(Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        })
+        .id();
+
+    // Build the button once. `pointer_tags` keeps `Hovered` current
+    // so the fill line has something to answer to, and the binding
+    // rewrites the label from `Clicks` on every flush.
+    watch_root::<Palette>(world, root, |ui| {
+        ui.elem(elem!(CounterButton)).pointer_tags().bind(
+            |button| button.label().text(),
+            |_| true,
+            |node| label_for(node.resource::<Clicks>().0),
+        );
+    });
+}
 
 /// How many times the button has been clicked. The label binds to it.
 #[derive(Resource, Default)]
@@ -56,7 +89,10 @@ pub struct CounterButton {
     pub lit: f32,
 }
 
-fn button_chrome(_: &CounterButton, b: &mut Build<Host, CounterButton>) {
+fn button_chrome(
+    _: &CounterButton,
+    b: &mut Build<Host, CounterButton>,
+) {
     b.insert((
         Button,
         Node {
@@ -104,40 +140,6 @@ impl FieldPatch<Host> for WriteText {
         let node = patch.id();
         patch.world.entity_mut(node).insert(Text::new(text.clone()));
     }
-}
-
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(FynixPlugin::<Palette>::default())
-        .init_resource::<Clicks>()
-        .add_systems(Startup, setup)
-        .run();
-}
-
-fn setup(world: &mut World) {
-    world.spawn(Camera2d);
-
-    let root = world
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..default()
-        })
-        .id();
-
-    // Build the button once. `pointer_tags` keeps `Hovered` current
-    // so the fill line has something to answer to, and the binding
-    // rewrites the label from `Clicks` on every flush.
-    watch_root::<Palette>(world, root, |ui| {
-        ui.elem(elem!(CounterButton)).pointer_tags().bind(
-            |button| button.label().text(),
-            |_| true,
-            |node| label_for(node.resource::<Clicks>().0),
-        );
-    });
 }
 
 fn label_for(clicks: u32) -> String {

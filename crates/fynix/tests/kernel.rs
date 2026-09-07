@@ -4,10 +4,7 @@
 mod common;
 
 use common::{FynixHost, Label, LabelCursor, World};
-use fynix::Fynix;
-use fynix::WorldNodeRef;
-use fynix::elem;
-use fynix::host::Host;
+use fynix::prelude::*;
 
 /// Fires on the first call and never again, the way a bootstrap
 /// build does. A stateful predicate consumes its own signal.

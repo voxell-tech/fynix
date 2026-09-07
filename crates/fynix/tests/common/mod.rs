@@ -9,8 +9,7 @@
 
 use core::time::Duration;
 
-use fynix::element::element;
-use fynix::host::Host;
+use fynix::prelude::*;
 use hashbrown::HashMap;
 
 /// Defines a `#[elem(patch = ...)]` tag for the tests - a unit struct

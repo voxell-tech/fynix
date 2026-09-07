@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+pub use fynix;
+
 pub mod host;
 pub mod tag;
 
