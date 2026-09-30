@@ -760,12 +760,8 @@ name = "bevy_fynix"
 version = "0.0.1"
 dependencies = [
  "bevy",
- "bevy_app",
- "bevy_ecs",
- "bevy_picking",
- "bevy_time",
- "bevy_ui",
  "fynix",
+ "motiongfx_interp",
 ]
 
 [[package]]
@@ -957,6 +953,7 @@ dependencies = [
  "bevy_transform",
  "bevy_ui",
  "bevy_ui_render",
+ "bevy_ui_widgets",
  "bevy_utils",
  "bevy_window",
  "bevy_winit",
@@ -2513,21 +2510,10 @@ dependencies = [
 name = "fynix"
 version = "0.0.1"
 dependencies = [
- "fynix_macros",
  "hashbrown 0.17.1",
  "lenz",
  "motiongfx_interp",
  "typarena",
-]
-
-[[package]]
-name = "fynix_macros"
-version = "0.0.1"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -3242,8 +3228,7 @@ dependencies = [
 [[package]]
 name = "motiongfx_interp"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c7f0535a3fd94bcd06982b52d9bdc1de3e198f033cbc501efa63b1e01db5a83"
+source = "git+https://github.com/voxell-tech/motiongfx?rev=2914a36c1132a3ac7c46e12186299ec2434ad055#2914a36c1132a3ac7c46e12186299ec2434ad055"
 dependencies = [
  "libm",
 ]

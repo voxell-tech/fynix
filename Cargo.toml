@@ -11,18 +11,14 @@ repository = "https://github.com/voxell-tech/fynix"
 [workspace.dependencies]
 # fynix
 fynix = { version = "0.0.1", path = "crates/fynix", default-features = false }
-fynix_macros = { version = "0.0.1", path = "crates/fynix_macros" }
 bevy_fynix = { version = "0.0.1", path = "crates/bevy_fynix", default-features = false }
 
 # motiongfx
-motiongfx_interp = { version = "0.3.1", default-features = false }
+# `main` until a release rounds integers without `std` (motiongfx #187).
+motiongfx_interp = { git = "https://github.com/voxell-tech/motiongfx", rev = "2914a36c1132a3ac7c46e12186299ec2434ad055", default-features = false }
 
 # bevy
-bevy_app = { version = "0.19", default-features = false }
-bevy_ecs = { version = "0.19", default-features = false }
-bevy_picking = { version = "0.19", default-features = false }
-bevy_time = { version = "0.19", default-features = false }
-bevy_ui = { version = "0.19", default-features = false }
+bevy = { version = "0.19", default-features = false }
 
 # other
 lenz = { version = "0.1.0", default-features = false }

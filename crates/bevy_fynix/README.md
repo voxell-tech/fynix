@@ -9,17 +9,20 @@
 
 **Bevy Fynix** is the Bevy backend for [`fynix`](https://github.com/voxell-tech/fynix/tree/main/crates/fynix).
 
-The seam, and nothing else: nodes are entities, the world is Bevy's
-`World`, and the kernel is a resource flushed once a frame. Elements
-and styles live above this.
+Nodes are entities and the world is Bevy's `World`. On top of that
+seam it ships elements written against `bevy_ui` (`Label`, `Frame`,
+`Icon`), composites (`row`, `column`, `button`, `foldable`), the
+token traits they read, and the states rules wait on.
 
-- `FynixPlugin<Theme>` - runs `Fynix::flush` in `FynixSet` every
-  `Update`, starting the kernel with `Theme::default()`.
-- `BevyHost` - the `Host` impl.
-- `tag` - Bevy pointer events mapped to fynix tags.
+- `FynixPlugin<T>` - keeps every mounted view in step with the world
+  each `Update`, for views built with the theme `T`.
+- `Theme<T>` - the theme, as a resource the app inserts.
+- `mount` - builds a view at the root of the UI.
+- `Hovered`, `Pressed`, `Entering`, `Leaving` - states for
+  `.when::<S, _>(..)`, and any component of your own works too.
 
-`Theme` is the app's own type, never a `Resource` and never read back
-out of `World`; edit it after the fact through `theme_mut`.
+`cargo run -p bevy_fynix --example gallery` shows every idea in a
+window.
 
 ## Version Matrix
 
