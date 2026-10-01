@@ -375,3 +375,28 @@ fn an_each_view_does_not_grow_the_rule_arena() {
     ui.mounted.unmount(container);
     assert!(ui.mounted.rules().is_empty());
 }
+
+#[test]
+fn a_view_built_at_the_root_has_no_parent_and_the_parent_comes_back()
+{
+    let mut ui = Ui::new(Warm);
+    let view =
+        AnyView::<Fake, Warm>::new(|cx: &mut Cx<'_, Fake, Warm>| {
+            let outer = cx.spawn();
+            cx.under(outer, |cx| {
+                cx.at_root(|cx| {
+                    assert_eq!(cx.parent(), None);
+                    cx.spawn()
+                });
+                assert_eq!(cx.parent(), Some(outer));
+                cx.spawn()
+            });
+            outer
+        });
+
+    let outer = ui.build(view);
+
+    assert_eq!(ui.world.children(outer).len(), 1);
+    assert_eq!(ui.world.node(outer + 1).parent, None);
+    assert_eq!(ui.world.node(outer + 2).parent, Some(outer));
+}

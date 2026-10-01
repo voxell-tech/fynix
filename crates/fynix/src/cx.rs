@@ -228,6 +228,18 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         built
     }
 
+    /// Runs `build` with views hanging at the root, whatever they
+    /// were built under. The rules in force still apply.
+    pub fn at_root<R>(
+        &mut self,
+        build: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let outer = self.parent.take();
+        let built = build(self);
+        self.parent = outer;
+        built
+    }
+
     /// Runs `build` in a scope of its own: rules it sets end with it.
     pub fn scope<R>(
         &mut self,

@@ -4,7 +4,6 @@
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::input_focus::tab_navigation::{
@@ -263,9 +262,7 @@ where
 {
     let view =
         each(items, key, build).within(anchor::<T, C>(source, at));
-    let node = cx.build(view);
-    cx.world.entity_mut(node).remove::<ChildOf>();
-    node
+    cx.at_root(|cx| cx.build(view))
 }
 
 #[cfg(test)]
