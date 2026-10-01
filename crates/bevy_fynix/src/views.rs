@@ -38,7 +38,7 @@ pub use menu::{
     MENU_Z, MenuItem, TOOLTIP_Z, menu_item, menu_surface,
 };
 pub(crate) use menu::{despawn_orphans, focus_first};
-pub use number_field::{NumberField, number_field};
+pub use number_field::{Number, NumberField, number_field};
 pub(crate) use segmented::sync_segments;
 pub use segmented::{Segmented, segmented};
 pub use stack::{Extra, Stack, column, overlay, row, scroll};

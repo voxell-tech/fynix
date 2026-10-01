@@ -1,5 +1,7 @@
 //! A number edited by dragging across it, or by typing into it.
 
+use core::marker::PhantomData;
+
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::observer::On;
@@ -38,46 +40,133 @@ const DRAG_CURSOR: EntityCursor =
 const TYPE_CURSOR: EntityCursor =
     EntityCursor(SystemCursorIcon::Text);
 
-/// An `f64` in a [`Frame`], with two modes. In drag mode, which it
+/// A number a [`NumberField`] can edit. The field works on `f64`
+/// inside, so an integer wider than 53 bits loses its low digits.
+pub trait Number: Copy + Send + Sync + 'static {
+    /// Whether the value is whole.
+    const INTEGER: bool;
+    /// The least the type holds, as an `f64`.
+    const MIN: f64;
+    /// The most the type holds, as an `f64`.
+    const MAX: f64;
+    /// What one pixel of dragging changes the value by, unless told.
+    const STEP: f64;
+    /// How many decimals the value is shown with, unless told.
+    const PRECISION: Option<usize>;
+
+    fn to_f64(self) -> f64;
+
+    /// The value nearest `value`. A whole number is rounded, and held
+    /// to the range of its type.
+    fn from_f64(value: f64) -> Self;
+}
+
+macro_rules! whole_numbers {
+    ($($int:ty),*) => {$(
+        impl Number for $int {
+            const INTEGER: bool = true;
+            const MIN: f64 = <$int>::MIN as f64;
+            const MAX: f64 = <$int>::MAX as f64;
+            const STEP: f64 = 1.0;
+            const PRECISION: Option<usize> = Some(0);
+
+            fn to_f64(self) -> f64 {
+                self as f64
+            }
+
+            fn from_f64(value: f64) -> Self {
+                value.round() as $int
+            }
+        }
+    )*};
+}
+
+whole_numbers!(i32, i64, u32, u64, usize);
+
+impl Number for f64 {
+    const INTEGER: bool = false;
+    const MIN: f64 = f64::NEG_INFINITY;
+    const MAX: f64 = f64::INFINITY;
+    const STEP: f64 = 0.01;
+    const PRECISION: Option<usize> = None;
+
+    fn to_f64(self) -> f64 {
+        self
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value
+    }
+}
+
+impl Number for f32 {
+    const INTEGER: bool = false;
+    const MIN: f64 = f64::NEG_INFINITY;
+    const MAX: f64 = f64::INFINITY;
+    const STEP: f64 = 0.01;
+    const PRECISION: Option<usize> = None;
+
+    // Through the shortest text, so 0.1f32 reads as 0.1 and not as
+    // the f64 nearest to the f32.
+    fn to_f64(self) -> f64 {
+        self.to_string().parse().unwrap_or(f64::from(self))
+    }
+
+    fn from_f64(value: f64) -> Self {
+        value as f32
+    }
+}
+
+/// A number in a [`Frame`], with two modes. In drag mode, which it
 /// starts in, dragging sideways moves the value by a step per pixel.
 /// A click without a drag, or tabbing in, switches to input mode: the
 /// value is typed like a [`TextField`](super::TextField) and read
 /// when Enter is pressed or focus leaves, and dragging does nothing.
 /// What cannot be read as a number puts the old value back.
-pub struct NumberField {
+///
+/// A whole number type is rounded when dragged or typed, and shown
+/// with no decimals.
+pub struct NumberField<N: Number = f64> {
     pub frame: Frame,
     input: TextInput,
     change: NumberChange,
     spec: NumberSpec,
+    number: PhantomData<fn() -> N>,
 }
 
-pub fn number_field(
-    value: impl Into<Prop<f64>>,
-    on_change: impl Fn(&mut World, f64) + Send + Sync + 'static,
-) -> NumberField {
+/// A [`NumberField`] showing `value`, calling `on_change` with the
+/// value dragged or typed.
+pub fn number_field<N: Number>(
+    value: impl Into<Prop<N>>,
+    on_change: impl Fn(&mut World, N) + Send + Sync + 'static,
+) -> NumberField<N> {
     NumberField {
         frame: Frame::unset(),
-        input: TextInput::unset().number(value),
-        change: NumberChange(Box::new(on_change)),
+        input: TextInput::unset().number(value.into().map(N::to_f64)),
+        change: NumberChange(Box::new(move |world, value| {
+            on_change(world, N::from_f64(value));
+        })),
         spec: NumberSpec {
-            step: 0.01,
-            precision: None,
-            min: f64::NEG_INFINITY,
-            max: f64::INFINITY,
+            step: N::STEP,
+            precision: N::PRECISION,
+            min: N::MIN,
+            max: N::MAX,
+            integer: N::INTEGER,
         },
+        number: PhantomData,
     }
 }
 
-impl NumberField {
-    /// How much one pixel of dragging changes the value. 0.01 when
-    /// unset.
-    pub fn step(mut self, step: f64) -> Self {
-        self.spec.step = step;
+impl<N: Number> NumberField<N> {
+    /// How much one pixel of dragging changes the value. 0.01 for a
+    /// float and 1 for a whole number when unset.
+    pub fn step(mut self, step: N) -> Self {
+        self.spec.step = step.to_f64();
         self
     }
 
     /// How many decimals the value is shown with. As many as it
-    /// needs when unset.
+    /// needs for a float when unset. A whole number has none.
     pub fn precision(mut self, precision: usize) -> Self {
         self.spec.precision = Some(precision);
         self
@@ -85,14 +174,14 @@ impl NumberField {
 
     /// The least and the most the value can be, whether dragged or
     /// typed.
-    pub fn range(mut self, min: f64, max: f64) -> Self {
-        self.spec.min = min;
-        self.spec.max = max;
+    pub fn range(mut self, min: N, max: N) -> Self {
+        self.spec.min = min.to_f64();
+        self.spec.max = max.to_f64();
         self
     }
 }
 
-impl FrameProps for NumberField {
+impl<N: Number> FrameProps for NumberField<N> {
     fn frame_mut(&mut self) -> &mut Frame {
         &mut self.frame
     }
@@ -178,7 +267,7 @@ fn typing(world: &mut World, root: Entity, input: Entity, on: bool) {
     }
 }
 
-impl<T> View<Bevy, T> for NumberField
+impl<T, N: Number> View<Bevy, T> for NumberField<N>
 where
     T: TextTokens
         + SurfaceTokens
@@ -518,5 +607,129 @@ mod tests {
 
         assert!(changes(&app).is_empty());
         assert_eq!(shown(&app, input), "5");
+    }
+
+    #[derive(Resource)]
+    struct Count<N>(N);
+
+    /// A field of `start` that writes what it is handed back.
+    fn typed_field<N: Number>(
+        app: &mut App,
+        start: N,
+        build: impl FnOnce(NumberField<N>) -> NumberField<N>,
+    ) -> Entity {
+        app.insert_resource(Count(start));
+        let field = number_field(
+            resource::<Count<N>, _>(|count| count.0),
+            |world, value| world.resource_mut::<Count<N>>().0 = value,
+        );
+        mount::<Plain>(app.world_mut(), build(field))
+    }
+
+    fn count<N: Number>(app: &App) -> N {
+        app.world().resource::<Count<N>>().0
+    }
+
+    #[test]
+    fn a_whole_number_steps_by_one_and_shows_no_decimals() {
+        let mut app = app();
+        let root = typed_field(&mut app, 5_i32, |f| f.precision(3));
+        let input = input_of(&app, root);
+        assert_eq!(shown(&app, input), "5");
+
+        drag(&mut app, root, 7.0);
+        assert_eq!(count::<i32>(&app), 12);
+        assert_eq!(shown(&app, input), "12");
+
+        drag(&mut app, root, -30.0);
+        assert_eq!(count::<i32>(&app), -25);
+        assert_eq!(shown(&app, input), "-25");
+    }
+
+    #[test]
+    fn a_whole_number_step_is_rounded_into_a_whole_value() {
+        let mut app = app();
+        let root = typed_field(&mut app, 0_i64, |f| f.step(2));
+
+        drag(&mut app, root, 5.0);
+
+        assert_eq!(count::<i64>(&app), 10);
+    }
+
+    #[test]
+    fn an_unsigned_field_stops_at_zero_when_dragged() {
+        let mut app = app();
+        let root = typed_field(&mut app, 3_u32, |f| f);
+        let input = input_of(&app, root);
+
+        drag(&mut app, root, -10.0);
+
+        assert_eq!(count::<u32>(&app), 0);
+        assert_eq!(shown(&app, input), "0");
+    }
+
+    #[test]
+    fn a_typed_fraction_is_rounded_for_a_whole_number() {
+        let mut app = app();
+        let root = typed_field(&mut app, 5_usize, |f| f);
+        let input = input_of(&app, root);
+
+        type_into(&mut app, input, "7.6");
+        enter(&mut app);
+
+        assert_eq!(count::<usize>(&app), 8);
+        assert_eq!(shown(&app, input), "8");
+
+        type_into(&mut app, input, "-4");
+        enter(&mut app);
+
+        assert_eq!(
+            count::<usize>(&app),
+            0,
+            "held at the type's least"
+        );
+        assert_eq!(shown(&app, input), "0");
+    }
+
+    #[test]
+    fn a_whole_number_field_holds_to_its_range() {
+        let mut app = app();
+        let root = typed_field(&mut app, 5_u64, |f| f.range(2, 9));
+        let input = input_of(&app, root);
+
+        drag(&mut app, root, 100.0);
+        assert_eq!(count::<u64>(&app), 9);
+
+        type_into(&mut app, input, "1");
+        enter(&mut app);
+        assert_eq!(count::<u64>(&app), 2);
+    }
+
+    #[test]
+    fn a_single_float_shows_the_digits_it_was_given() {
+        let mut app = app();
+        let root = typed_field(&mut app, 0.1_f32, |f| f.step(0.1));
+        let input = input_of(&app, root);
+        assert_eq!(shown(&app, input), "0.1");
+
+        drag(&mut app, root, 3.0);
+        assert!((count::<f32>(&app) - 0.4).abs() < 1e-6);
+        assert_eq!(shown(&app, input), "0.4");
+
+        type_into(&mut app, input, "2.5");
+        enter(&mut app);
+        assert_eq!(count::<f32>(&app), 2.5);
+    }
+
+    #[test]
+    fn a_number_converts_both_ways() {
+        assert_eq!(u32::from_f64(-4.0), 0);
+        assert_eq!(u32::from_f64(1e20), u32::MAX);
+        assert_eq!(i32::from_f64(f64::NAN), 0);
+        assert_eq!(i32::from_f64(2.5), 3);
+        assert_eq!(i64::from_f64(-2.5), -3);
+        assert_eq!(7_usize.to_f64(), 7.0);
+        assert_eq!(0.1_f32.to_f64(), 0.1);
+        assert_eq!(f64::from_f64(0.25), 0.25);
     }
 }

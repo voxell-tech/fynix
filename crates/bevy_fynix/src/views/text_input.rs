@@ -90,16 +90,25 @@ pub(super) struct NumberSpec {
     pub precision: Option<usize>,
     pub min: f64,
     pub max: f64,
+    /// Whether the value is whole, so it is rounded and shown with
+    /// no decimals.
+    pub integer: bool,
 }
 
 impl NumberSpec {
-    /// `value` cleaned of float noise and held to the range.
+    /// `value` cleaned of float noise, rounded if whole, and held to
+    /// the range.
     pub fn clamp(&self, value: f64) -> f64 {
-        round9(value).max(self.min).min(self.max)
+        let value = round9(value);
+        let value = if self.integer { value.round() } else { value };
+        value.max(self.min).min(self.max) + 0.0
     }
 
     fn format(&self, value: f64) -> String {
         match self.precision {
+            _ if self.integer => {
+                format!("{:.0}", value.round() + 0.0)
+            }
             Some(precision) => format!("{value:.precision$}"),
             None => round9(value).to_string(),
         }

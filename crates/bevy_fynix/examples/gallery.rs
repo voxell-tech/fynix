@@ -59,6 +59,7 @@ fn main() {
         .insert_resource(Screen::Overview)
         .insert_resource(Title("fynix".into()))
         .insert_resource(Amount(1.0))
+        .insert_resource(Copies(1))
         .insert_resource(Rows {
             ids: vec![1, 2, 3],
             next: 4,
@@ -381,6 +382,9 @@ struct Title(String);
 #[derive(Resource)]
 struct Amount(f64);
 
+#[derive(Resource)]
+struct Copies(u32);
+
 /// A text field and a number field, each bound to a resource and
 /// writing back to it. The number drags by default and types after a
 /// click.
@@ -411,6 +415,19 @@ fn inputs() -> impl View<Bevy, Monokai> {
             .step(0.1)
             .precision(1)
             .range(0.0, 100.0)
+            .width(px(80.0)),
+        ))
+        .gap(8.0)
+        .align(AlignItems::Center),
+        row((
+            label("copies"),
+            number_field(
+                resource::<Copies, _>(|copies| copies.0),
+                |world, value| {
+                    world.resource_mut::<Copies>().0 = value
+                },
+            )
+            .range(1, 99)
             .width(px(80.0)),
         ))
         .gap(8.0)
