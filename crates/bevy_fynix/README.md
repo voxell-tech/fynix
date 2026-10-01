@@ -20,6 +20,9 @@ token traits they read, and the states rules wait on.
 - `mount` - builds a view at the root of the UI.
 - `Hovered`, `Pressed`, `Entering`, `Leaving` - states for
   `.when::<S, _>(..)`, and any component of your own works too.
+- `ghost`, `tint`, `icon_button`, `primary`, `danger`, `menu_bar`,
+  `segment` - button looks, as bundles for `.rules(..)`.
+- `style` - builds a look of your own. See [Styling](#styling).
 
 ## Quick Start
 
@@ -106,6 +109,58 @@ fn setup(world: &mut World) {
     );
 }
 ```
+
+## Styling
+
+Three things decide how a view looks, and they stay apart:
+
+- **Theming** says what the colours, sizes and curves of an app are.
+  A theme implements token traits (`TextTokens`, `SurfaceTokens`,
+  `SpacingTokens`, `MotionTokens`). Views and styles ask for a role
+  (`Tone::Dim`, `theme.hover()`), never a raw colour, so changing the
+  theme restyles everything.
+- **Styling** says which looks a view comes in: ghost, icon, primary.
+  A look is a rule bundle, applied with `.rules(..)`. It is made of
+  set rules, which restyle every `Frame`, `Label` or `Icon` built
+  under it, with `cx.root(..)` keeping a rule to the view's root.
+- **State rules** say what a look does while the pointer is on the
+  view, while a button is down on it, or while any component of your
+  own is on it: `.when::<Hovered, _>(..)`, `.when::<Pressed, _>(..)`.
+  `.transition(Motion::Interact)` makes the change glide.
+
+Buttons ship with their looks as bundles. Each sets a resting, a
+hovered and a pressed look from the theme, and glides between them:
+
+```ignore
+button(label("Cancel")).rules(ghost)
+button(icon(save)).rules(icon_button)
+button(label("Save")).rules(primary)
+button(label("Delete")).rules(danger)
+button(row((icon(tag), label("Tag")))).rules(tint)
+```
+
+For a look of your own, build a `Style` rather than writing `cx.set`
+closures. It takes colours as closures over the theme, and a nested
+look for each state:
+
+```ignore
+let chunky = style::<MyTheme>()
+    .fill(|t| t.panel())
+    .frame(|f, t| f.radius(t.radius() * 3.0))
+    .hovered(|s| s.fill(|t| t.fill()).tone(Tone::Accent))
+    .pressed(|s| s.fill(|t| t.pressed()).tone(Tone::Critical))
+    .transition(Motion::Interact);
+
+button(label("Custom")).rules(chunky.bundle())
+```
+
+`fill` and `frame` reach the root frame alone, and `tone`, `label` and
+`icon` reach every label and icon in the view. Later steps win, and a
+press shows its hover look unless `pressed` says otherwise. Styles
+join with `then`, and `with(ghost)` starts from a bundle. Chained
+`.rules(a).rules(b)` also works, but as set rules go the inner `a` wins
+over `b` for resting looks, while for state looks the outer `b` wins.
+Use `then` when the order matters.
 
 ## Version Matrix
 

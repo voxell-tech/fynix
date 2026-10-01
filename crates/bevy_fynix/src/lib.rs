@@ -9,6 +9,7 @@ pub mod mounted;
 pub mod patch;
 pub mod prop;
 pub mod state;
+pub mod style;
 pub mod tokens;
 pub mod transition;
 pub mod views;
@@ -42,6 +43,7 @@ pub use state::{
     DirtyNodes, Focused, Hovered, Pressed, State, StateExt, hidden,
     own,
 };
+pub use style::{Style, style};
 pub use transition::{BevyMarker, ReducedMotion};
 pub use views::TooltipTiming;
 pub use visual::Visual;

@@ -69,6 +69,46 @@ fn of_two_state_rules_on_one_element_the_later_written_wins() {
 }
 
 #[test]
+fn of_two_state_rules_set_in_one_scope_the_later_written_wins() {
+    let mut ui = Ui::new(Warm);
+    let node =
+        ui.build(text("x").rules(|cx: &mut Cx<'_, Fake, Warm>| {
+            cx.when::<Lit>(|cx| {
+                cx.set::<Text>(|text, _| text.size(30.0))
+            });
+            cx.when::<Lit>(|cx| {
+                cx.set::<Text>(|text, _| text.size(40.0))
+            });
+        }));
+
+    ui.light(node, true);
+
+    assert_eq!(ui.size(node), 40.0);
+}
+
+#[test]
+fn a_state_rule_in_an_outer_scope_beats_one_in_an_inner_scope() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(
+        text("x")
+            .rules(|cx: &mut Cx<'_, Fake, Warm>| {
+                cx.when::<Lit>(|cx| {
+                    cx.set::<Text>(|text, _| text.size(30.0));
+                });
+            })
+            .rules(|cx: &mut Cx<'_, Fake, Warm>| {
+                cx.when::<Lit>(|cx| {
+                    cx.set::<Text>(|text, _| text.size(40.0));
+                });
+            }),
+    );
+
+    ui.light(node, true);
+
+    assert_eq!(ui.size(node), 40.0, "the one written later");
+}
+
+#[test]
 fn a_state_rule_on_an_ancestor_fills_only_what_the_call_site_left_unset()
  {
     let mut ui = Ui::new(Warm);

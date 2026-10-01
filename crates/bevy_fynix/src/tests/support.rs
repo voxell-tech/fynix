@@ -10,7 +10,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::relationship::RelationshipTarget;
 use bevy::time::{TimePlugin, TimeUpdateStrategy};
 
-use crate::state::Hovered;
+use crate::state::{Hovered, Pressed};
 use crate::tokens::{
     Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
     TextTokens, Tone,
@@ -158,5 +158,15 @@ pub fn hover(app: &mut App, node: Entity, on: bool) {
         node.insert(Hovered);
     } else {
         node.remove::<Hovered>();
+    }
+}
+
+/// Puts a pointer button down on `node` or lets it up.
+pub fn press(app: &mut App, node: Entity, on: bool) {
+    let mut node = app.world_mut().entity_mut(node);
+    if on {
+        node.insert(Pressed);
+    } else {
+        node.remove::<Pressed>();
     }
 }

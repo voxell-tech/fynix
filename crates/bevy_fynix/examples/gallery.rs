@@ -1,8 +1,8 @@
 //! The crate's views in a window, one section per idea: a theme
 //! implemented through token traits, an app-wide set rule, bound
 //! labels, hover rules with transitions, one state rule reaching a
-//! button's parts, a scoped rule, a folding section, field rows, text
-//! and number fields, a
+//! button's parts, button styles (bundles and a custom one), a scoped
+//! rule, a folding section, field rows, text and number fields, a
 //! screen switch and a keyed list that rebuild structure and animate
 //! views in and out, menus (a dropdown, a right-click menu and a
 //! tooltip), and a reduced-motion switch.
@@ -31,14 +31,15 @@ use bevy_fynix::tokens::{
 };
 use bevy_fynix::views::{
     AnimatedField, BehaviorExt, ContextMenuExt, Frame, FrameProps,
-    HasAction, Label, TooltipExt, button, checkbox, column, dropdown,
-    field_row, foldable, frame, ghost, label, menu_bar, menu_item,
-    number_field, row, segmented, text_field, tint,
+    HasAction, Label, TooltipExt, button, checkbox, column, danger,
+    dropdown, field_row, foldable, frame, ghost, icon_button, label,
+    menu_bar, menu_item, number_field, primary, row, segmented,
+    text_field, tint,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,
-    ScopedExt, StateExt, Theme, View, ViewExt, each, hidden, keyed,
-    mount, resource,
+    ScopedExt, StateExt, Style, Theme, View, ViewExt, each, hidden,
+    keyed, mount, resource, style,
 };
 
 /// What a view is built with, in this app.
@@ -209,6 +210,7 @@ fn gallery() -> AnyView<Bevy, Monokai> {
                     "Button variants as rule bundles",
                     variants(),
                 ),
+                section("Styles", styles()),
                 section("Segmented control and checkbox", controls()),
                 section("A scoped rule", scoped()),
                 section("Folding", folding()),
@@ -576,6 +578,53 @@ fn variants() -> impl View<Bevy, Monokai> {
     ))
     .gap(8.0)
     .align(AlignItems::Center)
+}
+
+/// A button of a kind of its own: a hover fill and a press fill from
+/// the theme, a click look that shrinks it a little, and a label that
+/// goes critical under the finger.
+fn chunky() -> Style<Monokai> {
+    style::<Monokai>()
+        .fill(|theme| theme.panel())
+        .frame(|frame, theme| {
+            frame
+                .padding(UiRect::axes(
+                    px(theme.gap() * 2.0),
+                    px(theme.gap()),
+                ))
+                .radius(theme.radius() * 3.0)
+                .border(1.0)
+                .border_color(theme.hairline())
+        })
+        .hovered(|s| s.fill(|theme| theme.fill()).tone(Tone::Accent))
+        .pressed(|s| {
+            s.fill(|theme| theme.pressed())
+                .frame(|frame, _| frame.scale(0.96))
+                .tone(Tone::Critical)
+        })
+        .transition(Motion::Interact)
+}
+
+/// Each bundle and a custom style, hovering and pressing each to see
+/// its looks.
+fn styles() -> impl View<Bevy, Monokai> {
+    column((
+        row((
+            button(label("Default"))
+                .padding(UiRect::axes(px(16.0), px(8.0))),
+            button(label("Ghost")).rules(ghost),
+            button(label("Tint")).rules(tint),
+            button(label("+").size(16.0)).rules(icon_button),
+            button(label("Primary")).rules(primary),
+            button(label("Danger")).rules(danger),
+            button(label("Custom")).rules(chunky().bundle()),
+        ))
+        .gap(8.0)
+        .align(AlignItems::Center),
+        label("Hover for a surface, hold the button down to press")
+            .tone(Tone::Dim),
+    ))
+    .gap(6.0)
 }
 
 /// A segmented control and a checkbox, each bound to the world and

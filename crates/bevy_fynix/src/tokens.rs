@@ -2,7 +2,7 @@
 //! A view bounds only the traits its defaults read, so it works under
 //! any theme that can answer for them.
 
-use bevy::color::Color;
+use bevy::color::{Color, Luminance};
 pub use fynix::{Curve, Motion, MotionTokens};
 
 /// A text colour by role, so a view can ask for "dim" without knowing
@@ -37,6 +37,12 @@ pub trait SurfaceTokens {
     /// Panels and popups.
     fn panel(&self) -> Color;
 
+    /// A surface while a pointer button is down on it. The hover
+    /// surface, darker, unless a theme says.
+    fn pressed(&self) -> Color {
+        self.hover().darker(0.1)
+    }
+
     /// Dividers and borders. The hover surface unless a theme says.
     fn hairline(&self) -> Color {
         self.hover()
@@ -51,6 +57,18 @@ pub trait SurfaceTokens {
     /// selection tint unless a theme says.
     fn accent(&self) -> Color {
         self.selection()
+    }
+
+    /// The accent surface under the pointer. The accent, lighter,
+    /// unless a theme says.
+    fn accent_hover(&self) -> Color {
+        self.accent().lighter(0.08)
+    }
+
+    /// The accent surface while pressed. The accent, darker, unless
+    /// a theme says.
+    fn accent_pressed(&self) -> Color {
+        self.accent().darker(0.1)
     }
 }
 
