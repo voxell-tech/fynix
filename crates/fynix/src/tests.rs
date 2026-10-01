@@ -51,6 +51,10 @@ struct Node {
     leaving: bool,
     /// How far the space it takes has collapsed, once it has begun.
     collapsed: Option<f32>,
+    /// Out of the layout and unseen, until its space starts to grow.
+    held: bool,
+    /// Whole again after coming in.
+    released: bool,
 }
 
 struct Fake;
@@ -103,9 +107,24 @@ impl Backend for Fake {
         }
     }
 
+    fn hold(world: &mut World, node: usize) {
+        if let Some(node) = world.nodes[node].as_mut() {
+            node.held = true;
+        }
+    }
+
     fn collapse(world: &mut World, node: usize, progress: f32) {
         if let Some(node) = world.nodes[node].as_mut() {
+            node.held = false;
             node.collapsed = Some(progress);
+        }
+    }
+
+    fn release(world: &mut World, node: usize) {
+        if let Some(node) = world.nodes[node].as_mut() {
+            node.held = false;
+            node.collapsed = None;
+            node.released = true;
         }
     }
 }

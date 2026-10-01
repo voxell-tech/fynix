@@ -85,7 +85,15 @@ impl fynix::Backend for Bevy {
         crate::leave::leave(world, node);
     }
 
+    fn hold(world: &mut World, node: Entity) {
+        crate::leave::hold(world, node);
+    }
+
     fn collapse(world: &mut World, node: Entity, progress: f32) {
         crate::leave::collapse(world, node, progress);
+    }
+
+    fn release(world: &mut World, node: Entity) {
+        crate::leave::release(world, node);
     }
 }

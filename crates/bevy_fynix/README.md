@@ -19,7 +19,10 @@ token traits they read, and the states rules wait on.
 - `Theme<T>` - the theme, as a resource the app inserts.
 - `mount` - builds a view at the root of the UI.
 - `Hovered`, `Pressed`, `Entering`, `Leaving` - states for
-  `.when::<S, _>(..)`, and any component of your own works too.
+  `.when::<S, _>(..)`, and any component of your own works too. A
+  view a `keyed` or `each` builds later keeps `Entering` until its
+  space has expanded, so it fades in last, and a view they drop gets
+  `Leaving`, then collapses. `ReducedMotion` skips all of it.
 
 ## Quick Start
 

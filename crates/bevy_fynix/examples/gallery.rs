@@ -469,8 +469,10 @@ fn action(
 }
 
 /// A `keyed` on the screen resource. Each screen is built when it is
-/// shown, under the app's preamble, and fades in as the last one
-/// fades out.
+/// shown, under the app's preamble, and a switch is one sequence: the
+/// last screen fades out and its space collapses, then the new
+/// screen's space expands and it fades in. The content below follows
+/// the space, and never jumps.
 fn switching() -> impl View<Bevy, Monokai> {
     column((
         row((
@@ -530,8 +532,9 @@ struct Rows {
 }
 
 /// An `each` keyed by row id. A row that stays keeps its entity, so
-/// its hover transition survives a reorder. New rows fade in, and a
-/// removed row fades out before the space it took closes.
+/// its hover transition survives a reorder. A new row first expands
+/// its space and then fades in, and a removed row fades out and then
+/// collapses its space.
 fn keyed_list() -> impl View<Bevy, Monokai> {
     column((
         row((
@@ -654,7 +657,8 @@ fn motion_switch() -> impl View<Bevy, Monokai> {
             let mut reduced = world.resource_mut::<ReducedMotion>();
             reduced.0 = !reduced.0;
         }),
-        label("Hover the list above to compare").tone(Tone::Dim),
+        label("Snaps hover, switching and list changes")
+            .tone(Tone::Dim),
     ))
     .gap(8.0)
     .align(AlignItems::Center)

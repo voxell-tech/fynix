@@ -34,14 +34,30 @@ pub trait Backend: 'static {
     /// should stop taking input.
     fn leave(_world: &mut Self::World, _node: Self::Node) {}
 
-    /// Shrinks the space `node` takes in its parent's layout,
-    /// `progress` of the way from its size when first called to
-    /// nothing. Called with 0 first and 1 last, then the node is
-    /// despawned.
+    /// Keeps `node`, the root of a view a structural view has just
+    /// built, out of the layout and out of sight, with its natural
+    /// size measurable once a layout has run, and stops it taking
+    /// input. It is held until [`collapse`](Self::collapse) is first
+    /// called on it, and let go by [`release`](Self::release).
+    fn hold(_world: &mut Self::World, _node: Self::Node) {}
+
+    /// Sets the space `node` takes in its parent's layout, `progress`
+    /// of the way from its natural size to nothing. The first call
+    /// measures the natural size, and puts a held node in the layout.
+    /// A leaving view is called with 0 first and 1 last, then
+    /// despawned. An entering one is called with 1 first and 0 last,
+    /// then released.
     fn collapse(
         _world: &mut Self::World,
         _node: Self::Node,
         _progress: f32,
     ) {
     }
+
+    /// Makes `node` whole again after [`hold`](Self::hold): in the
+    /// layout as it was built, taking input, and no longer entering,
+    /// so what it animates in from starts to move. Without a
+    /// `collapse` before it, as under reduced motion, it was never
+    /// in the layout.
+    fn release(_world: &mut Self::World, _node: Self::Node) {}
 }

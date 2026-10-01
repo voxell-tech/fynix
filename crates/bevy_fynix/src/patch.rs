@@ -62,7 +62,7 @@ macro_rules! node_patch {
 }
 
 /// A [`node_patch!`] for a field that decides how much space the node
-/// takes, which a collapse writes instead while it runs.
+/// takes, which a hold or a collapse writes instead while it runs.
 macro_rules! size_patch {
     (
         $(#[$meta:meta])*
@@ -72,6 +72,7 @@ macro_rules! size_patch {
             $(#[$meta])*
             $name, $ty, |entity, $value| {
                 if !entity.contains::<$crate::leave::Collapsing>()
+                    && !entity.contains::<$crate::leave::Held>()
                     && let Some(mut $ui) =
                         entity.get_mut::<bevy::ui::Node>()
                 {
@@ -105,9 +106,9 @@ node_patch!(PatchJustify, JustifyContent, |ui, v| ui
     .justify_content =
     *v);
 node_patch!(PatchAlign, AlignItems, |ui, v| ui.align_items = *v);
-node_patch!(PatchPosition, PositionType, |ui, v| ui.position_type =
+size_patch!(PatchPosition, PositionType, |ui, v| ui.position_type =
     *v);
-node_patch!(PatchInset, UiRect, |ui, v| {
+size_patch!(PatchInset, UiRect, |ui, v| {
     ui.left = v.left;
     ui.right = v.right;
     ui.top = v.top;
