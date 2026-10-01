@@ -3,7 +3,8 @@
 //! labels, hover rules with transitions, one state rule reaching a
 //! button's parts, a scoped rule, a folding section, field rows, a
 //! screen switch and a keyed list that rebuild structure and animate
-//! views in and out, and a reduced-motion switch.
+//! views in and out, menus (a dropdown, a right-click menu and a
+//! tooltip), and a reduced-motion switch.
 //!
 //! `cargo run -p bevy_fynix --example gallery`
 
@@ -24,8 +25,9 @@ use bevy_fynix::tokens::{
     TextTokens, Tone,
 };
 use bevy_fynix::views::{
-    AnimatedField, BehaviorExt, Frame, FrameProps, HasAction, Label,
-    button, column, field_row, foldable, frame, label, row,
+    AnimatedField, BehaviorExt, ContextMenuExt, Frame, FrameProps,
+    HasAction, Label, TooltipExt, button, column, dropdown,
+    field_row, foldable, frame, label, menu_item, row,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,
@@ -44,6 +46,7 @@ fn main() {
         ))
         .insert_resource(Theme(Monokai))
         .insert_resource(Clicks(0))
+        .insert_resource(Easing(0))
         .insert_resource(Screen::Overview)
         .insert_resource(Rows {
             ids: vec![1, 2, 3],
@@ -153,6 +156,7 @@ fn gallery() -> AnyView<Bevy, Monokai> {
                 section("Field rows", fields()),
                 section("Switching", switching()),
                 section("A keyed list", keyed_list()),
+                section("Menus", menus()),
                 section("Motion", motion_switch()),
             ))
             .width(percent(100.0))
@@ -438,6 +442,43 @@ fn keyed_list() -> impl View<Bevy, Monokai> {
         .within(column(()).gap(4.0).align(AlignItems::Start)),
     ))
     .gap(6.0)
+}
+
+/// The option the dropdown shows.
+#[derive(Resource)]
+struct Easing(usize);
+
+const EASINGS: [&str; 3] = ["Linear", "Ease in", "Ease out"];
+
+/// A dropdown bound to a resource, a menu on a right-click, and a
+/// tooltip that fades in after a pause.
+fn menus() -> impl View<Bevy, Monokai> {
+    let padding = UiRect::axes(px(10.0), px(4.0));
+    row((
+        dropdown(
+            EASINGS,
+            resource::<Easing, _>(|easing| easing.0),
+            |world, at| world.resource_mut::<Easing>().0 = at,
+        ),
+        label("Right-click for a menu")
+            .tone(Tone::Dim)
+            .context_menu(|| {
+                (
+                    menu_item(label("Reset the counter"))
+                        .on_activate(|world| {
+                            world.resource_mut::<Clicks>().0 = 0
+                        }),
+                    menu_item(label("Add a click")).on_activate(
+                        |world| world.resource_mut::<Clicks>().0 += 1,
+                    ),
+                )
+            }),
+        button(label("Hover me"))
+            .padding(padding)
+            .tooltip(|| label("A tooltip, after a short pause")),
+    ))
+    .gap(12.0)
+    .align(AlignItems::Center)
 }
 
 fn motion_switch() -> impl View<Bevy, Monokai> {

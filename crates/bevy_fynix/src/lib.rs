@@ -24,6 +24,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::world::World;
+use bevy::input_focus::InputFocus;
 pub use cursor::{CursorPlugin, EntityCursor};
 pub use fynix::{
     AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
@@ -40,6 +41,7 @@ pub use state::{
     DirtyNodes, Hovered, Pressed, State, StateExt, hidden, own,
 };
 pub use transition::{BevyMarker, ReducedMotion};
+pub use views::TooltipTiming;
 pub use visual::Visual;
 
 /// The theme views are built with, as a resource.
@@ -64,12 +66,22 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .init_resource::<DirtyNodes>()
             .init_resource::<ReducedMotion>()
             .init_resource::<Entrances>()
+            .init_resource::<TooltipTiming>()
+            .init_resource::<InputFocus>()
             .add_observer(backend::queue_unmounted)
+            .add_observer(views::toggle_dropdown)
+            .add_observer(views::dismiss_context_menu)
             .add_systems(
                 Update,
-                (mounted::update::<T>, leave::settle_entrances)
+                (
+                    views::tick_tooltips,
+                    mounted::update::<T>,
+                    leave::settle_entrances,
+                    views::focus_first,
+                )
                     .chain(),
-            );
+            )
+            .add_systems(Update, views::despawn_orphans);
     }
 }
 

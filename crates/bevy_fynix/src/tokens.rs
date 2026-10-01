@@ -50,4 +50,26 @@ pub trait SpacingTokens {
     fn gap(&self) -> f32;
     fn row(&self) -> f32;
     fn radius(&self) -> f32;
+
+    /// The corner radius of a menu surface. The theme's radius unless
+    /// a theme says.
+    fn menu_radius(&self) -> f32 {
+        self.radius()
+    }
+
+    /// The space between a menu surface's edge and its rows.
+    fn menu_padding(&self) -> f32 {
+        4.0
+    }
+
+    /// The corner radius of a menu row. The theme's radius unless a
+    /// theme says.
+    fn menu_item_radius(&self) -> f32 {
+        self.radius()
+    }
+
+    /// How close a menu may sit to the window's edge.
+    fn menu_margin(&self) -> f32 {
+        8.0
+    }
 }
