@@ -598,6 +598,8 @@ mod tests {
                 .0
         };
         assert!(marked(&app, one) && !marked(&app, two));
+        // Lit from the first write, not from the next update.
+        assert_eq!(fill(&app, one), Color::srgb(0.2, 0.2, 0.2));
         settle(&mut app);
         assert_eq!(fill(&app, one), Color::srgb(0.2, 0.2, 0.2));
         assert_eq!(fill(&app, two), Color::NONE);

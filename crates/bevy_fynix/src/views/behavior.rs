@@ -1,6 +1,7 @@
 //! Modifiers adding behaviour, a record, or a scoped tone to any
 //! [`Bevy`] view. Each acts on the root node of the view it wraps.
 
+use bevy::ecs::bundle::Bundle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
@@ -9,6 +10,7 @@ use bevy::ecs::system::Commands;
 use bevy::ecs::world::World;
 use bevy::ui_widgets::Activate;
 
+use crate::backend::Seed;
 use crate::tokens::Tone;
 use crate::views::{Icon, Label};
 use crate::{Bevy, Cx, View};
@@ -30,6 +32,13 @@ pub struct OnActivate<V> {
 pub struct Tagged<V, C> {
     inner: V,
     component: C,
+}
+
+/// A view whose root node has a bundle from the moment it is
+/// spawned, before anything is written to it.
+pub struct Seeded<V, N> {
+    inner: V,
+    bundle: N,
 }
 
 /// A view built under set rules giving every [`Label`] and [`Icon`]
@@ -84,6 +93,24 @@ impl<T, V: View<Bevy, T>, C: Component> View<Bevy, T>
     }
 }
 
+impl<T, V, N> View<Bevy, T> for Seeded<V, N>
+where
+    V: View<Bevy, T>,
+    N: Bundle,
+{
+    fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
+        let bundle = self.bundle;
+        cx.world.init_resource::<Seed>();
+        cx.world.resource_mut::<Seed>().push(move |entity| {
+            entity.insert(bundle);
+        });
+        let node = self.inner.build(cx);
+        // If the view spawned nothing, no other node takes it.
+        cx.world.resource_mut::<Seed>().clear();
+        node
+    }
+}
+
 impl<T: 'static, V: View<Bevy, T>> View<Bevy, T> for Toned<V> {
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
         let tone = self.tone;
@@ -122,6 +149,19 @@ pub trait BehaviorExt: Sized {
         Tagged {
             inner: self,
             component,
+        }
+    }
+
+    /// This view, with `bundle` on its root node from the start, so
+    /// a state rule on a component in it holds for the first write
+    /// rather than the next update. It takes the first node the
+    /// view spawns, which is its root. Use
+    /// [`tagged`](Self::tagged) for a component that need not be
+    /// there for the first write.
+    fn seeded<N: Bundle>(self, bundle: N) -> Seeded<Self, N> {
+        Seeded {
+            inner: self,
+            bundle,
         }
     }
 

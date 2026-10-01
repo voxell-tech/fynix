@@ -2,20 +2,18 @@
 
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::ecs::hierarchy::Children;
 use bevy::ecs::world::World;
 use bevy::ui::{BorderRadius, Overflow, Val, percent, px};
-use fynix::Condition;
 
 use crate::prop::Prop;
-use crate::state::DirtyNodes;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
 };
 use crate::views::button::segment;
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::{BehaviorExt, Icon, Label, button, label};
-use crate::{Bevy, Cx, ScopedExt, Styled, View};
+use crate::{Bevy, Cx, ScopedExt, StateExt, Styled, View};
 
 /// A handler run with the world and the index of the segment picked.
 type Select = Box<dyn Fn(&mut World, usize) + Send + Sync>;
@@ -52,37 +50,16 @@ impl FrameProps for Segmented {
     }
 }
 
-/// On a [`Segmented`]'s root node: the segment its active index
-/// names now.
+/// On a [`Segmented`]'s root node: what runs when a segment is
+/// picked.
 #[derive(Component)]
 struct Segments {
-    chosen: usize,
     on_select: Select,
 }
 
-/// A segment is the one its row's root names as active.
-struct Chosen;
-
-impl Condition<Bevy> for Chosen {
-    fn holds(world: &World, node: Entity) -> bool {
-        let Some(root) =
-            world.get::<ChildOf>(node).map(ChildOf::parent)
-        else {
-            return false;
-        };
-        let (Some(segments), Some(children)) = (
-            world.get::<Segments>(root),
-            world.get::<Children>(root),
-        ) else {
-            return false;
-        };
-        children.iter().position(|&child| child == node)
-            == Some(segments.chosen)
-    }
-
-    // A segment is reported by the effect that moves the choice.
-    fn watch(_: &mut World, _: Entity) {}
-}
+/// On the segment its row's active index names.
+#[derive(Component)]
+struct Active;
 
 /// What a segment looks like while it is the active one.
 fn lit<T>(cx: &mut Cx<'_, Bevy, T>)
@@ -147,46 +124,60 @@ where
                     });
                 });
             });
+            let chosen = self.active.get(cx.world);
             let root = cx.build(self.frame);
             cx.world.entity_mut(root).insert(Segments {
-                chosen: usize::MAX,
                 on_select: self.on_select,
             });
-            cx.effect(root, self.active, choose);
             cx.under(root, |cx| {
                 for (index, text) in
                     self.options.into_iter().enumerate()
                 {
-                    cx.build(
-                        button(label(text))
-                            .corners(corners(index, count, radius))
-                            .rules(segment(false))
-                            .when_in::<Chosen, _>(lit)
-                            .on_activate(move |world| {
-                                select(world, root, index);
-                            }),
-                    );
+                    let segment = button(label(text))
+                        .corners(corners(index, count, radius))
+                        .rules(segment(false))
+                        .when::<Active, _>(lit)
+                        .on_activate(move |world| {
+                            select(world, root, index);
+                        });
+                    // Active from the start, so it is drawn so at
+                    // the first write.
+                    if chosen == Some(index) {
+                        cx.build(segment.seeded(Active));
+                    } else {
+                        cx.build(segment);
+                    }
                 }
             });
+            cx.effect(root, self.active, choose);
             root
         })
     }
 }
 
-/// Moves the choice of the [`Segmented`] at `root` to `now`, and
-/// restyles the segment it leaves and the one it lands on.
+/// Gives [`Active`] to the segment of the [`Segmented`] at `root`
+/// that `now` names, and to no other.
 fn choose(world: &mut World, root: Entity, &now: &usize) {
-    let Some(mut segments) = world.get_mut::<Segments>(root) else {
+    let Some(segments) = world
+        .get::<Children>(root)
+        .map(|children| children.iter().copied().collect::<Vec<_>>())
+    else {
         return;
     };
-    let before = core::mem::replace(&mut segments.chosen, now);
-    let touched = [before, now]
-        .into_iter()
-        .filter_map(|index| {
-            world.get::<Children>(root)?.get(index).copied()
-        })
-        .collect::<Vec<_>>();
-    world.resource_mut::<DirtyNodes>().0.extend(touched);
+    for (index, segment) in segments.into_iter().enumerate() {
+        let Ok(mut entity) = world.get_entity_mut(segment) else {
+            continue;
+        };
+        match (index == now, entity.contains::<Active>()) {
+            (true, false) => {
+                entity.insert(Active);
+            }
+            (false, true) => {
+                entity.remove::<Active>();
+            }
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]

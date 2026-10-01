@@ -5,7 +5,7 @@ use bevy::ecs::lifecycle::Despawn;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::ResMut;
-use bevy::ecs::world::World;
+use bevy::ecs::world::{EntityWorldMut, World};
 use bevy::ui::Node;
 
 /// Bevy's ECS, with `bevy_ui` doing layout, text and picking.
@@ -14,6 +14,29 @@ pub struct Bevy;
 /// The UI nodes despawned since the last update.
 #[derive(Resource, Default, Debug)]
 pub struct Unmounted(pub Vec<Entity>);
+
+/// A change to a node as it is spawned.
+type Sow = Box<dyn FnOnce(&mut EntityWorldMut) + Send + Sync>;
+
+/// What the next node spawned is given before anything is written to
+/// it, put there by [`Seeded`](crate::views::Seeded).
+#[derive(Resource, Default)]
+pub(crate) struct Seed(Vec<Sow>);
+
+impl Seed {
+    /// Has `seed` run on the next node spawned.
+    pub(crate) fn push(
+        &mut self,
+        seed: impl FnOnce(&mut EntityWorldMut) + Send + Sync + 'static,
+    ) {
+        self.0.push(Box::new(seed));
+    }
+
+    /// Forgets what the next node would have been given.
+    pub(crate) fn clear(&mut self) {
+        self.0.clear();
+    }
+}
 
 /// Queues every despawned [`Node`]. Only a queue, as the mounts are
 /// out of the world while they update, and a despawn can happen then.
@@ -29,7 +52,15 @@ impl fynix::Backend for Bevy {
     type Node = Entity;
 
     fn spawn(world: &mut World, parent: Option<Entity>) -> Entity {
-        let node = world.spawn(Node::default()).id();
+        let seeds = world
+            .get_resource_mut::<Seed>()
+            .map(|mut seed| core::mem::take(&mut seed.0))
+            .unwrap_or_default();
+        let mut entity = world.spawn(Node::default());
+        for seed in seeds {
+            seed(&mut entity);
+        }
+        let node = entity.id();
         if let Some(parent) = parent {
             world.entity_mut(parent).add_child(node);
         }

@@ -360,3 +360,69 @@ fn a_derived_signal_reads_every_frame_when_asked() {
 
     assert_eq!(text(&app, node), "7");
 }
+
+#[test]
+fn a_seeded_state_rule_holds_for_the_first_write() {
+    use crate::Hovered;
+    use crate::views::BehaviorExt;
+
+    let mut app = app(Warm);
+    let seeded = mount::<Warm>(
+        app.world_mut(),
+        label("a")
+            .when::<Hovered, Warm>(|label, _| {
+                label.tone(Tone::Accent)
+            })
+            .seeded(Hovered),
+    );
+    let plain = mount::<Warm>(
+        app.world_mut(),
+        label("a").when::<Hovered, Warm>(|label, _| {
+            label.tone(Tone::Accent)
+        }),
+    );
+
+    assert_eq!(color(&app, seeded), Color::srgb(1.0, 0.5, 0.0));
+    assert_eq!(color(&app, plain), Color::WHITE);
+}
+
+#[test]
+fn a_seed_goes_to_the_first_node_of_its_view_alone() {
+    use crate::Hovered;
+    use crate::views::BehaviorExt;
+
+    let mut app = app(Warm);
+    let root = mount::<Warm>(
+        app.world_mut(),
+        AnyView::<Bevy, Warm>::new(|cx| {
+            let root = cx.spawn();
+            cx.under(root, |cx| {
+                cx.build(label("a"));
+                cx.build(label("b"));
+            });
+            root
+        })
+        .seeded(Hovered),
+    );
+    let kids = children(&app, root);
+
+    assert!(app.world().get::<Hovered>(root).is_some());
+    assert!(app.world().get::<Hovered>(kids[0]).is_none());
+    assert!(app.world().get::<Hovered>(kids[1]).is_none());
+}
+
+#[test]
+fn a_seed_nothing_took_does_not_reach_a_later_node() {
+    use crate::Hovered;
+    use crate::views::BehaviorExt;
+
+    let mut app = app(Warm);
+    let existing = mount::<Warm>(app.world_mut(), label("a"));
+    mount::<Warm>(
+        app.world_mut(),
+        AnyView::<Bevy, Warm>::new(move |_| existing).seeded(Hovered),
+    );
+    let later = mount::<Warm>(app.world_mut(), label("b"));
+
+    assert!(app.world().get::<Hovered>(later).is_none());
+}

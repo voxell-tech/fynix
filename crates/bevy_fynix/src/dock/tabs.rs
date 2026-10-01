@@ -125,7 +125,7 @@ fn tab<T: DockTokens>(
         parts.push(label(name).bold(true).wrap(false).boxed());
         parts.push(close(id));
 
-        let node = cx.build(
+        let tab =
             button(row(parts).gap(6.0).align(AlignItems::Center))
                 .fill(Color::NONE)
                 .padding(UiRect::axes(px(8.0), px(3.0)))
@@ -140,8 +140,16 @@ fn tab<T: DockTokens>(
                 })
                 .when::<ActiveTab, _>(lit::<T>)
                 .when::<Hovered, _>(hovered::<T>)
-                .toned(Tone::Dim),
-        );
+                .toned(Tone::Dim);
+        // Marked from the start when its area shows it, so it is
+        // drawn lit at the first write.
+        let shown =
+            cx.world.resource::<DockTree>().active(leaf) == Some(id);
+        let node = if shown {
+            cx.build(tab.seeded(ActiveTab))
+        } else {
+            cx.build(tab)
+        };
         // Marks the tab while its area shows it.
         cx.effect(
             node,
@@ -155,7 +163,9 @@ fn tab<T: DockTokens>(
                     return;
                 };
                 if active {
-                    entity.insert(ActiveTab);
+                    if !entity.contains::<ActiveTab>() {
+                        entity.insert(ActiveTab);
+                    }
                 } else {
                     entity.remove::<ActiveTab>();
                 }
