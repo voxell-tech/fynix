@@ -24,7 +24,7 @@ use fynix::{Motion, ScopedExt};
 
 use super::children;
 use crate::leave::{Collapsing, Held};
-use crate::testing::{Plain, app_with};
+use crate::tests::{Plain, app_with};
 use crate::views::{FrameProps, column, frame, row};
 use crate::{
     AnyView, Bevy, ReducedMotion, StateExt, View, ViewExt, each,
