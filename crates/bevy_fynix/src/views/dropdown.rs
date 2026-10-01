@@ -41,6 +41,7 @@ pub struct Dropdown {
     pub frame: Frame,
     options: Vec<String>,
     selected: Prop<usize>,
+    placeholder: String,
     on_select: Select,
 }
 
@@ -57,7 +58,21 @@ pub fn dropdown<S: Into<String>>(
         frame: Frame::unset(),
         options: options.into_iter().map(Into::into).collect(),
         selected: selected.into(),
+        placeholder: String::new(),
         on_select: Box::new(on_select),
+    }
+}
+
+impl Dropdown {
+    /// What the control shows while `selected` is past the last
+    /// option, as for a dropdown that is a menu of actions with no
+    /// choice to keep. Nothing when unset.
+    pub fn placeholder(
+        mut self,
+        placeholder: impl Into<String>,
+    ) -> Self {
+        self.placeholder = placeholder.into();
+        self
     }
 }
 
@@ -109,13 +124,17 @@ where
             frame: control,
             options,
             selected,
+            placeholder,
             on_select,
         } = self;
         let root = cx.build(frame());
         let shown = {
             let options = options.clone();
             selected.map(move |at| {
-                options.get(at).cloned().unwrap_or_default()
+                options
+                    .get(at)
+                    .cloned()
+                    .unwrap_or_else(|| placeholder.clone())
             })
         };
         let rows = options
@@ -381,6 +400,38 @@ mod tests {
         app.update();
 
         assert_eq!(shown(&app, root), "Linear");
+    }
+
+    #[test]
+    fn a_selection_past_the_options_shows_the_placeholder() {
+        let mut app = app();
+        let root = mount::<Plain>(
+            app.world_mut(),
+            dropdown(
+                ["a", "b"],
+                resource::<Chosen, _>(|chosen| chosen.0),
+                |_, _| {},
+            )
+            .placeholder("Pick one"),
+        );
+        app.world_mut().resource_mut::<Chosen>().0 = 2;
+        app.update();
+        assert_eq!(shown(&app, root), "Pick one");
+
+        app.world_mut().resource_mut::<Chosen>().0 = 0;
+        app.update();
+        assert_eq!(shown(&app, root), "a");
+    }
+
+    #[test]
+    fn without_a_placeholder_a_missing_option_shows_nothing() {
+        let mut app = app();
+        let root = mount::<Plain>(
+            app.world_mut(),
+            dropdown(["a"], 5, |_, _| {}),
+        );
+
+        assert_eq!(shown(&app, root), "");
     }
 
     #[test]
