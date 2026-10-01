@@ -83,6 +83,7 @@ impl TextTokens for Monokai {
             Tone::Dim => hex(0x939293),
             Tone::Faint => hex(0x727072),
             Tone::Accent => hex(0xFFD866),
+            Tone::OnAccent => hex(0x2D2A2E),
             Tone::Critical => hex(0xFF6188),
         }
     }

@@ -33,7 +33,7 @@ impl TextTokens for Warm {
         match tone {
             Tone::Body => Color::WHITE,
             Tone::Dim | Tone::Faint => Color::srgb(0.5, 0.5, 0.5),
-            Tone::Accent | Tone::Critical => {
+            Tone::Accent | Tone::OnAccent | Tone::Critical => {
                 Color::srgb(1.0, 0.5, 0.0)
             }
         }

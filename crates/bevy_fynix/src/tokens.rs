@@ -17,6 +17,8 @@ pub enum Tone {
     Faint,
     /// What the eye should land on, and what is interactive.
     Accent,
+    /// Text and icons drawn on a solid accent surface.
+    OnAccent,
     /// Destructive actions, and errors.
     Critical,
 }

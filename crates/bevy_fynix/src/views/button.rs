@@ -146,6 +146,10 @@ where
                 });
             }
         });
+        if active {
+            cx.set::<Label>(|label, _| label.tone(Tone::OnAccent));
+            cx.set::<Icon>(|icon, _| icon.tone(Tone::OnAccent));
+        }
     }
 }
 
@@ -246,6 +250,7 @@ mod tests {
         fn tone(&self, tone: Tone) -> Color {
             match tone {
                 Tone::Accent => ACCENT,
+                Tone::OnAccent => ON_ACCENT,
                 _ => Color::WHITE,
             }
         }
@@ -271,6 +276,7 @@ mod tests {
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
     const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
+    const ON_ACCENT: Color = Color::srgb(0.1, 0.1, 0.1);
 
     /// How many times [`Hovered`] was taken off a node.
     #[derive(Resource, Default)]
@@ -639,6 +645,26 @@ mod tests {
         assert_eq!(fill(&app, node), ACCENT);
         settle(&mut app, node, false);
         assert_eq!(fill(&app, node), ACCENT);
+    }
+
+    #[test]
+    fn an_active_segment_draws_its_content_on_accent() {
+        let mut app = app();
+        let on = mount::<Plain>(
+            app.world_mut(),
+            button(label("a")).rules(segment(true)),
+        );
+        let off = mount::<Plain>(
+            app.world_mut(),
+            button(label("a")).rules(segment(false)),
+        );
+        let ink = |app: &App, node: Entity| {
+            let text = app.world().get::<Children>(node).unwrap()[0];
+            app.world().get::<TextColor>(text).unwrap().0
+        };
+
+        assert_eq!(ink(&app, on), ON_ACCENT);
+        assert_eq!(ink(&app, off), Color::WHITE);
     }
 
     #[test]

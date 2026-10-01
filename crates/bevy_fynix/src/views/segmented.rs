@@ -12,11 +12,11 @@ use fynix::Condition;
 use crate::prop::Prop;
 use crate::state::DirtyNodes;
 use crate::tokens::{
-    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
 };
 use crate::views::button::segment;
 use crate::views::frame::{Frame, FrameProps};
-use crate::views::{BehaviorExt, Label, button, label};
+use crate::views::{BehaviorExt, Icon, Label, button, label};
 use crate::{Bevy, Cx, ScopedExt, Styled, View};
 
 /// A handler run with the world and the index of the segment picked.
@@ -97,7 +97,8 @@ where
             frame.fill(theme.accent())
         });
     });
-    cx.set::<Label>(|label, _| label.bold(true));
+    cx.set::<Label>(|label, _| label.bold(true).tone(Tone::OnAccent));
+    cx.set::<Icon>(|icon, _| icon.tone(Tone::OnAccent));
 }
 
 /// Rounded on the sides of a row's own ends, square between.
@@ -222,7 +223,7 @@ mod tests {
     use bevy::color::Color;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
-    use bevy::text::{FontWeight, TextFont};
+    use bevy::text::{FontWeight, TextColor, TextFont};
     use bevy::time::TimePlugin;
     use bevy::ui::widget::Text;
     use bevy::ui::{BackgroundColor, Node};
@@ -267,8 +268,11 @@ mod tests {
     }
 
     impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
+        fn tone(&self, tone: Tone) -> Color {
+            match tone {
+                Tone::OnAccent => ON_ACCENT,
+                _ => Color::WHITE,
+            }
         }
 
         fn body_size(&self) -> f32 {
@@ -291,6 +295,7 @@ mod tests {
 
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
+    const ON_ACCENT: Color = Color::srgb(0.1, 0.1, 0.1);
 
     /// The segment the app says is active.
     #[derive(Resource)]
@@ -360,6 +365,34 @@ mod tests {
         assert_eq!(fills(&app, root), [REST, ACCENT, REST]);
         assert_eq!(weight(&app, nodes[1]), FontWeight::BOLD);
         assert_eq!(weight(&app, nodes[0]), FontWeight::NORMAL);
+    }
+
+    #[test]
+    fn the_active_label_is_drawn_on_accent_and_follows_the_choice() {
+        let mut app = app();
+        let root = mount::<Plain>(app.world_mut(), row_of_three());
+        let nodes = segments(&app, root);
+        let inks = |app: &App| {
+            nodes
+                .iter()
+                .map(|&node| {
+                    let label = segments(app, node)[0];
+                    app.world().get::<TextColor>(label).unwrap().0
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            inks(&app),
+            [Color::WHITE, ON_ACCENT, Color::WHITE]
+        );
+
+        app.world_mut().resource_mut::<Which>().0 = 0;
+        app.update();
+
+        assert_eq!(
+            inks(&app),
+            [ON_ACCENT, Color::WHITE, Color::WHITE]
+        );
     }
 
     #[test]
