@@ -73,6 +73,8 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .init_resource::<Entrances>()
             .init_resource::<TooltipTiming>()
             .add_observer(backend::queue_unmounted)
+            .add_observer(views::close_on_outside_press)
+            .add_observer(views::close_on_escape)
             .add_observer(views::toggle_dropdown)
             .add_observer(views::dismiss_context_menu)
             .add_systems(

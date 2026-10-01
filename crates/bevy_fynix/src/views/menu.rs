@@ -4,20 +4,26 @@
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, ResMut};
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::input_focus::tab_navigation::{
     NavAction, TabIndex, TabNavigation,
 };
-use bevy::input_focus::{FocusCause, InputFocus};
+use bevy::input_focus::{FocusCause, FocusedInput, InputFocus};
 use bevy::math::Vec2;
+use bevy::picking::events::{Pointer, Press};
 use bevy::ui::{
     AlignItems, FlexDirection, Node, Overflow, OverrideClip,
     PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui_widgets::popover::{Popover, PopoverPlacement};
 use bevy::ui_widgets::{
-    MenuFocusState, MenuItem as MenuItemBehavior, MenuPopup,
+    MenuAction, MenuEvent, MenuFocusState,
+    MenuItem as MenuItemBehavior, MenuPopup,
 };
 use bevy::window::SystemCursorIcon;
 
@@ -193,6 +199,75 @@ pub(crate) fn focus_first(
                 *state = MenuFocusState::Open;
             }
         }
+    }
+}
+
+/// Closes every open popup a press lands outside of, and takes the
+/// focus out of it. A press on the node a popup hangs from, such as
+/// a dropdown's button, is left to that node.
+///
+/// `bevy_ui_widgets` closes a popup when the focus leaves it, but
+/// nothing moves the focus on a press: that is the tab navigation
+/// plugin's `click_to_focus`, which an app that does not draw with
+/// Bevy's feathers does not have.
+pub(crate) fn close_on_outside_press(
+    press: On<Pointer<Press>>,
+    popups: Query<
+        (Entity, &MenuFocusState, Option<&ChildOf>),
+        With<MenuPopup>,
+    >,
+    parents: Query<&ChildOf>,
+    mut focus: ResMut<InputFocus>,
+    mut commands: Commands,
+) {
+    if press.entity != press.original_event_target() {
+        return;
+    }
+    let within = |node: Entity, ancestor: Entity| {
+        node == ancestor
+            || parents.iter_ancestors(node).any(|up| up == ancestor)
+    };
+    for (popup, state, parent) in &popups {
+        if matches!(state, MenuFocusState::Closed) {
+            continue;
+        }
+        let owner = parent.map_or(popup, ChildOf::parent);
+        if within(press.entity, owner) {
+            continue;
+        }
+        if focus.get().is_some_and(|held| within(held, popup)) {
+            focus.clear();
+        }
+        commands.entity(popup).insert(MenuFocusState::Closed);
+        commands.trigger(MenuEvent {
+            source: popup,
+            action: MenuAction::CloseAll,
+        });
+    }
+}
+
+/// Closes the popup of a row that has the focus when Escape goes
+/// down, and gives the focus back to its owner. `bevy_ui_widgets`
+/// only reads Escape when the popup itself has the focus, which a
+/// popup with rows never does.
+pub(crate) fn close_on_escape(
+    event: On<FocusedInput<KeyboardInput>>,
+    rows: Query<(), With<MenuItemBehavior>>,
+    mut commands: Commands,
+) {
+    let key = &event.input;
+    if key.key_code != KeyCode::Escape
+        || key.state != ButtonState::Pressed
+        || key.repeat
+        || !rows.contains(event.focused_entity)
+    {
+        return;
+    }
+    for action in [MenuAction::FocusRoot, MenuAction::CloseAll] {
+        commands.trigger(MenuEvent {
+            source: event.focused_entity,
+            action,
+        });
     }
 }
 

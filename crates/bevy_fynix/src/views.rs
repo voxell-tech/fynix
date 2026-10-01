@@ -39,7 +39,10 @@ pub use label::{Label, LabelProps, label};
 pub use menu::{
     MENU_Z, MenuItem, TOOLTIP_Z, menu_item, menu_surface,
 };
-pub(crate) use menu::{despawn_orphans, focus_first};
+pub(crate) use menu::{
+    close_on_escape, close_on_outside_press, despawn_orphans,
+    focus_first,
+};
 pub use number_field::{Number, NumberField, number_field};
 pub use segmented::{Segmented, segmented};
 pub use stack::{Extra, Stack, column, overlay, row, scroll};

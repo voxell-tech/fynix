@@ -13,6 +13,7 @@ use core::time::Duration;
 
 use bevy::DefaultPlugins;
 use bevy::app::{App, Startup};
+use bevy::asset::Handle;
 use bevy::camera::Camera2d;
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
@@ -670,6 +671,7 @@ fn menus() -> impl View<Bevy, Monokai> {
         dropdown(
             EASINGS,
             resource::<Easing, _>(|easing| easing.0),
+            Handle::default(),
             |world, at| world.resource_mut::<Easing>().0 = at,
         ),
         label("Right-click for a menu")

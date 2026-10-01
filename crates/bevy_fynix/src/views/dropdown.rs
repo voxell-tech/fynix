@@ -5,13 +5,16 @@
 //! keys work on the rows. Showing and hiding the popup is
 //! [`on_menu_event`].
 
+use bevy::asset::Handle;
 use bevy::camera::visibility::Visibility;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::{Commands, EntityCommands, Query, ResMut};
+use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::ecs::world::World;
+use bevy::image::Image;
 use bevy::input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::ui::{Overflow, UiRect, percent, px};
@@ -23,14 +26,16 @@ use bevy::ui_widgets::{
 };
 
 use crate::modifier::ModifierExt;
-use crate::prop::Prop;
+use crate::prop::{Prop, component};
 use crate::tokens::{
-    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
+    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    Tone,
 };
+use crate::views::foldable::Open;
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{menu_item, popup};
-use crate::views::{BehaviorExt, button, frame, label, row};
-use crate::{Bevy, Cx, Styled, View};
+use crate::views::{BehaviorExt, button, frame, icon, label, row};
+use crate::{Bevy, Cx, ScopedExt, Styled, View};
 
 /// What runs with the index of a chosen option.
 type Select = Box<dyn Fn(&mut World, usize) + Send + Sync>;
@@ -42,16 +47,20 @@ pub struct Dropdown {
     options: Vec<String>,
     selected: Prop<usize>,
     placeholder: String,
+    chevron: Handle<Image>,
     on_select: Select,
 }
 
 /// A [`Dropdown`] over `options`, showing the one at `selected`,
-/// which may be bound to the world. `on_select` runs with the index
+/// which may be bound to the world, and ending in a dim `chevron`
+/// icon that turns half way round while the list is open.
+/// `on_select` runs with the index
 /// of the option chosen; showing it is up to whatever `selected`
 /// reads.
 pub fn dropdown<S: Into<String>>(
     options: impl IntoIterator<Item = S>,
     selected: impl Into<Prop<usize>>,
+    chevron: Handle<Image>,
     on_select: impl Fn(&mut World, usize) + Send + Sync + 'static,
 ) -> Dropdown {
     Dropdown {
@@ -59,6 +68,7 @@ pub fn dropdown<S: Into<String>>(
         options: options.into_iter().map(Into::into).collect(),
         selected: selected.into(),
         placeholder: String::new(),
+        chevron,
         on_select: Box::new(on_select),
     }
 }
@@ -89,6 +99,9 @@ pub(crate) struct Parts {
     button: Entity,
     popup: Entity,
 }
+
+/// How far the chevron turns while the list is open, in degrees.
+const OPEN_TURN: f32 = 180.0;
 
 /// On a dropdown's root node: what its options run when chosen.
 #[derive(Component)]
@@ -125,6 +138,7 @@ where
             options,
             selected,
             placeholder,
+            chevron,
             on_select,
         } = self;
         let root = cx.build(frame());
@@ -145,15 +159,19 @@ where
                     .on_activate(move |world| choose(world, root, at))
             })
             .collect::<Vec<_>>();
+        let end = icon(chevron)
+            .tone(Tone::Dim)
+            .size(cx.theme().small_size())
+            .rotation(component::<Open, _>(root, |open| {
+                if open.is_some() { OPEN_TURN } else { 0.0 }
+            }))
+            .transition(Motion::Interact);
         let (button, popup) = cx.under(root, |cx| {
             let button = cx.scope(|cx| {
                 cx.defaults(|cx| cx.root(control_defaults));
                 let mut button = button(
-                    row((
-                        label(shown).wrap(false).grown(1.0),
-                        label("v").tone(Tone::Dim),
-                    ))
-                    .grow(1.0),
+                    row((label(shown).wrap(false).grown(1.0), end))
+                        .grow(1.0),
                 );
                 button.frame = control;
                 cx.build(button)
@@ -214,10 +232,16 @@ fn close(world: &mut World, popup: Entity) {
     if let Ok(mut entity) = world.get_entity_mut(popup) {
         entity.insert((Visibility::Hidden, MenuFocusState::Closed));
     }
+    let root = world.get::<ChildOf>(popup).map(ChildOf::parent);
+    if let Some(mut root) =
+        root.and_then(|r| world.get_entity_mut(r).ok())
+    {
+        root.remove::<Open>();
+    }
 }
 
 /// Opens and closes the popup of the dropdown a [`MenuEvent`] bubbles
-/// up to.
+/// up to, and keeps [`Open`] on the dropdown in step.
 pub(crate) fn on_menu_event(
     mut event: On<MenuEvent>,
     dropdowns: Query<&Parts>,
@@ -225,38 +249,36 @@ pub(crate) fn on_menu_event(
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
-    let Ok(parts) = dropdowns.get(event.event_target()) else {
+    let root = event.event_target();
+    let Ok(parts) = dropdowns.get(root) else {
         return;
     };
-    let mut popup = commands.entity(parts.popup);
-    let open = |popup: &mut EntityCommands, nav| {
-        popup.insert((
-            Visibility::Visible,
-            MenuFocusState::Opening(nav),
-        ));
-    };
-    match event.action {
-        MenuAction::Open(nav) => open(&mut popup, nav),
+    let shown = popups
+        .get(parts.popup)
+        .is_ok_and(|shown| *shown == Visibility::Visible);
+    let opens = match event.action {
+        MenuAction::Open(nav) => Some(Some(nav)),
         MenuAction::Toggle => {
-            if popups
-                .get(parts.popup)
-                .is_ok_and(|shown| *shown == Visibility::Visible)
-            {
-                popup.insert((
-                    Visibility::Hidden,
-                    MenuFocusState::Closed,
-                ));
-            } else {
-                open(&mut popup, NavAction::First);
-            }
+            Some((!shown).then_some(NavAction::First))
         }
-        MenuAction::CloseAll => {
-            popup
+        MenuAction::CloseAll => Some(None),
+        MenuAction::FocusRoot => None,
+    };
+    match opens {
+        Some(Some(nav)) => {
+            commands.entity(parts.popup).insert((
+                Visibility::Visible,
+                MenuFocusState::Opening(nav),
+            ));
+            commands.entity(root).insert(Open);
+        }
+        Some(None) => {
+            commands
+                .entity(parts.popup)
                 .insert((Visibility::Hidden, MenuFocusState::Closed));
+            commands.entity(root).remove::<Open>();
         }
-        MenuAction::FocusRoot => {
-            focus.set(parts.button, FocusCause::Navigated);
-        }
+        None => focus.set(parts.button, FocusCause::Navigated),
     }
     event.propagate(false);
 }
@@ -267,8 +289,13 @@ mod tests {
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
-    use bevy::ui::widget::Text;
+    use bevy::input::keyboard::{Key, KeyCode};
+    use bevy::math::Vec2;
+    use bevy::picking::pointer::PointerButton;
+    use bevy::ui::widget::{ImageNode, Text};
+    use bevy::ui::{Node, UiTransform};
     use bevy::ui_widgets::{Activate, MenuPlugin};
+    use bevy::window::Window;
 
     use super::*;
     use crate::tests::{self, Plain};
@@ -290,6 +317,7 @@ mod tests {
             dropdown(
                 ["Linear", "Ease in", "Ease out"],
                 resource::<Chosen, _>(|chosen| chosen.0),
+                Handle::default(),
                 |world, at| world.resource_mut::<Chosen>().0 = at,
             ),
         )
@@ -410,6 +438,7 @@ mod tests {
             dropdown(
                 ["a", "b"],
                 resource::<Chosen, _>(|chosen| chosen.0),
+                Handle::default(),
                 |_, _| {},
             )
             .placeholder("Pick one"),
@@ -428,7 +457,7 @@ mod tests {
         let mut app = app();
         let root = mount::<Plain>(
             app.world_mut(),
-            dropdown(["a"], 5, |_, _| {}),
+            dropdown(["a"], 5, Handle::default(), |_, _| {}),
         );
 
         assert_eq!(shown(&app, root), "");
@@ -439,7 +468,7 @@ mod tests {
         let mut app = app();
         let root = mount::<Plain>(
             app.world_mut(),
-            dropdown(["a", "b"], 1, |_, _| {}),
+            dropdown(["a", "b"], 1, Handle::default(), |_, _| {}),
         );
 
         assert_eq!(shown(&app, root), "b");
@@ -464,6 +493,153 @@ mod tests {
         app.update();
 
         assert!(shut(&app, popup));
+    }
+
+    fn open(app: &mut App, button: Entity) {
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+        app.update();
+    }
+
+    fn turn(app: &App, root: Entity) -> f32 {
+        let (button, _) = parts(app, root);
+        let content = kids(app, button)[0];
+        let chevron = kids(app, content)[1];
+        app.world()
+            .get::<UiTransform>(chevron)
+            .expect("an icon")
+            .rotation
+            .as_degrees()
+    }
+
+    #[test]
+    fn the_chevron_turns_with_the_list() {
+        let mut app = app();
+        let root = pick(&mut app);
+        let (button, _) = parts(&app, root);
+        let content = kids(&app, button)[0];
+        let chevron = kids(&app, content)[1];
+        assert!(app.world().get::<ImageNode>(chevron).is_some());
+        assert_eq!(turn(&app, root), 0.0);
+
+        open(&mut app, button);
+        for _ in 0..4 {
+            app.update();
+        }
+        // Half a turn reads back as either sign.
+        assert!((turn(&app, root).abs() - 180.0).abs() < 0.01);
+
+        open(&mut app, button);
+        for _ in 0..4 {
+            app.update();
+        }
+        assert!(turn(&app, root).abs() < 0.01);
+    }
+
+    #[test]
+    fn choosing_a_row_turns_the_chevron_back() {
+        let mut app = app();
+        let root = pick(&mut app);
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
+        assert!(app.world().get::<Open>(root).is_some());
+
+        let row = kids(&app, popup)[0];
+        app.world_mut().trigger(Activate { entity: row });
+        app.update();
+
+        assert!(app.world().get::<Open>(root).is_none());
+    }
+
+    #[test]
+    fn a_press_elsewhere_shuts_the_list() {
+        let mut app = app();
+        let root = pick(&mut app);
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
+        assert!(!shut(&app, popup));
+        let other = app.world_mut().spawn(Node::default()).id();
+
+        tests::pointer_press(
+            &mut app,
+            other,
+            PointerButton::Primary,
+            Vec2::ONE,
+        );
+        app.update();
+
+        assert!(shut(&app, popup));
+        assert!(app.world().get::<Open>(root).is_none());
+        assert_eq!(app.world().resource::<InputFocus>().get(), None);
+    }
+
+    #[test]
+    fn a_press_on_empty_space_shuts_the_list() {
+        let mut app = app();
+        let root = pick(&mut app);
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
+        let window = app.world_mut().spawn(Window::default()).id();
+
+        tests::pointer_press(
+            &mut app,
+            window,
+            PointerButton::Primary,
+            Vec2::ONE,
+        );
+        app.update();
+
+        assert!(shut(&app, popup));
+    }
+
+    #[test]
+    fn a_press_inside_the_list_or_on_its_button_leaves_it_to_them() {
+        let mut app = app();
+        let root = pick(&mut app);
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
+
+        let row = kids(&app, popup)[1];
+        tests::pointer_press(
+            &mut app,
+            row,
+            PointerButton::Primary,
+            Vec2::ONE,
+        );
+        app.update();
+        assert!(!shut(&app, popup));
+
+        // The button's own toggle shuts it, once.
+        tests::pointer_press(
+            &mut app,
+            button,
+            PointerButton::Primary,
+            Vec2::ONE,
+        );
+        app.update();
+        assert!(!shut(&app, popup));
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+        assert!(shut(&app, popup));
+    }
+
+    #[test]
+    fn escape_on_a_row_shuts_the_list_and_refocuses_the_button() {
+        let mut app = app();
+        let root = pick(&mut app);
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
+        tests::keyboard(&mut app);
+        app.update();
+
+        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
+        app.update();
+
+        assert!(shut(&app, popup));
+        assert_eq!(
+            app.world().resource::<InputFocus>().get(),
+            Some(button)
+        );
     }
 
     #[test]

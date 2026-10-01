@@ -4,11 +4,20 @@
 use core::time::Duration;
 
 use bevy::app::App;
+use bevy::camera::NormalizedRenderTarget;
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::relationship::RelationshipTarget;
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input::{ButtonState, InputPlugin};
+use bevy::input_focus::InputDispatchPlugin;
+use bevy::math::Vec2;
+use bevy::picking::backend::HitData;
+use bevy::picking::events::{Pointer, Press};
+use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::time::{TimePlugin, TimeUpdateStrategy};
+use bevy::window::{PrimaryWindow, Window};
 
 use crate::state::{Hovered, Pressed};
 use crate::tokens::{
@@ -159,6 +168,55 @@ pub fn hover(app: &mut App, node: Entity, on: bool) {
     } else {
         node.remove::<Hovered>();
     }
+}
+
+/// Sends the event picking sends for `button` going down at `at` on
+/// `on`, which bubbles up from it as a real one does. Nothing else
+/// reacts to it but what listens for it.
+pub fn pointer_press(
+    app: &mut App,
+    on: Entity,
+    button: PointerButton,
+    at: Vec2,
+) {
+    let location = Location {
+        target: NormalizedRenderTarget::None {
+            width: 800,
+            height: 600,
+        },
+        position: at,
+    };
+    let hit = HitData::new(Entity::PLACEHOLDER, 0.0, None, None);
+    app.world_mut().trigger(Pointer::new(
+        PointerId::Mouse,
+        location,
+        Press {
+            button,
+            hit,
+            count: 1,
+        },
+        on,
+    ));
+}
+
+/// Gives `app` a primary window and what routes key presses to the
+/// node holding the focus, as `DefaultPlugins` does.
+pub fn keyboard(app: &mut App) {
+    app.add_plugins((InputPlugin, InputDispatchPlugin));
+    app.world_mut().spawn((Window::default(), PrimaryWindow));
+}
+
+/// Presses `code` and runs a frame, for an app given [`keyboard`].
+pub fn key_down(app: &mut App, code: KeyCode, key: Key) {
+    app.world_mut().write_message(KeyboardInput {
+        key_code: code,
+        logical_key: key,
+        state: ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window: Entity::PLACEHOLDER,
+    });
+    app.update();
 }
 
 /// Puts a pointer button down on `node` or lets it up.

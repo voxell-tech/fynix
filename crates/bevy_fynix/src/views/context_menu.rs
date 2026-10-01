@@ -33,6 +33,11 @@ pub(crate) struct OpenAt {
     serial: u32,
 }
 
+/// On a node with a context menu: how many times it has opened
+/// one, which outlives each opening so that serials stay distinct.
+#[derive(Component)]
+struct Openings(u32);
+
 /// On a context menu's popup: the opening it was built for.
 #[derive(Component)]
 pub(crate) struct OpenedFor(u32);
@@ -78,7 +83,7 @@ impl<V> ContextMenuExt for V {}
 fn open(
     mut press: On<Pointer<Press>>,
     scale: Option<Res<UiScale>>,
-    opened: Query<&OpenAt>,
+    openings: Query<&Openings>,
     mut commands: Commands,
 ) {
     if press.button != PointerButton::Secondary {
@@ -87,18 +92,21 @@ fn open(
     press.propagate(false);
     let scale = scale.map_or(1.0, |scale| scale.0);
     let source = press.event_target();
-    let serial = opened
+    let serial = openings
         .get(source)
-        .map_or(0, |open| open.serial.wrapping_add(1));
-    commands.entity(source).insert(OpenAt {
-        at: press.pointer_location.position / scale,
-        serial,
-    });
+        .map_or(0, |count| count.0.wrapping_add(1));
+    commands.entity(source).insert((
+        OpenAt {
+            at: press.pointer_location.position / scale,
+            serial,
+        },
+        Openings(serial),
+    ));
 }
 
 /// Closes the context menu a close request bubbles up to, unless the
 /// request comes from a menu the node has since reopened: the press
-/// that moves a menu takes the focus from the old one.
+/// that moves a menu closes the old one.
 pub(crate) fn dismiss(
     mut event: On<MenuEvent>,
     hosts: Query<&Floating>,
@@ -198,15 +206,14 @@ where
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
-    use bevy::camera::NormalizedRenderTarget;
     use bevy::ecs::resource::Resource;
+    use bevy::input::keyboard::{Key, KeyCode};
     use bevy::input_focus::InputFocus;
-    use bevy::picking::backend::HitData;
-    use bevy::picking::pointer::{Location, PointerId};
     use bevy::ui::Node;
     use bevy::ui::widget::Text;
     use bevy::ui_widgets::popover::Popover;
-    use bevy::ui_widgets::{Activate, MenuPopup};
+    use bevy::ui_widgets::{Activate, MenuPlugin, MenuPopup};
+    use bevy::window::Window;
 
     use super::*;
     use crate::mount;
@@ -218,7 +225,7 @@ mod tests {
 
     fn app() -> App {
         let mut app = tests::app();
-        app.init_resource::<Deleted>();
+        app.add_plugins(MenuPlugin).init_resource::<Deleted>();
         app
     }
 
@@ -252,24 +259,7 @@ mod tests {
         button: PointerButton,
         at: Vec2,
     ) {
-        let location = Location {
-            target: NormalizedRenderTarget::None {
-                width: 800,
-                height: 600,
-            },
-            position: at,
-        };
-        let hit = HitData::new(Entity::PLACEHOLDER, 0.0, None, None);
-        app.world_mut().trigger(Pointer::new(
-            PointerId::Mouse,
-            location,
-            Press {
-                button,
-                hit,
-                count: 1,
-            },
-            on,
-        ));
+        tests::pointer_press(app, on, button, at);
     }
 
     /// The popups of every menu open.
@@ -449,6 +439,111 @@ mod tests {
             .parent();
         let ui = app.world().get::<Node>(anchor).unwrap();
         assert_eq!((ui.left, ui.top), (px(30.0), px(40.0)));
+    }
+
+    /// Opens a menu on a fresh source, with nothing but pointer
+    /// events and frames, as a run does.
+    fn open_one(app: &mut App) -> Entity {
+        let source = source(app);
+        press(app, source, PointerButton::Secondary, Vec2::ZERO);
+        app.update();
+        assert_eq!(popups(app).len(), 1);
+        source
+    }
+
+    #[test]
+    fn a_press_on_empty_space_dismisses_the_menu() {
+        let mut app = app();
+        open_one(&mut app);
+        let window = app.world_mut().spawn(Window::default()).id();
+
+        press(&mut app, window, PointerButton::Primary, Vec2::ONE);
+        app.update();
+
+        assert!(popups(&mut app).is_empty());
+        assert_eq!(app.world().resource::<InputFocus>().get(), None);
+    }
+
+    #[test]
+    fn a_press_on_another_widget_dismisses_the_menu() {
+        let mut app = app();
+        open_one(&mut app);
+        let other = app.world_mut().spawn(Node::default()).id();
+
+        press(&mut app, other, PointerButton::Primary, Vec2::ONE);
+        app.update();
+
+        assert!(popups(&mut app).is_empty());
+    }
+
+    #[test]
+    fn a_press_on_the_source_dismisses_the_menu() {
+        let mut app = app();
+        let source = open_one(&mut app);
+
+        press(&mut app, source, PointerButton::Primary, Vec2::ONE);
+        app.update();
+
+        assert!(popups(&mut app).is_empty());
+    }
+
+    #[test]
+    fn a_press_inside_the_menu_leaves_it_open() {
+        let mut app = app();
+        open_one(&mut app);
+        let popup = popups(&mut app)[0];
+        let row = kids(&app, popup)[0];
+
+        press(&mut app, row, PointerButton::Primary, Vec2::ONE);
+        app.update();
+
+        assert_eq!(popups(&mut app).len(), 1);
+    }
+
+    #[test]
+    fn a_right_press_elsewhere_dismisses_and_on_the_source_moves() {
+        let mut app = app();
+        let source = open_one(&mut app);
+        let other = app.world_mut().spawn(Node::default()).id();
+        press(&mut app, other, PointerButton::Secondary, Vec2::ONE);
+        app.update();
+        assert!(popups(&mut app).is_empty());
+
+        press(&mut app, source, PointerButton::Secondary, Vec2::ZERO);
+        app.update();
+        assert_eq!(popups(&mut app).len(), 1);
+
+        press(
+            &mut app,
+            source,
+            PointerButton::Secondary,
+            Vec2::new(30.0, 40.0),
+        );
+        app.update();
+        app.update();
+
+        let popup = popups(&mut app);
+        assert_eq!(popup.len(), 1);
+        let anchor = app
+            .world()
+            .get::<bevy::ecs::hierarchy::ChildOf>(popup[0])
+            .unwrap()
+            .parent();
+        let ui = app.world().get::<Node>(anchor).unwrap();
+        assert_eq!((ui.left, ui.top), (px(30.0), px(40.0)));
+    }
+
+    #[test]
+    fn escape_on_a_row_dismisses_the_menu() {
+        let mut app = app();
+        open_one(&mut app);
+        tests::keyboard(&mut app);
+        app.update();
+
+        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
+        app.update();
+
+        assert!(popups(&mut app).is_empty());
     }
 
     #[test]

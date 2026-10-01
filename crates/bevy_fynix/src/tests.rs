@@ -20,7 +20,10 @@ mod layout;
 mod structure;
 mod support;
 
-pub(crate) use support::{Plain, app, app_with, hover, kids, press};
+pub(crate) use support::{
+    Plain, app, app_with, hover, key_down, keyboard, kids,
+    pointer_press, press,
+};
 
 use crate::mounted::Mounts;
 use crate::tokens::{TextTokens, Tone};
