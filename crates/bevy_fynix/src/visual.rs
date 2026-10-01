@@ -21,29 +21,6 @@ pub(crate) fn scaled(scale: f32) -> UiTransform {
     UiTransform::from_scale(Vec2::splat(scale))
 }
 
-/// Builder methods for the [`Visual`] props of an element with
-/// `opacity` and `scale` fields, and its `visual` accessor for
-/// [`Element`](crate::Element).
-macro_rules! visual_props {
-    () => {
-        /// How opaque it is, 1.0 when unset.
-        pub fn opacity(
-            mut self,
-            opacity: impl Into<Prop<f32>>,
-        ) -> Self {
-            self.opacity = opacity.into();
-            self
-        }
-
-        /// The factor it is scaled by around its centre after layout,
-        /// 1.0 when unset. Its children are scaled with it.
-        pub fn scale(mut self, scale: impl Into<Prop<f32>>) -> Self {
-            self.scale = scale.into();
-            self
-        }
-    };
-}
-
 /// The `visual` method of [`Element`](crate::Element) for an element
 /// with `opacity` and `scale` fields.
 macro_rules! visual_access {
@@ -59,4 +36,4 @@ macro_rules! visual_access {
     };
 }
 
-pub(crate) use {visual_access, visual_props};
+pub(crate) use visual_access;

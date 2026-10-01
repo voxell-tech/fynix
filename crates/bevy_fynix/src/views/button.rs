@@ -7,11 +7,8 @@
 //! call site's `.when::<Hovered, _>(..)` both beat them, and none of
 //! them reach the content.
 
-use bevy::color::Color;
 use bevy::ecs::entity::Entity;
-use bevy::ui::{
-    AlignItems, FlexDirection, JustifyContent, UiRect, Val,
-};
+use bevy::ui::{AlignItems, FlexDirection, JustifyContent};
 use bevy::ui_widgets::Button as ButtonBehavior;
 use bevy::window::SystemCursorIcon;
 
@@ -95,6 +92,7 @@ mod tests {
     use core::time::Duration;
 
     use bevy::app::{App, PreUpdate};
+    use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::lifecycle::Remove;
     use bevy::ecs::observer::On;
@@ -105,6 +103,7 @@ mod tests {
     use bevy::picking::pointer::PointerId;
     use bevy::text::{FontSize, TextFont};
     use bevy::time::{TimePlugin, TimeUpdateStrategy};
+    use bevy::ui::Val;
     use bevy::ui::widget::Text;
     use bevy::ui::{BackgroundColor, BorderRadius, Node, px};
 

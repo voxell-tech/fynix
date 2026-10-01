@@ -5,21 +5,44 @@
 //! call site can still set every prop. Generic modifiers reach the
 //! root node too, but a prop of the frame is better said on the frame.
 
-use bevy::color::Color;
+use bevy::ecs::bundle::Bundle;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::world::EntityWorldMut;
+use bevy::picking::Pickable;
 use bevy::ui::{
-    AlignItems, FlexDirection, JustifyContent, UiRect, Val,
+    FlexDirection, Overflow, PositionType, ScrollPosition, UiRect,
+    percent, px,
 };
+use bevy::ui_widgets::ScrollArea;
 
 use crate::prop::Prop;
 use crate::tokens::SpacingTokens;
 use crate::views::frame::{Frame, forward_all_frame_props};
 use crate::{Bevy, Cx, Styled, View, ViewSeq};
 
-/// A [`Frame`] with `children` built under it, in order.
-pub struct Stack<C> {
+/// Components a view puts on its root node, in the order they were
+/// given: nothing, or more of them and then a bundle.
+pub trait Extra {
+    fn insert(self, entity: &mut EntityWorldMut);
+}
+
+impl Extra for () {
+    fn insert(self, _: &mut EntityWorldMut) {}
+}
+
+impl<X: Extra, N: Bundle> Extra for (X, N) {
+    fn insert(self, entity: &mut EntityWorldMut) {
+        self.0.insert(entity);
+        entity.insert(self.1);
+    }
+}
+
+/// A [`Frame`] with `children` built under it, in order, and the
+/// components `X` on its node.
+pub struct Stack<C, X = ()> {
     pub frame: Frame,
     pub children: C,
+    pub extra: X,
 }
 
 /// A [`Stack`] laying `children` out left to right.
@@ -27,6 +50,7 @@ pub fn row<C>(children: C) -> Stack<C> {
     Stack {
         frame: Frame::unset().direction(FlexDirection::Row),
         children,
+        extra: (),
     }
 }
 
@@ -35,10 +59,37 @@ pub fn column<C>(children: C) -> Stack<C> {
     Stack {
         frame: Frame::unset().direction(FlexDirection::Column),
         children,
+        extra: (),
     }
 }
 
-impl<C> Stack<C> {
+/// A column that scrolls what does not fit, by wheel or trackpad. It
+/// can shrink below its content, which is what leaves something to
+/// scroll.
+pub fn scroll<C>(
+    children: C,
+) -> Stack<C, ((), (ScrollArea, ScrollPosition))> {
+    column(children)
+        .overflow(Overflow::scroll())
+        .min_width(px(0.0))
+        .min_height(px(0.0))
+        .with((ScrollArea, ScrollPosition::default()))
+}
+
+/// A stack the size of its parent and out of its layout, for what
+/// positions itself against the window or a panel instead of among
+/// its siblings. The pointer passes through it unless
+/// `.with(Pickable::default())` says otherwise.
+pub fn overlay<C>(children: C) -> Stack<C, ((), Pickable)> {
+    row(children)
+        .position(PositionType::Absolute)
+        .inset(UiRect::all(px(0.0)))
+        .width(percent(100.0))
+        .height(percent(100.0))
+        .with(Pickable::IGNORE)
+}
+
+impl<C, X> Stack<C, X> {
     pub fn direction(
         mut self,
         direction: impl Into<Prop<FlexDirection>>,
@@ -47,16 +98,28 @@ impl<C> Stack<C> {
         self
     }
 
+    /// This, with `bundle` on its node too. A component given again
+    /// replaces the one given before.
+    pub fn with<N: Bundle>(self, bundle: N) -> Stack<C, (X, N)> {
+        Stack {
+            frame: self.frame,
+            children: self.children,
+            extra: (self.extra, bundle),
+        }
+    }
+
     forward_all_frame_props!();
 }
 
-impl<T, C> View<Bevy, T> for Stack<C>
+impl<T, C, X> View<Bevy, T> for Stack<C, X>
 where
     T: SpacingTokens + Send + Sync + 'static,
     C: ViewSeq<Bevy, T>,
+    X: Extra,
 {
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
         let node = cx.build(self.frame);
+        self.extra.insert(&mut cx.world.entity_mut(node));
         cx.under(node, |cx| self.children.build_each(cx));
         node
     }
@@ -65,12 +128,13 @@ where
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
+    use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::text::{FontSize, TextFont};
     use bevy::time::TimePlugin;
     use bevy::ui::widget::Text;
-    use bevy::ui::{BackgroundColor, Node};
+    use bevy::ui::{BackgroundColor, Node, Val};
 
     use super::*;
     use crate::tokens::{TextTokens, Tone};
@@ -204,6 +268,59 @@ mod tests {
             app.world().get::<TextFont>(inner).unwrap().font_size,
             FontSize::Px(20.0),
             "rules reach children of a stack"
+        );
+    }
+
+    #[test]
+    fn a_stack_carries_what_it_is_given_and_the_later_replaces() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            row((label("a"),))
+                .with(Pickable::IGNORE)
+                .with(Pickable::default())
+                .gap(3.0),
+        );
+
+        assert_eq!(
+            app.world().get::<Pickable>(node),
+            Some(&Pickable::default())
+        );
+        let ui = app.world().get::<Node>(node).unwrap();
+        assert_eq!(ui.column_gap, Val::Px(3.0), "still a stack");
+    }
+
+    #[test]
+    fn a_scroll_area_scrolls_and_can_shrink_below_its_content() {
+        let mut app = app();
+        let node =
+            mount::<Plain>(app.world_mut(), scroll((label("a"),)));
+
+        let ui = app.world().get::<Node>(node).unwrap();
+        assert_eq!(ui.overflow, Overflow::scroll());
+        assert_eq!((ui.min_width, ui.min_height), (px(0.0), px(0.0)));
+        assert_eq!(ui.flex_direction, FlexDirection::Column);
+        assert!(app.world().get::<ScrollArea>(node).is_some());
+        assert_eq!(kids(&app, node).len(), 1);
+    }
+
+    #[test]
+    fn an_overlay_fills_its_parent_out_of_the_layout_and_is_not_picked()
+     {
+        let mut app = app();
+        let node =
+            mount::<Plain>(app.world_mut(), overlay((label("a"),)));
+
+        let ui = app.world().get::<Node>(node).unwrap();
+        assert_eq!(ui.position_type, PositionType::Absolute);
+        assert_eq!((ui.left, ui.top), (px(0.0), px(0.0)));
+        assert_eq!(
+            (ui.width, ui.height),
+            (percent(100.0), percent(100.0))
+        );
+        assert_eq!(
+            app.world().get::<Pickable>(node),
+            Some(&Pickable::IGNORE)
         );
     }
 }

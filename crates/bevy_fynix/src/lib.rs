@@ -11,6 +11,7 @@ pub mod leave;
 pub mod modifier;
 pub mod mounted;
 pub mod prop;
+mod props;
 pub mod state;
 pub mod tokens;
 pub mod transition;

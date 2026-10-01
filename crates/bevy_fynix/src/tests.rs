@@ -32,8 +32,10 @@ impl TextTokens for Warm {
     fn tone(&self, tone: Tone) -> Color {
         match tone {
             Tone::Body => Color::WHITE,
-            Tone::Dim => Color::srgb(0.5, 0.5, 0.5),
-            Tone::Accent => Color::srgb(1.0, 0.5, 0.0),
+            Tone::Dim | Tone::Faint => Color::srgb(0.5, 0.5, 0.5),
+            Tone::Accent | Tone::Critical => {
+                Color::srgb(1.0, 0.5, 0.0)
+            }
         }
     }
 

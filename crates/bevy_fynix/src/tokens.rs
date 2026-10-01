@@ -11,8 +11,14 @@ pub use fynix::{Curve, Motion, MotionTokens};
 pub enum Tone {
     #[default]
     Body,
+    /// Secondary or inactive text and icons.
     Dim,
+    /// A fainter tier still, for a label beside a brighter one.
+    Faint,
+    /// What the eye should land on, and what is interactive.
     Accent,
+    /// Destructive actions, and errors.
+    Critical,
 }
 
 pub trait TextTokens {
@@ -22,9 +28,22 @@ pub trait TextTokens {
 }
 
 pub trait SurfaceTokens {
+    /// A filled control at rest.
     fn fill(&self) -> Color;
+    /// What a surface travels to under the pointer.
     fn hover(&self) -> Color;
+    /// Panels and popups.
     fn panel(&self) -> Color;
+
+    /// Dividers and borders. The hover surface unless a theme says.
+    fn hairline(&self) -> Color {
+        self.hover()
+    }
+
+    /// A selected row's tint. The hover surface unless a theme says.
+    fn selection(&self) -> Color {
+        self.hover()
+    }
 }
 
 pub trait SpacingTokens {

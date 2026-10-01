@@ -67,7 +67,9 @@ impl TextTokens for Monokai {
         match tone {
             Tone::Body => hex(0xFCFCFA),
             Tone::Dim => hex(0x939293),
+            Tone::Faint => hex(0x727072),
             Tone::Accent => hex(0xFFD866),
+            Tone::Critical => hex(0xFF6188),
         }
     }
 

@@ -2,26 +2,36 @@ use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use bevy::text::{
-    FontSize, LineBreak, TextColor, TextFont, TextLayout,
+    FontSize, FontWeight, LineBreak, TextColor, TextFont, TextLayout,
 };
 use bevy::ui::widget::Text;
 use motiongfx_interp::interpolation::{InterpFn, Interpolation};
 
 use crate::prop::Prop;
+use crate::props::props;
 use crate::state::own_when;
 use crate::tokens::{TextTokens, Tone};
 use crate::transition::BevyMarker;
-use crate::visual::{faded, scaled, visual_access, visual_props};
+use crate::visual::{faded, scaled, visual_access};
 use crate::{Bevy, Element, Styled};
 
-/// A run of text.
-pub struct Label {
-    pub text: Prop<String>,
-    pub size: Prop<f32>,
-    pub tone: Prop<Tone>,
-    pub wrap: Prop<bool>,
-    pub opacity: Prop<f32>,
-    pub scale: Prop<f32>,
+props! {
+    /// A run of text.
+    pub struct Label {
+        text: String,
+        /// The theme's body size when unset.
+        size: f32,
+        /// The colour, by role. Body when unset.
+        tone: Tone,
+        bold: bool,
+        /// Whether it breaks onto more lines. It does when unset.
+        wrap: bool,
+        /// How opaque it is, 1.0 when unset.
+        opacity: f32,
+        /// The factor it is scaled by around its centre after layout,
+        /// 1.0 when unset.
+        scale: f32,
+    }
 }
 
 pub fn label(text: impl Into<Prop<String>>) -> Label {
@@ -31,39 +41,6 @@ pub fn label(text: impl Into<Prop<String>>) -> Label {
     }
 }
 
-impl Label {
-    pub fn text(mut self, text: impl Into<Prop<String>>) -> Self {
-        self.text = text.into();
-        self
-    }
-
-    pub fn size(mut self, size: impl Into<Prop<f32>>) -> Self {
-        self.size = size.into();
-        self
-    }
-
-    pub fn tone(mut self, tone: impl Into<Prop<Tone>>) -> Self {
-        self.tone = tone.into();
-        self
-    }
-
-    pub fn wrap(mut self, wrap: impl Into<Prop<bool>>) -> Self {
-        self.wrap = wrap.into();
-        self
-    }
-
-    visual_props!();
-}
-
-fynix::styled!(Label {
-    text,
-    size,
-    tone,
-    wrap,
-    opacity,
-    scale
-});
-
 own_when!(Label);
 
 /// A [`Label`]'s props at one moment.
@@ -72,6 +49,7 @@ pub struct LabelSnapshot {
     pub text: String,
     pub size: f32,
     pub color: Color,
+    pub bold: bool,
     pub wrap: bool,
     pub opacity: f32,
     pub scale: f32,
@@ -81,6 +59,7 @@ impl Interpolation<BevyMarker> for LabelSnapshot {
     fn interp(from: &Self, to: &Self, t: f32) -> Self {
         Self {
             text: to.text.clone(),
+            bold: to.bold,
             size: <f32 as Interpolation<()>>::interp(
                 &from.size, &to.size, t,
             ),
@@ -122,6 +101,7 @@ impl<T: TextTokens> Element<Bevy, T> for Label {
             text: self.text.get(world).unwrap_or_default(),
             size: self.size.get(world).unwrap_or(theme.body_size()),
             color: theme.tone(tone),
+            bold: self.bold.get(world).unwrap_or(false),
             wrap: self.wrap.get(world).unwrap_or(true),
             opacity: self.opacity.get(world).unwrap_or(1.0),
             scale: self.scale.get(world).unwrap_or(1.0),
@@ -142,6 +122,11 @@ impl<T: TextTokens> Element<Bevy, T> for Label {
             Text::new(snapshot.text.clone()),
             TextFont {
                 font_size: FontSize::Px(snapshot.size),
+                weight: if snapshot.bold {
+                    FontWeight::BOLD
+                } else {
+                    FontWeight::NORMAL
+                },
                 ..Default::default()
             },
             TextColor(faded(snapshot.color, snapshot.opacity)),
@@ -154,21 +139,11 @@ impl<T: TextTokens> Element<Bevy, T> for Label {
     }
 
     fn is_live(&self) -> bool {
-        self.text.is_bound()
-            || self.size.is_bound()
-            || self.tone.is_bound()
-            || self.wrap.is_bound()
-            || self.opacity.is_bound()
-            || self.scale.is_bound()
+        self.any_bound()
     }
 
     fn changed(&mut self, world: &World) -> bool {
-        self.text.changed(world)
-            | self.size.changed(world)
-            | self.tone.changed(world)
-            | self.wrap.changed(world)
-            | self.opacity.changed(world)
-            | self.scale.changed(world)
+        self.any_changed(world)
     }
 
     fn interp() -> Option<InterpFn<LabelSnapshot>> {
@@ -241,6 +216,19 @@ mod tests {
 
     fn grow(label: Label, _: &Plain) -> Label {
         label.scale(2.0)
+    }
+
+    #[test]
+    fn bold_sets_the_font_weight() {
+        let mut app = app();
+        let plain = mount::<Plain>(app.world_mut(), label("x"));
+        let bold =
+            mount::<Plain>(app.world_mut(), label("x").bold(true));
+
+        let weight =
+            |node| app.world().get::<TextFont>(node).unwrap().weight;
+        assert_eq!(weight(plain), FontWeight::NORMAL);
+        assert_eq!(weight(bold), FontWeight::BOLD);
     }
 
     #[test]
@@ -346,6 +334,7 @@ mod tests {
             text: "a".into(),
             size: 10.0,
             color: Color::BLACK,
+            bold: false,
             wrap: true,
             opacity: 0.0,
             scale: 1.0,
@@ -354,6 +343,7 @@ mod tests {
             text: "b".into(),
             size: 20.0,
             color: Color::WHITE,
+            bold: true,
             wrap: false,
             opacity: 1.0,
             scale: 2.0,

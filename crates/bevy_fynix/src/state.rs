@@ -292,8 +292,8 @@ mod tests {
         fn tone(&self, tone: Tone) -> Color {
             match tone {
                 Tone::Body => Color::BLACK,
-                Tone::Dim => DIM,
-                Tone::Accent => Color::WHITE,
+                Tone::Dim | Tone::Faint => DIM,
+                Tone::Accent | Tone::Critical => Color::WHITE,
             }
         }
 
