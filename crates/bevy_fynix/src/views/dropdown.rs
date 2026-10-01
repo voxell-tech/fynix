@@ -34,7 +34,9 @@ use crate::tokens::{
 use crate::views::foldable::Open;
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{menu_item, popup};
-use crate::views::{BehaviorExt, button, frame, icon, label, row};
+use crate::views::{
+    BehaviorExt, button, frame, icon, label, menu_bar, row,
+};
 use crate::{Bevy, Cx, ScopedExt, Styled, View};
 
 /// What runs with the index of a chosen option.
@@ -237,6 +239,92 @@ fn close(world: &mut World, popup: Entity) {
         root.and_then(|r| world.get_entity_mut(r).ok())
     {
         root.remove::<Open>();
+    }
+}
+
+/// A button that opens a list of actions, as a menu bar's titles do:
+/// it shows its title, never a choice, and has no chevron. See
+/// [`menu_button`].
+pub struct MenuTitle {
+    pub frame: Frame,
+    title: String,
+    entries: Vec<String>,
+    on_select: Select,
+}
+
+/// A [`MenuTitle`] showing `title`, opening a list of `entries`.
+/// `on_select` runs with the index of the entry chosen.
+pub fn menu_button<S: Into<String>>(
+    title: impl Into<String>,
+    entries: impl IntoIterator<Item = S>,
+    on_select: impl Fn(&mut World, usize) + Send + Sync + 'static,
+) -> MenuTitle {
+    MenuTitle {
+        frame: Frame::unset(),
+        title: title.into(),
+        entries: entries.into_iter().map(Into::into).collect(),
+        on_select: Box::new(on_select),
+    }
+}
+
+impl FrameProps for MenuTitle {
+    fn frame_mut(&mut self) -> &mut Frame {
+        &mut self.frame
+    }
+}
+
+/// The least width of a menu button's list.
+const MENU_WIDTH: f32 = 120.0;
+
+impl<T> View<Bevy, T> for MenuTitle
+where
+    T: TextTokens
+        + SurfaceTokens
+        + SpacingTokens
+        + MotionTokens
+        + Send
+        + Sync
+        + 'static,
+{
+    fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
+        let Self {
+            frame: control,
+            title,
+            entries,
+            on_select,
+        } = self;
+        let root = cx.build(frame().height(percent(100.0)));
+        let rows = entries
+            .into_iter()
+            .enumerate()
+            .map(|(at, text)| {
+                menu_item(label(text).wrap(false))
+                    .on_activate(move |world| choose(world, root, at))
+            })
+            .collect::<Vec<_>>();
+        let (button, popup) = cx.under(root, |cx| {
+            let mut button = button(label(title).wrap(false));
+            button.frame = control;
+            let button = cx.build(button.rules(menu_bar));
+            cx.world
+                .entity_mut(button)
+                .insert((MenuButton, TabIndex(0)));
+            let popup = cx.build(popup(
+                rows,
+                px(MENU_WIDTH),
+                vec![
+                    placement(PopoverSide::Bottom),
+                    placement(PopoverSide::Top),
+                ],
+                MenuFocusState::Closed,
+            ));
+            cx.world.entity_mut(popup).insert(Visibility::Hidden);
+            (button, popup)
+        });
+        cx.world
+            .entity_mut(root)
+            .insert((Parts { button, popup }, OnSelect(on_select)));
+        root
     }
 }
 
@@ -493,6 +581,39 @@ mod tests {
         app.update();
 
         assert!(shut(&app, popup));
+    }
+
+    #[test]
+    fn a_menu_button_shows_its_title_with_no_chevron_and_runs_an_entry()
+     {
+        let mut app = app();
+        let root = mount::<Plain>(
+            app.world_mut(),
+            menu_button("File", ["New", "Open"], |world, at| {
+                world.resource_mut::<Chosen>().0 = at;
+            }),
+        );
+        let (button, popup) = parts(&app, root);
+        assert_eq!(text(&app, kids(&app, button)[0]), "File");
+        assert!(
+            kids(&app, button).iter().all(|&node| app
+                .world()
+                .get::<ImageNode>(node)
+                .is_none()),
+            "a menu title has no chevron"
+        );
+        assert!(shut(&app, popup));
+
+        open(&mut app, button);
+        assert_eq!(
+            app.world().get::<Visibility>(popup),
+            Some(&Visibility::Visible)
+        );
+        let open_row = kids(&app, popup)[1];
+        app.world_mut().trigger(Activate { entity: open_row });
+        app.update();
+        assert_eq!(app.world().resource::<Chosen>().0, 1);
+        assert!(shut(&app, popup), "choosing shuts the list");
     }
 
     fn open(app: &mut App, button: Entity) {
