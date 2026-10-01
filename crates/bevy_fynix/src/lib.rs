@@ -42,6 +42,7 @@ pub use state::{
     own,
 };
 pub use transition::{BevyMarker, ReducedMotion};
+pub use views::TooltipTiming;
 pub use visual::Visual;
 
 /// The theme views are built with, as a resource.
@@ -67,7 +68,10 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .init_resource::<DirtyNodes>()
             .init_resource::<ReducedMotion>()
             .init_resource::<Entrances>()
+            .init_resource::<TooltipTiming>()
             .add_observer(backend::queue_unmounted)
+            .add_observer(views::toggle_dropdown)
+            .add_observer(views::dismiss_context_menu)
             .add_systems(
                 PreUpdate,
                 (views::sync_checked, views::sync_segments),
@@ -75,12 +79,15 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .add_systems(
                 Update,
                 (
+                    views::tick_tooltips,
                     mounted::update::<T>,
                     views::sync_text_inputs,
                     leave::settle_entrances,
+                    views::focus_first,
                 )
                     .chain(),
-            );
+            )
+            .add_systems(Update, views::despawn_orphans);
     }
 }
 

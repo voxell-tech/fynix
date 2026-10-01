@@ -42,6 +42,23 @@ impl<W, T> Signal<W, T> {
     pub fn changed(&mut self, world: &W) -> bool {
         (self.changed)(world)
     }
+
+    /// This, with every value it reads passed through `map`. It is
+    /// re-read when this is.
+    pub fn map<U>(
+        self,
+        map: impl Fn(T) -> U + Send + Sync + 'static,
+    ) -> Signal<W, U>
+    where
+        W: 'static,
+        T: 'static,
+    {
+        let Self { read, changed } = self;
+        Signal {
+            read: Box::new(move |world| map(read(world))),
+            changed,
+        }
+    }
 }
 
 /// A read from the world `W` still waiting for its change check.
@@ -100,6 +117,23 @@ impl<W, T> Prop<W, T> {
         }
     }
 
+    /// This, with the value it holds passed through `map`, bound or
+    /// not.
+    pub fn map<U>(
+        self,
+        map: impl Fn(T) -> U + Send + Sync + 'static,
+    ) -> Prop<W, U>
+    where
+        W: 'static,
+        T: 'static,
+    {
+        match self {
+            Self::Unset => Prop::Unset,
+            Self::Value(value) => Prop::Value(map(value)),
+            Self::Bound(signal) => Prop::Bound(signal.map(map)),
+        }
+    }
+
     /// Whether what this holds may have changed since the last call.
     /// Only a bound prop can.
     pub fn changed(&mut self, world: &W) -> bool {
@@ -125,5 +159,44 @@ impl<W, T> From<Signal<W, T>> for Prop<W, T> {
 impl<W> From<&str> for Prop<W, String> {
     fn from(text: &str) -> Self {
         Self::Value(text.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_mapped_signal_maps_what_it_reads_and_keeps_its_check() {
+        let mut checks = 0;
+        let mut signal = Signal::<i32, i32>::new(
+            |world| *world,
+            move |_| {
+                checks += 1;
+                checks > 1
+            },
+        )
+        .map(|value| value * 2);
+
+        assert_eq!(signal.get(&21), 42);
+        assert!(!signal.changed(&0));
+        assert!(signal.changed(&0));
+    }
+
+    #[test]
+    fn a_mapped_prop_keeps_its_kind() {
+        let value = Prop::<i32, i32>::Value(2).map(|v| v + 1);
+        assert_eq!(value.get(&0), Some(3));
+
+        let unset = Prop::<i32, i32>::Unset.map(|v| v + 1);
+        assert!(unset.is_unset());
+
+        let bound = Prop::<i32, i32>::Bound(Signal::new(
+            |world| *world,
+            |_| true,
+        ))
+        .map(|v| v + 1);
+        assert!(bound.is_bound());
+        assert_eq!(bound.get(&5), Some(6));
     }
 }
