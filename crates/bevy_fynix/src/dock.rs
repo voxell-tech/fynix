@@ -16,8 +16,6 @@ use core::marker::PhantomData;
 
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
-use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::schedule::common_conditions::resource_changed;
 use bevy::ecs::system::Res;
 use bevy::math::{Rect, Vec2};
 use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale, percent};
@@ -88,15 +86,7 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
             .add_observer(drag::start)
             .add_observer(drag::moved::<T>)
             .add_observer(drag::end)
-            .add_systems(
-                Update,
-                (
-                    tabs::mark_active
-                        .run_if(resource_changed::<DockTree>)
-                        .before(crate::mounted::update::<T>),
-                    drag::cancel,
-                ),
-            );
+            .add_systems(Update, drag::cancel);
     }
 }
 

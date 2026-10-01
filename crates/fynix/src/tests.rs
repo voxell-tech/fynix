@@ -277,6 +277,7 @@ impl<T: 'static> Ui<T> {
 
     fn update(&mut self, delta: Duration, reduced_motion: bool) {
         self.unmount_gone();
+        self.mounted.run_effects(&mut self.world);
         self.mounted.update_structure(&mut self.world, &self.theme);
         self.unmount_gone();
         self.mounted.update_elements(

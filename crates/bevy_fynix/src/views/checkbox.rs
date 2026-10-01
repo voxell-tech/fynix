@@ -4,8 +4,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{QueryState, With};
-use bevy::ecs::system::{Commands, Local};
+use bevy::ecs::system::Commands;
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, Checked, Display, JustifyContent, px};
 use bevy::ui_widgets::{Checkbox as CheckboxBehavior, ValueChange};
@@ -61,10 +60,6 @@ impl FrameProps for Checkbox {
         &mut self.frame
     }
 }
-
-/// On a [`Checkbox`]'s node: where its state comes from.
-#[derive(Component)]
-pub(crate) struct CheckedSource(Prop<bool>);
 
 /// On a [`Checkbox`]'s node: what runs when it is activated.
 #[derive(Component)]
@@ -127,22 +122,30 @@ where
         let theme = cx.theme();
         let mark = side(theme) / 2.0;
         let (accent, radius) = (theme.accent(), theme.radius() / 2.0);
-        let checked = self.checked.get(cx.world).unwrap_or(false);
         cx.scope(|cx| {
             cx.defaults(|cx| cx.root(defaults));
             let node = cx.build(self.frame);
-            let mut entity = cx.world.entity_mut(node);
-            entity
+            cx.world
+                .entity_mut(node)
                 .insert((
                     CheckboxBehavior,
                     EntityCursor(SystemCursorIcon::Pointer),
-                    CheckedSource(self.checked),
                     ChangeHandler(self.on_change),
                 ))
                 .observe(changed);
-            if checked {
-                entity.insert(Checked);
-            }
+            cx.effect(node, self.checked, |world, node, &checked| {
+                let Ok(mut entity) = world.get_entity_mut(node)
+                else {
+                    return;
+                };
+                if checked {
+                    if !entity.contains::<Checked>() {
+                        entity.insert(Checked);
+                    }
+                } else {
+                    entity.remove::<Checked>();
+                }
+            });
             cx.under(node, |cx| {
                 cx.build(
                     frame()
@@ -161,37 +164,6 @@ where
             });
             node
         })
-    }
-}
-
-/// Makes every [`Checkbox`] whose bound `checked` changed hold
-/// [`Checked`], or not.
-pub(crate) fn sync_checked(
-    world: &mut World,
-    mut nodes: Local<QueryState<Entity, With<CheckedSource>>>,
-) {
-    let nodes = nodes.iter(world).collect::<Vec<_>>();
-    for node in nodes {
-        let Some(mut source) = world
-            .get_entity_mut(node)
-            .ok()
-            .and_then(|mut entity| entity.take::<CheckedSource>())
-        else {
-            continue;
-        };
-        let now =
-            source.0.changed(world).then(|| source.0.get(world));
-        let mut entity = world.entity_mut(node);
-        entity.insert(source);
-        match now.flatten() {
-            Some(true) if !entity.contains::<Checked>() => {
-                entity.insert(Checked);
-            }
-            Some(false) if entity.contains::<Checked>() => {
-                entity.remove::<Checked>();
-            }
-            _ => {}
-        }
     }
 }
 

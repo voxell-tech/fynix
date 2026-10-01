@@ -21,7 +21,6 @@ mod tooltip;
 
 pub use behavior::{BehaviorExt, OnActivate, Tagged, Toned};
 pub use button::{Button, button, ghost, menu_bar, segment, tint};
-pub(crate) use checkbox::sync_checked;
 pub use checkbox::{Checkbox, checkbox};
 pub(crate) use context_menu::dismiss as dismiss_context_menu;
 pub use context_menu::{ContextMenu, ContextMenuExt};
@@ -39,7 +38,6 @@ pub use menu::{
 };
 pub(crate) use menu::{despawn_orphans, focus_first};
 pub use number_field::{Number, NumberField, number_field};
-pub(crate) use segmented::sync_segments;
 pub use segmented::{Segmented, segmented};
 pub use stack::{Extra, Stack, column, overlay, row, scroll};
 pub(crate) use text_input::sync_text_inputs;

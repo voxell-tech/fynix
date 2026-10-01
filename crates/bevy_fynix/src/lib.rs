@@ -20,7 +20,7 @@ mod tests;
 use core::marker::PhantomData;
 
 pub use backend::{Bevy, Unmounted};
-use bevy::app::{App, Plugin, PreUpdate, Update};
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
@@ -73,10 +73,6 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .add_observer(backend::queue_unmounted)
             .add_observer(views::toggle_dropdown)
             .add_observer(views::dismiss_context_menu)
-            .add_systems(
-                PreUpdate,
-                (views::sync_checked, views::sync_segments),
-            )
             .add_systems(
                 Update,
                 (

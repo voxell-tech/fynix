@@ -2,9 +2,6 @@
 
 use bevy::color::Color;
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
-use bevy::ecs::query::Has;
-use bevy::ecs::system::{Commands, Query, Res};
 use bevy::ui::{
     AlignItems, FlexDirection, Overflow, UiRect, percent, px,
 };
@@ -121,9 +118,6 @@ fn tab<T: DockTokens>(
             |kind| kind.name.clone(),
         );
         let image = kind.and_then(|kind| kind.icon.clone());
-        let active =
-            cx.world.resource::<DockTree>().active(leaf) == Some(id);
-
         let mut parts = Vec::new();
         if let Some(image) = image {
             parts.push(icon(image).size(12.0).boxed());
@@ -148,27 +142,27 @@ fn tab<T: DockTokens>(
                 .when::<Hovered, _>(hovered::<T>)
                 .toned(Tone::Dim),
         );
-        if active {
-            cx.world.entity_mut(node).insert(ActiveTab);
-        }
+        // Marks the tab while its area shows it.
+        cx.effect(
+            node,
+            resource::<DockTree, _>(move |tree| {
+                tree.active(leaf) == Some(id)
+            })
+            .into(),
+            |world, node, &active| {
+                let Ok(mut entity) = world.get_entity_mut(node)
+                else {
+                    return;
+                };
+                if active {
+                    entity.insert(ActiveTab);
+                } else {
+                    entity.remove::<ActiveTab>();
+                }
+            },
+        );
         node
     })
-}
-
-/// Keeps [`ActiveTab`] on the tab each area shows.
-pub(super) fn mark_active(
-    tree: Res<DockTree>,
-    tabs: Query<(Entity, &DockTab, Has<ActiveTab>)>,
-    mut commands: Commands,
-) {
-    for (node, tab, marked) in &tabs {
-        let active = tree.active(tab.leaf) == Some(tab.tab);
-        if active && !marked {
-            commands.entity(node).insert(ActiveTab);
-        } else if !active && marked {
-            commands.entity(node).remove::<ActiveTab>();
-        }
-    }
 }
 
 /// The button closing `tab`, dim until the pointer is over it.

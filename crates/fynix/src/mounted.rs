@@ -204,6 +204,17 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         self.effects.entry(node).or_default().push(run);
     }
 
+    /// Runs every effect whose bound value changed. A backend calls
+    /// it before the rest of an update, so what an effect writes is
+    /// read by that same update.
+    pub fn run_effects(&mut self, world: &mut B::World) {
+        for (&node, effects) in &mut self.effects {
+            for run in effects {
+                run(world, node);
+            }
+        }
+    }
+
     /// How many effects are kept.
     pub fn effects_len(&self) -> usize {
         self.effects.values().map(Vec::len).sum()
@@ -389,11 +400,6 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     ) {
         for update in &self.updates {
             update(&mut self.table, world, theme, tick);
-        }
-        for (&node, effects) in &mut self.effects {
-            for run in effects {
-                run(world, node);
-            }
         }
         self.update_leaving(world, tick);
     }

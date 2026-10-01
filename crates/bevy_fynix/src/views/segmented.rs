@@ -3,8 +3,6 @@
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
-use bevy::ecs::query::{QueryState, With};
-use bevy::ecs::system::Local;
 use bevy::ecs::world::World;
 use bevy::ui::{BorderRadius, Overflow, Val, percent, px};
 use fynix::Condition;
@@ -54,11 +52,10 @@ impl FrameProps for Segmented {
     }
 }
 
-/// On a [`Segmented`]'s root node: where its active index comes
-/// from, and the segment it names now.
+/// On a [`Segmented`]'s root node: the segment its active index
+/// names now.
 #[derive(Component)]
-pub(crate) struct Segments {
-    active: Prop<usize>,
+struct Segments {
     chosen: usize,
     on_select: Select,
 }
@@ -83,7 +80,7 @@ impl Condition<Bevy> for Chosen {
             == Some(segments.chosen)
     }
 
-    // A segment is reported by the system that moves the choice.
+    // A segment is reported by the effect that moves the choice.
     fn watch(_: &mut World, _: Entity) {}
 }
 
@@ -138,7 +135,6 @@ where
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
         let count = self.options.len();
         let radius = px(cx.theme().radius());
-        let chosen = self.active.get(cx.world).unwrap_or(usize::MAX);
         cx.scope(|cx| {
             cx.defaults(|cx| {
                 cx.root(|cx| {
@@ -153,10 +149,10 @@ where
             });
             let root = cx.build(self.frame);
             cx.world.entity_mut(root).insert(Segments {
-                active: self.active,
-                chosen,
+                chosen: usize::MAX,
                 on_select: self.on_select,
             });
+            cx.effect(root, self.active, choose);
             cx.under(root, |cx| {
                 for (index, text) in
                     self.options.into_iter().enumerate()
@@ -177,44 +173,20 @@ where
     }
 }
 
-/// Moves the choice of every [`Segmented`] whose bound `active`
-/// changed, and restyles the segment it leaves and the one it lands
-/// on.
-pub(crate) fn sync_segments(
-    world: &mut World,
-    mut roots: Local<QueryState<Entity, With<Segments>>>,
-) {
-    let roots = roots.iter(world).collect::<Vec<_>>();
-    for root in roots {
-        let Some(mut segments) = world
-            .get_entity_mut(root)
-            .ok()
-            .and_then(|mut entity| entity.take::<Segments>())
-        else {
-            continue;
-        };
-        let moved = segments
-            .active
-            .changed(world)
-            .then(|| segments.active.get(world))
-            .flatten()
-            .filter(|&now| now != segments.chosen);
-        let before = segments.chosen;
-        if let Some(now) = moved {
-            segments.chosen = now;
-        }
-        world.entity_mut(root).insert(segments);
-        let Some(now) = moved else {
-            continue;
-        };
-        let touched = [before, now]
-            .into_iter()
-            .filter_map(|index| {
-                world.get::<Children>(root)?.get(index).copied()
-            })
-            .collect::<Vec<_>>();
-        world.resource_mut::<DirtyNodes>().0.extend(touched);
-    }
+/// Moves the choice of the [`Segmented`] at `root` to `now`, and
+/// restyles the segment it leaves and the one it lands on.
+fn choose(world: &mut World, root: Entity, &now: &usize) {
+    let Some(mut segments) = world.get_mut::<Segments>(root) else {
+        return;
+    };
+    let before = core::mem::replace(&mut segments.chosen, now);
+    let touched = [before, now]
+        .into_iter()
+        .filter_map(|index| {
+            world.get::<Children>(root)?.get(index).copied()
+        })
+        .collect::<Vec<_>>();
+    world.resource_mut::<DirtyNodes>().0.extend(touched);
 }
 
 #[cfg(test)]

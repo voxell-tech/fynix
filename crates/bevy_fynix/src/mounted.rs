@@ -57,10 +57,13 @@ pub(crate) fn update<T: Send + Sync + 'static>(world: &mut World) {
             .get_resource::<ReducedMotion>()
             .is_some_and(|reduced| reduced.0),
     };
-    let dirty =
-        core::mem::take(&mut world.resource_mut::<DirtyNodes>().0);
     world.resource_scope::<Mounts<T>, _>(|world, mut mounts| {
         drain_unmounted(world, &mut mounts);
+        // The states an effect sets are dirty for this update too.
+        mounts.0.run_effects(world);
+        let dirty = core::mem::take(
+            &mut world.resource_mut::<DirtyNodes>().0,
+        );
         for node in dirty {
             mounts.mark_dirty(node);
         }
