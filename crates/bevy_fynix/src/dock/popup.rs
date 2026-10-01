@@ -1,0 +1,184 @@
+//! The popup the "+" button of a bar opens, listing the windows that
+//! can be added.
+
+use bevy::asset::Handle;
+use bevy::color::Color;
+use bevy::ecs::component::Component;
+use bevy::ecs::event::EntityEvent;
+use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Query, ResMut};
+use bevy::image::Image;
+use bevy::picking::Pickable;
+use bevy::picking::events::{Click, Pointer};
+use bevy::ui::{
+    AlignItems, ComputedNode, JustifyContent, PositionType,
+    UiGlobalTransform, UiRect, Val, percent, px,
+};
+use bevy::ui_widgets::Activate;
+
+use super::tabs::AddButton;
+use super::tree::{DockTree, NodeId};
+use super::{DockRegistry, DockRoot, DockTokens, logical_rect};
+use crate::tokens::Tone;
+use crate::views::{
+    BehaviorExt, FrameProps, button, column, icon, label, overlay,
+    row,
+};
+use crate::{AnyView, Bevy, Cx, ViewExt};
+
+const WIDTH: f32 = 150.0;
+
+/// Where the popup sits, in the dock's own coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OpenPopup {
+    pub leaf: NodeId,
+    pub left: f32,
+    pub top: f32,
+}
+
+/// The open popup, if any.
+#[derive(Resource, Default, Debug)]
+pub struct AddPopup {
+    pub open: Option<OpenPopup>,
+}
+
+/// On the node behind the popup, which closes it when clicked.
+#[derive(Component, Clone, Copy, Debug)]
+pub(super) struct Backdrop;
+
+/// Opens the popup under the "+" button that was activated, right
+/// aligned to it.
+pub(super) fn open(
+    activate: On<Activate>,
+    buttons: Query<(&AddButton, &ComputedNode, &UiGlobalTransform)>,
+    parents: Query<&ChildOf>,
+    roots: Query<(&ComputedNode, &UiGlobalTransform), With<DockRoot>>,
+    mut popup: ResMut<AddPopup>,
+) {
+    let button = activate.event_target();
+    let Ok((add, computed, transform)) = buttons.get(button) else {
+        return;
+    };
+    let rect = logical_rect(computed, transform);
+    let origin = parents
+        .iter_ancestors(button)
+        .find_map(|ancestor| roots.get(ancestor).ok())
+        .map_or(rect.min * 0.0, |(computed, transform)| {
+            logical_rect(computed, transform).min
+        });
+    popup.open = Some(OpenPopup {
+        leaf: add.leaf,
+        left: (rect.max.x - origin.x - WIDTH).max(0.0),
+        top: rect.max.y - origin.y + 4.0,
+    });
+}
+
+/// Closes the popup on a click that lands on its backdrop.
+pub(super) fn dismiss(
+    click: On<Pointer<Click>>,
+    backdrops: Query<(), With<Backdrop>>,
+    mut popup: ResMut<AddPopup>,
+) {
+    if backdrops.contains(click.original_event_target()) {
+        popup.open = None;
+    }
+}
+
+/// The popup, or an empty node while none is open.
+pub(super) fn build<T: DockTokens>(
+    open: &Option<OpenPopup>,
+) -> AnyView<Bevy, T> {
+    match open {
+        Some(open) => menu(open.clone()),
+        None => row(()).boxed(),
+    }
+}
+
+/// A window that can be added: its id, name and icon.
+type Choice = (String, String, Option<Handle<Image>>);
+
+/// The popup at `open`. It lists the registered windows that are not
+/// in the tree yet.
+fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let tree = cx.world.resource::<DockTree>();
+        let choices = cx
+            .world
+            .get_resource::<DockRegistry<T>>()
+            .map(|registry| {
+                registry
+                    .iter()
+                    .filter(|(id, _)| {
+                        tree.find_leaf_with_window(id).is_none()
+                    })
+                    .map(|(id, kind)| {
+                        (
+                            id.to_string(),
+                            kind.name.clone(),
+                            kind.icon.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let rows = if choices.is_empty() {
+            vec![label("Nothing left to add").tone(Tone::Dim).boxed()]
+        } else {
+            choices
+                .into_iter()
+                .map(|choice| choice_row(open.leaf, choice))
+                .collect()
+        };
+        let theme = cx.theme();
+        let menu = column(rows)
+            .gap(2.0)
+            .position(PositionType::Absolute)
+            .inset(UiRect::new(
+                px(open.left),
+                Val::Auto,
+                px(open.top),
+                Val::Auto,
+            ))
+            .width(px(WIDTH))
+            .padding(UiRect::all(px(4.0)))
+            .radius(6.0)
+            .fill(theme.panel())
+            .border(1.0)
+            .border_color(theme.hairline())
+            .z(Some(181));
+        cx.build(
+            overlay((menu,))
+                .with(Pickable::default())
+                .with(Backdrop)
+                .z(Some(180)),
+        )
+    })
+}
+
+/// The row adding `choice` to `leaf`.
+fn choice_row<T: DockTokens>(
+    leaf: NodeId,
+    (id, name, image): Choice,
+) -> AnyView<Bevy, T> {
+    let mut parts = Vec::new();
+    if let Some(image) = image {
+        parts.push(icon(image).size(12.0).boxed());
+    }
+    parts.push(label(name).boxed());
+    button(row(parts).gap(6.0).align(AlignItems::Center))
+        .fill(Color::NONE)
+        .width(percent(100.0))
+        .justify(JustifyContent::FlexStart)
+        .padding(UiRect::axes(px(8.0), px(3.0)))
+        .on_activate(move |world| {
+            world
+                .resource_mut::<DockTree>()
+                .add_tab(leaf, id.clone());
+            world.resource_mut::<AddPopup>().open = None;
+        })
+        .boxed()
+}

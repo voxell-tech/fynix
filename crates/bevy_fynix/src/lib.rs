@@ -2,6 +2,7 @@
 
 pub mod backend;
 pub mod cursor;
+pub mod dock;
 pub mod leave;
 pub mod modifier;
 pub mod mounted;

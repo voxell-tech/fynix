@@ -19,6 +19,10 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::world::World;
 use bevy::time::Time;
 use bevy::ui::{AlignItems, FlexDirection, UiRect, percent, px};
+use bevy_fynix::dock::{
+    DockAreaStyle, DockLeaf, DockPlugin, DockRegistry, DockTree,
+    DockWindowKind, Edge, dock,
+};
 use bevy_fynix::tokens::{
     Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
     TextTokens, Tone,
@@ -41,6 +45,7 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             FynixPlugin::<Monokai>::default(),
+            DockPlugin::<Monokai>::default(),
         ))
         .insert_resource(Theme(Monokai))
         .insert_resource(Clicks(0))
@@ -130,7 +135,36 @@ struct Clicks(u32);
 
 fn setup(world: &mut World) {
     world.spawn(Camera2d);
+    seed_dock(world);
     mount::<Monokai>(world, gallery());
+}
+
+/// Three window kinds, two of them tabbed in one area and the third
+/// in an area beside it.
+fn seed_dock(world: &mut World) {
+    let mut registry = world.resource_mut::<DockRegistry<Monokai>>();
+    for (id, name) in
+        [("notes", "Notes"), ("log", "Log"), ("stats", "Stats")]
+    {
+        let window = DockWindowKind::new(name, move || {
+            label(format!("The {name} window")).boxed()
+        });
+        registry.register(id, window);
+    }
+    let mut tree = world.resource_mut::<DockTree>();
+    let main = tree.set_root_leaf(
+        DockLeaf::new("main", DockAreaStyle::TabBar)
+            .with_windows(vec!["notes".into(), "log".into()]),
+    );
+    tree.split(main, Edge::Right, "stats".into());
+}
+
+/// Split panes with tabs: drag the line between them, click a tab,
+/// close one, or add a window with the plus.
+fn docking() -> impl View<Bevy, Monokai> {
+    column((dock::<Monokai>(),))
+        .width(px(520.0))
+        .height(px(200.0))
 }
 
 fn gallery() -> AnyView<Bevy, Monokai> {
@@ -153,6 +187,7 @@ fn gallery() -> AnyView<Bevy, Monokai> {
                 section("Field rows", fields()),
                 section("Switching", switching()),
                 section("A keyed list", keyed_list()),
+                section("Docking", docking()),
                 section("Motion", motion_switch()),
             ))
             .width(percent(100.0))
