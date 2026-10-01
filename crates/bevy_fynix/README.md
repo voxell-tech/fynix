@@ -21,8 +21,91 @@ token traits they read, and the states rules wait on.
 - `Hovered`, `Pressed`, `Entering`, `Leaving` - states for
   `.when::<S, _>(..)`, and any component of your own works too.
 
-`cargo run -p bevy_fynix --example gallery` shows every idea in a
+## Quick Start
+
+See [`gallery.rs`](examples/gallery.rs) for a whole app, or run
+`cargo run -p bevy_fynix --example gallery` to see every idea in a
 window.
+
+```rust
+# use std::time::Duration;
+# use bevy::color::Color;
+# use bevy::ecs::world::World;
+use bevy_fynix::views::{
+    FrameProps, Label, button, column, label,
+};
+use bevy_fynix::tokens::{
+    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
+    TextTokens, Tone,
+};
+use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
+
+# struct MyTheme;
+#
+# impl TextTokens for MyTheme {
+#     fn tone(&self, _: Tone) -> Color {
+#         Color::WHITE
+#     }
+#     fn body_size(&self) -> f32 {
+#         14.0
+#     }
+#     fn small_size(&self) -> f32 {
+#         11.0
+#     }
+# }
+#
+# impl SurfaceTokens for MyTheme {
+#     fn fill(&self) -> Color {
+#         Color::BLACK
+#     }
+#     fn hover(&self) -> Color {
+#         Color::BLACK
+#     }
+#     fn panel(&self) -> Color {
+#         Color::BLACK
+#     }
+#     fn accent(&self) -> Color {
+#         Color::WHITE
+#     }
+# }
+#
+# impl SpacingTokens for MyTheme {
+#     fn gap(&self) -> f32 {
+#         8.0
+#     }
+#     fn row(&self) -> f32 {
+#         24.0
+#     }
+#     fn radius(&self) -> f32 {
+#         4.0
+#     }
+# }
+#
+# impl MotionTokens for MyTheme {
+#     fn motion(&self, _: Motion) -> Curve {
+#         Curve {
+#             duration: Duration::from_millis(180),
+#             ease: |t| t,
+#         }
+#     }
+# }
+#
+fn setup(world: &mut World) {
+    mount::<MyTheme>(
+        world,
+        column((
+            label("Settings").size(20.0),
+            button(label("Save"))
+                // Every label in the button turns accent on hover.
+                .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
+                    cx.set::<Label>(|l, _| l.tone(Tone::Accent));
+                })
+                .transition(Motion::Interact),
+        ))
+        .gap(8.0),
+    );
+}
+```
 
 ## Version Matrix
 
