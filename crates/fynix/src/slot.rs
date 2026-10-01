@@ -6,8 +6,8 @@ use crate::mounted::Tick;
 use crate::transition::{Run, Tween};
 
 /// How one prop of an element is written onto its node. A type with
-/// no value, named by the prop's `#[lenz(tag = ..)]`, so anything that
-/// names the prop by its path knows how to write it.
+/// no value, named by the prop's `#[lenz(tag = ..)]`, so anything
+/// that names the prop by its path knows how to write it.
 pub trait Patch<B: Backend, P> {
     fn patch(world: &mut B::World, node: B::Node, value: &P);
 }

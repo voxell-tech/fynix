@@ -1,6 +1,7 @@
 //! The props every element shares, in Bevy: opacity multiplies the
 //! alpha of what an element draws, and scale is its
-//! [`UiTransform`](bevy::ui::UiTransform), which its children inherit.
+//! [`UiTransform`](bevy::ui::UiTransform), which its children
+//! inherit.
 
 use bevy::color::{Alpha, Color};
 use bevy::ecs::world::World;

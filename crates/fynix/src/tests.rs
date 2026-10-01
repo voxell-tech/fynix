@@ -637,8 +637,8 @@ impl Styled for Card {
 }
 
 // For one theme only: generic over `T`, it would overlap the core's
-// `View` for every `Element`, since another crate could make `Card` an
-// `Element<Fake, ItsTheme>`.
+// `View` for every `Element`, since another crate could make `Card`
+// an `Element<Fake, ItsTheme>`.
 impl View<Fake, Warm> for Card {
     fn build(self, cx: &mut Cx<'_, Fake, Warm>) -> usize {
         let card = cx.resolve(self);

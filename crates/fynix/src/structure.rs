@@ -32,8 +32,8 @@ fn build_in<B: Backend, T: 'static>(
     built
 }
 
-/// Builds the container a structural view holds its parts in: `within`,
-/// or a bare node, whose layout is the backend's default.
+/// Builds the container a structural view holds its parts in:
+/// `within`, or a bare node, whose layout is the backend's default.
 fn container<B: Backend, T: 'static>(
     cx: &mut Cx<'_, B, T>,
     within: Option<AnyView<B, T>>,
@@ -53,9 +53,9 @@ pub struct Keyed<B: Backend, T, K> {
 }
 
 impl<B: Backend, T, K> Keyed<B, T, K> {
-    /// This, with its view built under the root of `container`, a view
-    /// with nothing under it, instead of under a bare node: for giving
-    /// the container a layout.
+    /// This, with its view built under the root of `container`, a
+    /// view with nothing under it, instead of under a bare node:
+    /// for giving the container a layout.
     pub fn within(
         mut self,
         container: impl View<B, T> + 'static,
@@ -99,7 +99,8 @@ where
         let id = cx.mounted().new_group();
         let capture = cx.capture();
         let last = self.key.get(cx.world);
-        // The first check fires on any source, and the build covers it.
+        // The first check fires on any source, and the build covers
+        // it.
         self.key.changed(cx.world);
         let view = (self.build)(&last);
         let child = build_in(cx, container, id, view);
@@ -188,8 +189,8 @@ impl<B: Backend, T, I, K> Each<B, T, I, K> {
     }
 }
 
-/// One view of `build(&item)` per item, matched by `key` when the list
-/// changes.
+/// One view of `build(&item)` per item, matched by `key` when the
+/// list changes.
 ///
 /// A key that leaves the list has its node despawned. A new key is
 /// built, under the rules in force where the `each` sits. A key that

@@ -1,5 +1,5 @@
-//! State rules as they reach one element: props put on top of it while
-//! a state holds, and taken off when it stops.
+//! State rules as they reach one element: props put on top of it
+//! while a state holds, and taken off when it stops.
 
 use alloc::vec::Vec;
 
@@ -19,9 +19,9 @@ pub(crate) struct Layer<B: Backend, E> {
     pub when: When<B>,
     /// The node the state is read on. `None` is the element's own.
     pub on: Option<B::Node>,
-    /// Whether the rule was written on the element itself, so it beats
-    /// the call site. One written on an ancestor only fills what the
-    /// call site left unset.
+    /// Whether the rule was written on the element itself, so it
+    /// beats the call site. One written on an ancestor only
+    /// fills what the call site left unset.
     pub own: bool,
 }
 
@@ -33,8 +33,9 @@ impl<B: Backend, E> Layer<B, E> {
 }
 
 impl<B: Backend, E: Layered> Layer<B, E> {
-    /// The bits of the props to swap in for an element on `node` whose
-    /// call site set `call`, or `None` while the state does not hold.
+    /// The bits of the props to swap in for an element on `node`
+    /// whose call site set `call`, or `None` while the state does
+    /// not hold.
     fn mask(
         &self,
         world: &B::World,

@@ -95,8 +95,8 @@ impl PropArgs {
                     args.shown = Some(value.parse()?);
                 } else {
                     return Err(meta.error(
-                        "expected `patch`, `default`, `blend`, `with` \
-                         or `shown`",
+                        "expected `patch`, `default`, `blend`, \
+                         `with` or `shown`",
                     ));
                 }
                 Ok(())
@@ -106,8 +106,8 @@ impl PropArgs {
     }
 }
 
-/// One prop: its field, the value type inside its `Prop<..>`, and what
-/// its `#[elem(..)]` said.
+/// One prop: its field, the value type inside its `Prop<..>`, and
+/// what its `#[elem(..)]` said.
 struct Prop {
     name: Ident,
     field: Type,

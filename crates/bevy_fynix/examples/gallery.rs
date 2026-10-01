@@ -1,9 +1,9 @@
 //! The crate's views in a window, one section per idea: a theme
-//! implemented through token traits, an app-wide set rule, bound labels, hover rules with transitions,
-//! one state rule reaching a button's parts, a scoped rule, a folding
-//! section, field rows, a screen switch and a keyed list that rebuild
-//! structure and animate views in and out, and a reduced-motion
-//! switch.
+//! implemented through token traits, an app-wide set rule, bound
+//! labels, hover rules with transitions, one state rule reaching a
+//! button's parts, a scoped rule, a folding section, field rows, a
+//! screen switch and a keyed list that rebuild structure and animate
+//! views in and out, and a reduced-motion switch.
 //!
 //! `cargo run -p bevy_fynix --example gallery`
 
@@ -209,8 +209,8 @@ fn line(text: &str) -> impl View<Bevy, Monokai> + use<> {
 }
 
 /// One state rule for a whole button: hovering lights every label in
-/// it that did not choose its own tone, and pressing darkens the frame
-/// over the button's own hover fill.
+/// it that did not choose its own tone, and pressing darkens the
+/// frame over the button's own hover fill.
 fn parts() -> impl View<Bevy, Monokai> {
     row((
         button(
@@ -285,8 +285,8 @@ fn folding() -> impl View<Bevy, Monokai> {
     .open(true)
 }
 
-/// A field row's label column stays on one line through a scoped rule.
-/// The animatable ones turn accent while their node holds
+/// A field row's label column stays on one line through a scoped
+/// rule. The animatable ones turn accent while their node holds
 /// [`HasAction`], which the button toggles.
 fn fields() -> impl View<Bevy, Monokai> {
     column((
@@ -343,8 +343,8 @@ fn action(
 }
 
 /// A `keyed` on the screen resource. Each screen is built when it is
-/// shown, under the app's preamble, and fades in as the last one fades
-/// out.
+/// shown, under the app's preamble, and fades in as the last one
+/// fades out.
 fn switching() -> impl View<Bevy, Monokai> {
     column((
         row((
@@ -395,7 +395,8 @@ fn switching() -> impl View<Bevy, Monokai> {
     .gap(6.0)
 }
 
-/// The ids of the rows in the keyed list, and the next id to hand out.
+/// The ids of the rows in the keyed list, and the next id to hand
+/// out.
 #[derive(Resource)]
 struct Rows {
     ids: Vec<u32>,

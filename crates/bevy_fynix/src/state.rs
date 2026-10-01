@@ -10,8 +10,7 @@ use bevy::ecs::event::EntityEvent;
 use bevy::ecs::lifecycle::{Insert, Remove};
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::Query;
-use bevy::ecs::system::{Commands, ResMut};
+use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::ecs::world::World;
 use bevy::picking::events::{Pointer, Press, Release};
 use bevy::picking::hover::Hovered as PickingHovered;
@@ -171,8 +170,9 @@ pub trait StateExt: Sized {
 impl<V> StateExt for V {}
 
 /// Where a view is while out of sight, for [`StateExt::appear`]:
-/// every element in it transparent, and its root scaled down a little.
-/// Scale is only set on the root, as children take their parent's.
+/// every element in it transparent, and its root scaled down a
+/// little. Scale is only set on the root, as children take their
+/// parent's.
 pub fn hidden<T: 'static>(cx: &mut Cx<'_, Bevy, T>) {
     cx.set::<crate::Visual>(|visual, _| visual.opacity(0.0));
     cx.root(|cx| {

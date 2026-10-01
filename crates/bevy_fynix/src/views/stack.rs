@@ -1,8 +1,8 @@
 //! Composites laying their children out in a line.
 //!
 //! A [`Stack`] holds a [`Frame`] and takes its props through
-//! [`FrameProps`], so `row((a, b)).gap(8.0)` styles the frame directly
-//! and a call site can still set every prop.
+//! [`FrameProps`], so `row((a, b)).gap(8.0)` styles the frame
+//! directly and a call site can still set every prop.
 
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::entity::Entity;

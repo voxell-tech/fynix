@@ -18,18 +18,17 @@ mod tests;
 
 use core::marker::PhantomData;
 
+pub use backend::{Bevy, Unmounted};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::world::World;
+pub use cursor::{CursorPlugin, EntityCursor};
 pub use fynix::{
     AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
     ViewSeq,
 };
-
-pub use backend::{Bevy, Unmounted};
-pub use cursor::{CursorPlugin, EntityCursor};
 pub use leave::{Entering, Entrances, Leaving};
 pub use modifier::ModifierExt;
 pub use mounted::Mounts;

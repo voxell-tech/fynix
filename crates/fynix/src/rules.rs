@@ -24,10 +24,10 @@ pub trait Condition<B: Backend> {
     fn holds(world: &B::World, node: B::Node) -> bool;
 
     /// Makes the backend report `node` to
-    /// [`Mounted::mark_dirty`](crate::Mounted::mark_dirty) whenever the
-    /// state starts or stops holding. Called once per element reading
-    /// it, so it must not add a second report for a node it already
-    /// watches.
+    /// [`Mounted::mark_dirty`](crate::Mounted::mark_dirty) whenever
+    /// the state starts or stops holding. Called once per element
+    /// reading it, so it must not add a second report for a node
+    /// it already watches.
     fn watch(world: &mut B::World, node: B::Node);
 }
 
@@ -54,8 +54,9 @@ impl<B: Backend> Clone for When<B> {
 
 impl<B: Backend> Copy for When<B> {}
 
-/// One rule in a scope stack: the kind of view it restyles, where it is
-/// stored, how deep the scope that set it was, and what it waits on.
+/// One rule in a scope stack: the kind of view it restyles, where it
+/// is stored, how deep the scope that set it was, and what it waits
+/// on.
 pub(crate) struct ScopeEntry<B: Backend> {
     pub view: TypeId,
     pub kind: RuleKind,
@@ -68,8 +69,8 @@ pub(crate) struct ScopeEntry<B: Backend> {
     pub root: Option<B::Node>,
     /// Whether the rule reaches that root alone.
     pub root_only: bool,
-    /// Whether the rule is a composite's default, weaker than any rule
-    /// that is not.
+    /// Whether the rule is a composite's default, weaker than any
+    /// rule that is not.
     pub default: bool,
     /// The state the rule holds under, read on `root`.
     pub when: Option<When<B>>,
@@ -90,8 +91,8 @@ impl<B: Backend> ScopeEntry<B> {
     }
 }
 
-/// Every rule any live scope or capture can still reach. A rule is kept
-/// while its count says something refers to it.
+/// Every rule any live scope or capture can still reach. A rule is
+/// kept while its count says something refers to it.
 #[derive(Default)]
 pub struct RuleArena {
     pool: TypePool,

@@ -21,8 +21,8 @@ use bevy::ui::{
 pub struct Entering;
 
 /// On the root of a view a `keyed` or `each` dropped, while it
-/// animates out. Only a view whose root element has a transition does:
-/// others are despawned at once.
+/// animates out. Only a view whose root element has a transition
+/// does: others are despawned at once.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Leaving;
 

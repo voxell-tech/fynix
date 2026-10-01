@@ -22,8 +22,8 @@ pub enum Axis {
 }
 
 /// A line the length of its parent, in the theme's hairline colour,
-/// with the resize cursor of its axis. It only draws: what dragging it
-/// does is the app's to wire.
+/// with the resize cursor of its axis. It only draws: what dragging
+/// it does is the app's to wire.
 pub struct Divider {
     pub frame: Frame,
     pub axis: Axis,

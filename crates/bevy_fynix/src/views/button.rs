@@ -1,12 +1,12 @@
 //! A clickable [`Frame`] around one content view.
 //!
 //! Like a [`Stack`](super::Stack), it holds its frame and takes the
-//! frame's props through [`FrameProps`]. Everything else is rules: its
-//! defaults
+//! frame's props through [`FrameProps`]. Everything else is rules:
+//! its defaults
 //! (fill, radius, centred content, a hover fill and a transition) are
-//! defaults for its root frame alone, so an app's `set::<Frame>` and a
-//! call site's `.when::<Hovered, _>(..)` both beat them, and none of
-//! them reach the content.
+//! defaults for its root frame alone, so an app's `set::<Frame>` and
+//! a call site's `.when::<Hovered, _>(..)` both beat them, and none
+//! of them reach the content.
 
 use bevy::ecs::entity::Entity;
 use bevy::ui::{AlignItems, JustifyContent};
@@ -97,16 +97,15 @@ mod tests {
     use bevy::picking::pointer::PointerId;
     use bevy::text::{FontSize, TextFont};
     use bevy::time::{TimePlugin, TimeUpdateStrategy};
-    use bevy::ui::Val;
     use bevy::ui::widget::Text;
-    use bevy::ui::{BackgroundColor, BorderRadius, Node, px};
+    use bevy::ui::{BackgroundColor, BorderRadius, Node, Val, px};
+    use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
     use crate::tokens::{Curve, TextTokens, Tone};
     use crate::transition::{BevyMarker, ReducedMotion};
     use crate::views::{Label, label};
     use crate::{AnyView, FynixPlugin, StateExt, Theme, mount};
-    use motiongfx_interp::interpolation::Interpolation;
 
     struct Plain;
 

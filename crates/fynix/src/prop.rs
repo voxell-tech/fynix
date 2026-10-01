@@ -21,8 +21,8 @@ pub struct Signal<W, T> {
 }
 
 impl<W, T> Signal<W, T> {
-    /// A signal reading with `read`, whose `changed` says whether that
-    /// read may differ from the one before.
+    /// A signal reading with `read`, whose `changed` says whether
+    /// that read may differ from the one before.
     pub fn new(
         read: impl Fn(&W) -> T + Send + Sync + 'static,
         changed: impl FnMut(&W) -> bool + Send + Sync + 'static,

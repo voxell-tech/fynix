@@ -66,7 +66,8 @@ pub(crate) fn update<T: Send + Sync + 'static>(world: &mut World) {
         }
         world.resource_scope::<Theme<T>, _>(|world, theme| {
             mounts.0.update_structure(world, &theme.0);
-            // A rebuild despawns nodes whose elements are still mounted.
+            // A rebuild despawns nodes whose elements are still
+            // mounted.
             drain_unmounted(world, &mut mounts);
             mounts.0.update_elements(world, &theme.0, tick);
         });

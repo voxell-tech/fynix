@@ -75,8 +75,8 @@ impl<W> Visual<W> {
     }
 }
 
-/// An element's own [`Visual`] props, lent out so rules for every kind
-/// of element can reach them.
+/// An element's own [`Visual`] props, lent out so rules for every
+/// kind of element can reach them.
 pub struct VisualMut<'a, W> {
     pub opacity: &'a mut Prop<W, f32>,
     pub scale: &'a mut Prop<W, f32>,

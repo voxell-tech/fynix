@@ -2,8 +2,8 @@
 
 use core::hash::Hash;
 
-/// A world of nodes. Views above the elements are generic over it; each
-/// element is written once per backend.
+/// A world of nodes. Views above the elements are generic over it;
+/// each element is written once per backend.
 pub trait Backend: 'static {
     type World: 'static;
     type Node: Copy + Eq + Hash + Send + Sync + 'static;
@@ -34,9 +34,10 @@ pub trait Backend: 'static {
     /// should stop taking input.
     fn leave(_world: &mut Self::World, _node: Self::Node) {}
 
-    /// Shrinks the space `node` takes in its parent's layout, `progress`
-    /// of the way from its size when first called to nothing. Called
-    /// with 0 first and 1 last, then the node is despawned.
+    /// Shrinks the space `node` takes in its parent's layout,
+    /// `progress` of the way from its size when first called to
+    /// nothing. Called with 0 first and 1 last, then the node is
+    /// despawned.
     fn collapse(
         _world: &mut Self::World,
         _node: Self::Node,

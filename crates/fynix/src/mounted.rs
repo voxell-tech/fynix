@@ -97,8 +97,9 @@ impl<B: Backend> Clone for Hooks<B> {
 
 impl<B: Backend> Copy for Hooks<B> {}
 
-/// Every mounted element built with the theme `T`: one column per kind of
-/// element, keyed by its node, and one update per kind to walk it.
+/// Every mounted element built with the theme `T`: one column per
+/// kind of element, keyed by its node, and one update per kind to
+/// walk it.
 pub struct Mounted<B: Backend, T> {
     table: TypeTable<B::Node>,
     updates: Vec<UpdateFn<B, T>>,
@@ -183,8 +184,8 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     }
 
     /// Makes the element on `node`, and every element with a state
-    /// rule read on `node`, re-read at the next update, whatever their
-    /// checks say.
+    /// rule read on `node`, re-read at the next update, whatever
+    /// their checks say.
     pub fn mark_dirty(&mut self, node: B::Node) {
         if let Some(hooks) = self.hooks.get(&node) {
             (hooks.mark)(&mut self.table, node);
@@ -216,7 +217,8 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     }
 
     /// Takes out the view whose root is `node`: animated out when its
-    /// root element travels over a curve, despawned at once otherwise.
+    /// root element travels over a curve, despawned at once
+    /// otherwise.
     pub(crate) fn leave(
         &mut self,
         world: &mut B::World,
@@ -392,7 +394,8 @@ struct Mount<B: Backend, T, E: Element<B, T>> {
     shown: E::Shown,
     /// Whether any prop is still travelling.
     moving: bool,
-    /// Whether to re-read at the next update whatever the checks say.
+    /// Whether to re-read at the next update whatever the checks
+    /// say.
     dirty: bool,
     marker: PhantomData<fn() -> (B, T)>,
 }

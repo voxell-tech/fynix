@@ -1,5 +1,5 @@
-//! What a view is, and the kinds there are: elements, composites built
-//! out of other views, and wrappers around any view.
+//! What a view is, and the kinds there are: elements, composites
+//! built out of other views, and wrappers around any view.
 
 use alloc::boxed::Box;
 use alloc::vec;
@@ -140,7 +140,8 @@ macro_rules! styled {
 /// the props that changed are read and written again.
 ///
 /// Props are numbered in declaration order, one bit each, as
-/// [`Layered`] numbers them. `#[element]` writes this from the struct.
+/// [`Layered`] numbers them. `#[element]` writes this from the
+/// struct.
 pub trait Element<B: Backend, T>: Layered {
     /// Every prop's [`Slot`](crate::Slot): what is written, and where
     /// it is heading.

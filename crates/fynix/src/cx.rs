@@ -92,8 +92,8 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         }
     }
 
-    /// A context with `capture` in force, for building again after the
-    /// original is gone.
+    /// A context with `capture` in force, for building again after
+    /// the original is gone.
     pub(crate) fn seeded(
         world: &'a mut B::World,
         theme: &'a T,
@@ -211,13 +211,13 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         self.marks = outer;
     }
 
-    /// Runs `set` with the rules it sets holding only while the root of
-    /// the view they are set for is in the state `C`.
+    /// Runs `set` with the rules it sets holding only while the root
+    /// of the view they are set for is in the state `C`.
     ///
-    /// On that root they beat its call site, as a state rule does. On a
-    /// view under it they only fill what that view's call site left
-    /// unset, as a set rule does. Either way they beat rules that do
-    /// not wait on a state.
+    /// On that root they beat its call site, as a state rule does. On
+    /// a view under it they only fill what that view's call site
+    /// left unset, as a set rule does. Either way they beat rules
+    /// that do not wait on a state.
     pub fn when<C: Condition<B>>(
         &mut self,
         set: impl FnOnce(&mut Self),
@@ -225,15 +225,16 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         self.marked(|marks| marks.when = Some(When::of::<C>()), set);
     }
 
-    /// Runs `set` with the rules it sets reaching only the root of the
-    /// view they are set for: the first node spawned after them.
+    /// Runs `set` with the rules it sets reaching only the root of
+    /// the view they are set for: the first node spawned after
+    /// them.
     pub fn root(&mut self, set: impl FnOnce(&mut Self)) {
         self.marked(|marks| marks.root_only = true, set);
     }
 
-    /// Runs `set` with the rules it sets weaker than any that are not,
-    /// wherever they are: a composite's defaults, which an app's rules
-    /// should restyle.
+    /// Runs `set` with the rules it sets weaker than any that are
+    /// not, wherever they are: a composite's defaults, which an
+    /// app's rules should restyle.
     pub fn defaults(&mut self, set: impl FnOnce(&mut Self)) {
         self.marked(|marks| marks.default = true, set);
     }
@@ -366,8 +367,8 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     }
 
     /// Makes every element built from here to the end of the scope
-    /// travel to new values over the theme's curve for `motion`, if it
-    /// says how its values blend.
+    /// travel to new values over the theme's curve for `motion`, if
+    /// it says how its values blend.
     pub fn transition(&mut self, motion: Motion)
     where
         T: MotionTokens,
@@ -388,7 +389,8 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
 
     /// Sets the field `path` names to `value`, on every view `path`
     /// starts from, from here to the end of the scope. A set rule
-    /// like [`set`](Self::set), but one that says which field it sets.
+    /// like [`set`](Self::set), but one that says which field it
+    /// sets.
     ///
     /// The path may reach into a composite's own parts:
     /// `Card::cursor().title().size()` sets the size of a card's
@@ -402,8 +404,8 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         self.set_field_with(path, move |_| value.clone());
     }
 
-    /// As [`set_field`](Self::set_field), with the value read from the
-    /// theme.
+    /// As [`set_field`](Self::set_field), with the value read from
+    /// the theme.
     pub fn set_field_with<P, X>(
         &mut self,
         path: Cursor<P>,
@@ -458,10 +460,11 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         self.push::<V>(RuleKind::Show, None, Box::new(rule));
     }
 
-    /// `view` with the rules in force applied: set rules fill what its
-    /// call site left unset, defaults first, then outer scopes before
-    /// inner, then show rules transform the result. Rules waiting on a
-    /// state are left out: an element puts them on top while mounted.
+    /// `view` with the rules in force applied: set rules fill what
+    /// its call site left unset, defaults first, then outer
+    /// scopes before inner, then show rules transform the result.
+    /// Rules waiting on a state are left out: an element puts
+    /// them on top while mounted.
     pub fn resolve<V: Styled>(&self, view: V) -> V {
         let theme = self.theme;
         let below = self

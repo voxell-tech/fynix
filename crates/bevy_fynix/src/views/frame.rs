@@ -26,7 +26,8 @@ use crate::{Bevy, Styled};
 pub struct Frame {
     #[elem(patch = PatchDirection)]
     pub direction: Prop<FlexDirection>,
-    /// Between children, along both axes. The theme's gap when unset.
+    /// Between children, along both axes. The theme's gap when
+    /// unset.
     #[elem(default = theme.gap(), patch = PatchGap)]
     pub gap: Prop<f32>,
     #[elem(patch = PatchPadding)]

@@ -121,7 +121,9 @@ node_patch!(PatchBorder, f32, |ui, v| ui.border =
     UiRect::all(px(*v)));
 size_patch!(
     /// A square: one value for both sides.
-    PatchSquare, f32, |ui, v| {
+    PatchSquare,
+    f32,
+    |ui, v| {
         ui.width = px(*v);
         ui.height = px(*v);
     }
@@ -129,7 +131,9 @@ size_patch!(
 
 patch!(
     /// `None` leaves the node in its parent's stack.
-    PatchZ, Option<i32>, |entity, v| {
+    PatchZ,
+    Option<i32>,
+    |entity, v| {
         match v {
             Some(z) => entity.insert(GlobalZIndex(*z)),
             None => entity.remove::<GlobalZIndex>(),
@@ -200,7 +204,9 @@ patch!(PatchBorderColor, Color, |entity, v| {
 });
 patch!(
     /// A text's colour, or an image's tint.
-    PatchInk, Color, |entity, v| {
+    PatchInk,
+    Color,
+    |entity, v| {
         repaint(&mut entity, |paint| paint.ink = *v);
     }
 );
@@ -225,7 +231,9 @@ patch!(PatchScale, f32, |entity, v| {
 });
 patch!(
     /// Clockwise, in degrees.
-    PatchRotation, f32, |entity, v| {
+    PatchRotation,
+    f32,
+    |entity, v| {
         transform(&mut entity, |t| t.rotation = Rot2::degrees(*v));
     }
 );
