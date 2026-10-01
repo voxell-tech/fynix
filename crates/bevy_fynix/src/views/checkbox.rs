@@ -197,73 +197,17 @@ pub(crate) fn sync_checked(
 
 #[cfg(test)]
 mod tests {
+    use core::time::Duration;
+
     use bevy::app::App;
     use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::resource::Resource;
-    use bevy::time::TimePlugin;
     use bevy::ui::{BackgroundColor, Node};
 
     use super::*;
-    use crate::tokens::{Curve, TextTokens, Tone};
-    use crate::{FynixPlugin, Theme, mount, resource};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            4.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            REST
-        }
-
-        fn hover(&self) -> Color {
-            HOVER
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn accent(&self) -> Color {
-            ACCENT
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: core::time::Duration::ZERO,
-                ease: |t| t,
-            }
-        }
-    }
+    use crate::testing::{self, Plain};
+    use crate::{mount, resource};
 
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
     const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
@@ -278,14 +222,13 @@ mod tests {
     struct Asked(Vec<bool>);
 
     fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(Flag(false))
-        .init_resource::<Asked>();
+        let mut app = testing::app_with(Plain {
+            radius: 4.0,
+            duration: Duration::ZERO,
+            accent: Some(ACCENT),
+            ..Plain::default()
+        });
+        app.insert_resource(Flag(false)).init_resource::<Asked>();
         app
     }
 

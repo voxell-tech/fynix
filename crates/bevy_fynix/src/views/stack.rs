@@ -126,54 +126,13 @@ mod tests {
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::text::{FontSize, TextFont};
-    use bevy::time::TimePlugin;
     use bevy::ui::widget::Text;
     use bevy::ui::{BackgroundColor, Node, Val};
 
     use super::*;
-    use crate::tokens::{TextTokens, Tone};
+    use crate::testing::{Plain, app};
     use crate::views::{Label, label};
-    use crate::{AnyView, FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain));
-        app
-    }
+    use crate::{AnyView, mount};
 
     fn kids(app: &App, node: Entity) -> Vec<Entity> {
         app.world()

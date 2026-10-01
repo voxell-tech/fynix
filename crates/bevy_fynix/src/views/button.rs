@@ -181,8 +181,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
     use bevy::app::{App, PreUpdate};
     use bevy::asset::Handle;
     use bevy::color::Color;
@@ -195,78 +193,15 @@ mod tests {
     use bevy::picking::hover::{HoverMap, update_is_hovered};
     use bevy::picking::pointer::PointerId;
     use bevy::text::{FontSize, TextColor, TextFont};
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::ui::widget::{ImageNode, Text};
     use bevy::ui::{BackgroundColor, BorderRadius, Node, Val};
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
-    use crate::tokens::{Curve, TextTokens, Tone};
+    use crate::testing::{self, Plain};
     use crate::transition::{BevyMarker, ReducedMotion};
     use crate::views::{icon, label, row};
-    use crate::{
-        AnyView, FynixPlugin, ScopedExt, StateExt, Theme, mount,
-    };
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::srgb(0.2, 0.2, 0.2)
-        }
-
-        fn hover(&self) -> Color {
-            Color::srgb(0.3, 0.3, 0.3)
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn accent(&self) -> Color {
-            ACCENT
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, tone: Tone) -> Color {
-            match tone {
-                Tone::Accent => ACCENT,
-                _ => Color::WHITE,
-            }
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
+    use crate::{AnyView, ScopedExt, StateExt, mount};
 
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
     const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
@@ -277,25 +212,19 @@ mod tests {
     struct Releases(usize);
 
     fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(TimeUpdateStrategy::ManualDuration(
-            Duration::from_millis(50),
-        ))
-        .init_resource::<Releases>()
-        .add_systems(PreUpdate, update_is_hovered)
-        .add_observer(
-            |_: On<Remove, Hovered>,
-             mut releases: ResMut<Releases>| {
-                releases.0 += 1;
-            },
-        );
-        // The first update only starts the clock.
-        app.update();
+        let mut app = testing::app_with(Plain {
+            accent: Some(ACCENT),
+            accent_tone: Some(ACCENT),
+            ..Plain::default()
+        });
+        app.init_resource::<Releases>()
+            .add_systems(PreUpdate, update_is_hovered)
+            .add_observer(
+                |_: On<Remove, Hovered>,
+                 mut releases: ResMut<Releases>| {
+                    releases.0 += 1;
+                },
+            );
         app
     }
 

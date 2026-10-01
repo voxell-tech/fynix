@@ -238,88 +238,21 @@ where
 mod tests {
     use bevy::app::App;
     use bevy::camera::NormalizedRenderTarget;
-    use bevy::color::Color;
-    use bevy::ecs::hierarchy::Children;
-    use bevy::ecs::relationship::RelationshipTarget;
     use bevy::picking::pointer::Location;
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::ui::GlobalZIndex;
     use bevy::ui::widget::Text;
 
     use super::*;
-    use crate::tokens::{Curve, TextTokens, Tone};
+    use crate::mount;
+    use crate::testing::{self, Plain, hover, kids};
     use crate::views::label;
-    use crate::{FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn hover(&self) -> Color {
-            Color::WHITE
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
 
     fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(TooltipTiming {
+        let mut app = testing::app();
+        app.insert_resource(TooltipTiming {
             show: Duration::from_millis(100),
             hide: Duration::from_millis(100),
-        })
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
+        });
         app.world_mut().spawn(PointerLocation::new(Location {
             target: NormalizedRenderTarget::None {
                 width: 800,
@@ -327,8 +260,6 @@ mod tests {
             },
             position: Vec2::new(30.0, 40.0),
         }));
-        // The first update only starts the clock.
-        app.update();
         app
     }
 
@@ -341,22 +272,6 @@ mod tests {
 
     fn anchor(app: &App, source: Entity) -> Entity {
         app.world().get::<Source>(source).unwrap().anchor
-    }
-
-    fn kids(app: &App, node: Entity) -> Vec<Entity> {
-        app.world()
-            .get::<Children>(node)
-            .map(|kids| kids.iter().collect())
-            .unwrap_or_default()
-    }
-
-    fn hover(app: &mut App, node: Entity, on: bool) {
-        let mut node = app.world_mut().entity_mut(node);
-        if on {
-            node.insert(Hovered);
-        } else {
-            node.remove::<Hovered>();
-        }
     }
 
     #[test]
