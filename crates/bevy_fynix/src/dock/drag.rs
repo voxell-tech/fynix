@@ -23,6 +23,7 @@ use bevy::ui::{
     GlobalZIndex, Node, PositionType, UiGlobalTransform, UiRect,
     UiScale, px,
 };
+use bevy::window::SystemCursorIcon;
 
 use super::layout::DockArea;
 use super::registry::DockRegistry;
@@ -30,6 +31,7 @@ use super::tabs::{DockTab, TabRow};
 use super::tree::{DockTree, Edge, NodeId};
 use super::{DockTokens, logical, logical_rect};
 use crate::Theme;
+use crate::cursor::OverrideCursor;
 use crate::tokens::Tone;
 
 /// How far the pointer moves before a press on a tab is a drag, in
@@ -210,6 +212,7 @@ pub(super) fn moved<T: DockTokens>(
     areas: Query<(&DockArea, &ComputedNode, &UiGlobalTransform)>,
     rects: Query<(&ComputedNode, &UiGlobalTransform)>,
     mut nodes: Query<&mut Node>,
+    mut forced: ResMut<OverrideCursor>,
     mut commands: Commands,
 ) {
     let cursor = logical(drag.pointer_location.position, scale);
@@ -239,6 +242,7 @@ pub(super) fn moved<T: DockTokens>(
             let ghost =
                 spawn_ghost(&mut commands, name, cursor, &theme.0);
             commands.entity(node).insert(Visibility::Hidden);
+            forced.0 = Some(SystemCursorIcon::Grabbing);
             *state = DockDrag::Dragging {
                 node,
                 tab,
@@ -327,6 +331,7 @@ pub(super) fn end(
     _: On<Pointer<DragEnd>>,
     mut state: ResMut<DockDrag>,
     mut tree: ResMut<DockTree>,
+    mut forced: ResMut<OverrideCursor>,
     mut commands: Commands,
 ) {
     let DockDrag::Dragging {
@@ -340,6 +345,7 @@ pub(super) fn end(
         *state = DockDrag::Idle;
         return;
     };
+    forced.0 = None;
     clean_up(&mut commands, node, ghost, hint);
     match target {
         Some(DropTarget::Tabs { leaf, index }) => {
@@ -357,6 +363,7 @@ pub(super) fn end(
 pub(super) fn cancel(
     keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<DockDrag>,
+    mut forced: ResMut<OverrideCursor>,
     mut commands: Commands,
 ) {
     if !keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)) {
@@ -366,6 +373,7 @@ pub(super) fn cancel(
         node, ghost, hint, ..
     } = core::mem::take(&mut *state)
     {
+        forced.0 = None;
         clean_up(&mut commands, node, ghost, hint);
     }
 }

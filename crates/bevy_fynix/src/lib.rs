@@ -26,7 +26,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::world::World;
 use bevy::input_focus::InputFocus;
-pub use cursor::{CursorPlugin, EntityCursor};
+pub use cursor::{CursorPlugin, EntityCursor, OverrideCursor};
 pub use fynix::{
     AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
     ViewSeq,

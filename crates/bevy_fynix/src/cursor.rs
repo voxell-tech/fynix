@@ -5,6 +5,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
+use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::picking::PickingSystems;
@@ -17,13 +18,18 @@ use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntityCursor(pub SystemCursorIcon);
 
+/// A cursor that wins over every hover while it is `Some`, such as
+/// for the length of a drag.
+#[derive(Resource, Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OverrideCursor(pub Option<SystemCursorIcon>);
+
 /// Sets the primary window's [`CursorIcon`] from the hovered entity's
-/// [`EntityCursor`].
+/// [`EntityCursor`], or from [`OverrideCursor`].
 pub struct CursorPlugin;
 
 impl Plugin for CursorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.init_resource::<OverrideCursor>().add_systems(
             PreUpdate,
             update_cursor.after(PickingSystems::Hover),
         );
@@ -32,6 +38,7 @@ impl Plugin for CursorPlugin {
 
 fn update_cursor(
     hover_map: Option<Res<HoverMap>>,
+    forced: Res<OverrideCursor>,
     parents: Query<&ChildOf>,
     cursors: Query<&EntityCursor>,
     windows: Query<
@@ -41,9 +48,11 @@ fn update_cursor(
     mut commands: Commands,
 ) {
     let hovered = hover_map.as_deref().and_then(topmost);
-    let icon = hovered
-        .and_then(|entity| cursor_for(entity, &parents, &cursors))
-        .unwrap_or_default();
+    let icon = forced.0.unwrap_or_else(|| {
+        hovered
+            .and_then(|entity| cursor_for(entity, &parents, &cursors))
+            .unwrap_or_default()
+    });
     let wanted = CursorIcon::System(icon);
 
     for (window, current) in &windows {
@@ -214,5 +223,28 @@ mod tests {
             cursor(&app, window)
                 .is_none_or(|icon| icon == CursorIcon::default())
         );
+    }
+
+    #[test]
+    fn an_override_wins_over_the_hover_until_cleared() {
+        let pointer =
+            Some(CursorIcon::System(SystemCursorIcon::Pointer));
+        let resize =
+            Some(CursorIcon::System(SystemCursorIcon::EwResize));
+        let (mut app, window, node, _) = setup();
+        hover(&mut app, Some(node));
+        assert_eq!(cursor(&app, window), pointer);
+
+        app.world_mut().resource_mut::<OverrideCursor>().0 =
+            Some(SystemCursorIcon::EwResize);
+        hover(&mut app, Some(node));
+        assert_eq!(cursor(&app, window), resize);
+
+        hover(&mut app, None);
+        assert_eq!(cursor(&app, window), resize, "off the field");
+
+        app.world_mut().resource_mut::<OverrideCursor>().0 = None;
+        hover(&mut app, Some(node));
+        assert_eq!(cursor(&app, window), pointer);
     }
 }

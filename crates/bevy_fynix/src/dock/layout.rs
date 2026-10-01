@@ -5,8 +5,9 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::picking::events::{Drag, Pointer};
+use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
 use bevy::ui::{
     ComputedNode, Display, FlexDirection, Overflow,
     UiGlobalTransform, UiScale, percent, px,
@@ -17,6 +18,7 @@ use super::tree::{
     TabId,
 };
 use super::{DockTokens, logical, logical_rect, tabs};
+use crate::cursor::{EntityCursor, OverrideCursor};
 use crate::prop::resource;
 use crate::views::{
     Axis, BehaviorExt, FrameProps, column, divider, frame, row,
@@ -218,6 +220,28 @@ fn fraction_at(cursor: f32, start: f32, end: f32) -> Option<f32> {
     let least = (MIN_PANE / free).min(0.5);
     let fraction = (cursor - start - HANDLE / 2.0) / free;
     Some(fraction.clamp(least, 1.0 - least))
+}
+
+/// Holds the handle's resize cursor while it is dragged.
+pub(super) fn grab_handle(
+    start: On<Pointer<DragStart>>,
+    handles: Query<&EntityCursor, With<SplitHandle>>,
+    mut forced: ResMut<OverrideCursor>,
+) {
+    if let Ok(cursor) = handles.get(start.event_target()) {
+        forced.0 = Some(cursor.0);
+    }
+}
+
+/// Lets go of the cursor held while a handle was dragged.
+pub(super) fn release_handle(
+    end: On<Pointer<DragEnd>>,
+    handles: Query<(), With<SplitHandle>>,
+    mut forced: ResMut<OverrideCursor>,
+) {
+    if handles.contains(end.event_target()) {
+        forced.0 = None;
+    }
 }
 
 /// Moves the split of the handle dragged to follow the pointer.

@@ -31,6 +31,7 @@ pub use tree::{
     DockTree, Edge, NodeId, Shape, SplitAxis, TabId,
 };
 
+use crate::cursor::OverrideCursor;
 use crate::prop::{keyed, resource};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
@@ -78,6 +79,9 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
             .init_resource::<DockRegistry<T>>()
             .init_resource::<AddPopup>()
             .init_resource::<DockDrag>()
+            .init_resource::<OverrideCursor>()
+            .add_observer(layout::grab_handle)
+            .add_observer(layout::release_handle)
             .add_observer(layout::drag_handle)
             .add_observer(popup::open)
             .add_observer(popup::dismiss)
@@ -863,6 +867,59 @@ mod tests {
         assert!((fraction - 0.25).abs() < 1e-4, "{fraction}");
         assert_eq!(subtree(&app, root), before, "same entities");
         assert!((percent_of(&app, first) - 25.0).abs() < 1e-3);
+    }
+
+    fn forced(app: &App) -> Option<bevy::window::SystemCursorIcon> {
+        app.world().resource::<OverrideCursor>().0
+    }
+
+    #[test]
+    fn a_handle_drag_holds_its_resize_cursor_until_it_ends() {
+        let (mut app, _, _) = app();
+        let handle = find::<layout::SplitHandle>(&mut app)[0].0;
+        let resize =
+            *app.world().get::<crate::EntityCursor>(handle).unwrap();
+
+        press(&mut app, handle, Vec2::ZERO);
+        assert_eq!(forced(&app), Some(resize.0));
+
+        release(&mut app, handle, Vec2::ZERO);
+        assert_eq!(forced(&app), None);
+    }
+
+    #[test]
+    fn a_tab_drag_holds_the_grabbing_cursor_until_it_ends() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let one = tab_node(&mut app, left, 0);
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        assert_eq!(forced(&app), None, "not yet a drag");
+        drag_to(&mut app, one, Vec2::new(230.0, 10.0));
+        assert_eq!(
+            forced(&app),
+            Some(bevy::window::SystemCursorIcon::Grabbing)
+        );
+
+        release(&mut app, one, Vec2::new(230.0, 10.0));
+        assert_eq!(forced(&app), None);
+    }
+
+    #[test]
+    fn cancelling_a_tab_drag_lets_go_of_the_cursor() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        app.init_resource::<ButtonInput<KeyCode>>();
+        let one = tab_node(&mut app, left, 0);
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(230.0, 10.0));
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+
+        assert_eq!(forced(&app), None);
     }
 
     #[test]

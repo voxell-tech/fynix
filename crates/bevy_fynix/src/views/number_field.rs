@@ -18,7 +18,7 @@ use super::text_input::{
     Entry, NumberChange, NumberSpec, TextInput, call, focus,
     is_editing, show,
 };
-use crate::cursor::EntityCursor;
+use crate::cursor::{EntityCursor, OverrideCursor};
 use crate::prop::Prop;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
@@ -129,6 +129,8 @@ fn scrub(world: &mut World, root: Entity, input: Entity, dx: f32) {
             world
                 .entity_mut(root)
                 .insert(Scrub { start, last: start });
+            world.resource_mut::<OverrideCursor>().0 =
+                Some(DRAG_CURSOR.0);
             (start, start)
         }
     };
@@ -235,6 +237,8 @@ where
                         {
                             root.remove::<Scrub>();
                         }
+                        world.resource_mut::<OverrideCursor>().0 =
+                            None;
                     });
                 },
             )
@@ -347,6 +351,23 @@ mod tests {
         drag(&mut app, root, -50.0);
         assert_eq!(level(&app), 0.0);
         assert_eq!(changes(&app), [8.0, 0.0]);
+    }
+
+    #[test]
+    fn a_drag_holds_the_resize_cursor_until_it_ends() {
+        let mut app = app();
+        let root = field(&mut app, |f| f.step(1.0));
+        let forced =
+            |app: &App| app.world().resource::<OverrideCursor>().0;
+
+        drag(&mut app, root, 2.0);
+        assert_eq!(forced(&app), None, "under the slop");
+
+        drag(&mut app, root, 10.0);
+        assert_eq!(forced(&app), Some(SystemCursorIcon::EwResize));
+
+        drag_end(&mut app, root);
+        assert_eq!(forced(&app), None);
     }
 
     #[test]
