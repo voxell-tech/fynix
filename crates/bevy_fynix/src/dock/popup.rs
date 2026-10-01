@@ -2,7 +2,6 @@
 //! can be added.
 
 use bevy::asset::Handle;
-use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::ChildOf;
@@ -14,8 +13,7 @@ use bevy::image::Image;
 use bevy::picking::Pickable;
 use bevy::picking::events::{Click, Pointer};
 use bevy::ui::{
-    AlignItems, ComputedNode, JustifyContent, PositionType,
-    UiGlobalTransform, UiRect, Val, percent, px,
+    AlignItems, ComputedNode, UiGlobalTransform, UiRect, Val, px,
 };
 use bevy::ui_widgets::Activate;
 
@@ -24,10 +22,10 @@ use super::tree::{DockTree, NodeId};
 use super::{DockRegistry, DockRoot, DockTokens, logical_rect};
 use crate::tokens::Tone;
 use crate::views::{
-    BehaviorExt, FrameProps, button, column, icon, label, overlay,
-    row,
+    BehaviorExt, FrameProps, column, icon, label, menu_item,
+    menu_surface, overlay, row,
 };
-use crate::{AnyView, Bevy, Cx, ViewExt};
+use crate::{AnyView, Bevy, Cx, ScopedExt, ViewExt};
 
 const WIDTH: f32 = 150.0;
 
@@ -133,10 +131,7 @@ fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
                 .map(|choice| choice_row(open.leaf, choice))
                 .collect()
         };
-        let theme = cx.theme();
         let menu = column(rows)
-            .gap(2.0)
-            .position(PositionType::Absolute)
             .inset(UiRect::new(
                 px(open.left),
                 Val::Auto,
@@ -144,12 +139,9 @@ fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
                 Val::Auto,
             ))
             .width(px(WIDTH))
-            .padding(UiRect::all(px(4.0)))
-            .radius(6.0)
-            .fill(theme.panel())
-            .border(1.0)
-            .border_color(theme.hairline())
-            .z(Some(181));
+            .rules(|cx: &mut Cx<'_, Bevy, T>| {
+                cx.defaults(menu_surface);
+            });
         cx.build(
             overlay((menu,))
                 .with(Pickable::default())
@@ -169,11 +161,7 @@ fn choice_row<T: DockTokens>(
         parts.push(icon(image).size(12.0).boxed());
     }
     parts.push(label(name).boxed());
-    button(row(parts).gap(6.0).align(AlignItems::Center))
-        .fill(Color::NONE)
-        .width(percent(100.0))
-        .justify(JustifyContent::FlexStart)
-        .padding(UiRect::axes(px(8.0), px(3.0)))
+    menu_item(row(parts).gap(6.0).align(AlignItems::Center))
         .on_activate(move |world| {
             world
                 .resource_mut::<DockTree>()

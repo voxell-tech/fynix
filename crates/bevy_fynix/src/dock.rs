@@ -679,6 +679,42 @@ mod tests {
     }
 
     #[test]
+    fn the_popup_is_a_shared_menu_surface_of_menu_rows() {
+        let (mut app, left, _) = app();
+        app.world_mut().resource_mut::<AddPopup>().open =
+            Some(OpenPopup {
+                leaf: left,
+                left: 10.0,
+                top: 20.0,
+            });
+        app.update();
+        let root = find::<DockRoot>(&mut app)[0].0;
+        let popup = kids(&app, root)[1];
+        let backdrop = kids(&app, popup)[0];
+        let surface = kids(&app, backdrop)[0];
+
+        let ui = app.world().get::<Node>(surface).unwrap();
+        assert_eq!(
+            ui.position_type,
+            bevy::ui::PositionType::Absolute
+        );
+        assert_eq!(ui.left, px(10.0));
+        assert_eq!(ui.top, px(20.0));
+        assert_eq!(ui.width, px(150.0));
+        assert_eq!(
+            app.world().get::<bevy::ui::GlobalZIndex>(surface),
+            Some(&bevy::ui::GlobalZIndex(crate::views::MENU_Z))
+        );
+        let rows = kids(&app, surface);
+        assert_eq!(rows.len(), 1);
+        assert!(
+            app.world()
+                .get::<bevy::ui_widgets::MenuItem>(rows[0])
+                .is_some()
+        );
+    }
+
+    #[test]
     fn picking_a_row_adds_the_window_and_closes_the_popup() {
         let (mut app, left, _) = app();
         app.world_mut().resource_mut::<AddPopup>().open =
@@ -694,7 +730,7 @@ mod tests {
             .into_iter()
             .find(|node| {
                 app.world()
-                    .get::<bevy::ui_widgets::Button>(*node)
+                    .get::<bevy::ui_widgets::MenuItem>(*node)
                     .is_some()
             })
             .expect("a row");
