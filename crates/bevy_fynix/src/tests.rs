@@ -19,7 +19,7 @@ use bevy::ui::widget::Text;
 mod structure;
 mod support;
 
-pub(crate) use support::{Plain, app, app_with, hover, kids};
+pub(crate) use support::{Plain, app, app_with, hover, kids, press};
 
 use crate::mounted::Mounts;
 use crate::tokens::{TextTokens, Tone};

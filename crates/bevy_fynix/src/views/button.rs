@@ -721,7 +721,7 @@ mod tests {
     /// and runs the transitions out.
     fn feel(app: &mut App, node: Entity, over: bool, down: bool) {
         hover(app, node, over);
-        testing::press(app, node, down);
+        tests::press(app, node, down);
         app.update();
         app.update();
     }
@@ -787,7 +787,7 @@ mod tests {
         );
 
         point_at(&mut app, Some(node));
-        testing::press(&mut app, node, true);
+        tests::press(&mut app, node, true);
         app.update();
         app.update();
         assert_eq!(fill(&app, node), pressed_fill());
@@ -933,7 +933,7 @@ mod tests {
         );
 
         feel(&mut app, node, true, false);
-        testing::press(&mut app, node, true);
+        tests::press(&mut app, node, true);
         app.update();
         assert_eq!(
             fill(&app, node),

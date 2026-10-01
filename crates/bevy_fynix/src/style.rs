@@ -182,7 +182,7 @@ mod tests {
     use bevy::ui::BackgroundColor;
 
     use super::*;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
     use crate::tokens::{SurfaceTokens, TextTokens};
     use crate::views::{FrameProps, button, ghost, label, row};
     use crate::{ScopedExt, mount};
@@ -198,15 +198,15 @@ mod tests {
     }
 
     fn ink(app: &App, node: Entity) -> Color {
-        let text = testing::kids(app, node)[0];
+        let text = tests::kids(app, node)[0];
         app.world().get::<TextColor>(text).unwrap().0
     }
 
     /// Puts the pointer on `node`, and a button down on it, as asked,
     /// and runs the transitions out.
     fn feel(app: &mut App, node: Entity, over: bool, down: bool) {
-        testing::hover(app, node, over);
-        testing::press(app, node, down);
+        tests::hover(app, node, over);
+        tests::press(app, node, down);
         app.update();
         app.update();
     }
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn a_style_sets_the_resting_look_from_the_theme() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(custom().bundle()),
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn a_style_has_a_look_for_hover_and_a_look_for_press() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(custom().bundle()),
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn without_a_pressed_look_a_press_keeps_the_hover_look() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn a_style_reads_colours_from_whatever_theme_it_is_built_for() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(
@@ -292,13 +292,13 @@ mod tests {
 
     #[test]
     fn a_style_reaches_the_root_frame_and_not_the_content() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(row((label("x"),)))
                 .rules(style::<Plain>().fill(|_| RED).bundle()),
         );
-        let content = testing::kids(&app, node)[0];
+        let content = tests::kids(&app, node)[0];
 
         assert_eq!(fill(&app, node), RED);
         assert_eq!(fill(&app, content), Color::NONE);
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn a_style_tones_the_labels_in_the_view() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(row((label("x"),))).rules(
@@ -316,8 +316,8 @@ mod tests {
                     .bundle(),
             ),
         );
-        let row = testing::kids(&app, node)[0];
-        let text = testing::kids(&app, row)[0];
+        let row = tests::kids(&app, node)[0];
+        let text = tests::kids(&app, row)[0];
         let colour =
             |app: &App| app.world().get::<TextColor>(text).unwrap().0;
         assert_eq!(colour(&app), Plain::default().tone(Tone::Dim));
@@ -328,7 +328,7 @@ mod tests {
 
     #[test]
     fn a_call_site_prop_beats_a_style() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x"))
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn of_two_steps_in_one_style_the_later_wins() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(
@@ -360,7 +360,7 @@ mod tests {
 
     #[test]
     fn then_lets_the_next_style_win() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn a_style_extends_a_bundle() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(
@@ -408,7 +408,7 @@ mod tests {
 
     #[test]
     fn a_hover_look_added_to_a_bundle_shows_while_pressed_too() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn bundles_chained_with_rules_both_apply() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x"))
@@ -451,13 +451,13 @@ mod tests {
 
     #[test]
     fn a_style_is_a_plain_scope_for_any_view() {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             row((label("x"),))
                 .rules(style::<Plain>().tone(Tone::Dim).bundle()),
         );
-        let text = testing::kids(&app, node)[0];
+        let text = tests::kids(&app, node)[0];
 
         assert_eq!(
             app.world().get::<TextColor>(text).unwrap().0,
@@ -472,7 +472,7 @@ mod tests {
         #[derive(Component)]
         struct Selected;
 
-        let mut app = testing::app();
+        let mut app = tests::app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(label("x")).rules(
