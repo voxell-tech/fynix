@@ -387,4 +387,8 @@ where
             rules.release(entry.key);
         }
     }
+
+    fn groups(&self, groups: &mut Vec<Group>) {
+        groups.extend(self.rows.iter().map(|row| row.group));
+    }
 }

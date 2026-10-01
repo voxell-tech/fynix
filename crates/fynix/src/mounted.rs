@@ -37,6 +37,10 @@ pub(crate) trait Structure<B: Backend, T>:
 
     /// Lets go of the rules it captured.
     fn release(&mut self, rules: &mut RuleArena);
+
+    /// The groups it built views in besides its own: an `each` has
+    /// one per row. They are dropped with it.
+    fn groups(&self, _groups: &mut Vec<Group>) {}
 }
 
 /// One registered structural view.
@@ -247,10 +251,13 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         self.leaving.remove(&node);
         self.effects.remove(&node);
         if let Some(id) = self.containers.remove(&node) {
+            let mut groups = vec![id];
             if let Some(slot) = self.slots.remove(&id) {
-                self.forget(slot);
+                self.forget(slot, &mut groups);
             }
-            self.drop_group(id);
+            for group in groups {
+                self.drop_group(group);
+            }
         }
     }
 
@@ -358,16 +365,23 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 .collect::<Vec<_>>();
             for id in built {
                 if let Some(slot) = self.slots.remove(&id) {
-                    self.forget(slot);
+                    self.forget(slot, &mut dead);
                 }
                 dead.push(id);
             }
         }
     }
 
-    fn forget(&mut self, mut slot: Slot<B, T>) {
+    /// Lets go of what `slot` holds, and adds the groups it built
+    /// views in to `dead`, for those to be dropped too.
+    fn forget(
+        &mut self,
+        mut slot: Slot<B, T>,
+        dead: &mut Vec<Group>,
+    ) {
         self.containers.remove(&slot.container);
         slot.structure.release(&mut self.rules);
+        slot.structure.groups(dead);
     }
 
     /// Rebuilds what the world's changes call for, in every `keyed`

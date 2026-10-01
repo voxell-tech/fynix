@@ -400,3 +400,58 @@ fn a_view_built_at_the_root_has_no_parent_and_the_parent_comes_back()
     assert_eq!(ui.world.node(outer + 1).parent, None);
     assert_eq!(ui.world.node(outer + 2).parent, Some(outer));
 }
+
+/// A `keyed` on the world's pick holding an `each` over its list,
+/// each row a `keyed` on the world's count.
+fn rows_of_keyed() -> Keyed<Fake, Warm, u32> {
+    keyed(watch(|world: &World| world.pick), |_| {
+        each(
+            watch(|world: &World| world.list.clone()),
+            |&id| id,
+            |_| {
+                keyed(watch(|world: &World| world.count), |&count| {
+                    text(count.to_string()).boxed()
+                })
+                .boxed()
+            },
+        )
+        .boxed()
+    })
+}
+
+#[test]
+fn a_dropped_each_takes_the_structure_in_its_rows_with_it() {
+    let mut ui = Ui::new(Warm);
+    ui.world.show(&[1, 2]);
+    ui.build(rows_of_keyed());
+    // The outer keyed, the each, and a keyed per row.
+    assert_eq!(ui.mounted.structure_len(), 4);
+
+    // Both keys change in one update. An old row's view left behind
+    // would rebuild in that same pass, into a node that is gone.
+    ui.world.pick(1);
+    ui.world.set(7);
+    ui.update(Duration::ZERO, false);
+
+    assert_eq!(
+        ui.mounted.structure_len(),
+        4,
+        "the old rows' views are gone, not kept beside the new"
+    );
+}
+
+#[test]
+fn an_unmounted_each_takes_the_structure_in_its_rows_with_it() {
+    let mut ui = Ui::new(Warm);
+    ui.world.show(&[1, 2]);
+    let container = ui.build(each(
+        watch(|world: &World| world.list.clone()),
+        |&id| id,
+        |_| picked().boxed(),
+    ));
+    assert_eq!(ui.mounted.structure_len(), 3);
+
+    ui.mounted.unmount(container);
+
+    assert_eq!(ui.mounted.structure_len(), 0);
+}
