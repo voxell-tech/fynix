@@ -246,7 +246,7 @@ impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
 }
 
 /// Views built one after another under the same node: a tuple of
-/// views, or a `Vec` of one kind.
+/// views (up to 16), or a `Vec` of one kind.
 pub trait ViewSeq<B: Backend, T> {
     fn build_each(self, cx: &mut Cx<'_, B, T>) -> Vec<B::Node>;
 }
@@ -284,6 +284,17 @@ view_seq!(V1, V2, V3, V4, V5, V6, V7, V8, V9);
 view_seq!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10);
 view_seq!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11);
 view_seq!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12);
+view_seq!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13);
+view_seq!(
+    V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14
+);
+view_seq!(
+    V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15
+);
+view_seq!(
+    V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15,
+    V16
+);
 
 /// A view's build, its type erased.
 type BuildFn<B, T> =

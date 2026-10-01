@@ -1,7 +1,8 @@
 //! The crate's views in a window, one section per idea: a theme
 //! implemented through token traits, an app-wide set rule, bound
 //! labels, hover rules with transitions, one state rule reaching a
-//! button's parts, a scoped rule, a folding section, field rows, a
+//! button's parts, a scoped rule, a folding section, field rows, text
+//! and number fields, a
 //! screen switch and a keyed list that rebuild structure and animate
 //! views in and out, and a reduced-motion switch.
 //!
@@ -26,7 +27,7 @@ use bevy_fynix::tokens::{
 use bevy_fynix::views::{
     AnimatedField, BehaviorExt, Frame, FrameProps, HasAction, Label,
     button, checkbox, column, field_row, foldable, frame, ghost,
-    label, menu_bar, row, segmented, tint,
+    label, menu_bar, number_field, row, segmented, text_field, tint,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,
@@ -48,6 +49,8 @@ fn main() {
         .insert_resource(Mode(0))
         .insert_resource(Agreed(false))
         .insert_resource(Screen::Overview)
+        .insert_resource(Title("fynix".into()))
+        .insert_resource(Amount(1.0))
         .insert_resource(Rows {
             ids: vec![1, 2, 3],
             next: 4,
@@ -171,6 +174,7 @@ fn gallery() -> AnyView<Bevy, Monokai> {
                 section("A scoped rule", scoped()),
                 section("Folding", folding()),
                 section("Field rows", fields()),
+                section("Text and number fields", inputs()),
                 section("Switching", switching()),
                 section("A keyed list", keyed_list()),
                 section("Motion", motion_switch()),
@@ -328,6 +332,51 @@ fn fields() -> impl View<Bevy, Monokai> {
             .on_activate(toggle_keyframes),)),
     ))
     .gap(4.0)
+}
+
+/// The text and the number the input fields edit.
+#[derive(Resource)]
+struct Title(String);
+
+#[derive(Resource)]
+struct Amount(f64);
+
+/// A text field and a number field, each bound to a resource and
+/// writing back to it. The number drags by default and types after a
+/// click.
+fn inputs() -> impl View<Bevy, Monokai> {
+    column((
+        row((
+            label("title"),
+            text_field(
+                resource::<Title, _>(|title| title.0.clone()),
+                |world, text| world.resource_mut::<Title>().0 = text,
+            )
+            .width(px(160.0)),
+            label(resource::<Title, _>(|title| {
+                format!("= {}", title.0)
+            }))
+            .tone(Tone::Dim),
+        ))
+        .gap(8.0)
+        .align(AlignItems::Center),
+        row((
+            label("amount"),
+            number_field(
+                resource::<Amount, _>(|amount| amount.0),
+                |world, value| {
+                    world.resource_mut::<Amount>().0 = value
+                },
+            )
+            .step(0.1)
+            .precision(1)
+            .range(0.0, 100.0)
+            .width(px(80.0)),
+        ))
+        .gap(8.0)
+        .align(AlignItems::Center),
+    ))
+    .gap(6.0)
 }
 
 fn toggle_keyframes(world: &mut World) {

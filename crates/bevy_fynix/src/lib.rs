@@ -24,6 +24,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::world::World;
+use bevy::input_focus::InputFocus;
 pub use cursor::{CursorPlugin, EntityCursor};
 pub use fynix::{
     AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
@@ -37,7 +38,8 @@ pub use prop::{
     every_frame, keyed, resource,
 };
 pub use state::{
-    DirtyNodes, Hovered, Pressed, State, StateExt, hidden, own,
+    DirtyNodes, Focused, Hovered, Pressed, State, StateExt, hidden,
+    own,
 };
 pub use transition::{BevyMarker, ReducedMotion};
 pub use visual::Visual;
@@ -59,6 +61,7 @@ impl<T> Default for FynixPlugin<T> {
 impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
     fn build(&self, app: &mut App) {
         app.add_plugins(CursorPlugin)
+            .init_resource::<InputFocus>()
             .init_resource::<Mounts<T>>()
             .init_resource::<Unmounted>()
             .init_resource::<DirtyNodes>()
@@ -71,7 +74,11 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             )
             .add_systems(
                 Update,
-                (mounted::update::<T>, leave::settle_entrances)
+                (
+                    mounted::update::<T>,
+                    views::sync_text_inputs,
+                    leave::settle_entrances,
+                )
                     .chain(),
             );
     }

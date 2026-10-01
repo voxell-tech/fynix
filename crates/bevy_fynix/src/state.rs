@@ -12,6 +12,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::ecs::world::World;
+use bevy::input_focus::{FocusGained, FocusLost};
 use bevy::picking::events::{Pointer, Press, Release};
 use bevy::picking::hover::Hovered as PickingHovered;
 use fynix::{Condition, ScopedExt, When};
@@ -26,6 +27,18 @@ pub struct Hovered;
 /// A pointer button is down on the node.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Pressed;
+
+/// The node or one of its descendants has input focus.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct Focused;
+
+fn focus_gained(gained: On<FocusGained>, mut commands: Commands) {
+    commands.entity(gained.event_target()).insert(Focused);
+}
+
+fn focus_lost(lost: On<FocusLost>, mut commands: Commands) {
+    commands.entity(lost.event_target()).remove::<Focused>();
+}
 
 /// The copy of Bevy's own hover component onto [`Hovered`]. Bevy
 /// counts a hovered descendant as hovering its ancestors, so moving
@@ -98,6 +111,10 @@ fn watch_state<S: Component>(world: &mut World, node: Entity) {
     let Ok(mut entity) = world.get_entity_mut(node) else {
         return;
     };
+    if TypeId::of::<S>() == TypeId::of::<Focused>() {
+        entity.observe(focus_gained).observe(focus_lost);
+        return;
+    }
     let tracked = [TypeId::of::<Hovered>(), TypeId::of::<Pressed>()];
     if tracked.contains(&TypeId::of::<S>())
         && !entity.contains::<PickingHovered>()
