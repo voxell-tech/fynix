@@ -100,60 +100,16 @@ patch!(PatchWrap, bool, |entity, v| {
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
     use bevy::app::App;
     use bevy::color::Alpha;
     use bevy::math::Vec2;
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::ui::UiTransform;
 
     use super::*;
-    use crate::tokens::{Curve, Motion, MotionTokens};
+    use crate::testing::{Plain, app};
+    use crate::tokens::Motion;
     use crate::transition::ReducedMotion;
-    use crate::{FynixPlugin, Hovered, ScopedExt, Theme, mount};
-
-    struct Plain;
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
-
-    fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
-        // The first update only starts the clock.
-        app.update();
-        app
-    }
+    use crate::{Hovered, ScopedExt, mount};
 
     fn scale(app: &App, node: Entity) -> Vec2 {
         app.world().get::<UiTransform>(node).unwrap().scale

@@ -75,43 +75,11 @@ mod tests {
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::math::Rot2;
-    use bevy::time::TimePlugin;
     use bevy::ui::{Node, UiTransform, Val};
 
     use super::*;
-    use crate::{AnyView, FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl TextTokens for Plain {
-        fn tone(&self, tone: Tone) -> Color {
-            match tone {
-                Tone::Body => Color::WHITE,
-                Tone::Dim | Tone::Faint => Color::srgb(0.5, 0.5, 0.5),
-                Tone::Accent | Tone::OnAccent | Tone::Critical => {
-                    Color::srgb(1.0, 0.5, 0.0)
-                }
-            }
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain));
-        app
-    }
+    use crate::testing::{Plain, app};
+    use crate::{AnyView, mount};
 
     fn image_node(app: &App, node: Entity) -> &ImageNode {
         app.world().get::<ImageNode>(node).expect("an icon")

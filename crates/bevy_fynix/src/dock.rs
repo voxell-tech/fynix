@@ -138,77 +138,19 @@ fn logical_rect(
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
     use bevy::app::App;
     use bevy::color::Color;
     use bevy::ecs::entity::Entity;
-    use bevy::ecs::hierarchy::{ChildOf, Children};
-    use bevy::ecs::relationship::RelationshipTarget;
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
+    use bevy::ecs::hierarchy::ChildOf;
     use bevy::ui::widget::Text;
     use bevy::ui::{Display, FlexDirection, Node, Val, px};
     use bevy::ui_widgets::Activate;
 
     use super::tabs::AddButton;
     use super::*;
-    use crate::tokens::{Curve, Motion, Tone};
+    use crate::mount;
+    use crate::testing::{self, Plain, kids};
     use crate::views::label;
-    use crate::{FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::srgb(0.2, 0.2, 0.2)
-        }
-
-        fn hover(&self) -> Color {
-            Color::srgb(0.3, 0.3, 0.3)
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-    }
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: crate::tokens::Motion) -> Curve {
-            let _ = Motion::Interact;
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
 
     fn window(
         name: &'static str,
@@ -220,18 +162,8 @@ mod tests {
     /// A tree of the areas `left` and `right` side by side, and a
     /// registry of the windows in them and one more, `extra`.
     fn app() -> (App, NodeId, NodeId) {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-            DockPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
+        let mut app = testing::app();
+        app.add_plugins(DockPlugin::<Plain>::default());
         app.world_mut()
             .resource_mut::<DockRegistry<Plain>>()
             .register("one", window("One", "one body"))
@@ -250,13 +182,6 @@ mod tests {
         // The first update only starts the clock.
         app.update();
         (app, left, right)
-    }
-
-    fn kids(app: &App, node: Entity) -> Vec<Entity> {
-        app.world()
-            .get::<Children>(node)
-            .map(|children| children.iter().collect())
-            .unwrap_or_default()
     }
 
     fn subtree(app: &App, node: Entity) -> Vec<Entity> {

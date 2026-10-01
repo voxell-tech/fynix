@@ -120,61 +120,17 @@ own_when!(Frame);
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
     use bevy::app::App;
     use bevy::color::Alpha;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::ui::{BorderRadius, GlobalZIndex, Node, percent, px};
 
     use super::*;
-    use crate::tokens::{Curve, Motion, MotionTokens};
-    use crate::{FynixPlugin, ScopedExt, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
-
-    fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
-        // The first update only starts the clock.
-        app.update();
-        app
-    }
+    use crate::testing::{Plain, app};
+    use crate::tokens::Motion;
+    use crate::{ScopedExt, mount};
 
     fn ui(app: &App, node: Entity) -> &Node {
         app.world().get::<Node>(node).expect("a node")

@@ -99,54 +99,17 @@ where
 mod tests {
     use bevy::app::App;
     use bevy::color::Color;
-    use bevy::time::TimePlugin;
     use bevy::ui::{BackgroundColor, Node};
 
     use super::*;
-    use crate::{FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            0.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            0.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn hover(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn hairline(&self) -> Color {
-            Color::WHITE
-        }
-    }
+    use crate::mount;
+    use crate::testing::{self, Plain};
 
     fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain));
-        app
+        testing::app_with(Plain {
+            hairline: Some(Color::WHITE),
+            ..Plain::default()
+        })
     }
 
     #[test]

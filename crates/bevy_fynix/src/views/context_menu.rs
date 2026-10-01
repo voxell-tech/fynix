@@ -197,100 +197,28 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
     use bevy::app::App;
     use bevy::camera::NormalizedRenderTarget;
-    use bevy::color::Color;
-    use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
     use bevy::input_focus::InputFocus;
     use bevy::picking::backend::HitData;
     use bevy::picking::pointer::{Location, PointerId};
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::ui::Node;
     use bevy::ui::widget::Text;
     use bevy::ui_widgets::popover::Popover;
     use bevy::ui_widgets::{Activate, MenuPopup};
 
     use super::*;
-    use crate::tokens::{
-        Curve, Motion, MotionTokens, TextTokens, Tone,
-    };
+    use crate::mount;
+    use crate::testing::{self, Plain, kids};
     use crate::views::{BehaviorExt, label, menu_item};
-    use crate::{FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn hover(&self) -> Color {
-            Color::WHITE
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
 
     #[derive(Resource, Default)]
     struct Deleted(u32);
 
     fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .init_resource::<Deleted>()
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
-        // The first update only starts the clock.
-        app.update();
+        let mut app = testing::app();
+        app.init_resource::<Deleted>();
         app
     }
 
@@ -350,13 +278,6 @@ mod tests {
             .query_filtered::<Entity, bevy::ecs::query::With<MenuPopup>>()
             .iter(app.world())
             .collect()
-    }
-
-    fn kids(app: &App, node: Entity) -> Vec<Entity> {
-        app.world()
-            .get::<Children>(node)
-            .map(|kids| kids.iter().collect())
-            .unwrap_or_default()
     }
 
     fn texts(app: &App, popup: Entity) -> Vec<String> {

@@ -244,94 +244,24 @@ pub(crate) fn on_menu_event(
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
     use bevy::app::App;
-    use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::ui::widget::Text;
     use bevy::ui_widgets::{Activate, MenuPlugin};
 
     use super::*;
-    use crate::tokens::{Curve, Motion};
-    use crate::{FynixPlugin, Theme, mount, resource};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn hover(&self) -> Color {
-            Color::WHITE
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
+    use crate::testing::{self, Plain};
+    use crate::{mount, resource};
 
     /// The index the dropdown was last asked to show.
     #[derive(Resource)]
     struct Chosen(usize);
 
     fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-            MenuPlugin,
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(Chosen(1))
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
-        // The first update only starts the clock.
-        app.update();
+        let mut app = testing::app();
+        app.add_plugins(MenuPlugin).insert_resource(Chosen(1));
         app
     }
 

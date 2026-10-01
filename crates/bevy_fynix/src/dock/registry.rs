@@ -92,28 +92,10 @@ impl<T> DockRegistry<T> {
 
 #[cfg(test)]
 mod tests {
-    use bevy::color::Color;
-
     use super::*;
     use crate::ViewExt;
-    use crate::tokens::{TextTokens, Tone};
+    use crate::testing::Plain;
     use crate::views::label;
-
-    struct Plain;
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
 
     fn kind(name: &str) -> DockWindowKind<Plain> {
         DockWindowKind::new(name, || label("x").boxed())

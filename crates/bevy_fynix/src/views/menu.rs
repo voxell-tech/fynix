@@ -267,13 +267,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
     use bevy::app::App;
     use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::resource::Resource;
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::ui::{
         BackgroundColor, BorderColor, BorderRadius, GlobalZIndex,
     };
@@ -281,87 +278,18 @@ mod tests {
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
-    use crate::tokens::{Curve, TextTokens, Tone};
+    use crate::testing::{self, Plain};
     use crate::transition::BevyMarker;
     use crate::views::{BehaviorExt, frame, label};
-    use crate::{FynixPlugin, ScopedExt, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-
-        fn menu_radius(&self) -> f32 {
-            5.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::srgb(0.2, 0.2, 0.2)
-        }
-
-        fn hover(&self) -> Color {
-            Color::srgb(0.3, 0.3, 0.3)
-        }
-
-        fn panel(&self) -> Color {
-            Color::srgb(0.1, 0.1, 0.1)
-        }
-
-        fn hairline(&self) -> Color {
-            Color::srgb(0.4, 0.4, 0.4)
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
+    use crate::{ScopedExt, mount};
 
     fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
-        // The first update only starts the clock.
-        app.update();
-        app
+        testing::app_with(Plain {
+            panel: Color::srgb(0.1, 0.1, 0.1),
+            hairline: Some(Color::srgb(0.4, 0.4, 0.4)),
+            menu_radius: Some(5.0),
+            ..Plain::default()
+        })
     }
 
     fn fill(app: &App, node: Entity) -> Color {

@@ -108,56 +108,13 @@ impl<V> ModifierExt for V {}
 
 #[cfg(test)]
 mod tests {
-    use bevy::app::App;
-    use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
-    use bevy::time::TimePlugin;
     use bevy::ui::{percent, px};
 
     use super::*;
-    use crate::tokens::{SpacingTokens, TextTokens, Tone};
+    use crate::mount;
+    use crate::testing::{Plain, app};
     use crate::views::{FrameProps, label, row};
-    use crate::{FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    fn app() -> App {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain));
-        app
-    }
 
     #[test]
     fn modifiers_edit_an_elements_node() {

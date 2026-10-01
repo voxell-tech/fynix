@@ -85,68 +85,18 @@ fn cursor_for(
 
 #[cfg(test)]
 mod tests {
-    use core::time::Duration;
-
-    use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::picking::backend::HitData;
-    use bevy::time::TimePlugin;
     use bevy::window::Window;
 
     use super::*;
-    use crate::tokens::{
-        Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-    };
+    use crate::mount;
+    use crate::testing::{self, Plain};
     use crate::views::{button, frame};
-    use crate::{FynixPlugin, Theme, mount};
-
-    struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::BLACK
-        }
-
-        fn hover(&self) -> Color {
-            Color::WHITE
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::ZERO,
-                ease: |t| t,
-            }
-        }
-    }
 
     /// A window and a button over a frame.
     fn setup() -> (App, Entity, Entity, Entity) {
-        let mut app = App::new();
-        app.add_plugins((
-            TimePlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain));
+        let mut app = testing::app();
         let window = app
             .world_mut()
             .spawn((Window::default(), PrimaryWindow))

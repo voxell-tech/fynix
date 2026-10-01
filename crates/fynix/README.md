@@ -8,7 +8,7 @@
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
 **Fynix** is a backend agnostic reactive view tree, styled the way
-[Typst](https://typst.app) styles a document: with set rules.
+[Typst](https://typst.app) styles a document with set rules.
 
 A backend implements `Backend` to say what a world and a node are, and
 writes the elements. Everything above the elements, from composites to
@@ -32,29 +32,185 @@ rules, themes and transitions, is the same on every backend.
   too.
 - **`#![no_std]`**: `alloc` only.
 
-## Quick Start (Bevy)
+## Building a UI Framework
 
-See [`gallery.rs`](../bevy_fynix/examples/gallery.rs) for a whole app.
+Fynix is the part of a UI framework that does not depend on an
+engine. A framework on top of it fills in five things, and
+[`bevy_fynix`](../bevy_fynix) is a full example of each:
 
-```rust,ignore
-use bevy_fynix::views::{Label, button, column, label};
-use bevy_fynix::tokens::{Motion, Tone};
-use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
+1. **A backend**, which says what a world and a node are. `spawn`,
+   `despawn` and `reorder` are required. `on_mount`, `leave` and
+   `collapse` have empty defaults, and are where cleanup, input
+   blocking and exit animations plug in.
+2. **Elements**, structs of props that end up on one node. The
+   `#[element]` macro writes the unset state, the setters and the
+   reactive updates. For each prop you say how its value is written
+   to a node (`Patch`), and optionally its default from the theme.
+3. **Token traits**, which are all a view knows about a theme.
+   Elements and composites bound themselves on the tokens they read,
+   so they work under any theme that implements them, and your
+   framework's users bring their own.
+4. **States**, which implement `Condition`: whether the state holds on
+   a node, and a request to the backend to report the node to
+   `Mounted::mark_dirty` whenever that changes.
+5. **A mount**, which builds a view at the root with a `Cx`, and a
+   frame loop that calls `update_structure` and `update_elements`.
 
-fn setup(world: &mut World) {
-    mount::<MyTheme>(
-        world,
-        column((
-            label("Settings").size(20.0),
-            button(label("Save"))
-                // Every label in the button turns accent on hover.
-                .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
-                    cx.set::<Label>(|l, _| l.tone(Tone::Accent));
-                })
-                .transition(Motion::Interact),
-        ))
-        .gap(8.0),
-    );
+Here are all five against a toy backend, a flat list of nodes holding
+text:
+
+```rust
+use core::time::Duration;
+
+// `#[element]` finds these at the root of the crate it is used in,
+// so a framework re-exports them from its own root.
+use fynix::{
+    Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
+    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, View,
+    ViewExt, element, styled,
+};
+
+// 1. A backend.
+#[derive(Default)]
+pub struct World {
+    nodes: Vec<Node>,
+}
+
+#[derive(Default)]
+struct Node {
+    parent: Option<usize>,
+    children: Vec<usize>,
+    text: String,
+    size: f32,
+    hovered: bool,
+}
+
+struct Toy;
+
+impl Backend for Toy {
+    type World = World;
+    type Node = usize;
+
+    fn spawn(world: &mut World, parent: Option<usize>) -> usize {
+        let node = world.nodes.len();
+        world.nodes.push(Node {
+            parent,
+            ..Node::default()
+        });
+        if let Some(parent) = parent {
+            world.nodes[parent].children.push(node);
+        }
+        node
+    }
+
+    fn despawn(world: &mut World, node: usize) {
+        // The node stays in the list, only unlinked from its parent.
+        if let Some(parent) = world.nodes[node].parent {
+            world.nodes[parent].children.retain(|&c| c != node);
+        }
+    }
+
+    fn reorder(world: &mut World, parent: usize, children: &[usize]) {
+        world.nodes[parent].children = children.to_vec();
+    }
+}
+
+// 3. Token traits.
+trait TextTokens {
+    fn body_size(&self) -> f32;
+}
+
+// 2. An element, reading `TextTokens` from any theme.
+#[element(backend = Toy, theme = TextTokens)]
+pub struct Text {
+    #[elem(patch = WriteText)]
+    text: Prop<World, String>,
+    /// The theme's body size when unset.
+    #[elem(default = theme.body_size(), patch = WriteSize)]
+    size: Prop<World, f32>,
+}
+
+fn text(text: impl Into<Prop<World, String>>) -> Text {
+    Text {
+        text: text.into(),
+        ..Text::unset()
+    }
+}
+
+pub struct WriteText;
+
+impl Patch<Toy, String> for WriteText {
+    fn patch(world: &mut World, node: usize, text: &String) {
+        world.nodes[node].text.clone_from(text);
+    }
+}
+
+pub struct WriteSize;
+
+impl Patch<Toy, f32> for WriteSize {
+    fn patch(world: &mut World, node: usize, size: &f32) {
+        world.nodes[node].size = *size;
+    }
+}
+
+// 4. A state.
+struct Hovered;
+
+impl Condition<Toy> for Hovered {
+    fn holds(world: &World, node: usize) -> bool {
+        world.nodes[node].hovered
+    }
+
+    fn watch(_: &mut World, _: usize) {
+        // A real backend hooks its hover events up to `mark_dirty`.
+    }
+}
+
+// A theme, which any app can write its own of.
+struct Warm;
+
+impl TextTokens for Warm {
+    fn body_size(&self) -> f32 {
+        14.0
+    }
+}
+
+impl MotionTokens for Warm {
+    fn motion(&self, _: Motion) -> Curve {
+        Curve {
+            duration: Duration::from_millis(100),
+            ease: |t| t,
+        }
+    }
+}
+
+// 5. Mount a view, then update it from the frame loop.
+fn main() {
+    let mut world = World::default();
+    let mut mounted = Mounted::<Toy, Warm>::default();
+    let node = {
+        let mut cx = Cx::new(&mut world, &Warm, &mut mounted);
+        text("Save")
+            // Every text under this one grows while it is hovered.
+            .when_in::<Hovered, _>(|cx: &mut Cx<Toy, Warm>| {
+                cx.set::<Text>(|t, _| t.size(20.0));
+            })
+            .build(&mut cx)
+    };
+
+    let tick = Tick {
+        delta: Duration::from_millis(16),
+        reduced_motion: false,
+    };
+    mounted.update_structure(&mut world, &Warm);
+    mounted.update_elements(&mut world, &Warm, tick);
+    assert_eq!(world.nodes[node].text, "Save");
+    assert_eq!(world.nodes[node].size, 14.0);
+
+    world.nodes[node].hovered = true;
+    mounted.mark_dirty(node);
+    mounted.update_elements(&mut world, &Warm, tick);
+    assert_eq!(world.nodes[node].size, 20.0);
 }
 ```
 

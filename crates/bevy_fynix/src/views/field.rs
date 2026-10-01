@@ -160,7 +160,6 @@ pub(super) mod testing {
 
     use bevy::app::App;
     use bevy::camera::NormalizedRenderTarget;
-    use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
     use bevy::input::{ButtonState, InputPlugin};
@@ -171,87 +170,19 @@ pub(super) mod testing {
     use bevy::picking::backend::HitData;
     use bevy::picking::events::{Click, Drag, DragEnd};
     use bevy::picking::pointer::{Location, PointerId};
-    use bevy::time::{TimePlugin, TimeUpdateStrategy};
     use bevy::window::PrimaryWindow;
 
     use super::*;
-    use crate::tokens::{Curve, Motion};
-    use crate::{FynixPlugin, Theme};
-
-    pub struct Plain;
-
-    impl SpacingTokens for Plain {
-        fn gap(&self) -> f32 {
-            6.0
-        }
-
-        fn row(&self) -> f32 {
-            20.0
-        }
-
-        fn radius(&self) -> f32 {
-            3.0
-        }
-    }
-
-    impl SurfaceTokens for Plain {
-        fn fill(&self) -> Color {
-            Color::srgb(0.2, 0.2, 0.2)
-        }
-
-        fn hover(&self) -> Color {
-            Color::srgb(0.3, 0.3, 0.3)
-        }
-
-        fn panel(&self) -> Color {
-            Color::BLACK
-        }
-    }
-
-    impl TextTokens for Plain {
-        fn tone(&self, tone: Tone) -> Color {
-            match tone {
-                Tone::Body => Color::WHITE,
-                _ => Color::srgb(1.0, 0.8, 0.0),
-            }
-        }
-
-        fn body_size(&self) -> f32 {
-            14.0
-        }
-
-        fn small_size(&self) -> f32 {
-            11.0
-        }
-    }
-
-    impl MotionTokens for Plain {
-        fn motion(&self, _: Motion) -> Curve {
-            Curve {
-                duration: Duration::from_millis(100),
-                ease: |t| t,
-            }
-        }
-    }
+    pub use crate::testing::Plain;
 
     pub fn app() -> App {
-        let mut app = App::new();
+        let mut app = crate::testing::app();
         app.add_plugins((
-            TimePlugin,
             InputPlugin,
             InputFocusPlugin,
             InputDispatchPlugin,
-            FynixPlugin::<Plain>::default(),
-        ))
-        .insert_resource(Theme(Plain))
-        .insert_resource(
-            TimeUpdateStrategy::ManualDuration(
-                Duration::from_millis(50),
-            ),
-        );
+        ));
         app.world_mut().spawn(PrimaryWindow);
-        // The first update only starts the clock.
-        app.update();
         app
     }
 
