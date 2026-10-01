@@ -174,3 +174,200 @@ fn a_leaving_row_despawned_with_its_container_is_forgotten() {
 
     assert!(!ui.mounted.is_leaving(two));
 }
+
+/// A keyed view of the pick as text, travelling over Warm's curve,
+/// and its container.
+fn picks() -> (Ui<Warm>, usize) {
+    let mut ui = Ui::new(Warm);
+    let [container] = ui.under(|cx: &mut Cx<'_, Fake, Warm>| {
+        cx.transition(Motion::Interact);
+        cx.build(keyed(watch(|world: &World| world.pick), |&pick| {
+            text(pick.to_string()).boxed()
+        }));
+    })[..] else {
+        panic!("a container");
+    };
+    (ui, container)
+}
+
+fn pick(ui: &mut Ui<Warm>, pick: u32) {
+    ui.world.pick = pick;
+    ui.world.version += 1;
+}
+
+#[test]
+fn an_inserted_row_is_held_then_its_space_expands_then_it_is_released()
+ {
+    let (mut ui, container) = rows(&[1], true);
+
+    ui.world.list(&[1, 2]);
+    ui.update(Duration::ZERO, false);
+    let two = ui.world.children(container)[1];
+    assert!(ui.world.node(two).held, "out of the layout, unmeasured");
+    assert!(ui.mounted.is_entering(two));
+
+    ui.update(Duration::ZERO, false);
+    assert!(!ui.world.node(two).held);
+    assert_eq!(ui.world.node(two).collapsed, Some(1.0), "no space");
+
+    ui.update(CURVE / 2, false);
+    assert_eq!(ui.world.node(two).collapsed, Some(0.5));
+    assert!(!ui.world.node(two).released);
+
+    ui.update(CURVE / 2, false);
+    assert!(ui.world.node(two).released);
+    assert_eq!(ui.world.node(two).collapsed, None);
+    assert!(!ui.mounted.is_entering(two));
+}
+
+#[test]
+fn a_row_without_a_transition_is_never_held() {
+    let (mut ui, container) = rows(&[1], false);
+
+    ui.world.list(&[1, 2]);
+    ui.update(Duration::ZERO, false);
+    let two = ui.world.children(container)[1];
+
+    assert!(!ui.world.node(two).held);
+    assert!(!ui.mounted.is_entering(two));
+}
+
+#[test]
+fn the_rows_first_build_is_not_held() {
+    let (ui, container) = rows(&[1, 2], true);
+
+    for node in ui.world.children(container) {
+        assert!(!ui.world.node(node).held);
+        assert!(!ui.mounted.is_entering(node));
+    }
+}
+
+#[test]
+fn a_swap_fades_out_collapses_then_expands_in() {
+    let (mut ui, container) = picks();
+    let old = ui.world.children(container)[0];
+
+    pick(&mut ui, 1);
+    ui.update(Duration::ZERO, false);
+    let new = ui.world.children(container)[1];
+    assert!(ui.world.node(old).leaving);
+    assert!(ui.world.node(new).held);
+
+    ui.update(CURVE / 2, false);
+    assert_eq!(ui.world.node(old).collapsed, None, "fading");
+    assert!(ui.world.node(new).held);
+
+    ui.update(CURVE / 2, false);
+    assert_eq!(ui.world.node(old).collapsed, Some(0.0));
+    assert!(ui.world.node(new).held, "waiting for the collapse");
+
+    ui.update(CURVE / 2, false);
+    assert_eq!(ui.world.node(old).collapsed, Some(0.5));
+    assert!(ui.world.node(new).held);
+
+    ui.update(CURVE / 2, false);
+    assert!(!ui.world.is_alive(old));
+    assert_eq!(ui.world.node(new).collapsed, Some(1.0), "expanding");
+
+    ui.update(CURVE, false);
+    assert!(ui.world.node(new).released);
+    assert_eq!(texts(&ui, container), ["1"]);
+}
+
+#[test]
+fn a_row_added_while_another_leaves_waits_for_it() {
+    let (mut ui, container) = rows(&[1, 2], true);
+    let two = ui.world.children(container)[1];
+
+    ui.world.list(&[1, 3]);
+    ui.update(Duration::ZERO, false);
+    let three = ui.world.children(container)[2];
+    ui.update(CURVE, false);
+    ui.update(CURVE / 2, false);
+    assert!(ui.world.is_alive(two));
+    assert!(ui.world.node(three).held);
+
+    ui.update(CURVE / 2, false);
+    assert!(!ui.world.is_alive(two));
+    assert_eq!(ui.world.node(three).collapsed, Some(1.0));
+}
+
+#[test]
+fn reduced_motion_skips_every_phase_of_a_swap() {
+    let (mut ui, container) = picks();
+    let old = ui.world.children(container)[0];
+
+    pick(&mut ui, 1);
+    ui.update(Duration::ZERO, true);
+
+    let new = ui.world.children(container)[0];
+    assert!(!ui.world.is_alive(old));
+    assert!(ui.world.node(new).released);
+    assert!(!ui.world.node(new).held);
+    assert!(!ui.mounted.is_entering(new));
+    assert_eq!(texts(&ui, container), ["1"]);
+}
+
+#[test]
+fn reduced_motion_skips_a_rows_expand() {
+    let (mut ui, container) = rows(&[1], true);
+
+    ui.world.list(&[1, 2]);
+    ui.update(Duration::ZERO, true);
+
+    let two = ui.world.children(container)[1];
+    assert!(ui.world.node(two).released);
+    assert!(!ui.mounted.is_entering(two));
+}
+
+#[test]
+fn reduced_motion_in_the_middle_of_an_expand_finishes_it() {
+    let (mut ui, container) = rows(&[1], true);
+    ui.world.list(&[1, 2]);
+    ui.update(Duration::ZERO, false);
+    ui.update(CURVE / 4, false);
+    let two = ui.world.children(container)[1];
+    assert!(!ui.world.node(two).released);
+
+    ui.update(Duration::ZERO, true);
+
+    assert!(ui.world.node(two).released);
+}
+
+#[test]
+fn a_swap_again_while_held_drops_the_unseen_view_at_once() {
+    let (mut ui, container) = picks();
+    pick(&mut ui, 1);
+    ui.update(Duration::ZERO, false);
+    let one = ui.world.children(container)[1];
+
+    pick(&mut ui, 2);
+    ui.update(Duration::ZERO, false);
+
+    assert!(!ui.world.is_alive(one), "never shown, so not faded");
+    assert!(!ui.mounted.is_entering(one));
+}
+
+#[test]
+fn a_swap_again_while_expanding_collapses_what_had_grown() {
+    let (mut ui, container) = picks();
+    pick(&mut ui, 1);
+    ui.update(Duration::ZERO, false);
+    ui.update(CURVE, false);
+    ui.update(CURVE, false);
+    ui.update(CURVE / 4, false);
+    let one = ui.world.children(container)[0];
+    assert_eq!(ui.world.node(one).collapsed, Some(0.75));
+
+    pick(&mut ui, 2);
+    ui.update(Duration::ZERO, false);
+
+    assert!(ui.world.node(one).leaving);
+    assert!(!ui.mounted.is_entering(one));
+    ui.update(CURVE / 2, false);
+    assert_eq!(
+        ui.world.node(one).collapsed,
+        Some(0.875),
+        "from where it was, to nothing"
+    );
+}

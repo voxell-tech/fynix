@@ -16,6 +16,7 @@ use bevy::text::{
 use bevy::time::TimePlugin;
 use bevy::ui::widget::Text;
 
+mod layout;
 mod structure;
 mod support;
 

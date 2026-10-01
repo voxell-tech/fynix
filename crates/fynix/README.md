@@ -29,7 +29,9 @@ rules, themes and transitions, is the same on every backend.
 - **Reactive**: props bound to the world are re-read only when their
   source changes.
 - **Transitions**: opt in with a rule, and views animate in and out
-  too.
+  too. A `keyed` or `each` change is one sequence: the old view fades
+  out and its space collapses, then the new view's space expands and
+  it fades in. `Tick::reduced_motion` skips every step.
 - **`#![no_std]`**: `alloc` only.
 
 ## Building a UI Framework
@@ -39,9 +41,12 @@ engine. A framework on top of it fills in five things, and
 [`bevy_fynix`](../bevy_fynix) is a full example of each:
 
 1. **A backend**, which says what a world and a node are. `spawn`,
-   `despawn` and `reorder` are required. `on_mount`, `leave` and
-   `collapse` have empty defaults, and are where cleanup, input
-   blocking and exit animations plug in.
+   `despawn` and `reorder` are required. `on_mount`, `leave`, `hold`,
+   `collapse` and `release` have empty defaults, and are where
+   cleanup, input blocking and the animation of a view's space plug
+   in: a dropped view is `leave`d, then `collapse`d from 0 to 1; a
+   built one is `hold`ed out of the layout, `collapse`d from 1 to 0
+   once its size can be measured, then `release`d.
 2. **Elements**, structs of props that end up on one node. The
    `#[element]` macro writes the unset state, the setters and the
    reactive updates. For each prop you say how its value is written

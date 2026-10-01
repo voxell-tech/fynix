@@ -56,7 +56,9 @@ struct Slot<B: Backend, T> {
 pub struct Tick {
     /// Time since the last update, what transitions advance by.
     pub delta: Duration,
-    /// Whether every transition finishes at once.
+    /// Whether every transition finishes at once, and every step of
+    /// a view coming in or leaving, its fade and the growing or
+    /// shrinking of its space, is skipped.
     pub reduced_motion: bool,
 }
 
@@ -90,6 +92,30 @@ struct Leaving {
     curve: Curve,
     elapsed: Duration,
     collapsing: bool,
+    /// How much of the space was already gone when the collapse
+    /// began: 0 unless the view left before it was whole.
+    from: f32,
+}
+
+/// A built view's root, kept while it comes in: it waits for the
+/// views that left in its place, then its space expands, then it is
+/// released and its elements travel from their entering state.
+struct Arriving<N> {
+    curve: Curve,
+    elapsed: Duration,
+    /// The roots whose leaving it waits for.
+    after: Vec<N>,
+    /// Whether a layout has had the chance to run since it was held.
+    settled: bool,
+    expanding: bool,
+}
+
+/// How far `elapsed` is through `duration`, which it is under.
+fn fraction(elapsed: Duration, duration: Duration) -> f32 {
+    if duration.is_zero() {
+        return 1.0;
+    }
+    elapsed.as_secs_f32() / duration.as_secs_f32()
 }
 
 impl<B: Backend> Clone for Hooks<B> {
@@ -121,6 +147,8 @@ pub struct Mounted<B: Backend, T> {
     readers: HashMap<B::Node, Vec<B::Node>>,
     /// The roots of dropped views still animating out.
     leaving: HashMap<B::Node, Leaving>,
+    /// The roots of built views still coming in.
+    arriving: HashMap<B::Node, Arriving<B::Node>>,
     /// What each node does whenever a bound value changes, in the
     /// order it was asked to.
     effects: HashMap<B::Node, Vec<EffectFn<B>>>,
@@ -142,6 +170,7 @@ impl<B: Backend, T> Default for Mounted<B, T> {
             hooks: HashMap::new(),
             readers: HashMap::new(),
             leaving: HashMap::new(),
+            arriving: HashMap::new(),
             effects: HashMap::new(),
             slots: BTreeMap::new(),
             containers: HashMap::new(),
@@ -249,6 +278,7 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         }
         self.readers.remove(&node);
         self.leaving.remove(&node);
+        self.arriving.remove(&node);
         self.effects.remove(&node);
         if let Some(id) = self.containers.remove(&node) {
             let mut groups = vec![id];
@@ -261,37 +291,83 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         }
     }
 
+    /// The curve the element on `node` travels over, if it does.
+    fn curve_of(&self, node: B::Node) -> Option<Curve> {
+        self.hooks
+            .get(&node)
+            .and_then(|hooks| (hooks.curve)(&self.table, node))
+    }
+
     /// Takes out the view whose root is `node`: animated out when its
     /// root element travels over a curve, despawned at once
-    /// otherwise.
+    /// otherwise. Whether it is animating out.
     pub(crate) fn leave(
         &mut self,
         world: &mut B::World,
         node: B::Node,
-    ) {
-        let curve = self
-            .hooks
-            .get(&node)
-            .and_then(|hooks| (hooks.curve)(&self.table, node));
-        match curve {
-            Some(curve) => {
-                B::leave(world, node);
-                self.leaving.insert(
-                    node,
-                    Leaving {
-                        curve,
-                        elapsed: Duration::ZERO,
-                        collapsing: false,
-                    },
-                );
-            }
-            None => B::despawn(world, node),
-        }
+    ) -> bool {
+        let arriving = self.arriving.remove(&node);
+        // A view still held was never seen.
+        let seen = arriving.as_ref().is_none_or(|a| a.expanding);
+        let Some(curve) = self.curve_of(node).filter(|_| seen) else {
+            B::despawn(world, node);
+            return false;
+        };
+        B::leave(world, node);
+        // A view that left while coming in is already invisible, and
+        // gives back the space it had got.
+        let from = arriving.map(|arriving| {
+            1.0 - (arriving.curve.ease)(fraction(
+                arriving.elapsed,
+                arriving.curve.duration,
+            ))
+        });
+        self.leaving.insert(
+            node,
+            Leaving {
+                curve,
+                elapsed: Duration::ZERO,
+                collapsing: from.is_some(),
+                from: from.unwrap_or(0.0),
+            },
+        );
+        true
     }
 
     /// Whether `node` is the root of a view still animating out.
     pub fn is_leaving(&self, node: B::Node) -> bool {
         self.leaving.contains_key(&node)
+    }
+
+    /// Brings in the view whose root is `node`, just built: held
+    /// out of the layout until the views in `after`, which left in
+    /// its place, are gone, then its space expands. A view whose root
+    /// element does not travel over a curve is left whole.
+    pub(crate) fn enter(
+        &mut self,
+        world: &mut B::World,
+        node: B::Node,
+        after: &[B::Node],
+    ) {
+        let Some(curve) = self.curve_of(node) else {
+            return;
+        };
+        B::hold(world, node);
+        self.arriving.insert(
+            node,
+            Arriving {
+                curve,
+                elapsed: Duration::ZERO,
+                after: after.to_vec(),
+                settled: false,
+                expanding: false,
+            },
+        );
+    }
+
+    /// Whether `node` is the root of a view still coming in.
+    pub fn is_entering(&self, node: B::Node) -> bool {
+        self.arriving.contains_key(&node)
     }
 
     /// Moves every leaving view on by `tick`.
@@ -317,9 +393,52 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 B::despawn(world, node);
                 return false;
             }
-            let progress = leaving.elapsed.as_secs_f32()
-                / duration.as_secs_f32();
-            B::collapse(world, node, (leaving.curve.ease)(progress));
+            let eased = (leaving.curve.ease)(fraction(
+                leaving.elapsed,
+                duration,
+            ));
+            let progress =
+                leaving.from + (1.0 - leaving.from) * eased;
+            B::collapse(world, node, progress);
+            true
+        });
+    }
+
+    /// Moves every view coming in on by `tick`.
+    fn update_arriving(&mut self, world: &mut B::World, tick: Tick) {
+        let leaving = &self.leaving;
+        self.arriving.retain(|&node, arriving| {
+            if tick.reduced_motion {
+                B::release(world, node);
+                return false;
+            }
+            if !arriving.expanding {
+                // The first tick is the one that built it, before any
+                // layout could run.
+                if !core::mem::replace(&mut arriving.settled, true)
+                    || arriving
+                        .after
+                        .iter()
+                        .any(|gone| leaving.contains_key(gone))
+                {
+                    return true;
+                }
+                arriving.expanding = true;
+                B::collapse(world, node, 1.0);
+                return true;
+            }
+            arriving.elapsed += tick.delta;
+            let duration = arriving.curve.duration;
+            if arriving.elapsed >= duration {
+                B::collapse(world, node, 0.0);
+                B::release(world, node);
+                return false;
+            }
+            let eased = (arriving.curve.ease)(fraction(
+                arriving.elapsed,
+                duration,
+            ));
+            B::collapse(world, node, 1.0 - eased);
             true
         });
     }
@@ -416,6 +535,7 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
             update(&mut self.table, world, theme, tick);
         }
         self.update_leaving(world, tick);
+        self.update_arriving(world, tick);
     }
 
     /// The rules stored for the scopes and captures alive.

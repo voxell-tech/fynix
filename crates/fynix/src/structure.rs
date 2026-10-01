@@ -69,9 +69,17 @@ impl<B: Backend, T, K> Keyed<B, T, K> {
 /// A view of `build(&key)`, built again when the key signal reports a
 /// change and the key differs from the last one.
 ///
-/// The old view is despawned and the new one built under the same
+/// The old view is dropped and the new one built under the same
 /// container node, so the view keeps its place among its siblings.
 /// Rules in force where the `keyed` sits are in force in every build.
+///
+/// A view whose root element has a transition does not pop. The swap
+/// is a sequence: the old view animates out and its space collapses,
+/// then the new view's space expands, then it animates in. See
+/// [`Backend::hold`]. A view without a
+/// transition is dropped and shown at once, and
+/// [`Tick::reduced_motion`](crate::Tick::reduced_motion) skips every
+/// step.
 pub fn keyed<B, T, K>(
     key: Signal<B::World, K>,
     build: impl Fn(&K) -> AnyView<B, T> + Send + Sync + 'static,
@@ -150,12 +158,15 @@ where
         if next == self.last {
             return;
         }
-        mounted.leave(world, self.child);
+        let old = self.child;
+        let left = mounted.leave(world, old).then_some(old);
         mounted.drop_group(id);
         let mut cx =
             Cx::seeded(world, theme, mounted, &self.capture, id);
         let view = (self.build)(&next);
         self.child = build_in(&mut cx, self.container, id, view);
+        drop(cx);
+        mounted.enter(world, self.child, left.as_slice());
         self.last = next;
     }
 
@@ -192,10 +203,17 @@ impl<B: Backend, T, I, K> Each<B, T, I, K> {
 /// One view of `build(&item)` per item, matched by `key` when the
 /// list changes.
 ///
-/// A key that leaves the list has its node despawned. A new key is
+/// A key that leaves the list has its node dropped. A new key is
 /// built, under the rules in force where the `each` sits. A key that
 /// stays keeps its node, so its state, focus and transitions survive,
 /// and the container's children are reordered to match the list.
+///
+/// Rows whose root element has a transition animate. A removed row
+/// animates out and then its space collapses. A new row expands its
+/// space and then animates in, after the rows removed in the same
+/// update are gone. The first build is not animated, and
+/// [`Tick::reduced_motion`](crate::Tick::reduced_motion) skips every
+/// step.
 ///
 /// A kept item is not built again when its data changes. Whatever
 /// should follow the data has to be a bound prop.
@@ -342,8 +360,11 @@ where
                 old[at].take()
             })
             .collect::<Vec<_>>();
+        let mut left = Vec::new();
         for row in old.into_iter().flatten() {
-            mounted.leave(world, row.node);
+            if mounted.leave(world, row.node) {
+                left.push(row.node);
+            }
             mounted.drop_group(row.group);
         }
 
@@ -351,6 +372,7 @@ where
             Cx::seeded(world, theme, mounted, &self.capture, id)
         });
         let mut rows = Vec::with_capacity(items.len());
+        let mut built = Vec::new();
         for (item, kept) in items.iter().zip(kept) {
             rows.push(match (kept, cx.as_mut()) {
                 (Some(row), _) => row,
@@ -359,6 +381,7 @@ where
                     let view = (self.build)(item);
                     let node =
                         build_in(cx, self.container, group, view);
+                    built.push(node);
                     Row {
                         key: (self.key)(item),
                         node,
@@ -369,6 +392,9 @@ where
             });
         }
         drop(cx);
+        for node in built {
+            mounted.enter(world, node, &left);
+        }
 
         let live =
             rows.iter().map(|row| row.node).collect::<Vec<_>>();

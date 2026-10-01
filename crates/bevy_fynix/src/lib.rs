@@ -32,7 +32,7 @@ pub use fynix::{
     AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
     ViewSeq,
 };
-pub use leave::{Entering, Entrances, Leaving};
+pub use leave::{Collapsing, Entering, Entrances, Held, Leaving};
 pub use modifier::ModifierExt;
 pub use mounted::Mounts;
 pub use prop::{
