@@ -82,8 +82,7 @@ struct Hooks<B: Backend> {
 /// A dropped view's root, kept while it animates out: first its
 /// elements travel to their leaving state, then the space it takes
 /// collapses, then it is despawned.
-struct Leaving<B: Backend> {
-    node: B::Node,
+struct Leaving {
     curve: Curve,
     elapsed: Duration,
     collapsing: bool,
@@ -104,12 +103,6 @@ pub(crate) type EffectFn<B> = Box<
         + Sync,
 >;
 
-/// What a view does on its node whenever a bound value changes.
-struct Effect<B: Backend> {
-    node: B::Node,
-    run: EffectFn<B>,
-}
-
 /// Every mounted element built with the theme `T`: one column per
 /// kind of element, keyed by its node, and one update per kind to
 /// walk it.
@@ -122,8 +115,11 @@ pub struct Mounted<B: Backend, T> {
     /// The elements whose state rules are read on each node, besides
     /// the node's own element.
     readers: HashMap<B::Node, Vec<B::Node>>,
-    leaving: Vec<Leaving<B>>,
-    effects: Vec<Effect<B>>,
+    /// The roots of dropped views still animating out.
+    leaving: HashMap<B::Node, Leaving>,
+    /// What each node does whenever a bound value changes, in the
+    /// order it was asked to.
+    effects: HashMap<B::Node, Vec<EffectFn<B>>>,
     /// Structural views by id, parents before the views they build.
     slots: BTreeMap<Group, Slot<B, T>>,
     /// The slot of each container node.
@@ -141,8 +137,8 @@ impl<B: Backend, T> Default for Mounted<B, T> {
             kinds: HashSet::new(),
             hooks: HashMap::new(),
             readers: HashMap::new(),
-            leaving: Vec::new(),
-            effects: Vec::new(),
+            leaving: HashMap::new(),
+            effects: HashMap::new(),
             slots: BTreeMap::new(),
             containers: HashMap::new(),
             next_group: 0,
@@ -205,12 +201,12 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         node: B::Node,
         run: EffectFn<B>,
     ) {
-        self.effects.push(Effect { node, run });
+        self.effects.entry(node).or_default().push(run);
     }
 
     /// How many effects are kept.
     pub fn effects_len(&self) -> usize {
-        self.effects.len()
+        self.effects.values().map(Vec::len).sum()
     }
 
     /// Makes the element on `node`, and every element with a state
@@ -237,8 +233,8 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
             (hooks.remove)(&mut self.table, node);
         }
         self.readers.remove(&node);
-        self.leaving.retain(|leaving| leaving.node != node);
-        self.effects.retain(|effect| effect.node != node);
+        self.leaving.remove(&node);
+        self.effects.remove(&node);
         if let Some(id) = self.containers.remove(&node) {
             if let Some(slot) = self.slots.remove(&id) {
                 self.forget(slot);
@@ -262,12 +258,14 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         match curve {
             Some(curve) => {
                 B::leave(world, node);
-                self.leaving.push(Leaving {
+                self.leaving.insert(
                     node,
-                    curve,
-                    elapsed: Duration::ZERO,
-                    collapsing: false,
-                });
+                    Leaving {
+                        curve,
+                        elapsed: Duration::ZERO,
+                        collapsing: false,
+                    },
+                );
             }
             None => B::despawn(world, node),
         }
@@ -275,16 +273,16 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
 
     /// Whether `node` is the root of a view still animating out.
     pub fn is_leaving(&self, node: B::Node) -> bool {
-        self.leaving.iter().any(|leaving| leaving.node == node)
+        self.leaving.contains_key(&node)
     }
 
     /// Moves every leaving view on by `tick`.
     fn update_leaving(&mut self, world: &mut B::World, tick: Tick) {
-        self.leaving.retain_mut(|leaving| {
+        self.leaving.retain(|&node, leaving| {
             let duration = leaving.curve.duration;
             leaving.elapsed += tick.delta;
             if tick.reduced_motion {
-                B::despawn(world, leaving.node);
+                B::despawn(world, node);
                 return false;
             }
             if !leaving.collapsing {
@@ -294,20 +292,16 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 // What is left of the tick goes to the collapse.
                 leaving.collapsing = true;
                 leaving.elapsed -= duration;
-                B::collapse(world, leaving.node, 0.0);
+                B::collapse(world, node, 0.0);
             }
             if leaving.elapsed >= duration {
-                B::collapse(world, leaving.node, 1.0);
-                B::despawn(world, leaving.node);
+                B::collapse(world, node, 1.0);
+                B::despawn(world, node);
                 return false;
             }
             let progress = leaving.elapsed.as_secs_f32()
                 / duration.as_secs_f32();
-            B::collapse(
-                world,
-                leaving.node,
-                (leaving.curve.ease)(progress),
-            );
+            B::collapse(world, node, (leaving.curve.ease)(progress));
             true
         });
     }
@@ -396,8 +390,10 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         for update in &self.updates {
             update(&mut self.table, world, theme, tick);
         }
-        for effect in &mut self.effects {
-            (effect.run)(world, effect.node);
+        for (&node, effects) in &mut self.effects {
+            for run in effects {
+                run(world, node);
+            }
         }
         self.update_leaving(world, tick);
     }
