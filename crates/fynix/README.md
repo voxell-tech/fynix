@@ -242,6 +242,13 @@ From weakest to strongest:
 | Call site | `label("x").size(20.0)` |
 | State rules on the node itself | `label("x").when::<Hovered, _>(..)` |
 
+A theme says what the tokens are (colours, sizes, curves), a rule
+bundle (`.rules(..)`) says which look a view has, and a state rule
+says what that look does while a state holds. Of several state rules
+on one node, the one in the outer scope wins, and within one scope the
+one written later. The Bevy backend's README shows buttons styled this
+way, with ready-made looks and a `Style` builder.
+
 ## Officially Supported Backends
 
 - [Bevy Fynix](https://crates.io/crates/bevy_fynix)

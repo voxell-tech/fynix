@@ -360,9 +360,10 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     /// element itself, and defaults before the rest.
     ///
     /// Among rules from ancestors the inner wins, as with set rules.
-    /// Among rules on the element itself the outer wins: it was
+    /// Among rules on the element itself the outer scope wins: it was
     /// written later in a chain (`.when(a).when(b)`), or by the call
-    /// site around a composite's own.
+    /// site around a composite's own. Within one scope the later wins
+    /// in both cases, as with set rules.
     pub(crate) fn layers<E: Styled>(&self) -> Vec<Layer<B, E>> {
         let mut layers = self
             .entries
@@ -380,13 +381,13 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
                     .rules
                     .get::<Rule<E, T>>(&entry.key)?;
                 let own = entry.root.is_none();
-                let order = if own {
-                    -(index as isize)
+                let (depth, order) = if own {
+                    (-(entry.depth as isize), index)
                 } else {
-                    index as isize
+                    (0, index)
                 };
                 Some((
-                    (own, !entry.default, order),
+                    (own, !entry.default, depth, order),
                     Layer {
                         view: rule(E::unset(), self.theme),
                         when,

@@ -20,7 +20,10 @@ mod text_input;
 mod tooltip;
 
 pub use behavior::{BehaviorExt, OnActivate, Seeded, Tagged, Toned};
-pub use button::{Button, button, ghost, menu_bar, segment, tint};
+pub use button::{
+    Button, button, danger, ghost, icon_button, menu_bar, primary,
+    segment, tint,
+};
 pub use checkbox::{Checkbox, checkbox};
 pub(crate) use context_menu::dismiss as dismiss_context_menu;
 pub use context_menu::{ContextMenu, ContextMenuExt};
