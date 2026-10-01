@@ -5,8 +5,9 @@ use core::marker::PhantomData;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
+use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::math::Vec2;
 use bevy::picking::events::{Pointer, Press};
 use bevy::picking::pointer::PointerButton;
@@ -25,9 +26,16 @@ use crate::{AnyView, Bevy, Cx, View, ViewSeq};
 const MIN_WIDTH: f32 = 120.0;
 
 /// On a node with a context menu while it is open: where it was
-/// opened, in logical pixels.
+/// opened, in logical pixels, and which opening of the node it is.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
-struct OpenAt(Vec2);
+pub(crate) struct OpenAt {
+    at: Vec2,
+    serial: u32,
+}
+
+/// On a context menu's popup: the opening it was built for.
+#[derive(Component)]
+pub(crate) struct OpenedFor(u32);
 
 /// A view whose root node opens a menu at the pointer on a
 /// right-click.
@@ -70,6 +78,7 @@ impl<V> ContextMenuExt for V {}
 fn open(
     mut press: On<Pointer<Press>>,
     scale: Option<Res<UiScale>>,
+    opened: Query<&OpenAt>,
     mut commands: Commands,
 ) {
     if press.button != PointerButton::Secondary {
@@ -77,23 +86,46 @@ fn open(
     }
     press.propagate(false);
     let scale = scale.map_or(1.0, |scale| scale.0);
-    commands
-        .entity(press.event_target())
-        .insert(OpenAt(press.pointer_location.position / scale));
+    let source = press.event_target();
+    let serial = opened
+        .get(source)
+        .map_or(0, |open| open.serial.wrapping_add(1));
+    commands.entity(source).insert(OpenAt {
+        at: press.pointer_location.position / scale,
+        serial,
+    });
 }
 
-/// Closes the context menu a close request bubbles up to.
+/// Closes the context menu a close request bubbles up to, unless the
+/// request comes from a menu the node has since reopened: the press
+/// that moves a menu takes the focus from the old one.
 pub(crate) fn dismiss(
     mut event: On<MenuEvent>,
-    hosts: bevy::ecs::system::Query<&Floating>,
+    hosts: Query<&Floating>,
+    opened: Query<&OpenAt>,
+    anchors: Query<&Children>,
+    stamps: Query<&OpenedFor>,
     mut commands: Commands,
 ) {
-    let Ok(Floating(source)) = hosts.get(event.event_target()) else {
+    let anchor = event.event_target();
+    let Ok(Floating(source)) = hosts.get(anchor) else {
         return;
     };
-    if matches!(event.action, MenuAction::CloseAll) {
+    if !matches!(event.action, MenuAction::CloseAll) {
+        return;
+    }
+    event.propagate(false);
+    // The anchor holds the popup of one opening.
+    let stale = anchors
+        .iter_descendants(anchor)
+        .find_map(|node| stamps.get(node).ok())
+        .is_some_and(|stamp| {
+            opened
+                .get(*source)
+                .is_ok_and(|open| open.serial != stamp.0)
+        });
+    if !stale {
         commands.entity(*source).remove::<OpenAt>();
-        event.propagate(false);
     }
 }
 
@@ -119,23 +151,23 @@ where
         let source = self.inner.build(cx);
         cx.world.entity_mut(source).observe(open);
         let items = self.items;
-        float::<T, OpenAt, OpenAt, (u32, u32)>(
+        float::<T, OpenAt, OpenAt, u32>(
             cx,
             source,
-            |open| open.0,
+            |open| open.at,
             component::<OpenAt, _>(source, |open| {
                 open.map(|open| vec![*open]).unwrap_or_default()
             }),
-            |open| (open.0.x.to_bits(), open.0.y.to_bits()),
-            move |_| menu(items()),
+            |open| open.serial,
+            move |open| menu(open.serial, items()),
         );
         source
     }
 }
 
 /// The rows on a surface, placed against the point they open at,
-/// whichever corner has room.
-fn menu<T, S>(rows: S) -> AnyView<Bevy, T>
+/// whichever corner has room, for the opening `serial`.
+fn menu<T, S>(serial: u32, rows: S) -> AnyView<Bevy, T>
 where
     T: SurfaceTokens + SpacingTokens + Send + Sync + 'static,
     S: ViewSeq<Bevy, T> + 'static,
@@ -156,7 +188,9 @@ where
             MenuFocusState::Closed,
         );
         let node = cx.build(surface);
-        cx.world.entity_mut(node).insert(FocusFirst);
+        cx.world
+            .entity_mut(node)
+            .insert((FocusFirst, OpenedFor(serial)));
         node
     })
 }
@@ -168,7 +202,6 @@ mod tests {
     use bevy::app::App;
     use bevy::camera::NormalizedRenderTarget;
     use bevy::color::Color;
-    use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
     use bevy::input_focus::InputFocus;
@@ -281,6 +314,16 @@ mod tests {
         button: PointerButton,
         at: Vec2,
     ) {
+        send_press(app, on, button, at);
+        app.update();
+    }
+
+    fn send_press(
+        app: &mut App,
+        on: Entity,
+        button: PointerButton,
+        at: Vec2,
+    ) {
         let location = Location {
             target: NormalizedRenderTarget::None {
                 width: 800,
@@ -299,7 +342,6 @@ mod tests {
             },
             on,
         ));
-        app.update();
     }
 
     /// The popups of every menu open.
@@ -460,12 +502,21 @@ mod tests {
         let source = source(&mut app);
         press(&mut app, source, PointerButton::Secondary, Vec2::ZERO);
 
-        press(
+        // The press takes the focus from the open menu, which asks
+        // to close once the new position is set.
+        let old = popups(&mut app)[0];
+        send_press(
             &mut app,
             source,
             PointerButton::Secondary,
             Vec2::new(30.0, 40.0),
         );
+        app.world_mut().flush();
+        app.world_mut().trigger(MenuEvent {
+            source: old,
+            action: MenuAction::CloseAll,
+        });
+        app.update();
         app.update();
 
         let popup = popups(&mut app);
