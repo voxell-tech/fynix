@@ -17,7 +17,7 @@ use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy::input_focus::{FocusCause, InputFocus};
-use bevy::ui::{Overflow, UiRect, percent, px};
+use bevy::ui::{AlignItems, Overflow, UiRect, percent, px};
 use bevy::ui_widgets::popover::{
     PopoverAlign, PopoverPlacement, PopoverSide,
 };
@@ -35,9 +35,12 @@ use crate::views::foldable::Open;
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{menu_item, popup};
 use crate::views::{
-    BehaviorExt, button, frame, icon, label, menu_bar, row,
+    BehaviorExt, button, frame, icon, icon_button, label, menu_bar,
+    row,
 };
-use crate::{Bevy, Cx, ScopedExt, Styled, View};
+use crate::{
+    AnyView, Bevy, Cx, ScopedExt, Styled, View, ViewExt as _,
+};
 
 /// What runs with the index of a chosen option.
 type Select = Box<dyn Fn(&mut World, usize) + Send + Sync>;
@@ -242,28 +245,73 @@ fn close(world: &mut World, popup: Entity) {
     }
 }
 
+/// One row of a [`menu_button`]'s list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MenuEntry {
+    /// A row that runs the handler when chosen.
+    Item(String),
+    /// A heading over the rows after it. It is not chosen, and does
+    /// not count in the index the handler gets.
+    Section(String),
+}
+
+impl MenuEntry {
+    /// A heading over the rows after it.
+    pub fn section(text: impl Into<String>) -> Self {
+        Self::Section(text.into())
+    }
+}
+
+impl From<&str> for MenuEntry {
+    fn from(text: &str) -> Self {
+        Self::Item(text.into())
+    }
+}
+
+impl From<String> for MenuEntry {
+    fn from(text: String) -> Self {
+        Self::Item(text)
+    }
+}
+
+/// What a [`MenuTitle`] shows on its button.
+enum Face {
+    Title(String),
+    Icon(Handle<Image>),
+}
+
 /// A button that opens a list of actions, as a menu bar's titles do:
-/// it shows its title, never a choice, and has no chevron. See
-/// [`menu_button`].
+/// it shows its title, or an icon, never a choice, and has no
+/// chevron. See [`menu_button`].
 pub struct MenuTitle {
     pub frame: Frame,
-    title: String,
-    entries: Vec<String>,
+    face: Face,
+    entries: Vec<MenuEntry>,
     on_select: Select,
 }
 
-/// A [`MenuTitle`] showing `title`, opening a list of `entries`.
-/// `on_select` runs with the index of the entry chosen.
-pub fn menu_button<S: Into<String>>(
+/// A [`MenuTitle`] showing `title`, opening a list of `entries`:
+/// rows, and the headings between them, see [`MenuEntry`].
+/// `on_select` runs with the index of the row chosen, among the rows.
+pub fn menu_button<E: Into<MenuEntry>>(
     title: impl Into<String>,
-    entries: impl IntoIterator<Item = S>,
+    entries: impl IntoIterator<Item = E>,
     on_select: impl Fn(&mut World, usize) + Send + Sync + 'static,
 ) -> MenuTitle {
     MenuTitle {
         frame: Frame::unset(),
-        title: title.into(),
+        face: Face::Title(title.into()),
         entries: entries.into_iter().map(Into::into).collect(),
         on_select: Box::new(on_select),
+    }
+}
+
+impl MenuTitle {
+    /// This, showing `image` as a tinted icon button instead of a
+    /// title.
+    pub fn icon(mut self, image: Handle<Image>) -> Self {
+        self.face = Face::Icon(image);
+        self
     }
 }
 
@@ -275,6 +323,39 @@ impl FrameProps for MenuTitle {
 
 /// The least width of a menu button's list.
 const MENU_WIDTH: f32 = 120.0;
+
+/// A heading row: dim, small, on a faint surface, with nothing to
+/// choose.
+fn section_row<T>(text: String) -> AnyView<Bevy, T>
+where
+    T: TextTokens
+        + SurfaceTokens
+        + SpacingTokens
+        + Send
+        + Sync
+        + 'static,
+{
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let theme = cx.theme();
+        let (fill, gap, radius, size) = (
+            theme.fill(),
+            theme.gap(),
+            theme.menu_item_radius(),
+            theme.small_size(),
+        );
+        cx.build(
+            row((label(text.clone())
+                .tone(Tone::Dim)
+                .size(size)
+                .wrap(false),))
+            .width(percent(100.0))
+            .align(AlignItems::Center)
+            .padding(UiRect::axes(px(gap), px(gap / 2.0)))
+            .radius(radius)
+            .fill(fill),
+        )
+    })
+}
 
 impl<T> View<Bevy, T> for MenuTitle
 where
@@ -289,23 +370,40 @@ where
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
         let Self {
             frame: control,
-            title,
+            face,
             entries,
             on_select,
         } = self;
         let root = cx.build(frame().height(percent(100.0)));
+        let mut chosen = 0;
         let rows = entries
             .into_iter()
-            .enumerate()
-            .map(|(at, text)| {
-                menu_item(label(text).wrap(false))
-                    .on_activate(move |world| choose(world, root, at))
+            .map(|entry| match entry {
+                MenuEntry::Item(text) => {
+                    let at = chosen;
+                    chosen += 1;
+                    menu_item(label(text).wrap(false))
+                        .on_activate(move |world| {
+                            choose(world, root, at);
+                        })
+                        .boxed()
+                }
+                MenuEntry::Section(text) => section_row::<T>(text),
             })
             .collect::<Vec<_>>();
         let (button, popup) = cx.under(root, |cx| {
-            let mut button = button(label(title).wrap(false));
-            button.frame = control;
-            let button = cx.build(button.rules(menu_bar));
+            let button = match face {
+                Face::Title(title) => {
+                    let mut button = button(label(title).wrap(false));
+                    button.frame = control;
+                    cx.build(button.rules(menu_bar))
+                }
+                Face::Icon(image) => {
+                    let mut button = button(icon(image));
+                    button.frame = control;
+                    cx.build(button.rules(icon_button))
+                }
+            };
             cx.world
                 .entity_mut(button)
                 .insert((MenuButton, TabIndex(0)));
@@ -614,6 +712,60 @@ mod tests {
         app.update();
         assert_eq!(app.world().resource::<Chosen>().0, 1);
         assert!(shut(&app, popup), "choosing shuts the list");
+    }
+
+    #[test]
+    fn sections_head_the_rows_and_do_not_count_in_the_index() {
+        let mut app = app();
+        let entries = [
+            MenuEntry::section("Cameras"),
+            "Camera 2d".into(),
+            "Camera 3d".into(),
+            MenuEntry::section("Lighting"),
+            "Point Light".into(),
+        ];
+        let root = mount::<Plain>(
+            app.world_mut(),
+            menu_button("Add", entries, |world, at| {
+                world.resource_mut::<Chosen>().0 = at;
+            })
+            .icon(Handle::default()),
+        );
+        let (button, popup) = parts(&app, root);
+        assert!(
+            app.world()
+                .get::<ImageNode>(kids(&app, button)[0])
+                .is_some(),
+            "an icon on the button"
+        );
+
+        let rows = kids(&app, popup);
+        assert_eq!(rows.len(), 5);
+        fn heading(app: &App, node: Entity) -> Option<String> {
+            if let Some(text) = app.world().get::<Text>(node) {
+                return Some(text.0.clone());
+            }
+            kids(app, node)
+                .into_iter()
+                .find_map(|child| heading(app, child))
+        }
+        assert_eq!(
+            heading(&app, rows[0]).as_deref(),
+            Some("Cameras")
+        );
+        assert_eq!(
+            heading(&app, rows[3]).as_deref(),
+            Some("Lighting")
+        );
+
+        open(&mut app, button);
+        app.world_mut().trigger(Activate { entity: rows[4] });
+        app.update();
+        assert_eq!(
+            app.world().resource::<Chosen>().0,
+            2,
+            "the third row, not the fifth entry"
+        );
     }
 
     fn open(app: &mut App, button: Entity) {

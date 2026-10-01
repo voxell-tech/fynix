@@ -29,7 +29,9 @@ pub(crate) use context_menu::dismiss as dismiss_context_menu;
 pub use context_menu::{ContextMenu, ContextMenuExt};
 pub use divider::{Axis, Divider, divider, revealed};
 pub(crate) use dropdown::on_menu_event as toggle_dropdown;
-pub use dropdown::{Dropdown, MenuTitle, dropdown, menu_button};
+pub use dropdown::{
+    Dropdown, MenuEntry, MenuTitle, dropdown, menu_button,
+};
 pub use field::{TextField, text_field};
 pub use field_row::{AnimatedField, FieldRow, HasAction, field_row};
 pub use foldable::{Foldable, Open, foldable};
