@@ -277,7 +277,7 @@ impl From<String> for MenuEntry {
 /// What a [`MenuTitle`] shows on its button.
 enum Face {
     Title(String),
-    Icon(Handle<Image>),
+    Icon(Handle<Image>, Option<Tone>),
 }
 
 /// A button that opens a list of actions, as a menu bar's titles do:
@@ -310,7 +310,16 @@ impl MenuTitle {
     /// This, showing `image` as a tinted icon button instead of a
     /// title.
     pub fn icon(mut self, image: Handle<Image>) -> Self {
-        self.face = Face::Icon(image);
+        self.face = Face::Icon(image, None);
+        self
+    }
+
+    /// The tone the icon keeps whatever the pointer does, when it is
+    /// not the button's own dim one. A no-op without an icon.
+    pub fn icon_tone(mut self, tone: Tone) -> Self {
+        if let Face::Icon(_, kept) = &mut self.face {
+            *kept = Some(tone);
+        }
         self
     }
 }
@@ -398,8 +407,13 @@ where
                     button.frame = control;
                     cx.build(button.rules(menu_bar))
                 }
-                Face::Icon(image) => {
-                    let mut button = button(icon(image));
+                Face::Icon(image, tone) => {
+                    let glyph = icon(image);
+                    let glyph = match tone {
+                        Some(tone) => glyph.tone(tone),
+                        None => glyph,
+                    };
+                    let mut button = button(glyph);
                     button.frame = control;
                     cx.build(button.rules(icon_button))
                 }
