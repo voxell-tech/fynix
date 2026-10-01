@@ -8,17 +8,19 @@
 //! a call site's `.when::<Hovered, _>(..)` both beat them, and none
 //! of them reach the content.
 
+use bevy::color::Color;
 use bevy::ecs::entity::Entity;
-use bevy::ui::{AlignItems, JustifyContent};
+use bevy::ui::{AlignItems, JustifyContent, UiRect, percent, px};
 use bevy::ui_widgets::Button as ButtonBehavior;
 use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
 use crate::state::State;
 use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens,
+    Motion, MotionTokens, SpacingTokens, SurfaceTokens, Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
+use crate::views::{Icon, Label};
 use crate::{Bevy, Cx, Hovered, Styled, View};
 
 pub struct Button<C> {
@@ -49,6 +51,102 @@ where
         cx.set::<Frame>(|frame, theme: &T| frame.fill(theme.hover()));
     });
     cx.transition(Motion::Interact);
+}
+
+/// The padding along a strip of buttons, twice the theme's gap.
+fn strip_pad<T: SpacingTokens>(theme: &T) -> f32 {
+    theme.gap() * 2.0
+}
+
+/// A button with no surface until the pointer is on it, padded, with
+/// the theme's radius. Apply with `.rules(ghost)`.
+pub fn ghost<T>(cx: &mut Cx<'_, Bevy, T>)
+where
+    T: SpacingTokens + 'static,
+{
+    cx.root(|cx| {
+        cx.set::<Frame>(|frame, theme: &T| {
+            frame
+                .fill(Color::NONE)
+                .padding(UiRect::axes(
+                    px(strip_pad(theme)),
+                    px(theme.gap()),
+                ))
+                .radius(theme.radius())
+        });
+    });
+}
+
+/// A button with no surface at all, resting or hovered. Every
+/// [`Label`] and [`Icon`] in it turns [`Tone::Accent`] while the
+/// pointer is on it. Apply with `.rules(tint)`.
+pub fn tint<T>(cx: &mut Cx<'_, Bevy, T>)
+where
+    T: MotionTokens + 'static,
+{
+    cx.root(|cx| {
+        cx.set::<Frame>(|frame, _| frame.fill(Color::NONE));
+        cx.when::<State<Hovered>>(|cx| {
+            cx.set::<Frame>(|frame, _| frame.fill(Color::NONE));
+        });
+    });
+    cx.when::<State<Hovered>>(|cx| {
+        cx.set::<Label>(|label, _| label.tone(Tone::Accent));
+        cx.set::<Icon>(|icon, _| icon.tone(Tone::Accent));
+    });
+    cx.transition(Motion::Interact);
+}
+
+/// A button for a menu bar: no resting surface, the height of its
+/// parent, square corners and horizontal padding, lighting up under
+/// the pointer. Apply with `.rules(menu_bar)`.
+pub fn menu_bar<T>(cx: &mut Cx<'_, Bevy, T>)
+where
+    T: SpacingTokens + 'static,
+{
+    cx.root(|cx| {
+        cx.set::<Frame>(|frame, theme: &T| {
+            frame
+                .fill(Color::NONE)
+                .height(percent(100.0))
+                .radius(0.0)
+                .padding(UiRect::axes(px(strip_pad(theme)), px(0.0)))
+        });
+    });
+}
+
+/// A button for a row of exclusive options: a full row high, square,
+/// and growing to share the row. It is filled with the theme's
+/// accent, and does not change under the pointer, while `active`.
+/// Apply with `.rules(segment(active))`.
+pub fn segment<T>(
+    active: bool,
+) -> impl Fn(&mut Cx<'_, Bevy, T>) + Send + Sync + 'static
+where
+    T: SurfaceTokens + SpacingTokens + 'static,
+{
+    move |cx: &mut Cx<'_, Bevy, T>| {
+        cx.root(|cx| {
+            cx.set::<Frame>(move |frame, theme: &T| {
+                let frame = frame
+                    .height(px(theme.row()))
+                    .radius(0.0)
+                    .grow(1.0);
+                if active {
+                    frame.fill(theme.accent())
+                } else {
+                    frame
+                }
+            });
+            if active {
+                cx.when::<State<Hovered>>(|cx| {
+                    cx.set::<Frame>(|frame, theme: &T| {
+                        frame.fill(theme.accent())
+                    });
+                });
+            }
+        });
+    }
 }
 
 impl<C> FrameProps for Button<C> {
@@ -86,6 +184,7 @@ mod tests {
     use core::time::Duration;
 
     use bevy::app::{App, PreUpdate};
+    use bevy::asset::Handle;
     use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::lifecycle::Remove;
@@ -95,17 +194,19 @@ mod tests {
     use bevy::picking::backend::HitData;
     use bevy::picking::hover::{HoverMap, update_is_hovered};
     use bevy::picking::pointer::PointerId;
-    use bevy::text::{FontSize, TextFont};
+    use bevy::text::{FontSize, TextColor, TextFont};
     use bevy::time::{TimePlugin, TimeUpdateStrategy};
-    use bevy::ui::widget::Text;
-    use bevy::ui::{BackgroundColor, BorderRadius, Node, Val, px};
+    use bevy::ui::widget::{ImageNode, Text};
+    use bevy::ui::{BackgroundColor, BorderRadius, Node, Val};
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
     use crate::tokens::{Curve, TextTokens, Tone};
     use crate::transition::{BevyMarker, ReducedMotion};
-    use crate::views::{Label, label};
-    use crate::{AnyView, FynixPlugin, StateExt, Theme, mount};
+    use crate::views::{icon, label, row};
+    use crate::{
+        AnyView, FynixPlugin, ScopedExt, StateExt, Theme, mount,
+    };
 
     struct Plain;
 
@@ -135,11 +236,18 @@ mod tests {
         fn panel(&self) -> Color {
             Color::BLACK
         }
+
+        fn accent(&self) -> Color {
+            ACCENT
+        }
     }
 
     impl TextTokens for Plain {
-        fn tone(&self, _: Tone) -> Color {
-            Color::WHITE
+        fn tone(&self, tone: Tone) -> Color {
+            match tone {
+                Tone::Accent => ACCENT,
+                _ => Color::WHITE,
+            }
         }
 
         fn body_size(&self) -> f32 {
@@ -162,6 +270,7 @@ mod tests {
 
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
     const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
+    const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
 
     /// How many times [`Hovered`] was taken off a node.
     #[derive(Resource, Default)]
@@ -408,6 +517,179 @@ mod tests {
         hover(&mut app, node, false);
         app.update();
         assert_eq!(fill(&app, node), REST);
+    }
+
+    /// Hovers `node`, or lets go, and runs the transition out.
+    fn settle(app: &mut App, node: Entity, on: bool) {
+        hover(app, node, on);
+        app.update();
+        app.update();
+    }
+
+    fn ui(app: &App, node: Entity) -> &Node {
+        app.world().get::<Node>(node).unwrap()
+    }
+
+    #[test]
+    fn a_ghost_button_has_no_surface_until_hovered() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(label("x")).rules(ghost),
+        );
+
+        assert_eq!(fill(&app, node), Color::NONE);
+        assert_eq!(
+            ui(&app, node).padding,
+            UiRect::axes(px(12.0), px(6.0))
+        );
+        assert_eq!(
+            ui(&app, node).border_radius,
+            BorderRadius::all(px(3.0))
+        );
+
+        settle(&mut app, node, true);
+        assert_eq!(fill(&app, node), HOVER);
+        settle(&mut app, node, false);
+        assert_eq!(fill(&app, node), Color::NONE);
+    }
+
+    #[test]
+    fn a_tint_button_has_no_surface_and_turns_its_parts_accent() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(row((icon(Handle::default()), label("x"))))
+                .rules(tint),
+        );
+        let content = app.world().get::<Children>(node).unwrap()[0];
+        let [mark, text] =
+            app.world().get::<Children>(content).unwrap()[..]
+        else {
+            panic!("an icon and a label");
+        };
+        let colours = |app: &App| {
+            (
+                app.world().get::<ImageNode>(mark).unwrap().color,
+                app.world().get::<TextColor>(text).unwrap().0,
+            )
+        };
+        assert_eq!(fill(&app, node), Color::NONE);
+        assert_eq!(colours(&app), (Color::WHITE, Color::WHITE));
+
+        settle(&mut app, node, true);
+        assert_eq!(fill(&app, node), Color::NONE);
+        assert_eq!(colours(&app), (ACCENT, ACCENT));
+        assert_eq!(
+            ui(&app, content).padding,
+            UiRect::DEFAULT,
+            "the row is not a button"
+        );
+
+        settle(&mut app, node, false);
+        assert_eq!(colours(&app), (Color::WHITE, Color::WHITE));
+    }
+
+    #[test]
+    fn a_menu_bar_button_is_full_height_square_and_lights_up() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(label("File")).rules(menu_bar),
+        );
+
+        assert_eq!(fill(&app, node), Color::NONE);
+        let ui = ui(&app, node);
+        assert_eq!(ui.height, percent(100.0));
+        assert_eq!(ui.border_radius, BorderRadius::all(px(0.0)));
+        assert_eq!(ui.padding, UiRect::axes(px(12.0), px(0.0)));
+
+        settle(&mut app, node, true);
+        assert_eq!(fill(&app, node), HOVER);
+    }
+
+    #[test]
+    fn an_inactive_segment_is_a_square_row_that_lights_up() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(label("a")).rules(segment(false)),
+        );
+
+        let ui = ui(&app, node);
+        assert_eq!(ui.height, px(20.0));
+        assert_eq!(ui.flex_grow, 1.0);
+        assert_eq!(ui.border_radius, BorderRadius::all(px(0.0)));
+        assert_eq!(fill(&app, node), REST);
+
+        settle(&mut app, node, true);
+        assert_eq!(fill(&app, node), HOVER);
+    }
+
+    #[test]
+    fn an_active_segment_is_accent_and_stays_so_under_the_pointer() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(label("a")).rules(segment(true)),
+        );
+        assert_eq!(fill(&app, node), ACCENT);
+
+        settle(&mut app, node, true);
+        assert_eq!(fill(&app, node), ACCENT);
+        settle(&mut app, node, false);
+        assert_eq!(fill(&app, node), ACCENT);
+    }
+
+    #[test]
+    fn a_call_site_prop_beats_a_bundle() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(label("x")).fill(Color::WHITE).rules(ghost),
+        );
+        let strip = mount::<Plain>(
+            app.world_mut(),
+            button(label("x"))
+                .height(px(50.0))
+                .fill(Color::BLACK)
+                .rules(segment(true)),
+        );
+
+        assert_eq!(fill(&app, node), Color::WHITE);
+        assert_eq!(fill(&app, strip), Color::BLACK);
+        assert_eq!(ui(&app, strip).height, px(50.0));
+        assert_eq!(ui(&app, strip).flex_grow, 1.0, "the rest stays");
+    }
+
+    #[test]
+    fn a_call_site_state_rule_beats_a_bundles() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(label("x"))
+                .rules(segment(true))
+                .when::<Hovered, _>(|cx: &mut Cx<Bevy, Plain>| {
+                    cx.set::<Frame>(|f, _| f.fill(Color::WHITE));
+                }),
+        );
+
+        settle(&mut app, node, true);
+
+        assert_eq!(fill(&app, node), Color::WHITE);
+    }
+
+    #[test]
+    fn a_bundle_does_not_reach_a_frame_in_the_content() {
+        let mut app = app();
+        let node = mount::<Plain>(
+            app.world_mut(),
+            button(row((label("x"),))).rules(menu_bar),
+        );
+        let content = app.world().get::<Children>(node).unwrap()[0];
+
+        assert_eq!(ui(&app, content).height, Val::Auto);
+        assert_eq!(fill(&app, content), Color::NONE);
     }
 
     #[test]

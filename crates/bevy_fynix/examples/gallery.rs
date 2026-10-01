@@ -25,7 +25,8 @@ use bevy_fynix::tokens::{
 };
 use bevy_fynix::views::{
     AnimatedField, BehaviorExt, Frame, FrameProps, HasAction, Label,
-    button, column, field_row, foldable, frame, label, row,
+    button, checkbox, column, field_row, foldable, frame, ghost,
+    label, menu_bar, row, segmented, tint,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,
@@ -44,6 +45,8 @@ fn main() {
         ))
         .insert_resource(Theme(Monokai))
         .insert_resource(Clicks(0))
+        .insert_resource(Mode(0))
+        .insert_resource(Agreed(false))
         .insert_resource(Screen::Overview)
         .insert_resource(Rows {
             ids: vec![1, 2, 3],
@@ -94,6 +97,10 @@ impl SurfaceTokens for Monokai {
     fn panel(&self) -> Color {
         hex(0x221F22)
     }
+
+    fn accent(&self) -> Color {
+        hex(0xFFD866)
+    }
 }
 
 impl SpacingTokens for Monokai {
@@ -128,6 +135,14 @@ impl MotionTokens for Monokai {
 #[derive(Resource)]
 struct Clicks(u32);
 
+/// The segment picked in the segmented control.
+#[derive(Resource)]
+struct Mode(usize);
+
+/// Whether the checkbox is ticked.
+#[derive(Resource)]
+struct Agreed(bool);
+
 fn setup(world: &mut World) {
     world.spawn(Camera2d);
     mount::<Monokai>(world, gallery());
@@ -148,6 +163,11 @@ fn gallery() -> AnyView<Bevy, Monokai> {
                     "One state rule across a button's parts",
                     parts(),
                 ),
+                section(
+                    "Button variants as rule bundles",
+                    variants(),
+                ),
+                section("Segmented control and checkbox", controls()),
                 section("A scoped rule", scoped()),
                 section("Folding", folding()),
                 section("Field rows", fields()),
@@ -438,6 +458,44 @@ fn keyed_list() -> impl View<Bevy, Monokai> {
         .within(column(()).gap(4.0).align(AlignItems::Start)),
     ))
     .gap(6.0)
+}
+
+/// The same button under four bundles.
+fn variants() -> impl View<Bevy, Monokai> {
+    row((
+        button(label("Ghost")).rules(ghost),
+        button(label("Tint")).rules(tint),
+        button(label("Menu")).rules(menu_bar),
+        button(row((label("Icon and"), label("label")))).rules(ghost),
+    ))
+    .gap(8.0)
+    .align(AlignItems::Center)
+}
+
+/// A segmented control and a checkbox, each bound to the world and
+/// writing to it.
+fn controls() -> impl View<Bevy, Monokai> {
+    column((
+        segmented(
+            ["Select", "Move", "Scale"],
+            resource::<Mode, _>(|mode| mode.0),
+            |world, index| world.resource_mut::<Mode>().0 = index,
+        )
+        .width(px(240.0)),
+        row((
+            checkbox(resource::<Agreed, _>(|agreed| agreed.0))
+                .on_change(|world, value| {
+                    world.resource_mut::<Agreed>().0 = value;
+                }),
+            label(resource::<Agreed, _>(|agreed| {
+                if agreed.0 { "Agreed" } else { "Not agreed" }
+                    .to_string()
+            })),
+        ))
+        .gap(8.0)
+        .align(AlignItems::Center),
+    ))
+    .gap(8.0)
 }
 
 fn motion_switch() -> impl View<Bevy, Monokai> {

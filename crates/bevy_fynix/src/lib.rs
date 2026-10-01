@@ -19,7 +19,7 @@ mod tests;
 use core::marker::PhantomData;
 
 pub use backend::{Bevy, Unmounted};
-use bevy::app::{App, Plugin, Update};
+use bevy::app::{App, Plugin, PreUpdate, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
@@ -65,6 +65,10 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .init_resource::<ReducedMotion>()
             .init_resource::<Entrances>()
             .add_observer(backend::queue_unmounted)
+            .add_systems(
+                PreUpdate,
+                (views::sync_checked, views::sync_segments),
+            )
             .add_systems(
                 Update,
                 (mounted::update::<T>, leave::settle_entrances)

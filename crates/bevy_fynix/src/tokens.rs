@@ -44,6 +44,12 @@ pub trait SurfaceTokens {
     fn selection(&self) -> Color {
         self.hover()
     }
+
+    /// A solid accent surface, such as the active segment. The
+    /// selection tint unless a theme says.
+    fn accent(&self) -> Color {
+        self.selection()
+    }
 }
 
 pub trait SpacingTokens {

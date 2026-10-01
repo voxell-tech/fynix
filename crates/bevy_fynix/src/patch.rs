@@ -115,8 +115,6 @@ node_patch!(PatchInset, UiRect, |ui, v| {
 });
 size_patch!(PatchOverflow, Overflow, |ui, v| ui.overflow = *v);
 node_patch!(PatchDisplay, Display, |ui, v| ui.display = *v);
-node_patch!(PatchRadius, f32, |ui, v| ui.border_radius =
-    BorderRadius::all(px(*v)));
 node_patch!(PatchBorder, f32, |ui, v| ui.border =
     UiRect::all(px(*v)));
 size_patch!(
@@ -138,6 +136,47 @@ patch!(
             Some(z) => entity.insert(GlobalZIndex(*z)),
             None => entity.remove::<GlobalZIndex>(),
         };
+    }
+);
+
+/// The value of a corners prop that is left unset.
+pub const NO_CORNERS: BorderRadius = BorderRadius::all(Val::Auto);
+
+/// The rounding a node is given, kept so `radius` and `corners` can
+/// be written in any order: the corners win while they are set.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct Rounding {
+    pub radius: f32,
+    pub corners: Option<BorderRadius>,
+}
+
+/// Edits the entity's [`Rounding`], then writes it to the node.
+fn round(
+    entity: &mut EntityWorldMut,
+    edit: impl FnOnce(&mut Rounding),
+) {
+    let mut rounding =
+        entity.get::<Rounding>().copied().unwrap_or_default();
+    edit(&mut rounding);
+    entity.insert(rounding);
+    if let Some(mut ui) = entity.get_mut::<bevy::ui::Node>() {
+        ui.border_radius = rounding
+            .corners
+            .unwrap_or(BorderRadius::all(px(rounding.radius)));
+    }
+}
+
+patch!(PatchRadius, f32, |entity, v| {
+    round(&mut entity, |rounding| rounding.radius = *v);
+});
+patch!(
+    /// [`NO_CORNERS`] leaves the node to its `radius`.
+    PatchCorners,
+    BorderRadius,
+    |entity, v| {
+        round(&mut entity, |rounding| {
+            rounding.corners = (*v != NO_CORNERS).then_some(*v);
+        });
     }
 );
 

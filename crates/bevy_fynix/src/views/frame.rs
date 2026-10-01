@@ -4,8 +4,9 @@ use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use bevy::ui::{
-    AlignItems, BackgroundColor, BorderColor, Display, FlexDirection,
-    JustifyContent, Overflow, PositionType, UiRect, Val,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, Display,
+    FlexDirection, JustifyContent, Overflow, PositionType, UiRect,
+    Val,
 };
 use fynix::element;
 
@@ -75,6 +76,9 @@ pub struct Frame {
     pub fill: Prop<Color>,
     #[elem(patch = PatchRadius, blend = blend_f32)]
     pub radius: Prop<f32>,
+    /// Independent corners, which win over `radius` while set.
+    #[elem(default = NO_CORNERS, patch = PatchCorners)]
+    pub corners: Prop<BorderRadius>,
     /// The width of a border on every edge. It needs `border_color`
     /// to show.
     #[elem(patch = PatchBorder, blend = blend_f32)]
@@ -108,6 +112,7 @@ fn prepare(world: &mut World, node: Entity) {
         BackgroundColor(Color::NONE),
         BorderColor::all(Color::NONE),
         Paint::default(),
+        Rounding::default(),
     ));
 }
 
@@ -267,6 +272,25 @@ mod tests {
         assert_eq!(
             app.world().get::<GlobalZIndex>(node),
             Some(&GlobalZIndex(7))
+        );
+    }
+
+    #[test]
+    fn corners_win_over_the_radius_whichever_is_written_last() {
+        let mut app = app();
+        let left = BorderRadius::left(px(8.0));
+        let node = mount::<Plain>(
+            app.world_mut(),
+            frame().corners(left).radius(2.0),
+        );
+        let plain =
+            mount::<Plain>(app.world_mut(), frame().radius(2.0));
+
+        assert_eq!(ui(&app, node).border_radius, left);
+        assert_eq!(
+            ui(&app, plain).border_radius,
+            BorderRadius::all(px(2.0)),
+            "unset corners use the radius"
         );
     }
 
