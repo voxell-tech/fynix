@@ -23,7 +23,7 @@ pub use drag::{DockDrag, DropTarget};
 pub use layout::DockArea;
 pub use popup::{AddPopup, OpenPopup};
 pub use registry::{DockRegistry, DockWindowKind};
-pub use tabs::{ActiveTab, DockTab};
+pub use tabs::{ActiveTab, DockIcons, DockTab};
 pub use tree::{
     DockAreaStyle, DockLeaf, DockNode, DockSplit, DockTabEntry,
     DockTree, Edge, NodeId, Shape, SplitAxis, TabId,
@@ -139,18 +139,23 @@ fn logical_rect(
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
+    use bevy::asset::Handle;
     use bevy::color::Color;
     use bevy::ecs::entity::Entity;
     use bevy::ecs::hierarchy::ChildOf;
-    use bevy::ui::widget::Text;
-    use bevy::ui::{Display, FlexDirection, Node, Val, px};
+    use bevy::ecs::query::With;
+    use bevy::ui::widget::{ImageNode, Text};
+    use bevy::ui::{
+        BackgroundColor, Display, FlexDirection, Node, Val, px,
+    };
     use bevy::ui_widgets::Activate;
 
     use super::tabs::AddButton;
     use super::*;
-    use crate::mount;
     use crate::tests::{self, Plain, kids};
+    use crate::tokens::{SurfaceTokens, TextTokens, Tone};
     use crate::views::label;
+    use crate::{Dragging, mount};
 
     fn window(
         name: &'static str,
@@ -162,8 +167,17 @@ mod tests {
     /// A tree of the areas `left` and `right` side by side, and a
     /// registry of the windows in them and one more, `extra`.
     fn app() -> (App, NodeId, NodeId) {
+        app_with(None)
+    }
+
+    /// [`app`], with the app's `icons` inserted before the dock is
+    /// built.
+    fn app_with(icons: Option<DockIcons>) -> (App, NodeId, NodeId) {
         let mut app = tests::app();
         app.add_plugins(DockPlugin::<Plain>::default());
+        if let Some(icons) = icons {
+            app.insert_resource(icons);
+        }
         app.world_mut()
             .resource_mut::<DockRegistry<Plain>>()
             .register("one", window("One", "one body"))
@@ -838,6 +852,95 @@ mod tests {
 
         release(&mut app, handle, Vec2::ZERO);
         assert_eq!(forced(&app), None);
+    }
+
+    fn fill_of(app: &App, node: Entity) -> Color {
+        app.world().get::<BackgroundColor>(node).unwrap().0
+    }
+
+    #[test]
+    fn a_handle_is_clear_until_hovered_or_dragged() {
+        let (mut app, _, _) = app();
+        let handle = find::<layout::SplitHandle>(&mut app)[0].0;
+        let accent = Plain::default().accent();
+        let settle = |app: &mut App| {
+            for _ in 0..6 {
+                app.update();
+            }
+        };
+        settle(&mut app);
+        assert_eq!(fill_of(&app, handle), Color::NONE);
+        assert_eq!(width(&app, handle), px(6.0), "still to grab");
+
+        tests::hover(&mut app, handle, true);
+        settle(&mut app);
+        assert_eq!(fill_of(&app, handle), accent);
+        tests::hover(&mut app, handle, false);
+        settle(&mut app);
+        assert_eq!(fill_of(&app, handle), Color::NONE);
+
+        press(&mut app, handle, Vec2::ZERO);
+        app.update();
+        assert!(app.world().get::<Dragging>(handle).is_some());
+        settle(&mut app);
+        assert_eq!(fill_of(&app, handle), accent, "while dragged");
+
+        release(&mut app, handle, Vec2::ZERO);
+        assert!(app.world().get::<Dragging>(handle).is_none());
+        settle(&mut app);
+        assert_eq!(fill_of(&app, handle), Color::NONE);
+    }
+
+    #[test]
+    fn the_buttons_draw_the_apps_icons_and_only_tint() {
+        let (mut app, _, _) = app_with(Some(DockIcons {
+            close: Some(Handle::default()),
+            add: Some(Handle::default()),
+        }));
+        let marks = app
+            .world_mut()
+            .query_filtered::<Entity, With<ImageNode>>()
+            .iter(app.world())
+            .collect::<Vec<_>>();
+        assert_eq!(marks.len(), 5, "three crosses and two pluses");
+        for _ in 0..6 {
+            app.update();
+        }
+        let all = find::<DockRoot>(&mut app)[0].0;
+        let text = texts(&app, all);
+        assert!(text.iter().all(|text| text != "x" && text != "+"));
+
+        let tint = |app: &App, mark: Entity| {
+            app.world().get::<ImageNode>(mark).unwrap().color
+        };
+        let dim = Plain::default().tone(Tone::Dim);
+        let body = Plain::default().tone(Tone::Body);
+        let hot = [Tone::Critical, Tone::Accent];
+        let mut dims = 0;
+        for mark in marks {
+            let button =
+                app.world().get::<ChildOf>(mark).unwrap().parent();
+            // The cross of an active tab is lit with the rest of it.
+            let rest = tint(&app, mark);
+            assert!(rest == dim || rest == body);
+            dims += usize::from(rest == dim);
+            tests::hover(&mut app, button, true);
+            for _ in 0..6 {
+                app.update();
+            }
+            assert_eq!(fill_of(&app, button), Color::NONE);
+            let lit = tint(&app, mark);
+            assert!(
+                hot.iter()
+                    .any(|&tone| lit == Plain::default().tone(tone))
+            );
+            tests::hover(&mut app, button, false);
+            for _ in 0..6 {
+                app.update();
+            }
+            assert_eq!(tint(&app, mark), rest);
+        }
+        assert_eq!(dims, 3, "an inactive cross and both pluses");
     }
 
     #[test]

@@ -40,8 +40,8 @@ pub use prop::{
     every_frame, keyed, resource,
 };
 pub use state::{
-    DirtyNodes, Focused, Hovered, Pressed, State, StateExt, hidden,
-    own,
+    DirtyNodes, Dragging, Focused, Hovered, Pressed, State, StateExt,
+    hidden, own,
 };
 pub use style::{Style, style};
 pub use transition::{BevyMarker, ReducedMotion};

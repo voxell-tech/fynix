@@ -1,7 +1,10 @@
 //! A leaf's tab bar: a scrolling row of tabs and the "+" button.
 
+use bevy::asset::Handle;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
+use bevy::ecs::resource::Resource;
+use bevy::image::Image;
 use bevy::ui::{
     AlignItems, FlexDirection, Overflow, UiRect, percent, px,
 };
@@ -12,12 +15,32 @@ use super::registry::DockRegistry;
 use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
 use crate::cursor::EntityCursor;
 use crate::prop::resource;
-use crate::tokens::Tone;
+use crate::tokens::{Motion, Tone};
 use crate::views::{
     BehaviorExt, Frame, FrameProps, Icon, Label, button, icon, label,
     row, scroll,
 };
-use crate::{AnyView, Bevy, Cx, Hovered, StateExt, ViewExt, each};
+use crate::{
+    AnyView, Bevy, Cx, Hovered, ScopedExt, StateExt, ViewExt, each,
+    style,
+};
+
+/// The icons of the dock's own buttons, inserted by the app. A button
+/// whose icon is `None`, or the whole resource, shows text instead:
+/// "x" to close and "+" to add.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct DockIcons {
+    /// The cross on a tab that closes it.
+    pub close: Option<Handle<Image>>,
+    /// The plus ending a bar that opens the window list.
+    pub add: Option<Handle<Image>>,
+}
+
+/// The side of the cross that closes a tab.
+const CLOSE_SIZE: f32 = 10.0;
+
+/// The side of the plus that adds a tab.
+const ADD_SIZE: f32 = 12.0;
 
 /// On the root node of a tab.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,14 +90,8 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
                 .height(percent(100.0))
                 .align(AlignItems::Center),
         );
-        let add = button(label("+"))
-            .fill(Color::NONE)
-            .padding(UiRect::axes(px(8.0), px(0.0)))
-            .height(percent(100.0))
-            .shrink(0.0)
-            .tagged(AddButton { leaf });
         cx.build(
-            row((tabs, add))
+            row((tabs, add(leaf)))
                 .gap(0.0)
                 .width(percent(100.0))
                 .height(px(height))
@@ -175,17 +192,67 @@ fn tab<T: DockTokens>(
     })
 }
 
-/// The button closing `tab`, dim until the pointer is over it.
+/// The rules of a button that only tints its content: dim, `hover`
+/// under the pointer, and never a surface.
+fn tinted<T: DockTokens>(
+    hover: Tone,
+) -> impl FnOnce(&mut Cx<'_, Bevy, T>) + Send + Sync + 'static {
+    style::<T>()
+        .fill(|_| Color::NONE)
+        .tone(Tone::Dim)
+        .hovered(|s| s.fill(|_| Color::NONE).tone(hover))
+        .pressed(|s| s.fill(|_| Color::NONE).tone(hover))
+        .transition(Motion::Interact)
+        .bundle()
+}
+
+/// `image` as an icon of `size`, or the text `fallback` while the
+/// app gave none.
+fn glyph<T: DockTokens>(
+    image: Option<Handle<Image>>,
+    size: f32,
+    fallback: &'static str,
+) -> AnyView<Bevy, T> {
+    match image {
+        Some(image) => icon(image).size(size).boxed(),
+        None => label(fallback).boxed(),
+    }
+}
+
+/// The button closing `tab`, a dim cross that turns critical under
+/// the pointer.
 fn close<T: DockTokens>(tab: TabId) -> AnyView<Bevy, T> {
-    button(label("x"))
-        .fill(Color::NONE)
-        .padding(UiRect::axes(px(4.0), px(0.0)))
-        .on_activate(move |world| {
-            world.resource_mut::<DockTree>().remove_tab(tab);
-        })
-        .when::<Hovered, _>(|cx: &mut Cx<'_, Bevy, T>| {
-            cx.set::<Label>(|label, _| label.tone(Tone::Critical));
-        })
-        .toned(Tone::Dim)
-        .boxed()
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let image = cx
+            .world
+            .get_resource::<DockIcons>()
+            .and_then(|icons| icons.close.clone());
+        cx.build(
+            button(glyph::<T>(image, CLOSE_SIZE, "x"))
+                .padding(UiRect::axes(px(4.0), px(0.0)))
+                .on_activate(move |world| {
+                    world.resource_mut::<DockTree>().remove_tab(tab);
+                })
+                .rules(tinted::<T>(Tone::Critical)),
+        )
+    })
+}
+
+/// The "+" button of a bar, a dim plus that turns accent under the
+/// pointer.
+fn add<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let image = cx
+            .world
+            .get_resource::<DockIcons>()
+            .and_then(|icons| icons.add.clone());
+        cx.build(
+            button(glyph::<T>(image, ADD_SIZE, "+"))
+                .padding(UiRect::axes(px(8.0), px(0.0)))
+                .height(percent(100.0))
+                .shrink(0.0)
+                .tagged(AddButton { leaf })
+                .rules(tinted::<T>(Tone::Accent)),
+        )
+    })
 }

@@ -184,8 +184,9 @@ fn seed_dock(world: &mut World) {
     tree.split(main, Edge::Right, "stats".into());
 }
 
-/// Split panes with tabs: drag the line between them, click a tab,
-/// close one, or add a window with the plus.
+/// Split panes with tabs: drag the line between them (it shows when
+/// hovered), click a tab, close one, or add a window with the plus.
+/// Insert a `DockIcons` to draw the close and plus as images.
 fn docking() -> impl View<Bevy, Monokai> {
     column((dock::<Monokai>(),))
         .width(px(520.0))
@@ -625,7 +626,7 @@ fn styles() -> impl View<Bevy, Monokai> {
         ))
         .gap(8.0)
         .align(AlignItems::Center),
-        label("Hover for a surface, hold the button down to press")
+        label("Hover to light up, hold the button down to press")
             .tone(Tone::Dim),
     ))
     .gap(6.0)
