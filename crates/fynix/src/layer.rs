@@ -4,8 +4,9 @@
 use alloc::vec::Vec;
 
 use crate::backend::Backend;
+use crate::mounted::Tick;
 use crate::rules::When;
-use crate::transition::{Curve, Tween};
+use crate::transition::Curve;
 use crate::view::{Element, Layered};
 use crate::visual::Visual;
 
@@ -47,7 +48,7 @@ impl<B: Backend, E: Layered> Layer<B, E> {
 }
 
 /// What a mounted element keeps beside its props.
-pub(crate) struct Live<B: Backend, E, S> {
+pub(crate) struct Live<B: Backend, E> {
     /// Weakest first.
     pub layers: Vec<Layer<B, E>>,
     /// The props the call site set.
@@ -56,10 +57,12 @@ pub(crate) struct Live<B: Backend, E, S> {
     pub visual_layers: Vec<Layer<B, Visual<B::World>>>,
     /// The [`Visual`] props the call site set.
     pub visual_call: u64,
-    pub tween: Option<Tween<S>>,
+    /// The curve its props travel over, if a transition rule reaches
+    /// it.
+    pub curve: Option<Curve>,
 }
 
-impl<B: Backend, E, S> Live<B, E, S> {
+impl<B: Backend, E> Live<B, E> {
     /// Whether any state rule reaches the element.
     pub fn is_layered(&self) -> bool {
         !self.layers.is_empty() || !self.visual_layers.is_empty()
@@ -89,18 +92,24 @@ impl<B: Backend, E, S> Live<B, E, S> {
         ons.chain(visual).flatten().filter(move |&on| on != node)
     }
 
-    /// The snapshot of `element` with every layer whose state holds
-    /// put on top, each layer taken off again after. Layers for every
-    /// kind of element go first, so the element's own kind wins.
-    pub fn snapshot<T>(
+    /// Updates the props of `element` in `dirty` with every layer
+    /// whose state holds put on top, each layer taken off again
+    /// after. Layers for every kind of element go first, so the
+    /// element's own kind wins. Returns whether a prop is still
+    /// travelling.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update<T>(
         &mut self,
         element: &mut E,
-        world: &B::World,
+        shown: &mut E::Shown,
+        dirty: u64,
+        world: &mut B::World,
         node: B::Node,
         theme: &T,
-    ) -> S
+        tick: Tick,
+    ) -> bool
     where
-        E: Element<B, T, Snapshot = S>,
+        E: Element<B, T>,
     {
         let mut visual_swapped = Vec::new();
         for (index, layer) in
@@ -126,8 +135,9 @@ impl<B: Backend, E, S> Live<B, E, S> {
             swapped.push((index, mask));
         }
 
-        let mut snapshot = element.snapshot(world, theme);
-        element.adjust(&mut snapshot, world, node, theme);
+        let moving = element.update(
+            shown, dirty, world, node, theme, tick, self.curve,
+        );
 
         for (index, mask) in swapped.into_iter().rev() {
             element.swap_props(&mut self.layers[index].view, mask);
@@ -140,26 +150,39 @@ impl<B: Backend, E, S> Live<B, E, S> {
                 );
             }
         }
-        snapshot
+        moving
     }
 
-    /// Whether a bound prop in any layer may have changed. Every
-    /// check runs, as each keeps its own memory.
-    pub fn changed<T>(&mut self, world: &B::World) -> bool
+    /// The bits of the props a bound prop in any layer may have
+    /// changed. Every check runs, as each keeps its own memory.
+    pub fn changed<T>(&mut self, world: &B::World) -> u64
     where
-        E: Element<B, T, Snapshot = S>,
+        E: Element<B, T>,
     {
-        let own =
-            self.layers.iter_mut().fold(false, |changed, layer| {
-                layer.view.changed(world) | changed
-            });
-        self.visual_layers.iter_mut().fold(own, |changed, layer| {
+        let own = self.layers.iter_mut().fold(0, |changed, layer| {
             layer.view.changed(world) | changed
+        });
+        let bits = E::visual_bits();
+        self.visual_layers.iter_mut().fold(own, |changed, layer| {
+            layer.view.changed_bits(world, bits) | changed
         })
     }
 
-    /// The curve the element travels over, if it does.
-    pub fn curve(&self) -> Option<Curve> {
-        self.tween.map(|tween| tween.curve)
+    /// The bits of every prop a state rule can change.
+    pub fn layered<T>(&self) -> u64
+    where
+        E: Element<B, T>,
+    {
+        let own = self
+            .layers
+            .iter()
+            .fold(0, |mask, layer| layer.view.set_mask() | mask);
+        let [opacity, scale] = E::visual_bits();
+        self.visual_layers.iter().fold(own, |mask, layer| {
+            let set = layer.view.set_mask();
+            let opacity = if set & 1 != 0 { opacity } else { 0 };
+            let scale = if set & 2 != 0 { scale } else { 0 };
+            mask | opacity | scale
+        })
     }
 }

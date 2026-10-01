@@ -145,11 +145,10 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         &mut self,
         node: B::Node,
         element: E,
-        snapshot: E::Snapshot,
-        live: Live<B, E, E::Snapshot>,
+        shown: E::Shown,
+        live: Live<B, E>,
     ) {
-        self.mounted
-            .mount(self.world, node, element, snapshot, live);
+        self.mounted.mount(self.world, node, element, shown, live);
     }
 
     /// Where a view built now hangs. `None` at the root.

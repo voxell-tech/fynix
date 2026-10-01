@@ -15,7 +15,7 @@ use typarena::type_table::TypeTable;
 use crate::backend::Backend;
 use crate::layer::Live;
 use crate::rules::RuleArena;
-use crate::transition::{Curve, Run};
+use crate::transition::Curve;
 use crate::view::Element;
 
 /// A set of structural views built together, dropped together.
@@ -142,8 +142,8 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         world: &mut B::World,
         node: B::Node,
         mut element: E,
-        snapshot: E::Snapshot,
-        mut live: Live<B, E, E::Snapshot>,
+        shown: E::Shown,
+        mut live: Live<B, E>,
     ) {
         if self.kinds.insert(TypeId::of::<E>()) {
             self.updates.push(update_kind::<B, T, E>);
@@ -157,8 +157,8 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 curve: curve::<B, T, E>,
             },
         );
-        // Checks often fire on their first call, which the snapshot
-        // just taken already covers.
+        // Checks often fire on their first call, which the first
+        // write already covers.
         element.changed(world);
         live.changed::<T>(world);
         for on in live.read_on(node) {
@@ -174,9 +174,8 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
             Mount::<B, T, E> {
                 element,
                 live,
-                target: snapshot.clone(),
-                shown: snapshot,
-                run: None,
+                shown,
+                moving: false,
                 dirty: false,
                 marker: PhantomData,
             },
@@ -388,12 +387,11 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
 
 struct Mount<B: Backend, T, E: Element<B, T>> {
     element: E,
-    live: Live<B, E, E::Snapshot>,
-    /// Where the written values are heading.
-    target: E::Snapshot,
-    /// What is written on the node.
-    shown: E::Snapshot,
-    run: Option<Run<E::Snapshot>>,
+    live: Live<B, E>,
+    /// Each prop's value as written, and where it is heading.
+    shown: E::Shown,
+    /// Whether any prop is still travelling.
+    moving: bool,
     /// Whether to re-read at the next update whatever the checks say.
     dirty: bool,
     marker: PhantomData<fn() -> (B, T)>,
@@ -423,7 +421,7 @@ fn curve<B: Backend, T: 'static, E: Element<B, T>>(
     table: &TypeTable<B::Node>,
     node: B::Node,
 ) -> Option<Curve> {
-    table.get::<Mount<B, T, E>>(&node)?.live.curve()
+    table.get::<Mount<B, T, E>>(&node)?.live.curve
 }
 
 fn remove<B: Backend, T: 'static, E: Element<B, T>>(
@@ -441,54 +439,28 @@ impl<B: Backend, T, E: Element<B, T>> Mount<B, T, E> {
         theme: &T,
         tick: Tick,
     ) {
-        // Not `||`: every check must run, each keeps its own memory.
-        let stale = self.element.changed(world)
-            | self.live.changed::<T>(world)
-            | self.dirty;
-        self.dirty = false;
-        if !stale && self.run.is_none() {
+        let mut dirty = self.element.changed(world)
+            | self.live.changed::<T>(world);
+        if core::mem::take(&mut self.dirty) {
+            // A state changed: only props a state rule sets can
+            // differ. Marked for any other reason, every prop is
+            // re-read.
+            dirty |= match self.live.layered::<T>() {
+                0 => u64::MAX,
+                layered => layered,
+            };
+        }
+        if dirty == 0 && !self.moving {
             return;
         }
-
-        if stale {
-            let now = self.live.snapshot(
-                &mut self.element,
-                world,
-                node,
-                theme,
-            );
-
-            if now != self.target {
-                self.target = now;
-                self.run = self
-                    .live
-                    .tween
-                    .filter(|tween| {
-                        !tick.reduced_motion
-                            && !tween.curve.duration.is_zero()
-                    })
-                    .map(|tween| Run::new(self.shown.clone(), tween));
-            }
-        }
-        if tick.reduced_motion {
-            self.run = None;
-        }
-
-        let next = match &mut self.run {
-            Some(run) => {
-                match run.advance(tick.delta, &self.target) {
-                    Some(next) => next,
-                    None => {
-                        self.run = None;
-                        self.target.clone()
-                    }
-                }
-            }
-            None => self.target.clone(),
-        };
-        if next != self.shown {
-            E::write(&next, world, node);
-            self.shown = next;
-        }
+        self.moving = self.live.update(
+            &mut self.element,
+            &mut self.shown,
+            dirty,
+            world,
+            node,
+            theme,
+            tick,
+        );
     }
 }

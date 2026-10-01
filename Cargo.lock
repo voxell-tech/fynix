@@ -761,6 +761,7 @@ version = "0.0.1"
 dependencies = [
  "bevy",
  "fynix",
+ "lenz",
  "motiongfx_interp",
 ]
 
@@ -2510,10 +2511,21 @@ dependencies = [
 name = "fynix"
 version = "0.0.1"
 dependencies = [
+ "fynix_macros",
  "hashbrown 0.17.1",
  "lenz",
  "motiongfx_interp",
  "typarena",
+]
+
+[[package]]
+name = "fynix_macros"
+version = "0.0.1"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

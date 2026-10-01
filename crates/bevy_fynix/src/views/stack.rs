@@ -1,9 +1,8 @@
 //! Composites laying their children out in a line.
 //!
-//! A [`Stack`] holds a [`Frame`] and forwards the frame's builder
-//! methods, so `row((a, b)).gap(8.0)` styles the frame directly and a
-//! call site can still set every prop. Generic modifiers reach the
-//! root node too, but a prop of the frame is better said on the frame.
+//! A [`Stack`] holds a [`Frame`] and takes its props through
+//! [`FrameProps`], so `row((a, b)).gap(8.0)` styles the frame directly
+//! and a call site can still set every prop.
 
 use bevy::ecs::bundle::Bundle;
 use bevy::ecs::entity::Entity;
@@ -15,9 +14,8 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::ScrollArea;
 
-use crate::prop::Prop;
 use crate::tokens::SpacingTokens;
-use crate::views::frame::{Frame, forward_all_frame_props};
+use crate::views::frame::{Frame, FrameProps};
 use crate::{Bevy, Cx, Styled, View, ViewSeq};
 
 /// Components a view puts on its root node, in the order they were
@@ -90,14 +88,6 @@ pub fn overlay<C>(children: C) -> Stack<C, ((), Pickable)> {
 }
 
 impl<C, X> Stack<C, X> {
-    pub fn direction(
-        mut self,
-        direction: impl Into<Prop<FlexDirection>>,
-    ) -> Self {
-        self.frame = self.frame.direction(direction);
-        self
-    }
-
     /// This, with `bundle` on its node too. A component given again
     /// replaces the one given before.
     pub fn with<N: Bundle>(self, bundle: N) -> Stack<C, (X, N)> {
@@ -107,8 +97,12 @@ impl<C, X> Stack<C, X> {
             extra: (self.extra, bundle),
         }
     }
+}
 
-    forward_all_frame_props!();
+impl<C, X> FrameProps for Stack<C, X> {
+    fn frame_mut(&mut self) -> &mut Frame {
+        &mut self.frame
+    }
 }
 
 impl<T, C, X> View<Bevy, T> for Stack<C, X>

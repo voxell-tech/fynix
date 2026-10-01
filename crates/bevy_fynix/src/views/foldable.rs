@@ -4,14 +4,16 @@ use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
-use bevy::ui::{AlignItems, Display, FlexDirection, Node, percent};
+use bevy::ui::{AlignItems, Display, FlexDirection, percent};
 
-use crate::prop::{Prop, component};
+use crate::prop::component;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
-use crate::views::{BehaviorExt, button, frame, label, row};
-use crate::{Bevy, Cx, Element, View};
+use crate::views::{
+    BehaviorExt, FrameProps, button, frame, label, row,
+};
+use crate::{Bevy, Cx, View};
 
 /// On a [`Foldable`]'s root node while its body is shown.
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -52,43 +54,6 @@ fn toggle(world: &mut World, root: Entity) {
     }
 }
 
-/// A column node that is hidden while its prop is false.
-struct Reveal {
-    shown: Prop<bool>,
-}
-
-fynix::styled!(Reveal { shown });
-
-impl<T> Element<Bevy, T> for Reveal {
-    type Snapshot = bool;
-
-    fn prepare(world: &mut World, node: Entity) {
-        if let Some(mut ui) = world.get_mut::<Node>(node) {
-            ui.flex_direction = FlexDirection::Column;
-            ui.width = percent(100.0);
-        }
-    }
-
-    fn snapshot(&self, world: &World, _: &T) -> bool {
-        self.shown.get(world).unwrap_or(true)
-    }
-
-    fn write(shown: &bool, world: &mut World, node: Entity) {
-        if let Some(mut ui) = world.get_mut::<Node>(node) {
-            ui.display =
-                if *shown { Display::Flex } else { Display::None };
-        }
-    }
-
-    fn is_live(&self) -> bool {
-        self.shown.is_bound()
-    }
-
-    fn changed(&mut self, world: &World) -> bool {
-        self.shown.changed(world)
-    }
-}
-
 impl<T, H, B> View<Bevy, T> for Foldable<H, B>
 where
     T: TextTokens
@@ -116,12 +81,18 @@ where
             cx.build(
                 row((chevron, self.header)).align(AlignItems::Center),
             );
-            let body = cx.build(Reveal {
-                shown: component::<Open, _>(root, |open| {
-                    open.is_some()
-                })
-                .into(),
-            });
+            // Hidden, and out of the layout, while the root is shut.
+            let body = cx.build(
+                frame()
+                    .direction(FlexDirection::Column)
+                    .width(percent(100.0))
+                    .display(component::<Open, _>(root, |open| {
+                        match open {
+                            Some(_) => Display::Flex,
+                            None => Display::None,
+                        }
+                    })),
+            );
             cx.under(body, |cx| self.body.build(cx));
         });
         root

@@ -5,33 +5,49 @@ use bevy::text::{
     FontSize, FontWeight, LineBreak, TextColor, TextFont, TextLayout,
 };
 use bevy::ui::widget::Text;
-use motiongfx_interp::interpolation::{InterpFn, Interpolation};
+use fynix::element;
 
+use crate::patch::{
+    Paint, PatchInk, PatchOpacity, PatchScale, patch,
+};
 use crate::prop::Prop;
-use crate::props::props;
 use crate::state::own_when;
 use crate::tokens::{TextTokens, Tone};
-use crate::transition::BevyMarker;
-use crate::visual::{faded, scaled, visual_access};
-use crate::{Bevy, Element, Styled};
+use crate::transition::{blend_color, blend_f32};
+use crate::{Bevy, Styled};
 
-props! {
-    /// A run of text.
-    pub struct Label {
-        text: String,
-        /// The theme's body size when unset.
-        size: f32,
-        /// The colour, by role. Body when unset.
-        tone: Tone,
-        bold: bool,
-        /// Whether it breaks onto more lines. It does when unset.
-        wrap: bool,
-        /// How opaque it is, 1.0 when unset.
-        opacity: f32,
-        /// The factor it is scaled by around its centre after layout,
-        /// 1.0 when unset.
-        scale: f32,
-    }
+/// A run of text.
+#[element(backend = Bevy, theme = TextTokens, prepare = prepare)]
+pub struct Label {
+    #[elem(patch = PatchText)]
+    pub text: Prop<String>,
+    /// The theme's body size when unset.
+    #[elem(
+        default = theme.body_size(),
+        patch = PatchTextSize,
+        blend = blend_f32
+    )]
+    pub size: Prop<f32>,
+    /// The colour, by role. Body when unset.
+    #[elem(
+        shown = Color,
+        with = |tone, theme| theme.tone(tone),
+        patch = PatchInk,
+        blend = blend_color
+    )]
+    pub tone: Prop<Tone>,
+    #[elem(patch = PatchBold)]
+    pub bold: Prop<bool>,
+    /// Whether it breaks onto more lines. It does when unset.
+    #[elem(default = true, patch = PatchWrap)]
+    pub wrap: Prop<bool>,
+    /// How opaque it is, 1.0 when unset.
+    #[elem(default = 1.0, patch = PatchOpacity, blend = blend_f32)]
+    pub opacity: Prop<f32>,
+    /// The factor it is scaled by around its centre after layout,
+    /// 1.0 when unset.
+    #[elem(default = 1.0, patch = PatchScale, blend = blend_f32)]
+    pub scale: Prop<f32>,
 }
 
 pub fn label(text: impl Into<Prop<String>>) -> Label {
@@ -41,117 +57,46 @@ pub fn label(text: impl Into<Prop<String>>) -> Label {
     }
 }
 
+fn prepare(world: &mut World, node: Entity) {
+    world.entity_mut(node).insert((
+        Text::default(),
+        TextFont::default(),
+        TextColor::default(),
+        TextLayout::default(),
+        Paint::default(),
+    ));
+}
+
 own_when!(Label);
 
-/// A [`Label`]'s props at one moment.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LabelSnapshot {
-    pub text: String,
-    pub size: f32,
-    pub color: Color,
-    pub bold: bool,
-    pub wrap: bool,
-    pub opacity: f32,
-    pub scale: f32,
-}
-
-impl Interpolation<BevyMarker> for LabelSnapshot {
-    fn interp(from: &Self, to: &Self, t: f32) -> Self {
-        Self {
-            text: to.text.clone(),
-            bold: to.bold,
-            size: <f32 as Interpolation<()>>::interp(
-                &from.size, &to.size, t,
-            ),
-            color: <Color as Interpolation<BevyMarker>>::interp(
-                &from.color,
-                &to.color,
-                t,
-            ),
-            wrap: to.wrap,
-            opacity: <f32 as Interpolation<()>>::interp(
-                &from.opacity,
-                &to.opacity,
-                t,
-            ),
-            scale: <f32 as Interpolation<()>>::interp(
-                &from.scale,
-                &to.scale,
-                t,
-            ),
-        }
+patch!(PatchText, String, |entity, v| {
+    if let Some(mut text) = entity.get_mut::<Text>() {
+        text.0.clone_from(v);
     }
-}
-
-impl<T: TextTokens> Element<Bevy, T> for Label {
-    type Snapshot = LabelSnapshot;
-
-    fn prepare(world: &mut World, node: Entity) {
-        world.entity_mut(node).insert((
-            Text::default(),
-            TextFont::default(),
-            TextColor::default(),
-            TextLayout::default(),
-        ));
+});
+patch!(PatchTextSize, f32, |entity, v| {
+    if let Some(mut font) = entity.get_mut::<TextFont>() {
+        font.font_size = FontSize::Px(*v);
     }
-
-    fn snapshot(&self, world: &World, theme: &T) -> LabelSnapshot {
-        let tone = self.tone.get(world).unwrap_or_default();
-        LabelSnapshot {
-            text: self.text.get(world).unwrap_or_default(),
-            size: self.size.get(world).unwrap_or(theme.body_size()),
-            color: theme.tone(tone),
-            bold: self.bold.get(world).unwrap_or(false),
-            wrap: self.wrap.get(world).unwrap_or(true),
-            opacity: self.opacity.get(world).unwrap_or(1.0),
-            scale: self.scale.get(world).unwrap_or(1.0),
-        }
+});
+patch!(PatchBold, bool, |entity, v| {
+    if let Some(mut font) = entity.get_mut::<TextFont>() {
+        font.weight = if *v {
+            FontWeight::BOLD
+        } else {
+            FontWeight::NORMAL
+        };
     }
-
-    fn write(
-        snapshot: &LabelSnapshot,
-        world: &mut World,
-        node: Entity,
-    ) {
-        let linebreak = if snapshot.wrap {
+});
+patch!(PatchWrap, bool, |entity, v| {
+    if let Some(mut layout) = entity.get_mut::<TextLayout>() {
+        layout.linebreak = if *v {
             LineBreak::WordBoundary
         } else {
             LineBreak::NoWrap
         };
-        world.entity_mut(node).insert((
-            Text::new(snapshot.text.clone()),
-            TextFont {
-                font_size: FontSize::Px(snapshot.size),
-                weight: if snapshot.bold {
-                    FontWeight::BOLD
-                } else {
-                    FontWeight::NORMAL
-                },
-                ..Default::default()
-            },
-            TextColor(faded(snapshot.color, snapshot.opacity)),
-            TextLayout {
-                linebreak,
-                ..Default::default()
-            },
-            scaled(snapshot.scale),
-        ));
     }
-
-    fn is_live(&self) -> bool {
-        self.any_bound()
-    }
-
-    fn changed(&mut self, world: &World) -> bool {
-        self.any_changed(world)
-    }
-
-    fn interp() -> Option<InterpFn<LabelSnapshot>> {
-        Some(<LabelSnapshot as Interpolation<BevyMarker>>::interp)
-    }
-
-    visual_access!();
-}
+});
 
 #[cfg(test)]
 mod tests {
@@ -326,46 +271,5 @@ mod tests {
             Vec2::splat(2.0),
             "a rule for labels beats one for every element"
         );
-    }
-
-    #[test]
-    fn size_color_opacity_and_scale_blend_while_text_and_wrap_snap() {
-        let from = LabelSnapshot {
-            text: "a".into(),
-            size: 10.0,
-            color: Color::BLACK,
-            bold: false,
-            wrap: true,
-            opacity: 0.0,
-            scale: 1.0,
-        };
-        let to = LabelSnapshot {
-            text: "b".into(),
-            size: 20.0,
-            color: Color::WHITE,
-            bold: true,
-            wrap: false,
-            opacity: 1.0,
-            scale: 2.0,
-        };
-
-        let mid =
-            <LabelSnapshot as Interpolation<BevyMarker>>::interp(
-                &from, &to, 0.5,
-            );
-
-        assert_eq!(mid.text, "b");
-        assert_eq!(mid.size, 15.0);
-        assert_eq!(mid.opacity, 0.5);
-        assert_eq!(mid.scale, 1.5);
-        assert_eq!(
-            mid.color,
-            <Color as Interpolation<BevyMarker>>::interp(
-                &from.color,
-                &to.color,
-                0.5
-            )
-        );
-        assert!(!mid.wrap);
     }
 }

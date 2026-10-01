@@ -24,8 +24,8 @@ use bevy_fynix::tokens::{
     TextTokens, Tone,
 };
 use bevy_fynix::views::{
-    AnimatedField, BehaviorExt, Frame, HasAction, Label, button,
-    column, field_row, foldable, frame, label, row,
+    AnimatedField, BehaviorExt, Frame, FrameProps, HasAction, Label,
+    button, column, field_row, foldable, frame, label, row,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,

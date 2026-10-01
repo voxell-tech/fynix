@@ -16,12 +16,10 @@ mod leave;
 mod state;
 mod structure;
 
-use motiongfx_interp::interpolation::InterpFn;
-
 use crate::{
-    AnyView, Backend, Condition, Curve, Cx, Element, Motion,
-    MotionTokens, Mounted, Prop, Signal, Styled, Tick, Trace, Tween,
-    View, derived,
+    AnyView, Backend, Condition, Curve, Cx, Motion, MotionTokens,
+    Mounted, Patch, Prop, ScopedExt, Signal, Styled, Tick, Trace,
+    View, ViewExt, derived, element,
 };
 
 #[derive(Default)]
@@ -38,6 +36,8 @@ pub struct World {
     list: Vec<u32>,
     /// The nodes a state rule is read on.
     watched: Vec<usize>,
+    /// How many props were written onto nodes.
+    writes: usize,
 }
 
 #[derive(Default)]
@@ -151,12 +151,13 @@ trait Sizes {
 }
 
 /// A run of text.
-#[derive(Lenz)]
+#[element(backend = Fake, theme = Sizes)]
 pub struct Text {
+    #[elem(patch = WriteText)]
     text: Prop<World, String>,
+    /// The theme's body size when unset.
+    #[elem(default = theme.body(), patch = WriteSize, blend = blend)]
     size: Prop<World, f32>,
-    #[lenz(ignore)]
-    motion: Option<Motion>,
 }
 
 fn text(text: impl Into<Prop<World, String>>) -> Text {
@@ -166,73 +167,28 @@ fn text(text: impl Into<Prop<World, String>>) -> Text {
     }
 }
 
-impl Text {
-    fn size(mut self, size: impl Into<Prop<World, f32>>) -> Self {
-        self.size = size.into();
-        self
-    }
+fn blend(from: &f32, to: &f32, t: f32) -> f32 {
+    <f32 as Interpolation<()>>::interp(from, to, t)
+}
 
-    fn transition(mut self, motion: Motion) -> Self {
-        self.motion = Some(motion);
-        self
+/// How the fake backend writes a text's text.
+pub struct WriteText;
+
+impl Patch<Fake, String> for WriteText {
+    fn patch(world: &mut World, node: usize, text: &String) {
+        world.writes += 1;
+        world.nodes[node].as_mut().expect("a live node").text =
+            text.clone();
     }
 }
 
-crate::styled!(Text { text, size, motion });
+/// How the fake backend writes a text's size.
+pub struct WriteSize;
 
-#[derive(Clone, Debug, PartialEq)]
-struct Shown {
-    text: String,
-    size: f32,
-}
-
-impl Shown {
-    fn interp(from: &Self, to: &Self, t: f32) -> Self {
-        Self {
-            text: to.text.clone(),
-            size: <f32 as Interpolation<()>>::interp(
-                &from.size, &to.size, t,
-            ),
-        }
-    }
-}
-
-impl<T: Sizes + MotionTokens> Element<Fake, T> for Text {
-    type Snapshot = Shown;
-
-    fn prepare(_: &mut World, _: usize) {}
-
-    fn snapshot(&self, world: &World, theme: &T) -> Shown {
-        Shown {
-            text: self.text.get(world).unwrap_or_default(),
-            size: self.size.get(world).unwrap_or(theme.body()),
-        }
-    }
-
-    fn write(shown: &Shown, world: &mut World, node: usize) {
-        let node = world.nodes[node].as_mut().expect("a live node");
-        node.text = shown.text.clone();
-        node.size = shown.size;
-    }
-
-    fn is_live(&self) -> bool {
-        self.text.is_bound() || self.size.is_bound()
-    }
-
-    fn changed(&mut self, world: &World) -> bool {
-        self.text.changed(world) | self.size.changed(world)
-    }
-
-    fn tween(&self, theme: &T) -> Option<Tween<Shown>> {
-        let curve = theme.motion(self.motion?);
-        Some(Tween {
-            curve,
-            interp: Shown::interp,
-        })
-    }
-
-    fn interp() -> Option<InterpFn<Shown>> {
-        Some(Shown::interp)
+impl Patch<Fake, f32> for WriteSize {
+    fn patch(world: &mut World, node: usize, size: &f32) {
+        world.writes += 1;
+        world.nodes[node].as_mut().expect("a live node").size = *size;
     }
 }
 
@@ -550,13 +506,34 @@ fn a_running_transition_advances_without_a_source_change() {
     );
 }
 
+#[test]
+fn only_the_prop_that_changed_is_written() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(
+        text("x").size(watch(|world: &World| world.count as f32)),
+    );
+    assert_eq!(ui.world.writes, 2, "each prop once, at build");
+
+    ui.world.set(10);
+    ui.update(Duration::ZERO, false);
+
+    assert_eq!(ui.world.node(node).size, 10.0);
+    assert_eq!(ui.world.writes, 3, "the size alone");
+
+    ui.world.set(10);
+    ui.update(Duration::ZERO, false);
+    assert_eq!(ui.world.writes, 3, "and not for an equal value");
+}
+
 /// A text whose size follows `world.count`, travelling when asked.
-fn counted(motion: Option<Motion>) -> Text {
+fn counted<T: Sizes + MotionTokens + 'static>(
+    motion: Option<Motion>,
+) -> AnyView<Fake, T> {
     let text =
         text("x").size(watch(|world: &World| world.count as f32));
     match motion {
-        Some(motion) => text.transition(motion),
-        None => text,
+        Some(motion) => text.transition(motion).boxed(),
+        None => text.boxed(),
     }
 }
 

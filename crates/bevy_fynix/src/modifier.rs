@@ -67,17 +67,21 @@ impl<T, V: View<Bevy, T>> View<Bevy, T> for Grown<V> {
     }
 }
 
-/// The modifiers any view takes. A view's own method of the same name
-/// (such as a frame's `padding`) sets its prop instead.
+/// The modifiers any view takes, for a view with no such prop of its
+/// own. They are named apart from a frame's props (`padding`,
+/// `width`, `height`, `grow`), which are the better choice where
+/// there is a frame.
 pub trait ModifierExt: Sized {
-    fn padding(self, padding: UiRect) -> Padded<Self> {
+    /// This view, with its root node's padding set.
+    fn padded(self, padding: UiRect) -> Padded<Self> {
         Padded {
             inner: self,
             padding,
         }
     }
 
-    fn width(self, width: Val) -> Sizing<Self> {
+    /// This view, with its root node's width set.
+    fn wide(self, width: Val) -> Sizing<Self> {
         Sizing {
             inner: self,
             width: Some(width),
@@ -85,7 +89,8 @@ pub trait ModifierExt: Sized {
         }
     }
 
-    fn height(self, height: Val) -> Sizing<Self> {
+    /// This view, with its root node's height set.
+    fn tall(self, height: Val) -> Sizing<Self> {
         Sizing {
             inner: self,
             width: None,
@@ -93,7 +98,8 @@ pub trait ModifierExt: Sized {
         }
     }
 
-    fn grow(self, grow: f32) -> Grown<Self> {
+    /// This view, with its root node's flex grow set.
+    fn grown(self, grow: f32) -> Grown<Self> {
         Grown { inner: self, grow }
     }
 }
@@ -110,7 +116,7 @@ mod tests {
 
     use super::*;
     use crate::tokens::{SpacingTokens, TextTokens, Tone};
-    use crate::views::{label, row};
+    use crate::views::{FrameProps, label, row};
     use crate::{FynixPlugin, Theme, mount};
 
     struct Plain;
@@ -159,10 +165,10 @@ mod tests {
         let node = mount::<Plain>(
             app.world_mut(),
             label("x")
-                .padding(UiRect::all(px(4.0)))
-                .width(px(40.0))
-                .height(px(20.0))
-                .grow(2.0),
+                .padded(UiRect::all(px(4.0)))
+                .wide(px(40.0))
+                .tall(px(20.0))
+                .grown(2.0),
         );
 
         let ui = app.world().get::<Node>(node).unwrap();
@@ -175,18 +181,13 @@ mod tests {
     #[test]
     fn a_modifier_on_a_composite_edits_its_root_node() {
         let mut app = app();
-        // The stack's own `padding`, `width` and `grow` win method
-        // lookup, so the modifiers are called by path.
-        let stack = row((label("a"), label("b"))).gap(8.0);
         let root = mount::<Plain>(
             app.world_mut(),
-            ModifierExt::grow(
-                ModifierExt::width(
-                    ModifierExt::padding(stack, UiRect::all(px(5.0))),
-                    percent(50.0),
-                ),
-                1.0,
-            ),
+            row((label("a"), label("b")))
+                .gap(8.0)
+                .padded(UiRect::all(px(5.0)))
+                .wide(percent(50.0))
+                .grown(1.0),
         );
 
         let ui = app.world().get::<Node>(root).unwrap();

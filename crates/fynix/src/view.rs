@@ -5,12 +5,11 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use motiongfx_interp::interpolation::InterpFn;
-
 use crate::backend::Backend;
 use crate::cx::Cx;
 use crate::layer::Live;
-use crate::transition::Tween;
+use crate::mounted::Tick;
+use crate::transition::Curve;
 use crate::visual::{Visual, VisualMut};
 
 /// Something that can be built under a node, with the theme `T`.
@@ -135,35 +134,43 @@ macro_rules! styled {
 
 /// A view that is one node of its own, with no views under it.
 ///
-/// Its props are resolved against the rules in force, read into a
-/// [`Snapshot`](Self::Snapshot) of plain values, and written onto the
-/// node. A live element stays mounted, and is read and written again
-/// whenever it reports a change.
+/// Its props are resolved against the rules in force, and each is
+/// written onto the node on its own, through its
+/// [`Patch`](crate::Patch). A live element stays mounted, and only
+/// the props that changed are read and written again.
+///
+/// Props are numbered in declaration order, one bit each, as
+/// [`Layered`] numbers them. `#[element]` writes this from the struct.
 pub trait Element<B: Backend, T>: Layered {
-    /// Every prop's value at one moment, with the theme's defaults
-    /// filled in.
-    type Snapshot: Clone + PartialEq + Send + Sync + 'static;
+    /// Every prop's [`Slot`](crate::Slot): what is written, and where
+    /// it is heading.
+    type Shown: Default + Send + Sync + 'static;
 
-    /// What the node needs besides what [`write`](Self::write) keeps
-    /// up to date.
+    /// What the node needs before any prop is written.
     fn prepare(world: &mut B::World, node: B::Node);
 
-    fn snapshot(&self, world: &B::World, theme: &T)
-    -> Self::Snapshot;
-
-    fn write(
-        snapshot: &Self::Snapshot,
+    /// Re-reads the props whose bits are in `dirty`, heads each for
+    /// its new value, over `curve` if it blends, and moves every prop
+    /// still travelling on by `tick`. Returns whether any still is.
+    #[allow(clippy::too_many_arguments)]
+    fn update(
+        &self,
+        shown: &mut Self::Shown,
+        dirty: u64,
         world: &mut B::World,
         node: B::Node,
-    );
+        theme: &T,
+        tick: Tick,
+        curve: Option<Curve>,
+    ) -> bool;
 
     /// Whether anything it holds can change after the build.
     fn is_live(&self) -> bool;
 
-    /// Whether anything it holds may have changed since the last
+    /// The bits of the props that may have changed since the last
     /// call. Every prop's check runs each call, as each one keeps
     /// its own memory of the last.
-    fn changed(&mut self, world: &B::World) -> bool;
+    fn changed(&mut self, world: &B::World) -> u64;
 
     /// A hook run right after the element is mounted on `node`.
     fn on_mounted(&self, _world: &mut B::World, _node: B::Node) {}
@@ -176,33 +183,15 @@ pub trait Element<B: Backend, T>: Layered {
         cx.resolve(self)
     }
 
-    /// Edits a fresh snapshot of `node` before it is written, from
-    /// what only the node knows.
-    fn adjust(
-        &self,
-        _snapshot: &mut Self::Snapshot,
-        _world: &B::World,
-        _node: B::Node,
-        _theme: &T,
-    ) {
-    }
-
-    /// How the written values travel to a new snapshot, whatever the
-    /// rules say. `None` leaves it to a transition rule.
-    fn tween(&self, _theme: &T) -> Option<Tween<Self::Snapshot>> {
-        None
-    }
-
-    /// How two snapshots blend, for a transition rule to travel with.
-    /// `None` snaps whatever the rules say.
-    fn interp() -> Option<InterpFn<Self::Snapshot>> {
-        None
-    }
-
     /// Its [`Visual`] props, for rules for every kind of element to
     /// reach. `None` for an element without them.
     fn visual(&mut self) -> Option<VisualMut<'_, B::World>> {
         None
+    }
+
+    /// The bits of its [`Visual`] props, opacity then scale.
+    fn visual_bits() -> [u64; 2] {
+        [0, 0]
     }
 }
 
@@ -228,26 +217,28 @@ impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
             call,
             visual_layers,
             visual_call,
-            tween: element.tween(cx.theme()).or_else(|| {
-                Some(Tween {
-                    curve: curve?,
-                    interp: E::interp()?,
-                })
-            }),
+            curve,
         };
         E::prepare(cx.world, node);
-        // Before the snapshot, which a state set on watching can
+        // Before the first write, which a state set on watching can
         // change.
         live.watch(cx.world, node);
-        let snapshot =
-            live.snapshot(&mut element, cx.world, node, cx.theme());
-        E::write(&snapshot, cx.world, node);
+        let mut shown = E::Shown::default();
+        live.update(
+            &mut element,
+            &mut shown,
+            u64::MAX,
+            cx.world,
+            node,
+            cx.theme(),
+            Tick::default(),
+        );
         // One with a transition is kept too, so it can animate out.
         if element.is_live()
             || live.is_layered()
-            || live.tween.is_some()
+            || live.curve.is_some()
         {
-            cx.mount(node, element, snapshot, live);
+            cx.mount(node, element, shown, live);
         }
         node
     }

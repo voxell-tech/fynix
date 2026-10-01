@@ -1,24 +1,24 @@
 //! A clickable [`Frame`] around one content view.
 //!
-//! Like a [`Stack`](super::Stack), it holds its frame and forwards the
-//! frame's builder methods. Everything else is rules: its defaults
+//! Like a [`Stack`](super::Stack), it holds its frame and takes the
+//! frame's props through [`FrameProps`]. Everything else is rules: its
+//! defaults
 //! (fill, radius, centred content, a hover fill and a transition) are
 //! defaults for its root frame alone, so an app's `set::<Frame>` and a
 //! call site's `.when::<Hovered, _>(..)` both beat them, and none of
 //! them reach the content.
 
 use bevy::ecs::entity::Entity;
-use bevy::ui::{AlignItems, FlexDirection, JustifyContent};
+use bevy::ui::{AlignItems, JustifyContent};
 use bevy::ui_widgets::Button as ButtonBehavior;
 use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
-use crate::prop::Prop;
 use crate::state::State;
 use crate::tokens::{
     Motion, MotionTokens, SpacingTokens, SurfaceTokens,
 };
-use crate::views::frame::{Frame, forward_all_frame_props};
+use crate::views::frame::{Frame, FrameProps};
 use crate::{Bevy, Cx, Hovered, Styled, View};
 
 pub struct Button<C> {
@@ -51,16 +51,10 @@ where
     cx.transition(Motion::Interact);
 }
 
-impl<C> Button<C> {
-    pub fn direction(
-        mut self,
-        direction: impl Into<Prop<FlexDirection>>,
-    ) -> Self {
-        self.frame = self.frame.direction(direction);
-        self
+impl<C> FrameProps for Button<C> {
+    fn frame_mut(&mut self) -> &mut Frame {
+        &mut self.frame
     }
-
-    forward_all_frame_props!();
 }
 
 impl<T, C> View<Bevy, T> for Button<C>

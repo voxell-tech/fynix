@@ -28,9 +28,13 @@ impl<W> Visual<W> {
         self
     }
 
-    /// Whether a bound prop may have changed. Both checks run.
-    pub fn changed(&mut self, world: &W) -> bool {
-        self.opacity.changed(world) | self.scale.changed(world)
+    /// Which bound props may have changed, as `bits` numbers them:
+    /// opacity, then scale. Both checks run.
+    pub fn changed_bits(&mut self, world: &W, bits: [u64; 2]) -> u64 {
+        let opacity = self.opacity.changed(world);
+        let scale = self.scale.changed(world);
+        (if opacity { bits[0] } else { 0 })
+            | (if scale { bits[1] } else { 0 })
     }
 }
 

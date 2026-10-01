@@ -3,37 +3,49 @@ use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use bevy::image::Image;
-use bevy::math::Rot2;
 use bevy::ui::widget::ImageNode;
-use bevy::ui::{Node, UiTransform, px};
+use fynix::element;
 
-use motiongfx_interp::interpolation::{InterpFn, Interpolation};
-
-use crate::leave::Collapsing;
+use crate::patch::{
+    Paint, PatchInk, PatchOpacity, PatchRotation, PatchScale,
+    PatchSquare, patch,
+};
 use crate::prop::Prop;
-use crate::props::props;
 use crate::state::own_when;
 use crate::tokens::{TextTokens, Tone};
-use crate::transition::BevyMarker;
-use crate::visual::{faded, scaled, visual_access};
-use crate::{Bevy, Element, Styled};
+use crate::transition::{blend_color, blend_f32};
+use crate::{Bevy, Styled};
 
-props! {
-    /// A square image tinted by a text tone.
-    pub struct Icon {
-        image: Handle<Image>,
-        /// The length of each side. The theme's body size when unset.
-        size: f32,
-        /// The tint, by role. Body when unset.
-        tone: Tone,
-        /// Clockwise, in degrees.
-        rotation: f32,
-        /// How opaque it is, 1.0 when unset.
-        opacity: f32,
-        /// The factor it is scaled by around its centre after layout,
-        /// 1.0 when unset.
-        scale: f32,
-    }
+/// A square image tinted by a text tone.
+#[element(backend = Bevy, theme = TextTokens, prepare = prepare)]
+pub struct Icon {
+    #[elem(patch = PatchImage)]
+    pub image: Prop<Handle<Image>>,
+    /// The length of each side. The theme's body size when unset.
+    #[elem(
+        default = theme.body_size(),
+        patch = PatchSquare,
+        blend = blend_f32
+    )]
+    pub size: Prop<f32>,
+    /// The tint, by role. Body when unset.
+    #[elem(
+        shown = Color,
+        with = |tone, theme| theme.tone(tone),
+        patch = PatchInk,
+        blend = blend_color
+    )]
+    pub tone: Prop<Tone>,
+    /// Clockwise, in degrees.
+    #[elem(patch = PatchRotation, blend = blend_f32)]
+    pub rotation: Prop<f32>,
+    /// How opaque it is, 1.0 when unset.
+    #[elem(default = 1.0, patch = PatchOpacity, blend = blend_f32)]
+    pub opacity: Prop<f32>,
+    /// The factor it is scaled by around its centre after layout,
+    /// 1.0 when unset.
+    #[elem(default = 1.0, patch = PatchScale, blend = blend_f32)]
+    pub scale: Prop<f32>,
 }
 
 pub fn icon(image: impl Into<Prop<Handle<Image>>>) -> Icon {
@@ -43,105 +55,28 @@ pub fn icon(image: impl Into<Prop<Handle<Image>>>) -> Icon {
     }
 }
 
+fn prepare(world: &mut World, node: Entity) {
+    world
+        .entity_mut(node)
+        .insert((ImageNode::default(), Paint::default()));
+}
+
 own_when!(Icon);
 
-/// An [`Icon`]'s props at one moment.
-#[derive(Clone, Debug, PartialEq)]
-pub struct IconSnapshot {
-    pub image: Handle<Image>,
-    pub size: f32,
-    pub color: Color,
-    pub rotation: f32,
-    pub opacity: f32,
-    pub scale: f32,
-}
-
-/// Everything but the image blends, and the image takes the target.
-impl Interpolation<BevyMarker> for IconSnapshot {
-    fn interp(from: &Self, to: &Self, t: f32) -> Self {
-        let float = |from: &f32, to: &f32| {
-            <f32 as Interpolation<()>>::interp(from, to, t)
-        };
-        Self {
-            image: to.image.clone(),
-            size: float(&from.size, &to.size),
-            color: <Color as Interpolation<BevyMarker>>::interp(
-                &from.color,
-                &to.color,
-                t,
-            ),
-            rotation: float(&from.rotation, &to.rotation),
-            opacity: float(&from.opacity, &to.opacity),
-            scale: float(&from.scale, &to.scale),
-        }
+patch!(PatchImage, Handle<Image>, |entity, v| {
+    if let Some(mut image) = entity.get_mut::<ImageNode>() {
+        image.image = v.clone();
     }
-}
-
-impl<T: TextTokens> Element<Bevy, T> for Icon {
-    type Snapshot = IconSnapshot;
-
-    fn prepare(world: &mut World, node: Entity) {
-        world.entity_mut(node).insert(ImageNode::default());
-    }
-
-    fn snapshot(&self, world: &World, theme: &T) -> IconSnapshot {
-        let tone = self.tone.get(world).unwrap_or_default();
-        IconSnapshot {
-            image: self.image.get(world).unwrap_or_default(),
-            size: self.size.get(world).unwrap_or(theme.body_size()),
-            color: theme.tone(tone),
-            rotation: self.rotation.get(world).unwrap_or(0.0),
-            opacity: self.opacity.get(world).unwrap_or(1.0),
-            scale: self.scale.get(world).unwrap_or(1.0),
-        }
-    }
-
-    fn write(
-        snapshot: &IconSnapshot,
-        world: &mut World,
-        node: Entity,
-    ) {
-        let mut entity = world.entity_mut(node);
-        // A collapsing node's size is the collapse's to write.
-        let sized = !entity.contains::<Collapsing>();
-        if let Some(mut ui) = entity.get_mut::<Node>()
-            && sized
-        {
-            ui.width = px(snapshot.size);
-            ui.height = px(snapshot.size);
-        }
-        entity.insert((
-            ImageNode::new(snapshot.image.clone())
-                .with_color(faded(snapshot.color, snapshot.opacity)),
-            UiTransform {
-                rotation: Rot2::degrees(snapshot.rotation),
-                ..scaled(snapshot.scale)
-            },
-        ));
-    }
-
-    fn is_live(&self) -> bool {
-        self.any_bound()
-    }
-
-    fn changed(&mut self, world: &World) -> bool {
-        self.any_changed(world)
-    }
-
-    fn interp() -> Option<InterpFn<IconSnapshot>> {
-        Some(<IconSnapshot as Interpolation<BevyMarker>>::interp)
-    }
-
-    visual_access!();
-}
+});
 
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
+    use bevy::math::Rot2;
     use bevy::time::TimePlugin;
-    use bevy::ui::Val;
+    use bevy::ui::{Node, UiTransform, Val};
 
     use super::*;
     use crate::{AnyView, FynixPlugin, Theme, mount};

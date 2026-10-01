@@ -6,7 +6,7 @@ use bevy::ui::{AlignItems, UiRect, percent, px};
 
 use crate::modifier::ModifierExt;
 use crate::tokens::{SpacingTokens, TextTokens, Tone};
-use crate::views::{BehaviorExt, Label, row};
+use crate::views::{BehaviorExt, FrameProps, Label, row};
 use crate::{AnyView, Bevy, Cx, View};
 
 /// Indent per level of `depth`, in pixels.
@@ -60,7 +60,7 @@ where
             })
         });
         cx.build(
-            row((label.width(percent(40.0)), self.value.grow(1.0)))
+            row((label.wide(percent(40.0)), self.value.grown(1.0)))
                 .gap(8.0)
                 .align(AlignItems::Center)
                 .padding(UiRect::left(

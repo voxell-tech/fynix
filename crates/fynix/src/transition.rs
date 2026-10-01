@@ -26,8 +26,7 @@ pub trait MotionTokens {
     fn motion(&self, motion: Motion) -> Curve;
 }
 
-/// How an element's snapshot `S` travels: over `curve`, blended by
-/// `interp`.
+/// How a prop's value `S` travels: over `curve`, blended by `interp`.
 pub struct Tween<S> {
     pub curve: Curve,
     pub interp: InterpFn<S>,

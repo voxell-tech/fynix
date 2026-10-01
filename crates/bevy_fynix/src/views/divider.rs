@@ -6,7 +6,7 @@ use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
 use crate::tokens::{SpacingTokens, SurfaceTokens};
-use crate::views::frame::{Frame, forward_all_frame_props};
+use crate::views::frame::{Frame, FrameProps};
 use crate::{Bevy, Cx, Styled, View};
 
 /// The thickness of a divider that is there to be grabbed.
@@ -45,8 +45,12 @@ impl Divider {
         self.thickness = thickness;
         self
     }
+}
 
-    forward_all_frame_props!();
+impl FrameProps for Divider {
+    fn frame_mut(&mut self) -> &mut Frame {
+        &mut self.frame
+    }
 }
 
 impl<T> View<Bevy, T> for Divider

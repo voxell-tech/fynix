@@ -1,17 +1,12 @@
-//! The Bevy backend of [`fynix`].
-//!
-//! The core owns views, set rules, props and transitions. This crate
-//! says what a world and a node are in Bevy, writes the elements and
-//! composites against `bevy_ui`, and keeps mounted elements in step with
-//! the world.
+#![doc = include_str!("../README.md")]
 
 pub mod backend;
 pub mod cursor;
 pub mod leave;
 pub mod modifier;
 pub mod mounted;
+pub mod patch;
 pub mod prop;
-mod props;
 pub mod state;
 pub mod tokens;
 pub mod transition;
