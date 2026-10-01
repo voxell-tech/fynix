@@ -16,7 +16,7 @@ use super::tree::{
     DockAreaStyle, DockNode, DockTree, NodeId, Shape, SplitAxis,
     TabId,
 };
-use super::{DockTokens, logical_rect, tabs};
+use super::{DockTokens, logical, logical_rect, tabs};
 use crate::prop::resource;
 use crate::views::{
     Axis, BehaviorExt, FrameProps, column, divider, frame, row,
@@ -226,7 +226,7 @@ pub(super) fn drag_handle(
     handles: Query<(&SplitHandle, &ChildOf)>,
     siblings: Query<&Children>,
     rects: Query<(&ComputedNode, &UiGlobalTransform)>,
-    scale: Res<UiScale>,
+    scale: Option<Res<UiScale>>,
     mut tree: ResMut<DockTree>,
 ) {
     let handle = drag.event_target();
@@ -259,7 +259,7 @@ pub(super) fn drag_handle(
     else {
         return;
     };
-    let cursor = drag.pointer_location.position / scale.0;
+    let cursor = logical(drag.pointer_location.position, scale);
     let (cursor, start, end) = if split.horizontal {
         (cursor.x, before.min.x, after.max.x)
     } else {

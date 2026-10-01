@@ -34,6 +34,13 @@ pub struct DockTab {
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct ActiveTab;
 
+/// On the node holding the tabs of a bar, whose children are the
+/// tabs.
+#[derive(Component, Clone, Copy, Debug)]
+pub(super) struct TabRow {
+    pub leaf: NodeId,
+}
+
 /// On the "+" button at the end of a bar.
 #[derive(Component, Clone, Copy, Debug)]
 pub(super) struct AddButton {
@@ -56,6 +63,7 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
         )
         .within(
             scroll(())
+                .with(TabRow { leaf })
                 .direction(FlexDirection::Row)
                 .overflow(Overflow::scroll_x())
                 .gap(2.0)

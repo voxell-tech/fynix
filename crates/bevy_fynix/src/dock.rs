@@ -5,6 +5,7 @@
 //! Everything that changes more often is a bound prop: the share of a
 //! split, the active tab, and the tabs of one area.
 
+mod drag;
 mod layout;
 mod popup;
 mod registry;
@@ -17,8 +18,10 @@ use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::schedule::common_conditions::resource_changed;
-use bevy::math::Rect;
-use bevy::ui::{ComputedNode, UiGlobalTransform, percent};
+use bevy::ecs::system::Res;
+use bevy::math::{Rect, Vec2};
+use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale, percent};
+pub use drag::{DockDrag, DropTarget};
 pub use layout::DockArea;
 pub use popup::{AddPopup, OpenPopup};
 pub use registry::{DockRegistry, DockWindowKind};
@@ -74,14 +77,21 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
         app.init_resource::<DockTree>()
             .init_resource::<DockRegistry<T>>()
             .init_resource::<AddPopup>()
+            .init_resource::<DockDrag>()
             .add_observer(layout::drag_handle)
             .add_observer(popup::open)
             .add_observer(popup::dismiss)
+            .add_observer(drag::start)
+            .add_observer(drag::moved::<T>)
+            .add_observer(drag::end)
             .add_systems(
                 Update,
-                tabs::mark_active
-                    .run_if(resource_changed::<DockTree>)
-                    .before(crate::mounted::update::<T>),
+                (
+                    tabs::mark_active
+                        .run_if(resource_changed::<DockTree>)
+                        .before(crate::mounted::update::<T>),
+                    drag::cancel,
+                ),
             );
     }
 }
@@ -114,6 +124,11 @@ pub fn dock<T: DockTokens>() -> AnyView<Bevy, T> {
         .height(percent(100.0))
         .tagged(DockRoot)
         .boxed()
+}
+
+/// A pointer position in logical pixels, from the window's.
+fn logical(position: Vec2, scale: Option<Res<UiScale>>) -> Vec2 {
+    position / scale.map_or(1.0, |scale| scale.0)
 }
 
 /// The rect of a node in logical pixels.
@@ -692,5 +707,341 @@ mod tests {
         assert!(app.world().resource::<AddPopup>().open.is_none());
         assert_eq!(kids(&app, popup).len(), 1);
         assert!(texts(&app, popup).is_empty(), "the popup is gone");
+    }
+
+    use bevy::camera::NormalizedRenderTarget;
+    use bevy::camera::visibility::Visibility;
+    use bevy::input::ButtonInput;
+    use bevy::input::keyboard::KeyCode;
+    use bevy::math::{Rect, Vec2};
+    use bevy::picking::backend::HitData;
+    use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
+    use bevy::picking::pointer::{
+        Location, PointerButton, PointerId,
+    };
+    use bevy::reflect::Reflect;
+    use bevy::ui::{ComputedNode, UiGlobalTransform};
+
+    fn pointer<E: core::fmt::Debug + Clone + Reflect>(
+        node: Entity,
+        at: Vec2,
+        event: E,
+    ) -> Pointer<E> {
+        let target = NormalizedRenderTarget::None {
+            width: 0,
+            height: 0,
+        };
+        Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target,
+                position: at,
+            },
+            event,
+            node,
+        )
+    }
+
+    fn press(app: &mut App, node: Entity, at: Vec2) {
+        let hit = HitData::new(Entity::PLACEHOLDER, 0.0, None, None);
+        let event = DragStart {
+            button: PointerButton::Primary,
+            hit,
+        };
+        app.world_mut().trigger(pointer(node, at, event));
+    }
+
+    fn drag_to(app: &mut App, node: Entity, at: Vec2) {
+        let event = Drag {
+            button: PointerButton::Primary,
+            distance: Vec2::ZERO,
+            delta: Vec2::ZERO,
+        };
+        app.world_mut().trigger(pointer(node, at, event));
+        app.update();
+    }
+
+    fn release(app: &mut App, node: Entity, at: Vec2) {
+        let event = DragEnd {
+            button: PointerButton::Primary,
+            distance: Vec2::ZERO,
+        };
+        app.world_mut().trigger(pointer(node, at, event));
+        app.update();
+    }
+
+    fn lay(app: &mut App, node: Entity, rect: Rect) {
+        app.world_mut().entity_mut(node).insert((
+            ComputedNode {
+                size: rect.size(),
+                ..ComputedNode::default()
+            },
+            UiGlobalTransform::from_translation(rect.center()),
+        ));
+    }
+
+    /// Lays the left area over `(0, 0)..(200, 200)` with its tabs
+    /// 60px wide in a 20px bar, and the right one beside it.
+    fn lay_out(app: &mut App, left: NodeId, right: NodeId) {
+        for (leaf, x) in [(left, 0.0), (right, 200.0)] {
+            let area = area_of(app, leaf);
+            lay(app, area, Rect::new(x, 0.0, x + 200.0, 200.0));
+            let bar = kids(app, area)[0];
+            lay(app, bar, Rect::new(x, 0.0, x + 200.0, 20.0));
+            let row = kids(app, bar)[0];
+            for (index, tab) in kids(app, row).into_iter().enumerate()
+            {
+                let x = x + 62.0 * index as f32;
+                lay(app, tab, Rect::new(x, 0.0, x + 60.0, 20.0));
+            }
+        }
+    }
+
+    fn tab_node(app: &mut App, leaf: NodeId, index: usize) -> Entity {
+        let id = app
+            .world()
+            .resource::<DockTree>()
+            .leaf(leaf)
+            .unwrap()
+            .windows[index]
+            .id;
+        find::<DockTab>(app)
+            .into_iter()
+            .find(|(_, tab)| tab.tab == id)
+            .map(|(entity, _)| entity)
+            .unwrap()
+    }
+
+    fn windows(app: &App, leaf: NodeId) -> Vec<String> {
+        app.world()
+            .resource::<DockTree>()
+            .leaf(leaf)
+            .unwrap()
+            .windows
+            .iter()
+            .map(|tab| tab.window_id.clone())
+            .collect()
+    }
+
+    fn dragging(app: &App) -> bool {
+        matches!(
+            app.world().resource::<DockDrag>(),
+            DockDrag::Dragging { .. }
+        )
+    }
+
+    #[test]
+    fn dragging_the_handle_moves_the_split_and_builds_nothing() {
+        let (mut app, _, _) = app();
+        let root = find::<DockRoot>(&mut app)[0].0;
+        let before = subtree(&app, root);
+        let (handle, split) = find::<layout::SplitHandle>(&mut app)
+            .into_iter()
+            .map(|(entity, handle)| (entity, handle.split))
+            .next()
+            .unwrap();
+        let [first, _, second] = kids(
+            &app,
+            app.world().get::<ChildOf>(handle).unwrap().parent(),
+        )[..] else {
+            panic!("two panes and a handle");
+        };
+        lay(&mut app, first, Rect::new(0.0, 0.0, 98.0, 100.0));
+        lay(&mut app, second, Rect::new(102.0, 0.0, 200.0, 100.0));
+
+        // A quarter of the 194px the panes share, past the handle's
+        // own half.
+        drag_to(&mut app, handle, Vec2::new(51.5, 50.0));
+
+        let fraction = app
+            .world()
+            .resource::<DockTree>()
+            .get(split)
+            .and_then(DockNode::as_split)
+            .unwrap()
+            .fraction;
+        assert!((fraction - 0.25).abs() < 1e-4, "{fraction}");
+        assert_eq!(subtree(&app, root), before, "same entities");
+        assert!((percent_of(&app, first) - 25.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn a_small_move_is_not_a_drag() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let one = tab_node(&mut app, left, 0);
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(12.0, 11.0));
+
+        assert!(!dragging(&app));
+        release(&mut app, one, Vec2::new(12.0, 11.0));
+        assert!(matches!(
+            app.world().resource::<DockDrag>(),
+            DockDrag::Idle
+        ));
+        assert_eq!(windows(&app, left), ["one", "two"]);
+    }
+
+    #[test]
+    fn dragging_a_tab_shows_a_ghost_and_a_hint_and_hides_the_tab() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let one = tab_node(&mut app, left, 0);
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(230.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(231.0, 10.0));
+
+        let DockDrag::Dragging {
+            ghost,
+            hint,
+            target,
+            ..
+        } = *app.world().resource::<DockDrag>()
+        else {
+            panic!("dragging");
+        };
+        assert_eq!(
+            target,
+            Some(DropTarget::Tabs {
+                leaf: right,
+                index: 1
+            })
+        );
+        let ghost_ui = app.world().get::<Node>(ghost).unwrap();
+        assert_eq!(ghost_ui.left, px(231.0 - 40.0));
+        assert_eq!(texts(&app, ghost), ["One"]);
+        let hint_ui = app.world().get::<Node>(hint.unwrap()).unwrap();
+        assert_eq!(hint_ui.left, px(230.0));
+        assert_eq!(hint_ui.width, px(30.0));
+        assert_eq!(
+            app.world().get::<Visibility>(one),
+            Some(&Visibility::Hidden)
+        );
+    }
+
+    #[test]
+    fn dropping_on_a_bar_moves_the_tab_to_that_slot() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let one = tab_node(&mut app, left, 0);
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(210.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(215.0, 10.0));
+        release(&mut app, one, Vec2::new(215.0, 10.0));
+        settle(&mut app);
+
+        assert_eq!(windows(&app, left), ["two"]);
+        assert_eq!(windows(&app, right), ["one", "three"]);
+        let right_area = area_of(&mut app, right);
+        assert_eq!(contents(&app, right_area).len(), 2);
+        assert!(matches!(
+            app.world().resource::<DockDrag>(),
+            DockDrag::Idle
+        ));
+        assert!(find::<DockArea>(&mut app).len() == 2, "no new area");
+    }
+
+    #[test]
+    fn dropping_within_a_bar_reorders_the_tabs() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let one = tab_node(&mut app, left, 0);
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(115.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(118.0, 10.0));
+        release(&mut app, one, Vec2::new(118.0, 10.0));
+        settle(&mut app);
+
+        assert_eq!(windows(&app, left), ["two", "one"]);
+    }
+
+    #[test]
+    fn dropping_on_an_edge_splits_the_area_with_the_tab() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let two = tab_node(&mut app, left, 1);
+        let before = app.world().resource::<DockTree>().shape();
+        let id = app
+            .world()
+            .resource::<DockTree>()
+            .leaf(left)
+            .unwrap()
+            .windows[1]
+            .id;
+
+        press(&mut app, two, Vec2::new(70.0, 10.0));
+        drag_to(&mut app, two, Vec2::new(390.0, 100.0));
+        drag_to(&mut app, two, Vec2::new(392.0, 100.0));
+        release(&mut app, two, Vec2::new(392.0, 100.0));
+        settle(&mut app);
+
+        let tree = app.world().resource::<DockTree>();
+        assert_ne!(tree.shape(), before);
+        let new_leaf = tree.find_leaf_for_tab(id).unwrap();
+        assert_ne!(new_leaf, left);
+        assert_ne!(new_leaf, right);
+        assert_eq!(tree.leaves().count(), 3);
+        assert_eq!(windows(&app, left), ["one"]);
+        assert_eq!(find::<DockArea>(&mut app).len(), 3);
+    }
+
+    #[test]
+    fn dropping_in_the_middle_of_its_own_area_does_nothing() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let one = tab_node(&mut app, left, 0);
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(100.0, 100.0));
+        drag_to(&mut app, one, Vec2::new(101.0, 100.0));
+
+        let DockDrag::Dragging { hint, target, .. } =
+            *app.world().resource::<DockDrag>()
+        else {
+            panic!("dragging");
+        };
+        assert_eq!((hint, target), (None, None));
+        release(&mut app, one, Vec2::new(101.0, 100.0));
+        assert_eq!(windows(&app, left), ["one", "two"]);
+    }
+
+    #[test]
+    fn escape_ends_the_drag_without_dropping() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        app.init_resource::<ButtonInput<KeyCode>>();
+        let one = tab_node(&mut app, left, 0);
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(230.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(231.0, 10.0));
+        let DockDrag::Dragging { ghost, hint, .. } =
+            *app.world().resource::<DockDrag>()
+        else {
+            panic!("dragging");
+        };
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        // Once more, for the commands the cancel queued.
+        app.update();
+
+        assert!(matches!(
+            app.world().resource::<DockDrag>(),
+            DockDrag::Idle
+        ));
+        assert!(app.world().get_entity(ghost).is_err());
+        assert!(app.world().get_entity(hint.unwrap()).is_err());
+        assert_eq!(
+            app.world().get::<Visibility>(one),
+            Some(&Visibility::Inherited)
+        );
+        release(&mut app, one, Vec2::new(231.0, 10.0));
+        assert_eq!(windows(&app, left), ["one", "two"], "no drop");
     }
 }

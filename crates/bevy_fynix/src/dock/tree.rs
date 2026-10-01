@@ -399,20 +399,64 @@ impl DockTree {
         edge: Edge,
         window: String,
     ) -> Option<(NodeId, TabId)> {
+        self.leaf(target)?;
+        let entry = DockTabEntry {
+            window_id: window,
+            id: self.fresh_tab_id(),
+        };
+        let tab = entry.id;
+        let leaf = self.split_with(target, edge, entry)?;
+        Some((leaf, tab))
+    }
+
+    /// Moves `tab` into a new leaf on the `edge` side of the leaf
+    /// `target`, keeping its id. A source leaf left empty is removed
+    /// unless it is persistent. Returns the new leaf, or `None` if
+    /// there is nothing to do: `tab` is not in the tree, `target` is
+    /// not a leaf, or `tab` is the only one of `target`.
+    pub fn split_tab(
+        &mut self,
+        target: NodeId,
+        edge: Edge,
+        tab: TabId,
+    ) -> Option<NodeId> {
+        self.leaf(target)?;
+        let from = self.find_leaf_for_tab(tab)?;
+        if from == target && self.leaf(from)?.windows.len() == 1 {
+            return None;
+        }
+        let DockNode::Leaf(source) = self.nodes.get_mut(&from)?
+        else {
+            return None;
+        };
+        let at = source.tab_index(tab)?;
+        let entry = source.windows.remove(at);
+        if source.active == Some(tab) {
+            source.active = source.windows.first().map(|t| t.id);
+        }
+        let leaf = self.split_with(target, edge, entry);
+        self.simplify();
+        leaf
+    }
+
+    /// Splits `target` with a new leaf holding `entry` on the `edge`
+    /// side.
+    fn split_with(
+        &mut self,
+        target: NodeId,
+        edge: Edge,
+        entry: DockTabEntry,
+    ) -> Option<NodeId> {
         let new_style = self.leaf(target)?.style.clone();
 
         let new_leaf_id = self.fresh_id();
-        let tab_id = self.fresh_tab_id();
         self.nodes.insert(
             new_leaf_id,
             DockNode::Leaf(DockLeaf {
-                area_id: fresh_area_id(&window, new_leaf_id),
+                area_id: fresh_area_id(&entry.window_id, new_leaf_id),
                 style: new_style,
-                windows: vec![DockTabEntry {
-                    window_id: window,
-                    id: tab_id,
-                }],
-                active: Some(tab_id),
+                active: Some(entry.id),
+                windows: vec![entry],
                 persistent: false,
             }),
         );
@@ -433,7 +477,7 @@ impl DockTree {
 
         self.replace_child(parent, target, split_id);
 
-        Some((new_leaf_id, tab_id))
+        Some(new_leaf_id)
     }
 
     /// Points `parent`, or the root when there is none, at `with`
@@ -884,6 +928,55 @@ mod tests {
             DockNode::Leaf(_)
         ));
         assert_eq!(t.leaves().count(), 1);
+    }
+
+    #[test]
+    fn split_tab_moves_the_tab_into_a_new_leaf_keeping_its_id() {
+        let mut t = DockTree::new();
+        let root = t.set_root_leaf(leaf("root", &["a", "b"]));
+        let tab_b = tab_id_for(&t, root, "b");
+
+        let new_leaf = t.split_tab(root, Edge::Left, tab_b).unwrap();
+
+        let s = t.nodes[&t.root.unwrap()].as_split().unwrap();
+        assert_eq!((s.a, s.b), (new_leaf, root));
+        assert_eq!(window_ids(&t, root), vec!["a"]);
+        assert_eq!(window_ids(&t, new_leaf), vec!["b"]);
+        assert_eq!(tab_id_for(&t, new_leaf, "b"), tab_b);
+        assert_eq!(active_window_id(&t, new_leaf), Some("b"));
+        assert_eq!(active_window_id(&t, root), Some("a"));
+    }
+
+    #[test]
+    fn split_tab_removes_a_source_leaf_it_empties() {
+        let mut t = DockTree::new();
+        let root = t.set_root_leaf(leaf("root", &["a"]));
+        let (right, _) =
+            t.split(root, Edge::Right, "b".into()).unwrap();
+        let (_, _) =
+            t.split(right, Edge::Bottom, "c".into()).unwrap();
+        let tab_a = tab_id_for(&t, root, "a");
+
+        let new_leaf = t.split_tab(right, Edge::Top, tab_a).unwrap();
+
+        assert!(t.get(root).is_none(), "the emptied leaf is gone");
+        assert_eq!(window_ids(&t, new_leaf), vec!["a"]);
+        assert_eq!(t.leaves().count(), 3);
+        assert!(matches!(
+            t.nodes[&t.root.unwrap()],
+            DockNode::Split(_)
+        ));
+    }
+
+    #[test]
+    fn split_tab_of_a_lone_tab_onto_its_own_leaf_does_nothing() {
+        let mut t = DockTree::new();
+        let root = t.set_root_leaf(leaf("root", &["a"]));
+        let tab_a = tab_id_for(&t, root, "a");
+
+        assert_eq!(t.split_tab(root, Edge::Right, tab_a), None);
+        assert_eq!(t.leaves().count(), 1);
+        assert_eq!(t.root, Some(root));
     }
 
     #[test]
