@@ -278,13 +278,13 @@ mod tests {
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
     use crate::transition::BevyMarker;
     use crate::views::{BehaviorExt, frame, label};
     use crate::{ScopedExt, mount};
 
     fn app() -> App {
-        testing::app_with(Plain {
+        tests::app_with(Plain {
             panel: Color::srgb(0.1, 0.1, 0.1),
             hairline: Some(Color::srgb(0.4, 0.4, 0.4)),
             menu_radius: Some(5.0),

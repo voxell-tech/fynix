@@ -94,7 +94,7 @@ impl<T> DockRegistry<T> {
 mod tests {
     use super::*;
     use crate::ViewExt;
-    use crate::testing::Plain;
+    use crate::tests::Plain;
     use crate::views::label;
 
     fn kind(name: &str) -> DockWindowKind<Plain> {

@@ -128,7 +128,7 @@ mod tests {
     use bevy::ui::{BorderRadius, GlobalZIndex, Node, percent, px};
 
     use super::*;
-    use crate::testing::{Plain, app};
+    use crate::tests::{Plain, app};
     use crate::tokens::Motion;
     use crate::{ScopedExt, mount};
 

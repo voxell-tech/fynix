@@ -155,7 +155,7 @@ where
 }
 
 #[cfg(test)]
-pub(super) mod testing {
+pub(super) mod fixtures {
     use core::time::Duration;
 
     use bevy::app::App;
@@ -173,10 +173,10 @@ pub(super) mod testing {
     use bevy::window::PrimaryWindow;
 
     use super::*;
-    pub use crate::testing::Plain;
+    pub(crate) use crate::tests::Plain;
 
     pub fn app() -> App {
-        let mut app = crate::testing::app();
+        let mut app = crate::tests::app();
         app.add_plugins((
             InputPlugin,
             InputFocusPlugin,
@@ -338,7 +338,7 @@ mod tests {
     use bevy::ecs::resource::Resource;
     use bevy::ui::BackgroundColor;
 
-    use super::testing::*;
+    use super::fixtures::*;
     use super::*;
     use crate::{mount, resource};
 

@@ -130,7 +130,7 @@ mod tests {
     use bevy::ui::{BackgroundColor, Node, Val};
 
     use super::*;
-    use crate::testing::{Plain, app};
+    use crate::tests::{Plain, app};
     use crate::views::{Label, label};
     use crate::{AnyView, mount};
 

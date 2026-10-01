@@ -244,11 +244,11 @@ mod tests {
 
     use super::*;
     use crate::mount;
-    use crate::testing::{self, Plain, hover, kids};
+    use crate::tests::{self, Plain, hover, kids};
     use crate::views::label;
 
     fn app() -> App {
-        let mut app = testing::app();
+        let mut app = tests::app();
         app.insert_resource(TooltipTiming {
             show: Duration::from_millis(100),
             hide: Duration::from_millis(100),

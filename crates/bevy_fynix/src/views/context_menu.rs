@@ -210,14 +210,14 @@ mod tests {
 
     use super::*;
     use crate::mount;
-    use crate::testing::{self, Plain, kids};
+    use crate::tests::{self, Plain, kids};
     use crate::views::{BehaviorExt, label, menu_item};
 
     #[derive(Resource, Default)]
     struct Deleted(u32);
 
     fn app() -> App {
-        let mut app = testing::app();
+        let mut app = tests::app();
         app.init_resource::<Deleted>();
         app
     }

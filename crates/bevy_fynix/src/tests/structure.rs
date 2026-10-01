@@ -6,9 +6,8 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 
-use super::{app, children, text};
+use super::{Plain, children, text, themed_app};
 use crate::mounted::Mounts;
-use crate::testing::Plain;
 use crate::views::{column, label, row};
 use crate::{
     AnyView, Bevy, Unmounted, ViewExt, component, each, keyed, mount,
@@ -52,7 +51,7 @@ fn mounts(app: &App) -> usize {
 }
 
 fn setup_screens() -> (App, bevy::ecs::entity::Entity) {
-    let mut app = app(Plain::default());
+    let mut app = themed_app(Plain::default());
     app.insert_resource(Screen::Home).insert_resource(Count(1));
     let switch = mount::<Plain>(app.world_mut(), screens());
     (app, switch)
@@ -133,7 +132,7 @@ fn a_switch_inside_a_switch_is_dropped_with_its_outer() {
     #[derive(Resource)]
     struct Inner(u32);
 
-    let mut app = app(Plain::default());
+    let mut app = themed_app(Plain::default());
     app.insert_resource(Screen::Home).insert_resource(Inner(0));
     mount::<Plain>(
         app.world_mut(),
@@ -224,7 +223,7 @@ struct Inspected {
 }
 
 fn inspected() -> Inspected {
-    let mut app = app(Plain::default());
+    let mut app = themed_app(Plain::default());
     let first =
         app.world_mut().spawn((Health(10), Mana(5), Armor(2))).id();
     let second = app.world_mut().spawn(Health(99)).id();
@@ -380,7 +379,7 @@ fn shown(app: &App, list: Entity) -> Vec<String> {
 
 #[test]
 fn an_each_view_keeps_the_entity_of_a_kept_key() {
-    let mut app = app(Plain::default());
+    let mut app = themed_app(Plain::default());
     app.insert_resource(Ids(vec![1, 2, 3]));
     let list = mount::<Plain>(app.world_mut(), ids());
     let [one, two, three] = children(&app, list)[..] else {
@@ -401,7 +400,7 @@ fn an_each_view_keeps_the_entity_of_a_kept_key() {
 
 #[test]
 fn an_each_view_reorders_the_children_of_its_container() {
-    let mut app = app(Plain::default());
+    let mut app = themed_app(Plain::default());
     app.insert_resource(Ids(vec![1, 2, 3]));
     let list = mount::<Plain>(app.world_mut(), ids());
     let rows = children(&app, list);

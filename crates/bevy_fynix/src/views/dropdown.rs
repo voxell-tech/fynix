@@ -252,7 +252,7 @@ mod tests {
     use bevy::ui_widgets::{Activate, MenuPlugin};
 
     use super::*;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
     use crate::{mount, resource};
 
     /// The index the dropdown was last asked to show.
@@ -260,7 +260,7 @@ mod tests {
     struct Chosen(usize);
 
     fn app() -> App {
-        let mut app = testing::app();
+        let mut app = tests::app();
         app.add_plugins(MenuPlugin).insert_resource(Chosen(1));
         app
     }

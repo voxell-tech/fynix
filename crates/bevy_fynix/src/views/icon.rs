@@ -78,7 +78,7 @@ mod tests {
     use bevy::ui::{Node, UiTransform, Val};
 
     use super::*;
-    use crate::testing::{Plain, app};
+    use crate::tests::{Plain, app};
     use crate::{AnyView, mount};
 
     fn image_node(app: &App, node: Entity) -> &ImageNode {

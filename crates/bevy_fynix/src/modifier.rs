@@ -113,7 +113,7 @@ mod tests {
 
     use super::*;
     use crate::mount;
-    use crate::testing::{Plain, app};
+    use crate::tests::{Plain, app};
     use crate::views::{FrameProps, label, row};
 
     #[test]

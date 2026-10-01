@@ -106,7 +106,7 @@ mod tests {
     use bevy::ui::UiTransform;
 
     use super::*;
-    use crate::testing::{Plain, app};
+    use crate::tests::{Plain, app};
     use crate::tokens::Motion;
     use crate::transition::ReducedMotion;
     use crate::{Hovered, ScopedExt, mount};

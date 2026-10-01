@@ -91,12 +91,12 @@ mod tests {
 
     use super::*;
     use crate::mount;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
     use crate::views::{button, frame};
 
     /// A window and a button over a frame.
     fn setup() -> (App, Entity, Entity, Entity) {
-        let mut app = testing::app();
+        let mut app = tests::app();
         let window = app
             .world_mut()
             .spawn((Window::default(), PrimaryWindow))

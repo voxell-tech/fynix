@@ -15,8 +15,6 @@ pub mod views;
 pub mod visual;
 
 #[cfg(test)]
-mod testing;
-#[cfg(test)]
 mod tests;
 
 use core::marker::PhantomData;

@@ -352,7 +352,7 @@ mod tests {
     use bevy::app::App;
     use bevy::ecs::resource::Resource;
 
-    use super::super::field::testing::*;
+    use super::super::field::fixtures::*;
     use super::*;
     use crate::{mount, resource};
 

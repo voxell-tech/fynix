@@ -202,7 +202,7 @@ mod tests {
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
     use crate::transition::{BevyMarker, ReducedMotion};
     use crate::views::{icon, label, row};
     use crate::{AnyView, ScopedExt, StateExt, mount};
@@ -217,7 +217,7 @@ mod tests {
     struct Releases(usize);
 
     fn app() -> App {
-        let mut app = testing::app_with(Plain {
+        let mut app = tests::app_with(Plain {
             accent: Some(ACCENT),
             accent_tone: Some(ACCENT),
             on_accent: Some(ON_ACCENT),

@@ -1,4 +1,5 @@
-//! A headless app per test, and two unrelated themes to build under.
+//! The crate's tests: the shared helpers in `support`, and a headless
+//! app per test with two unrelated themes to build under.
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
@@ -16,6 +17,9 @@ use bevy::time::TimePlugin;
 use bevy::ui::widget::Text;
 
 mod structure;
+mod support;
+
+pub(crate) use support::{Plain, app, app_with, hover, kids};
 
 use crate::mounted::Mounts;
 use crate::tokens::{TextTokens, Tone};
@@ -67,7 +71,7 @@ impl TextTokens for Cold {
     }
 }
 
-fn app<T: Send + Sync + 'static>(theme: T) -> App {
+fn themed_app<T: Send + Sync + 'static>(theme: T) -> App {
     let mut app = App::new();
     app.add_plugins((TimePlugin, FynixPlugin::<T>::default()))
         .insert_resource(Theme(theme));
@@ -99,7 +103,7 @@ fn children(app: &App, root: Entity) -> Vec<Entity> {
 
 #[test]
 fn an_unset_prop_falls_back_to_the_theme() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let node = mount::<Warm>(app.world_mut(), label("Save"));
 
     assert_eq!(text(&app, node), "Save");
@@ -109,8 +113,8 @@ fn an_unset_prop_falls_back_to_the_theme() {
 
 #[test]
 fn the_same_view_works_under_two_unrelated_themes() {
-    let mut warm = app(Warm);
-    let mut cold = app(Cold {
+    let mut warm = themed_app(Warm);
+    let mut cold = themed_app(Cold {
         sizes: [20.0, 16.0],
     });
     let in_warm = mount::<Warm>(warm.world_mut(), label("x"));
@@ -122,7 +126,7 @@ fn the_same_view_works_under_two_unrelated_themes() {
 
 #[test]
 fn a_set_rule_fills_what_the_call_site_left_unset() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let root = mount::<Warm>(
         app.world_mut(),
         AnyView::<Bevy, Warm>::new(|cx| {
@@ -152,7 +156,7 @@ fn a_set_rule_fills_what_the_call_site_left_unset() {
 
 #[test]
 fn an_inner_scope_wins_and_ends_with_its_scope() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let root = mount::<Warm>(
         app.world_mut(),
         AnyView::<Bevy, Warm>::new(|cx| {
@@ -180,7 +184,7 @@ fn an_inner_scope_wins_and_ends_with_its_scope() {
 
 #[test]
 fn a_rule_can_read_the_theme() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let root = mount::<Warm>(
         app.world_mut(),
         AnyView::<Bevy, Warm>::new(|cx| {
@@ -203,7 +207,7 @@ fn a_rule_can_read_the_theme() {
 
 #[test]
 fn a_show_rule_wins_over_the_call_site() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let root = mount::<Warm>(
         app.world_mut(),
         AnyView::<Bevy, Warm>::new(|cx| {
@@ -227,7 +231,7 @@ struct Count(u32);
 
 #[test]
 fn a_bound_prop_follows_the_world() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     app.insert_resource(Count(1));
     let bound = mount::<Warm>(
         app.world_mut(),
@@ -250,7 +254,7 @@ fn a_bound_prop_follows_the_world() {
 
 #[test]
 fn a_despawned_view_is_dropped_after_one_update() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     app.insert_resource(Count(1));
     let node = mount::<Warm>(
         app.world_mut(),
@@ -272,7 +276,7 @@ fn a_despawned_view_is_dropped_after_one_update() {
 #[test]
 fn a_resource_signal_is_read_only_after_the_resource_changes() {
     static READS: AtomicUsize = AtomicUsize::new(0);
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     app.insert_resource(Count(1));
     let node = mount::<Warm>(
         app.world_mut(),
@@ -301,7 +305,7 @@ fn a_resource_signal_is_read_only_after_the_resource_changes() {
 
 #[test]
 fn a_change_made_right_after_mounting_is_not_missed() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     app.insert_resource(Count(1));
     let node = mount::<Warm>(
         app.world_mut(),
@@ -318,7 +322,7 @@ fn a_change_made_right_after_mounting_is_not_missed() {
 
 #[test]
 fn a_component_signal_follows_the_component() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let entity = app.world_mut().spawn(Name::new("Cube")).id();
     let node = mount::<Warm>(
         app.world_mut(),
@@ -345,7 +349,7 @@ fn a_component_signal_follows_the_component() {
 
 #[test]
 fn a_derived_signal_reads_every_frame_when_asked() {
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     app.insert_resource(Count(1));
     let node = mount::<Warm>(
         app.world_mut(),
@@ -366,7 +370,7 @@ fn a_seeded_state_rule_holds_for_the_first_write() {
     use crate::Hovered;
     use crate::views::BehaviorExt;
 
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let seeded = mount::<Warm>(
         app.world_mut(),
         label("a")
@@ -391,7 +395,7 @@ fn a_seed_goes_to_the_first_node_of_its_view_alone() {
     use crate::Hovered;
     use crate::views::BehaviorExt;
 
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let root = mount::<Warm>(
         app.world_mut(),
         AnyView::<Bevy, Warm>::new(|cx| {
@@ -416,7 +420,7 @@ fn a_seed_nothing_took_does_not_reach_a_later_node() {
     use crate::Hovered;
     use crate::views::BehaviorExt;
 
-    let mut app = app(Warm);
+    let mut app = themed_app(Warm);
     let existing = mount::<Warm>(app.world_mut(), label("a"));
     mount::<Warm>(
         app.world_mut(),

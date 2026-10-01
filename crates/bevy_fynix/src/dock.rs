@@ -149,7 +149,7 @@ mod tests {
     use super::tabs::AddButton;
     use super::*;
     use crate::mount;
-    use crate::testing::{self, Plain, kids};
+    use crate::tests::{self, Plain, kids};
     use crate::views::label;
 
     fn window(
@@ -162,7 +162,7 @@ mod tests {
     /// A tree of the areas `left` and `right` side by side, and a
     /// registry of the windows in them and one more, `extra`.
     fn app() -> (App, NodeId, NodeId) {
-        let mut app = testing::app();
+        let mut app = tests::app();
         app.add_plugins(DockPlugin::<Plain>::default());
         app.world_mut()
             .resource_mut::<DockRegistry<Plain>>()

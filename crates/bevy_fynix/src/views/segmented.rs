@@ -194,7 +194,7 @@ mod tests {
     use bevy::ui_widgets::Activate;
 
     use super::*;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
     use crate::{mount, resource};
 
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
@@ -210,7 +210,7 @@ mod tests {
     struct Picked(Vec<usize>);
 
     fn app() -> App {
-        let mut app = testing::app_with(Plain {
+        let mut app = tests::app_with(Plain {
             duration: Duration::ZERO,
             accent: Some(ACCENT),
             on_accent: Some(ON_ACCENT),

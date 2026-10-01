@@ -103,10 +103,10 @@ mod tests {
 
     use super::*;
     use crate::mount;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
 
     fn app() -> App {
-        testing::app_with(Plain {
+        tests::app_with(Plain {
             hairline: Some(Color::WHITE),
             ..Plain::default()
         })

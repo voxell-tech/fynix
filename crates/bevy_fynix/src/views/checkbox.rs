@@ -178,7 +178,7 @@ mod tests {
     use bevy::ui::{BackgroundColor, Node};
 
     use super::*;
-    use crate::testing::{self, Plain};
+    use crate::tests::{self, Plain};
     use crate::{mount, resource};
 
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
@@ -194,7 +194,7 @@ mod tests {
     struct Asked(Vec<bool>);
 
     fn app() -> App {
-        let mut app = testing::app_with(Plain {
+        let mut app = tests::app_with(Plain {
             radius: 4.0,
             duration: Duration::ZERO,
             accent: Some(ACCENT),
