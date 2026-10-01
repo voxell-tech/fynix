@@ -237,3 +237,57 @@ fn nothing_waits_on_a_state_without_a_state_rule() {
     assert!(ui.mounted.is_empty());
     assert!(ui.world.watched.is_empty());
 }
+
+/// A bare node whose size follows `value` through an effect.
+fn sized(value: Prop<World, f32>) -> AnyView<Fake, Warm> {
+    AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
+        let node = cx.spawn();
+        cx.effect(node, value, |world, node, size| {
+            world.writes += 1;
+            world.nodes[node].as_mut().expect("a live node").size =
+                *size;
+        });
+        node
+    })
+}
+
+#[test]
+fn an_effect_runs_at_build_and_when_its_value_changes() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(sized(
+        watch(|world: &World| world.count as f32).into(),
+    ));
+    assert_eq!(ui.size(node), 0.0);
+    assert_eq!(ui.world.writes, 1, "once, at build");
+
+    ui.world.set(7);
+    ui.update(Duration::ZERO, false);
+    assert_eq!(ui.size(node), 7.0);
+
+    ui.world.set(7);
+    ui.update(Duration::ZERO, false);
+    assert_eq!(ui.world.writes, 2, "not for an equal value");
+}
+
+#[test]
+fn an_effect_on_a_plain_value_runs_once_and_is_not_kept() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(sized(3.0.into()));
+
+    assert_eq!(ui.size(node), 3.0);
+    assert_eq!(ui.mounted.effects_len(), 0);
+}
+
+#[test]
+fn an_effect_ends_with_its_node() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(sized(
+        watch(|world: &World| world.count as f32).into(),
+    ));
+    assert_eq!(ui.mounted.effects_len(), 1);
+
+    <Fake as crate::Backend>::despawn(&mut ui.world, node);
+    ui.update(Duration::ZERO, false);
+
+    assert_eq!(ui.mounted.effects_len(), 0);
+}

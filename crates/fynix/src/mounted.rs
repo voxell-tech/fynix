@@ -97,6 +97,19 @@ impl<B: Backend> Clone for Hooks<B> {
 
 impl<B: Backend> Copy for Hooks<B> {}
 
+/// An effect's check and run, called with its node at every update.
+pub(crate) type EffectFn<B> = Box<
+    dyn FnMut(&mut <B as Backend>::World, <B as Backend>::Node)
+        + Send
+        + Sync,
+>;
+
+/// What a view does on its node whenever a bound value changes.
+struct Effect<B: Backend> {
+    node: B::Node,
+    run: EffectFn<B>,
+}
+
 /// Every mounted element built with the theme `T`: one column per
 /// kind of element, keyed by its node, and one update per kind to
 /// walk it.
@@ -110,6 +123,7 @@ pub struct Mounted<B: Backend, T> {
     /// the node's own element.
     readers: HashMap<B::Node, Vec<B::Node>>,
     leaving: Vec<Leaving<B>>,
+    effects: Vec<Effect<B>>,
     /// Structural views by id, parents before the views they build.
     slots: BTreeMap<Group, Slot<B, T>>,
     /// The slot of each container node.
@@ -128,6 +142,7 @@ impl<B: Backend, T> Default for Mounted<B, T> {
             hooks: HashMap::new(),
             readers: HashMap::new(),
             leaving: Vec::new(),
+            effects: Vec::new(),
             slots: BTreeMap::new(),
             containers: HashMap::new(),
             next_group: 0,
@@ -183,6 +198,21 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         );
     }
 
+    /// Runs `run` at every update until `node` is unmounted. See
+    /// [`Cx::effect`](crate::Cx::effect).
+    pub(crate) fn add_effect(
+        &mut self,
+        node: B::Node,
+        run: EffectFn<B>,
+    ) {
+        self.effects.push(Effect { node, run });
+    }
+
+    /// How many effects are kept.
+    pub fn effects_len(&self) -> usize {
+        self.effects.len()
+    }
+
     /// Makes the element on `node`, and every element with a state
     /// rule read on `node`, re-read at the next update, whatever
     /// their checks say.
@@ -208,6 +238,7 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         }
         self.readers.remove(&node);
         self.leaving.retain(|leaving| leaving.node != node);
+        self.effects.retain(|effect| effect.node != node);
         if let Some(id) = self.containers.remove(&node) {
             if let Some(slot) = self.slots.remove(&id) {
                 self.forget(slot);
@@ -364,6 +395,9 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     ) {
         for update in &self.updates {
             update(&mut self.table, world, theme, tick);
+        }
+        for effect in &mut self.effects {
+            (effect.run)(world, effect.node);
         }
         self.update_leaving(world, tick);
     }

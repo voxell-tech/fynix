@@ -13,8 +13,8 @@ use crate::tokens::Tone;
 use crate::views::{Icon, Label};
 use crate::{Bevy, Cx, View};
 
-/// A handler run with the whole world.
-type Handler = Box<dyn Fn(&mut World) + Send + Sync>;
+/// A handler run with the whole world and the node it fired on.
+type Handler = Box<dyn Fn(&mut World, Entity) + Send + Sync>;
 
 /// The handlers of a node's [`OnActivate`] wrappers, in build order.
 #[derive(Component)]
@@ -50,7 +50,7 @@ fn activated(activate: On<Activate>, mut commands: Commands) {
             return;
         };
         for handler in &handlers {
-            handler(world);
+            handler(world, node);
         }
         if let Ok(mut entity) = world.get_entity_mut(node) {
             entity.insert(ActivateHandlers(handlers));
@@ -101,6 +101,15 @@ pub trait BehaviorExt: Sized {
     fn on_activate(
         self,
         handler: impl Fn(&mut World) + Send + Sync + 'static,
+    ) -> OnActivate<Self> {
+        self.on_activate_with(move |world, _| handler(world))
+    }
+
+    /// As [`on_activate`](Self::on_activate), with the root node
+    /// handed to `handler` too.
+    fn on_activate_with(
+        self,
+        handler: impl Fn(&mut World, Entity) + Send + Sync + 'static,
     ) -> OnActivate<Self> {
         OnActivate {
             inner: self,

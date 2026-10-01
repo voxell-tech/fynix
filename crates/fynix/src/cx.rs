@@ -156,6 +156,51 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         self.parent
     }
 
+    /// Runs `run` on `node` with what `value` holds: once now, and
+    /// again whenever a bound value changes to something different,
+    /// until the node is unmounted. An unset prop never runs it.
+    ///
+    /// This is how a composite follows a bound value: an element
+    /// reads its own props, and a composite hands one to this.
+    pub fn effect<P>(
+        &mut self,
+        node: B::Node,
+        value: Prop<B::World, P>,
+        mut run: impl FnMut(&mut B::World, B::Node, &P)
+        + Send
+        + Sync
+        + 'static,
+    ) where
+        P: PartialEq + Clone + Send + Sync + 'static,
+    {
+        let mut signal = match value {
+            Prop::Unset => return,
+            Prop::Value(value) => {
+                run(self.world, node, &value);
+                return;
+            }
+            Prop::Bound(signal) => signal,
+        };
+        // The first check fires on any source, and this run covers
+        // it.
+        signal.changed(self.world);
+        let mut last = signal.get(self.world);
+        run(self.world, node, &last);
+        self.mounted.add_effect(
+            node,
+            Box::new(move |world, node| {
+                if !signal.changed(world) {
+                    return;
+                }
+                let now = signal.get(world);
+                if now != last {
+                    run(world, node, &now);
+                    last = now;
+                }
+            }),
+        );
+    }
+
     /// A new, empty node where a view built now hangs. It is the root
     /// of every rule set since the last node was spawned.
     pub fn spawn(&mut self) -> B::Node {
