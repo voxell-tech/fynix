@@ -17,7 +17,7 @@
 //! |---|---|
 //! | [`ghost`] | no surface until the pointer is on it |
 //! | [`tint`] | no surface; the content turns accent on hover |
-//! | [`icon_button`] | a square, row-high ghost for an icon |
+//! | [`icon_button`] | a square, row-high tint for an icon |
 //! | [`primary`] | an accent fill with content on accent |
 //! | [`danger`] | critical content on the usual surface |
 //! | [`menu_bar`] | full height and square, for a menu bar |
@@ -144,15 +144,16 @@ where
         .apply(cx);
 }
 
-/// A square button, a theme row on each side, for one icon: no
-/// surface and a dim icon at rest, a hover surface and a body icon
-/// under the pointer, and a deeper surface and an accent icon while
+/// A square button, a theme row on each side, for one icon. It only
+/// tints: no surface at rest, hovered or pressed, and a dim icon at
+/// rest, a body icon under the pointer and an accent icon while
 /// pressed. Apply with `.rules(icon_button)`.
 pub fn icon_button<T>(cx: &mut Cx<'_, Bevy, T>)
 where
     T: SurfaceTokens + SpacingTokens + MotionTokens + 'static,
 {
-    ghostly::<T>()
+    style::<T>()
+        .fill(clear)
         .frame(|frame, theme| {
             frame
                 .width(px(theme.row()))
@@ -161,8 +162,9 @@ where
                 .radius(theme.radius())
         })
         .tone(Tone::Dim)
-        .hovered(|s| s.tone(Tone::Body))
-        .pressed(|s| s.tone(Tone::Accent))
+        .hovered(|s| s.fill(clear).tone(Tone::Body))
+        .pressed(|s| s.fill(clear).tone(Tone::Accent))
+        .transition(Motion::Interact)
         .apply(cx);
 }
 
@@ -845,7 +847,8 @@ mod tests {
 
         assert_eq!(
             fills(&mut app, node),
-            [Color::NONE, HOVER, pressed_fill()]
+            [Color::NONE; 3],
+            "never a surface"
         );
         let tint = |app: &App| {
             app.world().get::<ImageNode>(mark).unwrap().color

@@ -28,6 +28,12 @@ pub struct Hovered;
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Pressed;
 
+/// The node is being dragged. Nothing sets it here: the app that
+/// handles the drag inserts it at the start and removes it at the
+/// end, for state rules to wait on.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct Dragging;
+
 /// The node or one of its descendants has input focus.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Focused;

@@ -24,7 +24,10 @@ token traits they read, and the states rules wait on.
   space has expanded, so it fades in last, and a view they drop gets
   `Leaving`, then collapses. `ReducedMotion` skips all of it.
 - `ghost`, `tint`, `icon_button`, `primary`, `danger`, `menu_bar`,
-  `segment` - button looks, as bundles for `.rules(..)`.
+  `segment` - button looks, as bundles for `.rules(..)`. Only
+  `icon_button` and `tint` never have a surface.
+- `revealed` - a divider look that draws only while hovered or
+  `Dragging`.
 - `style` - builds a look of your own. See [Styling](#styling).
 
 ## Quick Start

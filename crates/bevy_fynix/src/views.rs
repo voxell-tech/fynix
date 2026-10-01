@@ -27,7 +27,7 @@ pub use button::{
 pub use checkbox::{Checkbox, checkbox};
 pub(crate) use context_menu::dismiss as dismiss_context_menu;
 pub use context_menu::{ContextMenu, ContextMenuExt};
-pub use divider::{Axis, Divider, divider};
+pub use divider::{Axis, Divider, divider, revealed};
 pub(crate) use dropdown::on_menu_event as toggle_dropdown;
 pub use dropdown::{Dropdown, dropdown};
 pub use field::{TextField, text_field};

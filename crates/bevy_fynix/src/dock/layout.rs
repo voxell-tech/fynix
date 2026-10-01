@@ -6,7 +6,7 @@ use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
 use bevy::ui::{
     ComputedNode, Display, FlexDirection, Overflow,
@@ -21,9 +21,12 @@ use super::{DockTokens, logical, logical_rect, tabs};
 use crate::cursor::{EntityCursor, OverrideCursor};
 use crate::prop::resource;
 use crate::views::{
-    Axis, BehaviorExt, FrameProps, column, divider, frame, row,
+    Axis, BehaviorExt, FrameProps, column, divider, frame, revealed,
+    row,
 };
-use crate::{AnyView, Bevy, Cx, ViewExt, ViewSeq, each};
+use crate::{
+    AnyView, Bevy, Cx, Dragging, ScopedExt, ViewExt, ViewSeq, each,
+};
 
 /// How thick the line between two panes is.
 const HANDLE: f32 = 6.0;
@@ -77,6 +80,7 @@ fn split<T: DockTokens>(
         Axis::Horizontal
     })
     .thickness(HANDLE)
+    .rules(revealed)
     .tagged(SplitHandle {
         split: id,
         horizontal,
@@ -222,25 +226,33 @@ fn fraction_at(cursor: f32, start: f32, end: f32) -> Option<f32> {
     Some(fraction.clamp(least, 1.0 - least))
 }
 
-/// Holds the handle's resize cursor while it is dragged.
+/// Holds the handle's resize cursor and marks it [`Dragging`] while
+/// it is dragged.
 pub(super) fn grab_handle(
     start: On<Pointer<DragStart>>,
     handles: Query<&EntityCursor, With<SplitHandle>>,
     mut forced: ResMut<OverrideCursor>,
+    mut commands: Commands,
 ) {
-    if let Ok(cursor) = handles.get(start.event_target()) {
+    let handle = start.event_target();
+    if let Ok(cursor) = handles.get(handle) {
         forced.0 = Some(cursor.0);
+        commands.entity(handle).insert(Dragging);
     }
 }
 
-/// Lets go of the cursor held while a handle was dragged.
+/// Lets go of the cursor held and the [`Dragging`] mark of a handle
+/// that was dragged.
 pub(super) fn release_handle(
     end: On<Pointer<DragEnd>>,
     handles: Query<(), With<SplitHandle>>,
     mut forced: ResMut<OverrideCursor>,
+    mut commands: Commands,
 ) {
-    if handles.contains(end.event_target()) {
+    let handle = end.event_target();
+    if handles.contains(handle) {
         forced.0 = None;
+        commands.entity(handle).remove::<Dragging>();
     }
 }
 
