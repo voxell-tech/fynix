@@ -30,8 +30,8 @@ use bevy_fynix::views::{
     AnimatedField, BehaviorExt, ContextMenuExt, Frame, FrameProps,
     HasAction, Label, TooltipExt, button, checkbox, column, danger,
     dropdown, field_row, foldable, frame, ghost, icon_button, label,
-    menu_bar, menu_item, number_field, primary, row, segmented,
-    text_field, tint,
+    menu_bar, menu_item, number_field, primary, row, scroll,
+    segmented, text_field, tint,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,
@@ -124,7 +124,7 @@ fn gallery() -> AnyView<Bevy, Monokai> {
         cx.set::<Label>(|label, _| label.size(13.0));
         let panel = cx.theme().panel();
         cx.build(
-            column((
+            scroll((
                 label("Fynix on Bevy").size(20.0),
                 section("Bound values", bound_values()),
                 section("Hover, with a transition", hover_list()),
