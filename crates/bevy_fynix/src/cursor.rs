@@ -7,7 +7,7 @@ use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::{Commands, Local, Query, Res};
 use bevy::picking::PickingSystems;
 use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::PointerId;
@@ -24,7 +24,9 @@ pub struct EntityCursor(pub SystemCursorIcon);
 pub struct OverrideCursor(pub Option<SystemCursorIcon>);
 
 /// Sets the primary window's [`CursorIcon`] from the hovered entity's
-/// [`EntityCursor`], or from [`OverrideCursor`].
+/// [`EntityCursor`], or from [`OverrideCursor`]. With neither, it
+/// puts back the default only over a cursor it set itself, and leaves
+/// any cursor the app set alone.
 pub struct CursorPlugin;
 
 impl Plugin for CursorPlugin {
@@ -45,15 +47,21 @@ fn update_cursor(
         (Entity, Option<&CursorIcon>),
         With<PrimaryWindow>,
     >,
+    // Whether the window shows a cursor this system set.
+    mut owned: Local<bool>,
     mut commands: Commands,
 ) {
     let hovered = hover_map.as_deref().and_then(topmost);
-    let icon = forced.0.unwrap_or_else(|| {
+    let icon = forced.0.or_else(|| {
         hovered
             .and_then(|entity| cursor_for(entity, &parents, &cursors))
-            .unwrap_or_default()
     });
-    let wanted = CursorIcon::System(icon);
+    let wanted = match icon {
+        Some(icon) => CursorIcon::System(icon),
+        None if *owned => CursorIcon::default(),
+        None => return,
+    };
+    *owned = icon.is_some();
 
     for (window, current) in &windows {
         if current.unwrap_or(&CursorIcon::default()) != &wanted {
@@ -196,5 +204,26 @@ mod tests {
         app.world_mut().resource_mut::<OverrideCursor>().0 = None;
         hover(&mut app, Some(node));
         assert_eq!(cursor(&app, window), pointer);
+    }
+
+    #[test]
+    fn a_cursor_the_app_set_is_left_alone() {
+        let crosshair =
+            CursorIcon::System(SystemCursorIcon::Crosshair);
+        let (mut app, window, node, _) = setup();
+        app.world_mut().entity_mut(window).insert(crosshair.clone());
+
+        hover(&mut app, None);
+        assert_eq!(cursor(&app, window), Some(crosshair.clone()));
+
+        // Over a button and off it again, the default comes back: the
+        // pointer was this plugin's own.
+        hover(&mut app, Some(node));
+        hover(&mut app, None);
+        assert_eq!(cursor(&app, window), Some(CursorIcon::default()));
+
+        app.world_mut().entity_mut(window).insert(crosshair.clone());
+        hover(&mut app, None);
+        assert_eq!(cursor(&app, window), Some(crosshair));
     }
 }
