@@ -142,10 +142,22 @@ pub fn tint<T>(cx: &mut Cx<'_, Bevy, T>)
 where
     T: SurfaceTokens + MotionTokens + 'static,
 {
+    tint_to(Tone::Accent)(cx);
+}
+
+/// The [`tint`] look turning its content `hover` under the pointer,
+/// such as [`Tone::Critical`] for what removes something. Apply with
+/// `.rules(tint_to(hover))`.
+pub fn tint_to<T>(
+    hover: Tone,
+) -> impl FnOnce(&mut Cx<'_, Bevy, T>) + Send + Sync + 'static
+where
+    T: SurfaceTokens + MotionTokens + 'static,
+{
     ghostly::<T>()
-        .hovered(|s| s.fill(clear).tone(Tone::Accent))
+        .hovered(move |s| s.fill(clear).tone(hover))
         .pressed(|s| s.fill(clear).tone(Tone::Dim))
-        .apply(cx);
+        .bundle()
 }
 
 /// A square button, a theme row on each side, for one icon. It only
@@ -279,10 +291,12 @@ impl<C> FrameProps for Button<C> {
 
 /// A button of one icon in the [`tint`] look, padded by half the
 /// theme's gap: for an action that sits beside content, such as
-/// adding to a list. Its frame styles the button.
+/// adding to a list or closing a tab. Its frame styles the button.
 pub struct TintedIcon {
     pub frame: Frame,
     image: Handle<Image>,
+    hover: Tone,
+    size: Option<f32>,
 }
 
 /// A [`TintedIcon`] showing `image`.
@@ -290,6 +304,23 @@ pub fn tinted_icon(image: Handle<Image>) -> TintedIcon {
     TintedIcon {
         frame: Frame::unset(),
         image,
+        hover: Tone::Accent,
+        size: None,
+    }
+}
+
+impl TintedIcon {
+    /// The tone the icon turns under the pointer, accent when unset.
+    pub fn hover(mut self, hover: Tone) -> Self {
+        self.hover = hover;
+        self
+    }
+
+    /// The length of the icon's sides, the icon's own default when
+    /// unset.
+    pub fn size(mut self, size: f32) -> Self {
+        self.size = Some(size);
+        self
     }
 }
 
@@ -310,14 +341,19 @@ where
         + 'static,
 {
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
-        let mut button = button(icon(self.image));
+        let glyph = icon(self.image);
+        let glyph = match self.size {
+            Some(size) => glyph.size(size),
+            None => glyph,
+        };
+        let mut button = button(glyph);
         button.frame = self.frame;
         let padded = style::<T>()
             .frame(|frame, theme| {
                 frame.padding(UiRect::all(px(theme.gap() / 2.0)))
             })
             .bundle();
-        cx.build(button.rules(tint).rules(padded))
+        cx.build(button.rules(tint_to(self.hover)).rules(padded))
     }
 }
 

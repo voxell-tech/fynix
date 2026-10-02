@@ -4,6 +4,7 @@ use bevy::asset::Handle;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::ui::{
     AlignItems, FlexDirection, Overflow, UiRect, percent, px,
@@ -15,14 +16,13 @@ use super::registry::DockRegistry;
 use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
 use crate::cursor::EntityCursor;
 use crate::prop::resource;
-use crate::tokens::{Motion, Tone};
+use crate::tokens::Tone;
 use crate::views::{
     BehaviorExt, Frame, FrameProps, Icon, Label, button, icon, label,
-    row, scroll, tint, tinted_icon,
+    row, scroll, tint, tint_to, tinted_icon,
 };
 use crate::{
     AnyView, Bevy, Cx, Hovered, ScopedExt, StateExt, ViewExt, each,
-    style,
 };
 
 /// The icons of the dock's own buttons, inserted by the app. A button
@@ -185,51 +185,36 @@ fn tab<T: DockTokens>(
     })
 }
 
-/// The rules of a button that only tints its content: dim, `hover`
-/// under the pointer, and never a surface.
-fn tinted<T: DockTokens>(
-    hover: Tone,
-) -> impl FnOnce(&mut Cx<'_, Bevy, T>) + Send + Sync + 'static {
-    style::<T>()
-        .fill(|_| Color::NONE)
-        .tone(Tone::Dim)
-        .hovered(|s| s.fill(|_| Color::NONE).tone(hover))
-        .pressed(|s| s.fill(|_| Color::NONE).tone(hover))
-        .transition(Motion::Interact)
-        .bundle()
-}
-
-/// `image` as an icon of `size`, or the text `fallback` while the
-/// app gave none.
-fn glyph<T: DockTokens>(
-    image: Option<Handle<Image>>,
-    size: f32,
-    fallback: &'static str,
-) -> AnyView<Bevy, T> {
-    match image {
-        Some(image) => icon(image).size(size).boxed(),
-        None => label(fallback).size(size).boxed(),
-    }
-}
-
-/// The button closing `tab`, a dim cross that turns critical under
-/// the pointer.
+/// The button closing `tab`: a small [`tinted_icon`] in its tab's
+/// tone that turns critical under the pointer, or the text "x" in the
+/// same look while the app gave no icon.
 fn close<T: DockTokens>(tab: TabId) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
         let image = cx
             .world
             .get_resource::<DockIcons>()
             .and_then(|icons| icons.close.clone());
-        let (size, padding) =
-            (cx.theme().small_size(), cx.theme().tab_padding() / 2.0);
-        cx.build(
-            button(glyph::<T>(image, size, "x"))
-                .padding(UiRect::horizontal(px(padding)))
-                .on_activate(move |world| {
-                    world.resource_mut::<DockTree>().remove_tab(tab);
-                })
-                .rules(tinted::<T>(Tone::Critical)),
-        )
+        let size = cx.theme().small_size();
+        let padding =
+            UiRect::horizontal(px(cx.theme().tab_padding() / 2.0));
+        let remove = move |world: &mut World| {
+            world.resource_mut::<DockTree>().remove_tab(tab);
+        };
+        match image {
+            Some(image) => cx.build(
+                tinted_icon(image)
+                    .size(size)
+                    .hover(Tone::Critical)
+                    .padding(padding)
+                    .on_activate(remove),
+            ),
+            None => cx.build(
+                button(label("x").size(size))
+                    .padding(padding)
+                    .on_activate(remove)
+                    .rules(tint_to(Tone::Critical)),
+            ),
+        }
     })
 }
 
