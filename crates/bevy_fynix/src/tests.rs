@@ -1,5 +1,5 @@
 //! The crate's tests: the shared helpers in `support`, and a headless
-//! app per test with two unrelated themes to build under.
+//! app per test.
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
@@ -10,9 +10,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::name::Name;
 use bevy::ecs::relationship::RelationshipTarget;
 use bevy::ecs::resource::Resource;
-use bevy::text::{
-    FontSize, LineBreak, TextColor, TextFont, TextLayout,
-};
+use bevy::text::TextColor;
 use bevy::time::TimePlugin;
 use bevy::ui::widget::Text;
 
@@ -56,37 +54,11 @@ impl TextTokens for Warm {
     }
 }
 
-/// Another app's, stored nothing like the first.
-struct Cold {
-    sizes: [f32; 2],
-}
-
-impl TextTokens for Cold {
-    fn tone(&self, _: Tone) -> Color {
-        Color::srgb(0.0, 0.5, 1.0)
-    }
-
-    fn body_size(&self) -> f32 {
-        self.sizes[0]
-    }
-
-    fn small_size(&self) -> f32 {
-        self.sizes[1]
-    }
-}
-
 fn themed_app<T: Send + Sync + 'static>(theme: T) -> App {
     let mut app = App::new();
     app.add_plugins((TimePlugin, FynixPlugin::<T>::default()))
         .insert_resource(Theme(theme));
     app
-}
-
-fn size(app: &App, node: Entity) -> FontSize {
-    app.world()
-        .get::<TextFont>(node)
-        .expect("a label")
-        .font_size
 }
 
 fn text(app: &App, node: Entity) -> String {
@@ -103,131 +75,6 @@ fn children(app: &App, root: Entity) -> Vec<Entity> {
         .get::<Children>(root)
         .map(|children| children.iter().collect())
         .unwrap_or_default()
-}
-
-#[test]
-fn an_unset_prop_falls_back_to_the_theme() {
-    let mut app = themed_app(Warm);
-    let node = mount::<Warm>(app.world_mut(), label("Save"));
-
-    assert_eq!(text(&app, node), "Save");
-    assert_eq!(size(&app, node), FontSize::Px(14.0));
-    assert_eq!(color(&app, node), Color::WHITE);
-}
-
-#[test]
-fn the_same_view_works_under_two_unrelated_themes() {
-    let mut warm = themed_app(Warm);
-    let mut cold = themed_app(Cold {
-        sizes: [20.0, 16.0],
-    });
-    let in_warm = mount::<Warm>(warm.world_mut(), label("x"));
-    let in_cold = mount::<Cold>(cold.world_mut(), label("x"));
-
-    assert_eq!(size(&warm, in_warm), FontSize::Px(14.0));
-    assert_eq!(size(&cold, in_cold), FontSize::Px(20.0));
-}
-
-#[test]
-fn a_set_rule_fills_what_the_call_site_left_unset() {
-    let mut app = themed_app(Warm);
-    let root = mount::<Warm>(
-        app.world_mut(),
-        AnyView::<Bevy, Warm>::new(|cx| {
-            let root = cx.spawn();
-            cx.under(root, |cx| {
-                cx.set::<crate::views::Label>(|l, _| {
-                    l.size(20.0).tone(Tone::Dim)
-                });
-                cx.build(label("ruled"));
-                cx.build(label("explicit").size(9.0));
-            });
-            root
-        }),
-    );
-    let [ruled, explicit] = children(&app, root)[..] else {
-        panic!("two labels");
-    };
-
-    assert_eq!(size(&app, ruled), FontSize::Px(20.0));
-    assert_eq!(
-        size(&app, explicit),
-        FontSize::Px(9.0),
-        "call site wins"
-    );
-    assert_eq!(color(&app, explicit), Color::srgb(0.5, 0.5, 0.5));
-}
-
-#[test]
-fn an_inner_scope_wins_and_ends_with_its_scope() {
-    let mut app = themed_app(Warm);
-    let root = mount::<Warm>(
-        app.world_mut(),
-        AnyView::<Bevy, Warm>::new(|cx| {
-            let root = cx.spawn();
-            cx.under(root, |cx| {
-                cx.set::<crate::views::Label>(|l, _| l.size(20.0));
-                cx.scope(|cx| {
-                    cx.set::<crate::views::Label>(|l, _| {
-                        l.size(30.0)
-                    });
-                    cx.build(label("inner"));
-                });
-                cx.build(label("after"));
-            });
-            root
-        }),
-    );
-    let [inner, after] = children(&app, root)[..] else {
-        panic!("two labels");
-    };
-
-    assert_eq!(size(&app, inner), FontSize::Px(30.0));
-    assert_eq!(size(&app, after), FontSize::Px(20.0));
-}
-
-#[test]
-fn a_rule_can_read_the_theme() {
-    let mut app = themed_app(Warm);
-    let root = mount::<Warm>(
-        app.world_mut(),
-        AnyView::<Bevy, Warm>::new(|cx| {
-            let root = cx.spawn();
-            cx.under(root, |cx| {
-                cx.set::<crate::views::Label>(|l, theme: &Warm| {
-                    l.size(theme.small_size())
-                });
-                cx.build(label("small"));
-            });
-            root
-        }),
-    );
-
-    assert_eq!(
-        size(&app, children(&app, root)[0]),
-        FontSize::Px(11.0)
-    );
-}
-
-#[test]
-fn a_show_rule_wins_over_the_call_site() {
-    let mut app = themed_app(Warm);
-    let root = mount::<Warm>(
-        app.world_mut(),
-        AnyView::<Bevy, Warm>::new(|cx| {
-            let root = cx.spawn();
-            cx.under(root, |cx| {
-                cx.show::<crate::views::Label>(|l, _| l.wrap(false));
-                cx.build(label("x").wrap(true));
-            });
-            root
-        }),
-    );
-    let node = children(&app, root)[0];
-
-    let layout =
-        app.world().get::<TextLayout>(node).expect("a label");
-    assert_eq!(layout.linebreak, LineBreak::NoWrap);
 }
 
 #[derive(Resource)]

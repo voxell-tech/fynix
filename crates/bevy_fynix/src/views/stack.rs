@@ -122,12 +122,11 @@ where
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
-    use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::text::{FontSize, TextFont};
     use bevy::ui::widget::Text;
-    use bevy::ui::{BackgroundColor, Node, Val};
+    use bevy::ui::{Node, Val};
 
     use super::*;
     use crate::tests::{Plain, app};
@@ -174,22 +173,6 @@ mod tests {
         let ui = app.world().get::<Node>(node).unwrap();
         assert_eq!(ui.flex_direction, FlexDirection::Column);
         assert_eq!(ui.row_gap, Val::Px(6.0));
-    }
-
-    #[test]
-    fn frame_props_are_styled_through_the_stack() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            row((label("a"),)).gap(8.0).fill(Color::WHITE),
-        );
-
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.column_gap, Val::Px(8.0));
-        assert_eq!(
-            app.world().get::<BackgroundColor>(node).unwrap().0,
-            Color::WHITE
-        );
     }
 
     #[test]

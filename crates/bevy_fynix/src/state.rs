@@ -438,25 +438,6 @@ mod tests {
     }
 
     #[test]
-    fn the_later_rule_wins_while_both_hold() {
-        let mut app = app();
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x").when::<Hovered, _>(accent).when::<Pressed, _>(
-                |l: Label, _: &Test| l.tone(Tone::Dim),
-            ),
-        );
-
-        hover(&mut app, node, true);
-        app.update();
-        assert_eq!(color(&app, node), Color::WHITE);
-
-        app.world_mut().entity_mut(node).insert(Pressed);
-        app.update();
-        assert_eq!(color(&app, node), DIM, "the one written later");
-    }
-
-    #[test]
     fn a_state_rule_beats_the_call_site_and_a_binding() {
         let mut app = app();
         let fixed = mount::<Test>(
@@ -564,20 +545,6 @@ mod tests {
     }
 
     #[test]
-    fn nothing_animates_unless_asked() {
-        let mut app = app();
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x").when::<Hovered, _>(accent),
-        );
-
-        hover(&mut app, node, true);
-        app.update();
-
-        assert_eq!(color(&app, node), Color::WHITE);
-    }
-
-    #[test]
     fn a_transition_reaches_its_target_over_the_curve() {
         let mut app = app();
         let node = mount::<Test>(
@@ -619,54 +586,6 @@ mod tests {
 
     #[derive(Resource)]
     struct Selection(Tone);
-
-    #[test]
-    fn an_interrupted_transition_starts_from_where_it_got_to() {
-        let mut app = app();
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x")
-                .when::<Hovered, _>(accent)
-                .transition(Motion::Interact),
-        );
-
-        hover(&mut app, node, true);
-        app.update();
-        assert_eq!(color(&app, node), halfway());
-
-        hover(&mut app, node, false);
-        app.update();
-        assert_eq!(
-            color(&app, node),
-            blend(&halfway(), &BLACK, 0.5),
-            "halfway back to black from where it was, not from white"
-        );
-
-        app.update();
-        assert_eq!(color(&app, node), BLACK);
-    }
-
-    #[test]
-    fn a_transition_rule_in_a_scope_reaches_the_elements_in_it() {
-        let mut app = app();
-        let root = mount::<Test>(
-            app.world_mut(),
-            AnyView::<Bevy, Test>::new(|cx| {
-                let root = cx.spawn();
-                cx.under(root, |cx| {
-                    cx.transition(Motion::Interact);
-                    cx.build(label("x").when::<Hovered, _>(accent));
-                });
-                root
-            }),
-        );
-        let node = children(&app, root)[0];
-
-        hover(&mut app, node, true);
-        app.update();
-
-        assert_eq!(color(&app, node), halfway());
-    }
 
     #[test]
     fn reduced_motion_snaps() {

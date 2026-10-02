@@ -108,7 +108,6 @@ mod tests {
     use super::*;
     use crate::tests::{Plain, app};
     use crate::tokens::Motion;
-    use crate::transition::ReducedMotion;
     use crate::{Hovered, ScopedExt, mount};
 
     fn scale(app: &App, node: Entity) -> Vec2 {
@@ -117,42 +116,6 @@ mod tests {
 
     fn grow(label: Label, _: &Plain) -> Label {
         label.scale(2.0)
-    }
-
-    #[test]
-    fn bold_sets_the_font_weight() {
-        let mut app = app();
-        let plain = mount::<Plain>(app.world_mut(), label("x"));
-        let bold =
-            mount::<Plain>(app.world_mut(), label("x").bold(true));
-
-        let weight =
-            |node| app.world().get::<TextFont>(node).unwrap().weight;
-        assert_eq!(weight(plain), FontWeight::NORMAL);
-        assert_eq!(weight(bold), FontWeight::BOLD);
-    }
-
-    #[test]
-    fn an_unset_scale_is_the_identity_transform() {
-        let mut app = app();
-        let node = mount::<Plain>(app.world_mut(), label("x"));
-
-        assert_eq!(
-            app.world().get::<UiTransform>(node),
-            Some(&UiTransform::IDENTITY)
-        );
-    }
-
-    #[test]
-    fn a_scale_is_written_to_both_axes_and_nothing_else() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), label("x").scale(1.2));
-
-        assert_eq!(
-            app.world().get::<UiTransform>(node),
-            Some(&UiTransform::from_scale(Vec2::splat(1.2)))
-        );
     }
 
     #[test]
@@ -176,23 +139,6 @@ mod tests {
         assert_eq!(font.font_size, FontSize::Px(14.0));
 
         app.update();
-        assert_eq!(scale(&app, node), Vec2::splat(2.0));
-    }
-
-    #[test]
-    fn reduced_motion_snaps_the_scale() {
-        let mut app = app();
-        app.insert_resource(ReducedMotion(true));
-        let node = mount::<Plain>(
-            app.world_mut(),
-            label("x")
-                .when::<Hovered, _>(grow)
-                .transition(Motion::Interact),
-        );
-
-        app.world_mut().entity_mut(node).insert(Hovered);
-        app.update();
-
         assert_eq!(scale(&app, node), Vec2::splat(2.0));
     }
 

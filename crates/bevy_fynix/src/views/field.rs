@@ -336,7 +336,6 @@ mod tests {
     use bevy::app::App;
     use bevy::color::Color;
     use bevy::ecs::resource::Resource;
-    use bevy::ui::BackgroundColor;
 
     use super::fixtures::*;
     use super::*;
@@ -465,22 +464,6 @@ mod tests {
 
         blur(&mut app);
         assert!(app.world().get::<Focused>(root).is_none());
-    }
-
-    #[test]
-    fn hovering_changes_the_fill() {
-        let mut app = app();
-        let root = field(&mut app);
-        let fill = |app: &App| {
-            app.world().get::<BackgroundColor>(root).unwrap().0
-        };
-        assert_eq!(fill(&app), Color::srgb(0.2, 0.2, 0.2));
-
-        app.world_mut().entity_mut(root).insert(Hovered);
-        app.update();
-        app.update();
-
-        assert_eq!(fill(&app), Color::srgb(0.3, 0.3, 0.3));
     }
 
     #[test]

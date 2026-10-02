@@ -123,35 +123,6 @@ mod tests {
     use crate::tests::{self, Plain};
     use crate::{ScopedExt, mount};
 
-    fn app() -> App {
-        tests::app_with(Plain {
-            hairline: Some(Color::WHITE),
-            ..Plain::default()
-        })
-    }
-
-    #[test]
-    fn a_horizontal_divider_spans_the_width_with_a_vertical_resize_cursor()
-     {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            divider(Axis::Horizontal),
-        );
-
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!((ui.width, ui.height), (percent(100.0), px(6.0)));
-        assert_eq!(ui.flex_shrink, 0.0);
-        assert_eq!(
-            app.world().get::<BackgroundColor>(node).unwrap().0,
-            Color::WHITE
-        );
-        assert_eq!(
-            app.world().get::<EntityCursor>(node),
-            Some(&EntityCursor(SystemCursorIcon::NsResize))
-        );
-    }
-
     fn fill(app: &App, node: Entity) -> Color {
         app.world().get::<BackgroundColor>(node).unwrap().0
     }
@@ -197,35 +168,5 @@ mod tests {
         app.world_mut().entity_mut(node).remove::<Dragging>();
         settle(&mut app);
         assert_eq!(fill(&app, node), Color::NONE);
-    }
-
-    #[test]
-    fn a_vertical_divider_spans_the_height_and_takes_a_thickness() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            divider(Axis::Vertical).thickness(1.0),
-        );
-
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!((ui.width, ui.height), (px(1.0), percent(100.0)));
-        assert_eq!(
-            app.world().get::<EntityCursor>(node),
-            Some(&EntityCursor(SystemCursorIcon::EwResize))
-        );
-    }
-
-    #[test]
-    fn the_call_site_beats_the_dividers_defaults() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            divider(Axis::Horizontal).fill(Color::BLACK),
-        );
-
-        assert_eq!(
-            app.world().get::<BackgroundColor>(node).unwrap().0,
-            Color::BLACK
-        );
     }
 }

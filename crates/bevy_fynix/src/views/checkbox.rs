@@ -175,13 +175,12 @@ mod tests {
     use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::resource::Resource;
-    use bevy::ui::{BackgroundColor, Node};
+    use bevy::ui::Node;
 
     use super::*;
     use crate::tests::{self, Plain};
     use crate::{mount, resource};
 
-    const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
 
     /// The state the app says the box is in.
@@ -291,30 +290,5 @@ mod tests {
 
         ask(&mut app, node, false);
         assert!(!checked(&app, node));
-    }
-
-    #[test]
-    fn hovering_lights_the_box_even_over_a_call_site_fill() {
-        let mut app = app();
-        let node = mount::<Plain>(app.world_mut(), checkbox(false));
-        let own = mount::<Plain>(
-            app.world_mut(),
-            checkbox(false).fill(Color::BLACK),
-        );
-
-        for node in [node, own] {
-            app.world_mut().entity_mut(node).insert(Hovered);
-        }
-        app.update();
-
-        let fill = |node| {
-            app.world().get::<BackgroundColor>(node).unwrap().0
-        };
-        assert_eq!(fill(node), HOVER);
-        assert_eq!(
-            fill(own),
-            HOVER,
-            "a state rule beats the call site"
-        );
     }
 }

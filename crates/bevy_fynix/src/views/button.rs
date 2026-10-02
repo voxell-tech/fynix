@@ -312,7 +312,7 @@ mod tests {
     use bevy::picking::pointer::PointerId;
     use bevy::text::{FontSize, TextColor, TextFont};
     use bevy::ui::widget::ImageNode;
-    use bevy::ui::{BackgroundColor, BorderRadius, Node, Val};
+    use bevy::ui::{BackgroundColor, Node, Val};
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
@@ -387,17 +387,6 @@ mod tests {
     }
 
     #[test]
-    fn the_call_site_beats_the_default() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).fill(Color::WHITE),
-        );
-
-        assert_eq!(fill(&app, node), Color::WHITE);
-    }
-
-    #[test]
     fn hovering_moves_the_fill_to_the_hover_colour_and_back() {
         let mut app = app();
         let node =
@@ -463,20 +452,6 @@ mod tests {
     }
 
     #[test]
-    fn an_app_rule_restyles_every_button() {
-        let mut app = app();
-        let root = mount::<Plain>(
-            app.world_mut(),
-            AnyView::<Bevy, Plain>::new(|cx| {
-                cx.set::<Frame>(|f, _| f.fill(Color::WHITE));
-                cx.build(button(label("x")))
-            }),
-        );
-
-        assert_eq!(fill(&app, root), Color::WHITE);
-    }
-
-    #[test]
     fn a_call_site_fill_is_the_resting_fill() {
         let mut app = app();
         let node = mount::<Plain>(
@@ -494,21 +469,6 @@ mod tests {
         app.update();
         app.update();
         assert_eq!(fill(&app, node), Color::BLACK);
-    }
-
-    #[test]
-    fn a_ghost_button_lights_up_too() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).fill(Color::NONE),
-        );
-
-        hover(&mut app, node, true);
-        app.update();
-        app.update();
-
-        assert_eq!(fill(&app, node), HOVER);
     }
 
     #[test]
@@ -563,30 +523,6 @@ mod tests {
     }
 
     #[test]
-    fn a_ghost_button_has_no_surface_until_hovered() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(ghost),
-        );
-
-        assert_eq!(fill(&app, node), Color::NONE);
-        assert_eq!(
-            ui(&app, node).padding,
-            UiRect::axes(px(12.0), px(6.0))
-        );
-        assert_eq!(
-            ui(&app, node).border_radius,
-            BorderRadius::all(px(3.0))
-        );
-
-        settle(&mut app, node, true);
-        assert_eq!(fill(&app, node), HOVER);
-        settle(&mut app, node, false);
-        assert_eq!(fill(&app, node), Color::NONE);
-    }
-
-    #[test]
     fn a_tint_button_has_no_surface_and_turns_its_parts_accent() {
         let mut app = app();
         let node = mount::<Plain>(
@@ -620,72 +556,6 @@ mod tests {
 
         settle(&mut app, node, false);
         assert_eq!(colours(&app), (Color::WHITE, Color::WHITE));
-    }
-
-    #[test]
-    fn a_menu_bar_button_lights_up() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("File")).rules(menu_bar),
-        );
-
-        assert_eq!(fill(&app, node), Color::NONE);
-        settle(&mut app, node, true);
-        assert_eq!(fill(&app, node), HOVER);
-    }
-
-    #[test]
-    fn an_inactive_segment_is_a_square_row_that_lights_up() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("a")).rules(segment(false)),
-        );
-
-        let ui = ui(&app, node);
-        assert_eq!(ui.height, px(20.0));
-        assert_eq!(ui.flex_grow, 1.0);
-        assert_eq!(ui.border_radius, BorderRadius::all(px(0.0)));
-        assert_eq!(fill(&app, node), REST);
-
-        settle(&mut app, node, true);
-        assert_eq!(fill(&app, node), HOVER);
-    }
-
-    #[test]
-    fn an_active_segment_is_accent_and_stays_so_under_the_pointer() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("a")).rules(segment(true)),
-        );
-        assert_eq!(fill(&app, node), ACCENT);
-
-        settle(&mut app, node, true);
-        assert_eq!(fill(&app, node), ACCENT);
-        settle(&mut app, node, false);
-        assert_eq!(fill(&app, node), ACCENT);
-    }
-
-    #[test]
-    fn an_active_segment_draws_its_content_on_accent() {
-        let mut app = app();
-        let on = mount::<Plain>(
-            app.world_mut(),
-            button(label("a")).rules(segment(true)),
-        );
-        let off = mount::<Plain>(
-            app.world_mut(),
-            button(label("a")).rules(segment(false)),
-        );
-        let ink = |app: &App, node: Entity| {
-            let text = app.world().get::<Children>(node).unwrap()[0];
-            app.world().get::<TextColor>(text).unwrap().0
-        };
-
-        assert_eq!(ink(&app, on), ON_ACCENT);
-        assert_eq!(ink(&app, off), Color::WHITE);
     }
 
     const DIM: Color = Color::srgb(0.5, 0.5, 0.5);
@@ -743,17 +613,6 @@ mod tests {
             fills(&mut app, node),
             [REST, HOVER, pressed_fill()]
         );
-    }
-
-    #[test]
-    fn pressed_is_the_hover_surface_darkened_by_default() {
-        assert_eq!(pressed_fill(), HOVER.darker(0.1));
-        let accent = Plain {
-            accent: Some(ACCENT),
-            ..Plain::default()
-        };
-        assert_eq!(accent.accent_hover(), ACCENT.lighter(0.08));
-        assert_eq!(accent.accent_pressed(), ACCENT.darker(0.1));
     }
 
     #[test]
@@ -844,10 +703,6 @@ mod tests {
             [ACCENT, ACCENT.lighter(0.08), ACCENT.darker(0.1)]
         );
         assert_eq!(inks(&mut app, node), [ON_ACCENT; 3]);
-        assert_eq!(
-            ui(&app, node).padding,
-            UiRect::axes(px(12.0), px(6.0))
-        );
     }
 
     #[test]

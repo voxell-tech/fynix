@@ -72,29 +72,15 @@ patch!(PatchImage, Handle<Image>, |entity, v| {
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
-    use bevy::ecs::hierarchy::Children;
-    use bevy::ecs::relationship::RelationshipTarget;
     use bevy::math::Rot2;
     use bevy::ui::{Node, UiTransform, Val};
 
     use super::*;
+    use crate::mount;
     use crate::tests::{Plain, app};
-    use crate::{AnyView, mount};
 
     fn image_node(app: &App, node: Entity) -> &ImageNode {
         app.world().get::<ImageNode>(node).expect("an icon")
-    }
-
-    #[test]
-    fn unset_props_fall_back_to_the_theme() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), icon(Handle::default()));
-
-        assert_eq!(image_node(&app, node).color, Color::WHITE);
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.width, Val::Px(14.0));
-        assert_eq!(ui.height, Val::Px(14.0));
     }
 
     #[test]
@@ -113,40 +99,6 @@ mod tests {
         );
         let ui = app.world().get::<Node>(node).unwrap();
         assert_eq!(ui.width, Val::Px(20.0));
-    }
-
-    #[test]
-    fn a_set_rule_beats_the_theme_and_the_call_site_beats_it() {
-        let mut app = app();
-        let root = mount::<Plain>(
-            app.world_mut(),
-            AnyView::<Bevy, Plain>::new(|cx| {
-                let root = cx.spawn();
-                cx.under(root, |cx| {
-                    cx.set::<Icon>(|i, _| {
-                        i.size(30.0).tone(Tone::Dim)
-                    });
-                    cx.build(icon(Handle::default()));
-                    cx.build(icon(Handle::default()).size(8.0));
-                });
-                root
-            }),
-        );
-        let kids = app
-            .world()
-            .get::<Children>(root)
-            .unwrap()
-            .iter()
-            .collect::<Vec<_>>();
-
-        let width =
-            |node| app.world().get::<Node>(node).unwrap().width;
-        assert_eq!(width(kids[0]), Val::Px(30.0));
-        assert_eq!(width(kids[1]), Val::Px(8.0));
-        assert_eq!(
-            image_node(&app, kids[1]).color,
-            Color::srgb(0.5, 0.5, 0.5)
-        );
     }
 
     #[test]

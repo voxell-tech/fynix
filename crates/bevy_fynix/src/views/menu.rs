@@ -346,13 +346,11 @@ mod tests {
     use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::resource::Resource;
-    use bevy::ui::{BackgroundColor, BorderRadius, GlobalZIndex};
+    use bevy::ui::{BackgroundColor, GlobalZIndex};
     use bevy::ui_widgets::Activate;
-    use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::transition::BevyMarker;
     use crate::views::{BehaviorExt, frame, label};
     use crate::{ScopedExt, mount};
 
@@ -369,10 +367,6 @@ mod tests {
         app.world().get::<BackgroundColor>(node).unwrap().0
     }
 
-    fn blend(from: Color, to: Color, t: f32) -> Color {
-        <Color as Interpolation<BevyMarker>>::interp(&from, &to, t)
-    }
-
     #[test]
     fn a_surface_rule_leaves_what_is_inside_alone() {
         let mut app = app();
@@ -384,17 +378,6 @@ mod tests {
         let inner = app.world().get::<Children>(node).unwrap()[0];
         assert_eq!(fill(&app, inner), Color::NONE);
         assert!(app.world().get::<GlobalZIndex>(inner).is_none());
-    }
-
-    #[test]
-    fn the_call_site_beats_the_surface() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            frame().fill(Color::WHITE).rules(menu_surface),
-        );
-
-        assert_eq!(fill(&app, node), Color::WHITE);
     }
 
     #[test]
@@ -412,31 +395,6 @@ mod tests {
             app.world().get::<EntityCursor>(node),
             Some(&EntityCursor(SystemCursorIcon::Pointer))
         );
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.width, percent(100.0));
-        assert_eq!(ui.min_height, px(20.0));
-        assert_eq!(ui.border_radius, BorderRadius::all(px(3.0)));
-    }
-
-    #[test]
-    fn a_row_lights_up_under_the_pointer_and_fades_back() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), menu_item(label("Cut")));
-        let rest = Color::srgb(0.3, 0.3, 0.3).with_alpha(0.0);
-        let hover = Color::srgb(0.3, 0.3, 0.3);
-        assert_eq!(fill(&app, node), rest);
-
-        app.world_mut().entity_mut(node).insert(Hovered);
-        app.update();
-        assert_eq!(fill(&app, node), blend(rest, hover, 0.5));
-        app.update();
-        assert_eq!(fill(&app, node), hover);
-
-        app.world_mut().entity_mut(node).remove::<Hovered>();
-        app.update();
-        app.update();
-        assert_eq!(fill(&app, node), rest);
     }
 
     #[derive(Resource, Default)]

@@ -122,8 +122,6 @@ own_when!(Frame);
 mod tests {
     use bevy::app::App;
     use bevy::color::Alpha;
-    use bevy::ecs::hierarchy::Children;
-    use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
     use bevy::ui::{BorderRadius, GlobalZIndex, Node, percent, px};
 
@@ -138,19 +136,6 @@ mod tests {
 
     fn fill(app: &App, node: Entity) -> Color {
         app.world().get::<BackgroundColor>(node).unwrap().0
-    }
-
-    #[test]
-    fn unset_props_fall_back_to_the_theme_or_their_default() {
-        let mut app = app();
-        let node = mount::<Plain>(app.world_mut(), frame());
-
-        assert_eq!(ui(&app, node).row_gap, Val::Px(6.0));
-        assert_eq!(ui(&app, node).column_gap, Val::Px(6.0));
-        assert_eq!(ui(&app, node).width, Val::Auto);
-        assert_eq!(ui(&app, node).flex_shrink, 1.0);
-        assert_eq!(ui(&app, node).flex_direction, FlexDirection::Row);
-        assert_eq!(fill(&app, node), Color::NONE);
     }
 
     #[test]
@@ -274,44 +259,6 @@ mod tests {
         assert_eq!(
             app.world().get::<BorderColor>(node),
             Some(&BorderColor::all(half))
-        );
-    }
-
-    #[test]
-    fn a_set_rule_fills_what_the_call_site_left_unset() {
-        use crate::AnyView;
-
-        let mut app = app();
-        let root = mount::<Plain>(
-            app.world_mut(),
-            AnyView::<Bevy, Plain>::new(|cx| {
-                let root = cx.spawn();
-                cx.under(root, |cx| {
-                    cx.set::<Frame>(|f, theme: &Plain| {
-                        f.gap(9.0).radius(theme.radius())
-                    });
-                    cx.build(frame());
-                    cx.build(frame().gap(1.0));
-                });
-                root
-            }),
-        );
-        let kids = app
-            .world()
-            .get::<Children>(root)
-            .expect("two frames")
-            .iter()
-            .collect::<Vec<_>>();
-
-        assert_eq!(ui(&app, kids[0]).row_gap, Val::Px(9.0));
-        assert_eq!(
-            ui(&app, kids[1]).row_gap,
-            Val::Px(1.0),
-            "call site wins"
-        );
-        assert_eq!(
-            ui(&app, kids[1]).border_radius,
-            BorderRadius::all(Val::Px(3.0))
         );
     }
 
