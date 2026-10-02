@@ -12,9 +12,6 @@ use crate::tokens::{
 use crate::views::frame::{Frame, FrameProps};
 use crate::{Bevy, Cx, Dragging, Styled, View, style};
 
-/// The thickness of a divider that is there to be grabbed.
-const GRIP: f32 = 6.0;
-
 /// Which way a [`Divider`] runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Axis {
@@ -30,7 +27,7 @@ pub enum Axis {
 pub struct Divider {
     pub frame: Frame,
     pub axis: Axis,
-    pub thickness: f32,
+    pub thickness: Option<f32>,
 }
 
 /// A [`Divider`] running along `axis`.
@@ -38,14 +35,14 @@ pub fn divider(axis: Axis) -> Divider {
     Divider {
         frame: Frame::unset(),
         axis,
-        thickness: GRIP,
+        thickness: None,
     }
 }
 
 impl Divider {
-    /// How thick the line is, 6.0 when unset.
+    /// How thick the line is, the theme's divider when unset.
     pub fn thickness(mut self, thickness: f32) -> Self {
-        self.thickness = thickness;
+        self.thickness = Some(thickness);
         self
     }
 }
@@ -61,14 +58,16 @@ where
     T: SurfaceTokens + SpacingTokens + Send + Sync + 'static,
 {
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
+        let thickness =
+            self.thickness.unwrap_or_else(|| cx.theme().divider());
         let (width, height, cursor) = match self.axis {
             Axis::Horizontal => (
                 percent(100.0),
-                px(self.thickness),
+                px(thickness),
                 SystemCursorIcon::NsResize,
             ),
             Axis::Vertical => (
-                px(self.thickness),
+                px(thickness),
                 percent(100.0),
                 SystemCursorIcon::EwResize,
             ),

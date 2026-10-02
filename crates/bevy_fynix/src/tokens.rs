@@ -98,4 +98,24 @@ pub trait SpacingTokens {
     fn menu_margin(&self) -> f32 {
         8.0
     }
+
+    /// The least width of a menu's list.
+    fn menu_width(&self) -> f32 {
+        120.0
+    }
+
+    /// A divider's thickness.
+    fn divider(&self) -> f32 {
+        2.0
+    }
+
+    /// The space at each side of a tab's content.
+    fn tab_padding(&self) -> f32 {
+        8.0
+    }
+
+    /// The space between two tabs.
+    fn tab_gap(&self) -> f32 {
+        2.0
+    }
 }

@@ -2,7 +2,6 @@
 //! one of its edges, with a hint showing where it lands.
 
 use bevy::camera::visibility::Visibility;
-use bevy::color::Alpha;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -305,11 +304,13 @@ pub(super) fn moved<T: DockTokens>(
             );
 
             *target = next.map(|(next, _)| next);
-            let tint = theme.0.tone(Tone::Accent).with_alpha(0.18);
             match (*hint, next) {
                 (None, Some((_, rect))) => {
-                    *hint =
-                        Some(spawn_hint(&mut commands, rect, tint));
+                    *hint = Some(spawn_hint(
+                        &mut commands,
+                        rect,
+                        &theme.0,
+                    ));
                 }
                 (Some(shown), Some((_, rect))) => {
                     if let Ok(mut shown) = nodes.get_mut(shown) {
@@ -405,7 +406,7 @@ fn spawn_ghost<T: DockTokens>(
             left: px(cursor.x - GRAB.x),
             top: px(cursor.y - GRAB.y),
             height: px(theme.row()),
-            padding: UiRect::axes(px(8.0), px(3.0)),
+            padding: UiRect::horizontal(px(theme.tab_padding())),
             align_items: AlignItems::Center,
             border_radius: BorderRadius::all(px(theme.radius())),
             ..Node::default()
@@ -433,21 +434,21 @@ fn spawn_ghost<T: DockTokens>(
     ghost.id()
 }
 
-fn spawn_hint(
+fn spawn_hint<T: DockTokens>(
     commands: &mut Commands,
     rect: Rect,
-    tint: bevy::color::Color,
+    theme: &T,
 ) -> Entity {
     let mut node = Node {
         position_type: PositionType::Absolute,
-        border_radius: BorderRadius::all(px(4.0)),
+        border_radius: BorderRadius::all(px(theme.radius())),
         ..Node::default()
     };
     place(&mut node, rect);
     commands
         .spawn((
             node,
-            BackgroundColor(tint),
+            BackgroundColor(theme.selection()),
             GlobalZIndex(HINT_Z),
             Pickable::IGNORE,
         ))

@@ -27,13 +27,12 @@ use crate::views::{
 };
 use crate::{AnyView, Bevy, Cx, ScopedExt, ViewExt};
 
-const WIDTH: f32 = 150.0;
-
-/// Where the popup sits, in the dock's own coordinates.
+/// Where the popup sits, in the dock's own coordinates: `right` from
+/// the dock's right edge and `top` from its top.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OpenPopup {
     pub leaf: NodeId,
-    pub left: f32,
+    pub right: f32,
     pub top: f32,
 }
 
@@ -61,16 +60,16 @@ pub(super) fn open(
         return;
     };
     let rect = logical_rect(computed, transform);
-    let origin = parents
+    let dock = parents
         .iter_ancestors(button)
         .find_map(|ancestor| roots.get(ancestor).ok())
-        .map_or(rect.min * 0.0, |(computed, transform)| {
-            logical_rect(computed, transform).min
+        .map_or(rect, |(computed, transform)| {
+            logical_rect(computed, transform)
         });
     popup.open = Some(OpenPopup {
         leaf: add.leaf,
-        left: (rect.max.x - origin.x - WIDTH).max(0.0),
-        top: rect.max.y - origin.y + 4.0,
+        right: (dock.max.x - rect.max.x).max(0.0),
+        top: rect.max.y - dock.min.y,
     });
 }
 
@@ -102,6 +101,8 @@ type Choice = (String, String, Option<Handle<Image>>);
 /// in the tree yet.
 fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let (width, offset) =
+            (cx.theme().menu_width(), cx.theme().menu_padding());
         let tree = cx.world.resource::<DockTree>();
         let choices = cx
             .world
@@ -133,12 +134,12 @@ fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
         };
         let menu = column(rows)
             .inset(UiRect::new(
-                px(open.left),
                 Val::Auto,
-                px(open.top),
+                px(open.right),
+                px(open.top + offset),
                 Val::Auto,
             ))
-            .width(px(WIDTH))
+            .min_width(px(width))
             .rules(|cx: &mut Cx<'_, Bevy, T>| {
                 cx.defaults(menu_surface);
             });
@@ -158,10 +159,10 @@ fn choice_row<T: DockTokens>(
 ) -> AnyView<Bevy, T> {
     let mut parts = Vec::new();
     if let Some(image) = image {
-        parts.push(icon(image).size(12.0).boxed());
+        parts.push(icon(image).boxed());
     }
     parts.push(label(name).boxed());
-    menu_item(row(parts).gap(6.0).align(AlignItems::Center))
+    menu_item(row(parts).align(AlignItems::Center))
         .on_activate(move |world| {
             world
                 .resource_mut::<DockTree>()

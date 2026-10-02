@@ -285,7 +285,10 @@ mod tests {
         };
         assert_eq!(width(&app, first), Val::Percent(50.0));
         assert_eq!(width(&app, second), Val::Percent(50.0));
-        assert_eq!(width(&app, handle), px(layout::HANDLE));
+        assert_eq!(
+            width(&app, handle),
+            px(Plain::default().divider())
+        );
         assert!(
             app.world().get::<layout::SplitHandle>(handle).is_some()
         );
@@ -615,7 +618,7 @@ mod tests {
         app.world_mut().resource_mut::<AddPopup>().open =
             Some(OpenPopup {
                 leaf: left,
-                left: 10.0,
+                right: 10.0,
                 top: 20.0,
             });
         app.update();
@@ -629,9 +632,11 @@ mod tests {
             ui.position_type,
             bevy::ui::PositionType::Absolute
         );
-        assert_eq!(ui.left, px(10.0));
-        assert_eq!(ui.top, px(20.0));
-        assert_eq!(ui.width, px(150.0));
+        assert_eq!(ui.right, px(10.0));
+        assert_eq!(
+            ui.top,
+            px(20.0 + Plain::default().menu_padding())
+        );
         assert_eq!(
             app.world().get::<bevy::ui::GlobalZIndex>(surface),
             Some(&bevy::ui::GlobalZIndex(crate::views::MENU_Z))
@@ -651,7 +656,7 @@ mod tests {
         app.world_mut().resource_mut::<AddPopup>().open =
             Some(OpenPopup {
                 leaf: left,
-                left: 0.0,
+                right: 0.0,
                 top: 0.0,
             });
         app.update();
@@ -820,11 +825,9 @@ mod tests {
         lay(&mut app, first, Rect::new(0.0, 0.0, 98.0, 100.0));
         lay(&mut app, second, Rect::new(102.0, 0.0, 200.0, 100.0));
 
-        // A quarter of what the panes share, past the handle's own
-        // half.
-        let free = 200.0 - layout::HANDLE;
-        let x = free / 4.0 + layout::HANDLE / 2.0;
-        drag_to(&mut app, handle, Vec2::new(x, 50.0));
+        // A quarter of the 196px the panes share, past the handle's
+        // own half.
+        drag_to(&mut app, handle, Vec2::new(51.0, 50.0));
 
         let fraction = app
             .world()
@@ -874,7 +877,7 @@ mod tests {
         assert_eq!(fill_of(&app, handle), Color::NONE);
         assert_eq!(
             width(&app, handle),
-            px(layout::HANDLE),
+            px(Plain::default().divider()),
             "still to grab"
         );
 

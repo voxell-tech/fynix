@@ -330,9 +330,6 @@ impl FrameProps for MenuTitle {
     }
 }
 
-/// The least width of a menu button's list.
-const MENU_WIDTH: f32 = 120.0;
-
 /// A heading row: dim, small, on a faint surface, with nothing to
 /// choose.
 fn section_row<T>(text: String) -> AnyView<Bevy, T>
@@ -421,9 +418,10 @@ where
             cx.world
                 .entity_mut(button)
                 .insert((MenuButton, TabIndex(0)));
+            let width = cx.theme().menu_width();
             let popup = cx.build(popup(
                 rows,
-                px(MENU_WIDTH),
+                px(width),
                 vec![
                     placement(PopoverSide::Bottom),
                     placement(PopoverSide::Top),

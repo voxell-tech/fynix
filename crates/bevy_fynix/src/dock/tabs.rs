@@ -36,12 +36,6 @@ pub struct DockIcons {
     pub add: Option<Handle<Image>>,
 }
 
-/// The side of the cross that closes a tab.
-const CLOSE_SIZE: f32 = 10.0;
-
-/// The side of the plus that adds a tab.
-const ADD_SIZE: f32 = 12.0;
-
 /// On the root node of a tab.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DockTab {
@@ -72,6 +66,7 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
         let height = cx.theme().row();
         let fill = cx.theme().panel();
+        let gap = cx.theme().tab_gap();
         let tabs = each(
             resource::<DockTree, _>(move |tree| {
                 tree.leaf(leaf)
@@ -86,7 +81,7 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
                 .with(TabRow { leaf })
                 .direction(FlexDirection::Row)
                 .overflow(Overflow::scroll_x())
-                .gap(2.0)
+                .gap(gap)
                 .height(percent(100.0))
                 .align(AlignItems::Center),
         );
@@ -137,27 +132,25 @@ fn tab<T: DockTokens>(
         let image = kind.and_then(|kind| kind.icon.clone());
         let mut parts = Vec::new();
         if let Some(image) = image {
-            parts.push(icon(image).size(12.0).boxed());
+            parts.push(icon(image).boxed());
         }
         parts.push(label(name).bold(true).wrap(false).boxed());
         parts.push(close(id));
 
-        let tab =
-            button(row(parts).gap(6.0).align(AlignItems::Center))
-                .fill(Color::NONE)
-                .padding(UiRect::axes(px(8.0), px(3.0)))
-                .height(percent(100.0))
-                .shrink(0.0)
-                .tagged(DockTab { leaf, tab: id })
-                .tagged(EntityCursor(SystemCursorIcon::Grab))
-                .on_activate(move |world| {
-                    world
-                        .resource_mut::<DockTree>()
-                        .set_active(leaf, id);
-                })
-                .when::<ActiveTab, _>(lit::<T>)
-                .when::<Hovered, _>(hovered::<T>)
-                .toned(Tone::Dim);
+        let padding = cx.theme().tab_padding();
+        let tab = button(row(parts).align(AlignItems::Center))
+            .fill(Color::NONE)
+            .padding(UiRect::horizontal(px(padding)))
+            .height(percent(100.0))
+            .shrink(0.0)
+            .tagged(DockTab { leaf, tab: id })
+            .tagged(EntityCursor(SystemCursorIcon::Grab))
+            .on_activate(move |world| {
+                world.resource_mut::<DockTree>().set_active(leaf, id);
+            })
+            .when::<ActiveTab, _>(lit::<T>)
+            .when::<Hovered, _>(hovered::<T>)
+            .toned(Tone::Dim);
         // Marked from the start when its area shows it, so it is
         // drawn lit at the first write.
         let shown =
@@ -215,7 +208,7 @@ fn glyph<T: DockTokens>(
 ) -> AnyView<Bevy, T> {
     match image {
         Some(image) => icon(image).size(size).boxed(),
-        None => label(fallback).boxed(),
+        None => label(fallback).size(size).boxed(),
     }
 }
 
@@ -227,9 +220,11 @@ fn close<T: DockTokens>(tab: TabId) -> AnyView<Bevy, T> {
             .world
             .get_resource::<DockIcons>()
             .and_then(|icons| icons.close.clone());
+        let (size, padding) =
+            (cx.theme().small_size(), cx.theme().tab_padding() / 2.0);
         cx.build(
-            button(glyph::<T>(image, CLOSE_SIZE, "x"))
-                .padding(UiRect::axes(px(4.0), px(0.0)))
+            button(glyph::<T>(image, size, "x"))
+                .padding(UiRect::horizontal(px(padding)))
                 .on_activate(move |world| {
                     world.resource_mut::<DockTree>().remove_tab(tab);
                 })
@@ -246,9 +241,11 @@ fn add<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
             .world
             .get_resource::<DockIcons>()
             .and_then(|icons| icons.add.clone());
+        let (size, padding) =
+            (cx.theme().body_size(), cx.theme().tab_padding());
         cx.build(
-            button(glyph::<T>(image, ADD_SIZE, "+"))
-                .padding(UiRect::axes(px(8.0), px(0.0)))
+            button(glyph::<T>(image, size, "+"))
+                .padding(UiRect::horizontal(px(padding)))
                 .height(percent(100.0))
                 .shrink(0.0)
                 .tagged(AddButton { leaf })

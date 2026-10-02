@@ -28,9 +28,6 @@ use crate::{
     AnyView, Bevy, Cx, Dragging, ScopedExt, ViewExt, ViewSeq, each,
 };
 
-/// How thick the line between two panes is.
-pub(super) const HANDLE: f32 = 2.0;
-
 /// The least a pane keeps when its split is dragged, in logical
 /// pixels.
 const MIN_PANE: f32 = 48.0;
@@ -79,7 +76,6 @@ fn split<T: DockTokens>(
     } else {
         Axis::Horizontal
     })
-    .thickness(HANDLE)
     .rules(revealed)
     .tagged(SplitHandle {
         split: id,
@@ -214,15 +210,20 @@ fn content<T: DockTokens>(
 }
 
 /// The fraction of a split a handle at `cursor` makes, for panes
-/// spanning `start` to `end` with the handle between them. Neither
-/// pane gets less than [`MIN_PANE`] when the span allows it.
-fn fraction_at(cursor: f32, start: f32, end: f32) -> Option<f32> {
-    let free = end - start - HANDLE;
+/// spanning `start` to `end` with a `handle` thick line between them.
+/// Neither pane gets less than [`MIN_PANE`] when the span allows it.
+fn fraction_at(
+    cursor: f32,
+    start: f32,
+    end: f32,
+    handle: f32,
+) -> Option<f32> {
+    let free = end - start - handle;
     if free <= 0.0 {
         return None;
     }
     let least = (MIN_PANE / free).min(0.5);
-    let fraction = (cursor - start - HANDLE / 2.0) / free;
+    let fraction = (cursor - start - handle / 2.0) / free;
     Some(fraction.clamp(least, 1.0 - least))
 }
 
@@ -296,12 +297,23 @@ pub(super) fn drag_handle(
         return;
     };
     let cursor = logical(drag.pointer_location.position, scale);
-    let (cursor, start, end) = if split.horizontal {
-        (cursor.x, before.min.x, after.max.x)
+    let (cursor, start, end, handle) = if split.horizontal {
+        (
+            cursor.x,
+            before.min.x,
+            after.max.x,
+            after.min.x - before.max.x,
+        )
     } else {
-        (cursor.y, before.min.y, after.max.y)
+        (
+            cursor.y,
+            before.min.y,
+            after.max.y,
+            after.min.y - before.max.y,
+        )
     };
-    let Some(fraction) = fraction_at(cursor, start, end) else {
+    let Some(fraction) = fraction_at(cursor, start, end, handle)
+    else {
         return;
     };
     let current = tree
@@ -317,35 +329,40 @@ pub(super) fn drag_handle(
 mod tests {
     use super::*;
 
+    /// A handle's thickness.
+    const HANDLE: f32 = 2.0;
+
     #[test]
     fn the_handle_lands_under_the_cursor() {
         // 100px of pane each side of the handle.
         let end = 200.0 + HANDLE;
         let fraction =
-            fraction_at(100.0 + HANDLE / 2.0, 0.0, end).unwrap();
+            fraction_at(100.0 + HANDLE / 2.0, 0.0, end, HANDLE)
+                .unwrap();
         assert_eq!(fraction, 0.5);
         let fraction =
-            fraction_at(50.0 + HANDLE / 2.0, 0.0, end).unwrap();
+            fraction_at(50.0 + HANDLE / 2.0, 0.0, end, HANDLE)
+                .unwrap();
         assert_eq!(fraction, 0.25);
     }
 
     #[test]
     fn a_pane_keeps_its_least_size() {
         let end = 200.0 + HANDLE;
-        let low = fraction_at(-500.0, 0.0, end).unwrap();
-        let high = fraction_at(900.0, 0.0, end).unwrap();
+        let low = fraction_at(-500.0, 0.0, end, HANDLE).unwrap();
+        let high = fraction_at(900.0, 0.0, end, HANDLE).unwrap();
         assert_eq!(low, MIN_PANE / 200.0);
         assert_eq!(high, 1.0 - MIN_PANE / 200.0);
     }
 
     #[test]
     fn a_span_too_small_for_the_handle_is_left_alone() {
-        assert_eq!(fraction_at(3.0, 0.0, HANDLE), None);
+        assert_eq!(fraction_at(3.0, 0.0, HANDLE, HANDLE), None);
     }
 
     #[test]
     fn a_tiny_span_splits_evenly_at_most() {
-        let fraction = fraction_at(0.0, 0.0, 60.0).unwrap();
+        let fraction = fraction_at(0.0, 0.0, 60.0, HANDLE).unwrap();
         assert_eq!(fraction, 0.5);
     }
 }
