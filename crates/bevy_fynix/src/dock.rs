@@ -612,12 +612,12 @@ mod tests {
     }
 
     #[test]
-    fn the_popup_hangs_menu_rows_off_its_point_until_dismissed() {
+    fn the_popup_hangs_menu_rows_off_its_button_until_dismissed() {
         let (mut app, left, _) = app();
         app.world_mut().resource_mut::<AddPopup>().open =
             Some(OpenPopup {
                 leaf: left,
-                at: Vec2::new(10.0, 20.0),
+                anchor: Rect::new(10.0, 20.0, 30.0, 40.0),
             });
         app.update();
         let root = find::<DockRoot>(&mut app)[0].0;
@@ -652,7 +652,7 @@ mod tests {
         app.world_mut().resource_mut::<AddPopup>().open =
             Some(OpenPopup {
                 leaf: left,
-                at: Vec2::ZERO,
+                anchor: Rect::default(),
             });
         app.update();
         let root = find::<DockRoot>(&mut app)[0].0;

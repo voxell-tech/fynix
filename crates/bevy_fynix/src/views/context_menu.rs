@@ -168,7 +168,7 @@ where
         let surface = menu_popup(
             rows,
             px(cx.theme().menu_width()),
-            corners(),
+            corners(0.0),
             MenuFocusState::Closed,
         );
         let node = cx.build(surface);

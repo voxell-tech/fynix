@@ -1,11 +1,11 @@
-//! A surface floating over everything else, hung off a point.
+//! A surface floating over everything else, hung off what opened it.
 
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::Commands;
 use bevy::ecs::world::World;
-use bevy::math::Vec2;
+use bevy::math::Rect;
 use bevy::picking::Pickable;
 use bevy::picking::events::{Pointer, Press};
 use bevy::ui::{OverrideClip, PositionType, UiRect, Val, px};
@@ -22,25 +22,28 @@ use crate::{Bevy, Cx, ScopedExt, Styled, View, ViewSeq};
 /// What runs when a press lands outside a [`Popup`], given its root.
 type Dismiss = fn(&mut World, Entity);
 
-/// `content` in a column on a menu surface, hung off a point of its
-/// parent and placed by [`Popover`], over a backdrop filling the
-/// parent. A press on the backdrop runs the dismiss handler, which
-/// despawns the popup unless set. Its frame styles the surface.
+/// `content` in a column on a menu surface, hung off an anchor in its
+/// parent and placed by [`Popover`] where the window cuts off least
+/// of it, over a backdrop filling the parent. A press on the backdrop
+/// runs the dismiss handler, which despawns the popup unless set. Its
+/// frame styles the surface.
 pub struct Popup<C> {
     pub frame: Frame,
     content: C,
-    at: Vec2,
+    anchor: Rect,
     placements: Vec<PopoverPlacement>,
     on_dismiss: Dismiss,
 }
 
-/// A [`Popup`] of `content` at `at`, in its parent's logical pixels.
-pub fn popup<C>(at: Vec2, content: C) -> Popup<C> {
+/// A [`Popup`] of `content` against `anchor`, in its parent's logical
+/// pixels: the rect of what opened it, or a point as a zero-size
+/// rect.
+pub fn popup<C>(anchor: Rect, content: C) -> Popup<C> {
     Popup {
         frame: Frame::unset(),
         content,
-        at,
-        placements: corners(),
+        anchor,
+        placements: corners(0.0),
         on_dismiss: |world, root| {
             if let Ok(entity) = world.get_entity_mut(root) {
                 entity.despawn();
@@ -50,8 +53,8 @@ pub fn popup<C>(at: Vec2, content: C) -> Popup<C> {
 }
 
 impl<C> Popup<C> {
-    /// Where the surface may sit against its point, the first that
-    /// fits winning. Below then above, from either side, when unset.
+    /// Where the surface may sit against its anchor, the one the
+    /// window cuts off least winning. [`corners`] when unset.
     pub fn placements(
         mut self,
         placements: Vec<PopoverPlacement>,
@@ -74,19 +77,15 @@ impl<C> FrameProps for Popup<C> {
     }
 }
 
-/// Below the point, then above it, each from its left side, then its
-/// right: whichever corner has room.
-pub fn corners() -> Vec<PopoverPlacement> {
+/// Below the anchor, then above it, each lined up with its left edge,
+/// then its right, `gap` away from it.
+pub fn corners(gap: f32) -> Vec<PopoverPlacement> {
     use PopoverAlign::{End, Start};
     use PopoverSide::{Bottom, Top};
 
     [(Bottom, Start), (Bottom, End), (Top, Start), (Top, End)]
         .into_iter()
-        .map(|(side, align)| PopoverPlacement {
-            side,
-            align,
-            gap: 0.0,
-        })
+        .map(|(side, align)| PopoverPlacement { side, align, gap })
         .collect()
 }
 
@@ -99,7 +98,7 @@ where
         let Self {
             frame,
             content,
-            at,
+            anchor,
             placements,
             on_dismiss,
         } = self;
@@ -123,14 +122,16 @@ where
         );
         cx.under(root, |cx| {
             let anchor = cx.build(
-                row(()).position(PositionType::Absolute).inset(
-                    UiRect::new(
-                        px(at.x),
+                row(())
+                    .position(PositionType::Absolute)
+                    .inset(UiRect::new(
+                        px(anchor.min.x),
                         Val::Auto,
-                        px(at.y),
+                        px(anchor.min.y),
                         Val::Auto,
-                    ),
-                ),
+                    ))
+                    .width(px(anchor.width()))
+                    .height(px(anchor.height())),
             );
             cx.under(anchor, |cx| {
                 let mut surface = column(content);
@@ -160,6 +161,7 @@ mod tests {
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
+    use bevy::math::Vec2;
     use bevy::picking::pointer::PointerButton;
     use bevy::ui::Node;
 
@@ -189,22 +191,24 @@ mod tests {
         app.init_resource::<Dismissed>();
         let root = mount::<Plain>(
             app.world_mut(),
-            popup(Vec2::new(10.0, 20.0), (label("Cut"),)).on_dismiss(
-                |world, _| world.resource_mut::<Dismissed>().0 += 1,
-            ),
+            popup(Rect::new(10.0, 20.0, 40.0, 44.0), (label("Cut"),))
+                .on_dismiss(|world, _| {
+                    world.resource_mut::<Dismissed>().0 += 1;
+                }),
         );
         let anchor = kids(app, root)[0];
         (root, kids(app, anchor)[0])
     }
 
     #[test]
-    fn the_surface_hangs_off_the_point() {
+    fn the_surface_hangs_off_its_anchor() {
         let mut app = tests::app();
         let (root, _) = mounted(&mut app);
 
         let anchor = kids(&app, root)[0];
         let ui = app.world().get::<Node>(anchor).unwrap();
         assert_eq!((ui.left, ui.top), (px(10.0), px(20.0)));
+        assert_eq!((ui.width, ui.height), (px(30.0), px(24.0)));
     }
 
     #[test]
@@ -225,7 +229,7 @@ mod tests {
         let mut app = tests::app();
         let root = mount::<Plain>(
             app.world_mut(),
-            popup(Vec2::ZERO, (label("Cut"),)),
+            popup(Rect::default(), (label("Cut"),)),
         );
 
         press(&mut app, root);

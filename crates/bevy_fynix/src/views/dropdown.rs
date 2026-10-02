@@ -18,9 +18,6 @@ use bevy::image::Image;
 use bevy::input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::ui::{AlignItems, Overflow, UiRect, percent, px};
-use bevy::ui_widgets::popover::{
-    PopoverAlign, PopoverPlacement, PopoverSide,
-};
 use bevy::ui_widgets::{
     MenuAction, MenuButton, MenuEvent, MenuFocusState,
 };
@@ -34,6 +31,7 @@ use crate::tokens::{
 use crate::views::foldable::Open;
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{menu_item, menu_popup};
+use crate::views::popup::corners;
 use crate::views::{
     BehaviorExt, button, frame, icon, label, menu_bar, row, tint,
 };
@@ -187,10 +185,7 @@ where
             let popup = cx.build(menu_popup(
                 rows,
                 percent(100.0),
-                vec![
-                    placement(PopoverSide::Bottom),
-                    placement(PopoverSide::Top),
-                ],
+                corners(LIST_GAP),
                 MenuFocusState::Closed,
             ));
             cx.world.entity_mut(popup).insert(Visibility::Hidden);
@@ -203,13 +198,8 @@ where
     }
 }
 
-fn placement(side: PopoverSide) -> PopoverPlacement {
-    PopoverPlacement {
-        side,
-        align: PopoverAlign::Start,
-        gap: 2.0,
-    }
-}
+/// The space between a list and its button.
+const LIST_GAP: f32 = 2.0;
 
 /// Runs the handler of the dropdown at `root` with `at`, and closes
 /// its popup.
@@ -408,10 +398,7 @@ where
             let popup = cx.build(menu_popup(
                 rows,
                 px(width),
-                vec![
-                    placement(PopoverSide::Bottom),
-                    placement(PopoverSide::Top),
-                ],
+                corners(LIST_GAP),
                 MenuFocusState::Closed,
             ));
             cx.world.entity_mut(popup).insert(Visibility::Hidden);

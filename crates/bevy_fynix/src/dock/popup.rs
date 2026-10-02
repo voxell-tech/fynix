@@ -9,7 +9,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, ResMut};
 use bevy::image::Image;
-use bevy::math::Vec2;
+use bevy::math::{Rect, Vec2};
 use bevy::ui::{AlignItems, ComputedNode, UiGlobalTransform, px};
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::popover::{
@@ -25,12 +25,12 @@ use crate::views::{
 };
 use crate::{AnyView, Bevy, Cx, ViewExt};
 
-/// The open popup: the leaf it adds to, and the bottom right corner
-/// of the "+" button that opened it, in the dock's own coordinates.
+/// The open popup: the leaf it adds to, and the rect of the "+"
+/// button that opened it, in the dock's own coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OpenPopup {
     pub leaf: NodeId,
-    pub at: Vec2,
+    pub anchor: Rect,
 }
 
 /// The open popup, if any.
@@ -60,7 +60,10 @@ pub(super) fn open(
         });
     popup.open = Some(OpenPopup {
         leaf: add.leaf,
-        at: rect.max - origin,
+        anchor: Rect::from_corners(
+            rect.min - origin,
+            rect.max - origin,
+        ),
     });
 }
 
@@ -77,8 +80,8 @@ pub(super) fn build<T: DockTokens>(
 /// A window that can be added: its id, name and icon.
 type Choice = (String, String, Option<Handle<Image>>);
 
-/// The popup at `open`, right aligned under its button. It lists the
-/// registered windows that are not in the tree yet.
+/// The popup at `open`, right aligned under its button where it fits.
+/// It lists the registered windows that are not in the tree yet.
 fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
         let (width, gap) =
@@ -112,17 +115,18 @@ fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
                 .map(|choice| choice_row(open.leaf, choice))
                 .collect()
         };
-        let placement = |side| PopoverPlacement {
-            side,
-            align: PopoverAlign::End,
-            gap,
-        };
+        let placements = [
+            (PopoverSide::Bottom, PopoverAlign::End),
+            (PopoverSide::Bottom, PopoverAlign::Start),
+            (PopoverSide::Top, PopoverAlign::End),
+            (PopoverSide::Top, PopoverAlign::Start),
+        ]
+        .into_iter()
+        .map(|(side, align)| PopoverPlacement { side, align, gap })
+        .collect();
         cx.build(
-            popup(open.at, rows)
-                .placements(vec![
-                    placement(PopoverSide::Bottom),
-                    placement(PopoverSide::Top),
-                ])
+            popup(open.anchor, rows)
+                .placements(placements)
                 .on_dismiss(|world, _| {
                     world.resource_mut::<AddPopup>().open = None;
                 })
