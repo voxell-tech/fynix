@@ -1,6 +1,5 @@
 //! A header with a body that can be folded away.
 
-use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
@@ -11,16 +10,16 @@ use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
 use crate::views::{
-    BehaviorExt, FrameProps, button, frame, label, row,
+    BehaviorExt, FrameProps, button, frame, label, row, tint,
 };
-use crate::{Bevy, Cx, View};
+use crate::{Bevy, Cx, ScopedExt, View};
 
 /// On a [`Foldable`]'s root node while its body is shown.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Open;
 
 /// A chevron and `header` in a row, over a `body` shown while the
-/// root node holds [`Open`].
+/// root node holds [`Open`]. The chevron is a [`tint`] button.
 pub struct Foldable<H, B> {
     pub header: H,
     pub body: B,
@@ -76,7 +75,7 @@ where
                 button(label(component::<Open, _>(root, |open| {
                     if open.is_some() { "v" } else { ">" }.to_string()
                 })))
-                .fill(Color::NONE)
+                .rules(tint)
                 .on_activate(move |world| toggle(world, root));
             cx.build(
                 row((chevron, self.header)).align(AlignItems::Center),
