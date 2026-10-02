@@ -15,8 +15,7 @@ fynix_macros = { version = "0.0.1", path = "crates/fynix_macros" }
 bevy_fynix = { version = "0.0.1", path = "crates/bevy_fynix", default-features = false }
 
 # motiongfx
-# `main` until a release rounds integers without `std` (motiongfx #187).
-motiongfx_interp = { git = "https://github.com/voxell-tech/motiongfx", rev = "2914a36c1132a3ac7c46e12186299ec2434ad055", default-features = false }
+motiongfx_interp = { version = "0.4.0", default-features = false }
 
 # bevy
 bevy = { version = "0.19", default-features = false }
