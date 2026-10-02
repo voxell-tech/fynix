@@ -289,7 +289,9 @@ pub(crate) fn despawn_orphans(
 }
 
 /// A node at the point the component `C` of `source` names, out of
-/// the layout, for what floats to hang from.
+/// the layout, for what floats to hang from. It stays at the last
+/// point once `C` is gone, so what still fades out under it does not
+/// jump.
 fn anchor<T, C>(
     source: Entity,
     at: fn(&C) -> Vec2,
@@ -299,22 +301,25 @@ where
     C: Component,
 {
     AnyView::new(move |cx| {
-        cx.build(
+        let node = cx.build(
             row(())
                 .position(PositionType::Absolute)
-                .inset(component::<C, _>(source, move |c| {
-                    c.map_or(UiRect::all(Val::Auto), |c| {
-                        let at = at(c);
-                        UiRect::new(
-                            px(at.x),
-                            Val::Auto,
-                            px(at.y),
-                            Val::Auto,
-                        )
-                    })
-                }))
                 .with(Floating(source)),
-        )
+        );
+        cx.effect(
+            node,
+            component::<C, _>(source, move |c| c.map(at)).into(),
+            |world, node, point| {
+                let Some(point) = point else {
+                    return;
+                };
+                if let Some(mut ui) = world.get_mut::<Node>(node) {
+                    ui.left = px(point.x);
+                    ui.top = px(point.y);
+                }
+            },
+        );
+        node
     })
 }
 

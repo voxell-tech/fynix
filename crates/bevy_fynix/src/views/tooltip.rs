@@ -357,6 +357,12 @@ mod tests {
             app.update();
         }
         assert!(app.world().get::<ShownAt>(source).is_none());
+        let ui = app.world().get::<bevy::ui::Node>(anchor).unwrap();
+        assert_eq!(
+            (ui.left, ui.top),
+            (px(30.0), px(40.0)),
+            "it fades out where it was"
+        );
 
         // It fades out, then its space closes.
         for _ in 0..8 {
