@@ -14,7 +14,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::world::World;
+use bevy::ecs::world::{EntityWorldMut, World};
 use bevy::picking::Pickable;
 use bevy::ui::{
     ComputedNode, Display, FlexDirection, Node, Overflow,
@@ -109,6 +109,65 @@ struct Before {
     min_width: Val,
     min_height: Val,
     visibility: Visibility,
+}
+
+impl Before {
+    /// What `ui` takes space with, and `visibility`.
+    fn of(ui: &Node, visibility: Visibility) -> Self {
+        Self {
+            position_type: ui.position_type,
+            inset: UiRect {
+                left: ui.left,
+                right: ui.right,
+                top: ui.top,
+                bottom: ui.bottom,
+            },
+            overflow: ui.overflow,
+            flex_shrink: ui.flex_shrink,
+            padding: ui.padding,
+            border: ui.border,
+            margin: ui.margin,
+            width: ui.width,
+            height: ui.height,
+            min_width: ui.min_width,
+            min_height: ui.min_height,
+            visibility,
+        }
+    }
+
+    /// Writes what this takes space with back onto `ui`.
+    fn put(&self, ui: &mut Node) {
+        ui.position_type = self.position_type;
+        ui.left = self.inset.left;
+        ui.right = self.inset.right;
+        ui.top = self.inset.top;
+        ui.bottom = self.inset.bottom;
+        ui.overflow = self.overflow;
+        ui.flex_shrink = self.flex_shrink;
+        ui.padding = self.padding;
+        ui.border = self.border;
+        ui.margin = self.margin;
+        ui.width = self.width;
+        ui.height = self.height;
+        ui.min_width = self.min_width;
+        ui.min_height = self.min_height;
+    }
+}
+
+/// Runs `write` on what a held node takes space with once released,
+/// leaving the node itself to the hold. False when it is not held.
+pub(crate) fn write_held(
+    entity: &mut EntityWorldMut,
+    write: impl FnOnce(&mut Node),
+) -> bool {
+    let Some(mut held) = entity.get_mut::<Held>() else {
+        return false;
+    };
+    let mut ui = Node::default();
+    held.before.put(&mut ui);
+    write(&mut ui);
+    held.before = Before::of(&ui, held.before.visibility);
+    true
 }
 
 /// On the root of a view built after the first build, from the moment
@@ -210,28 +269,10 @@ pub(crate) fn hold(world: &mut World, node: Entity) {
     let Some(ui) = world.get::<Node>(node) else {
         return;
     };
-    let before = Before {
-        position_type: ui.position_type,
-        inset: UiRect {
-            left: ui.left,
-            right: ui.right,
-            top: ui.top,
-            bottom: ui.bottom,
-        },
-        overflow: ui.overflow,
-        flex_shrink: ui.flex_shrink,
-        padding: ui.padding,
-        border: ui.border,
-        margin: ui.margin,
-        width: ui.width,
-        height: ui.height,
-        min_width: ui.min_width,
-        min_height: ui.min_height,
-        visibility: world
-            .get::<Visibility>(node)
-            .copied()
-            .unwrap_or_default(),
-    };
+    let before = Before::of(
+        ui,
+        world.get::<Visibility>(node).copied().unwrap_or_default(),
+    );
     let row = world
         .get::<ChildOf>(node)
         .and_then(|child| world.get::<Node>(child.parent()))
@@ -363,20 +404,7 @@ pub(crate) fn release(world: &mut World, node: Entity) {
     };
     let before = held.before;
     if let Some(mut ui) = entity.get_mut::<Node>() {
-        ui.position_type = before.position_type;
-        ui.left = before.inset.left;
-        ui.right = before.inset.right;
-        ui.top = before.inset.top;
-        ui.bottom = before.inset.bottom;
-        ui.overflow = before.overflow;
-        ui.flex_shrink = before.flex_shrink;
-        ui.padding = before.padding;
-        ui.border = before.border;
-        ui.margin = before.margin;
-        ui.width = before.width;
-        ui.height = before.height;
-        ui.min_width = before.min_width;
-        ui.min_height = before.min_height;
+        before.put(&mut ui);
     }
     entity.insert(before.visibility);
     for (node, pickable) in held.unpicked {

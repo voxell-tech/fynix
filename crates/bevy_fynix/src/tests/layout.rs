@@ -655,3 +655,43 @@ fn a_released_node_is_laid_out_and_picked_as_built() {
         Some(&Visibility::Inherited)
     );
 }
+
+#[derive(Resource)]
+struct Wide(f32);
+
+#[test]
+fn a_size_bound_while_held_is_kept_for_the_release() {
+    let mut app = laid_out();
+    app.insert_resource(Ids(vec![1]))
+        .insert_resource(Wide(40.0));
+    let root = mount::<Plain>(
+        app.world_mut(),
+        each(
+            resource::<Ids, _>(|ids| ids.0.clone()),
+            |id| *id,
+            |_| {
+                frame()
+                    .width(resource::<Wide, _>(|wide| px(wide.0)))
+                    .height(px(20.0))
+                    .appear::<Plain>(hidden)
+                    .transition(Motion::Expand)
+                    .boxed()
+            },
+        )
+        .within(column(())),
+    );
+    settle(&mut app, 4);
+
+    app.world_mut().resource_mut::<Ids>().0 = vec![1, 2];
+    app.update();
+    let second = children(&app, root)[1];
+    assert!(app.world().get::<Held>(second).is_some());
+    app.world_mut().resource_mut::<Wide>().0 = 80.0;
+    settle(&mut app, 40);
+
+    assert!(app.world().get::<Held>(second).is_none());
+    assert_eq!(
+        app.world().get::<Node>(second).unwrap().width,
+        px(80.0)
+    );
+}

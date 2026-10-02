@@ -62,7 +62,8 @@ macro_rules! node_patch {
 }
 
 /// A [`node_patch!`] for a field that decides how much space the node
-/// takes, which a hold or a collapse writes instead while it runs.
+/// takes, which a hold or a collapse writes instead while it runs. A
+/// held node keeps the value for when it is released.
 macro_rules! size_patch {
     (
         $(#[$meta:meta])*
@@ -71,8 +72,14 @@ macro_rules! size_patch {
         $crate::patch::patch!(
             $(#[$meta])*
             $name, $ty, |entity, $value| {
-                if !entity.contains::<$crate::leave::Collapsing>()
-                    && !entity.contains::<$crate::leave::Held>()
+                let held = $crate::leave::write_held(
+                    &mut entity,
+                    |$ui: &mut bevy::ui::Node| {
+                        $body;
+                    },
+                );
+                if !held
+                    && !entity.contains::<$crate::leave::Collapsing>()
                     && let Some(mut $ui) =
                         entity.get_mut::<bevy::ui::Node>()
                 {
