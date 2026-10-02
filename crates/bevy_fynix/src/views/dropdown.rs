@@ -174,7 +174,8 @@ where
                 cx.defaults(|cx| cx.root(control_defaults));
                 let mut button = button(
                     row((label(shown).wrap(false).grown(1.0), end))
-                        .grow(1.0),
+                        .grow(1.0)
+                        .align(AlignItems::Center),
                 );
                 button.frame = control;
                 cx.build(button)
