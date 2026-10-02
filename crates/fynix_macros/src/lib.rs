@@ -203,6 +203,12 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
                 "a prop needs `#[elem(patch = <type>)]`",
             )
         })?;
+        if args.shown.is_some() && args.with.is_none() {
+            return Err(Error::new(
+                field.span(),
+                "`shown = <type>` needs `with = <fn>` to make it",
+            ));
+        }
         field.attrs.retain(|attr| !attr.path().is_ident("elem"));
         let docs = field
             .attrs
