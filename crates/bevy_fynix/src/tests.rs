@@ -104,6 +104,26 @@ fn a_bound_prop_follows_the_world() {
 }
 
 #[test]
+fn two_themes_share_an_app_and_each_drops_its_own_despawned_views() {
+    let mut app = themed_app(Warm);
+    app.add_plugins(FynixPlugin::<Plain>::default())
+        .insert_resource(Theme(Plain::default()))
+        .insert_resource(Count(1));
+    let bound = |count: &Count| count.0.to_string();
+    let warm = mount::<Warm>(app.world_mut(), label(resource(bound)));
+    let plain =
+        mount::<Plain>(app.world_mut(), label(resource(bound)));
+
+    app.world_mut().despawn(warm);
+    app.world_mut().resource_mut::<Count>().0 = 2;
+    app.update();
+
+    assert_eq!(app.world().resource::<Mounts<Warm>>().len(), 0);
+    assert_eq!(app.world().resource::<Mounts<Plain>>().len(), 1);
+    assert_eq!(text(&app, plain), "2");
+}
+
+#[test]
 fn a_despawned_view_is_dropped_after_one_update() {
     let mut app = themed_app(Warm);
     app.insert_resource(Count(1));

@@ -24,7 +24,7 @@ pub use backend::{Bevy, Unmounted};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::world::World;
 use bevy::input_focus::InputFocus;
 pub use cursor::{CursorPlugin, EntityCursor, OverrideCursor};
@@ -53,7 +53,8 @@ pub use visual::Visual;
 pub struct Theme<T>(pub T);
 
 /// Keeps every mounted view's bound props in step with the world.
-/// The app inserts [`Theme<T>`] itself.
+/// The app inserts [`Theme<T>`] itself. An app may add one per theme
+/// it builds views with.
 pub struct FynixPlugin<T>(PhantomData<fn() -> T>);
 
 impl<T> Default for FynixPlugin<T> {
@@ -64,11 +65,42 @@ impl<T> Default for FynixPlugin<T> {
 
 impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
     fn build(&self, app: &mut App) {
-        app.add_plugins(CursorPlugin)
-            .init_resource::<InputFocus>()
-            .init_resource::<Mounts<T>>()
+        if !app.is_plugin_added::<CorePlugin>() {
+            app.add_plugins(CorePlugin);
+        }
+        app.init_resource::<Mounts<T>>()
+            .init_resource::<mounted::Pending<T>>()
+            .add_systems(
+                Update,
+                mounted::update::<T>.in_set(FynixSystems::Mount),
+            );
+        app.world_mut()
+            .resource_mut::<mounted::Receivers>()
+            .0
+            .push(mounted::receive::<T>);
+    }
+}
+
+/// The steps of an update, in order.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum FynixSystems {
+    Prepare,
+    Mount,
+    Settle,
+}
+
+/// What every theme's [`FynixPlugin`] shares, added once.
+struct CorePlugin;
+
+impl Plugin for CorePlugin {
+    fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<CursorPlugin>() {
+            app.add_plugins(CursorPlugin);
+        }
+        app.init_resource::<InputFocus>()
             .init_resource::<Unmounted>()
             .init_resource::<DirtyNodes>()
+            .init_resource::<mounted::Receivers>()
             .init_resource::<ReducedMotion>()
             .init_resource::<Entrances>()
             .init_resource::<TooltipTiming>()
@@ -77,16 +109,28 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .add_observer(views::close_on_escape)
             .add_observer(views::toggle_dropdown)
             .add_observer(views::dismiss_context_menu)
+            .configure_sets(
+                Update,
+                (
+                    FynixSystems::Prepare,
+                    FynixSystems::Mount,
+                    FynixSystems::Settle,
+                )
+                    .chain(),
+            )
+            .add_systems(
+                Update,
+                views::tick_tooltips.in_set(FynixSystems::Prepare),
+            )
             .add_systems(
                 Update,
                 (
-                    views::tick_tooltips,
-                    mounted::update::<T>,
                     views::sync_text_inputs,
                     leave::settle_entrances,
                     views::focus_first,
                 )
-                    .chain(),
+                    .chain()
+                    .in_set(FynixSystems::Settle),
             )
             .add_systems(Update, views::despawn_orphans);
     }
