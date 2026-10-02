@@ -285,7 +285,7 @@ mod tests {
         };
         assert_eq!(width(&app, first), Val::Percent(50.0));
         assert_eq!(width(&app, second), Val::Percent(50.0));
-        assert_eq!(width(&app, handle), px(6.0));
+        assert_eq!(width(&app, handle), px(layout::HANDLE));
         assert!(
             app.world().get::<layout::SplitHandle>(handle).is_some()
         );
@@ -820,9 +820,11 @@ mod tests {
         lay(&mut app, first, Rect::new(0.0, 0.0, 98.0, 100.0));
         lay(&mut app, second, Rect::new(102.0, 0.0, 200.0, 100.0));
 
-        // A quarter of the 194px the panes share, past the handle's
-        // own half.
-        drag_to(&mut app, handle, Vec2::new(51.5, 50.0));
+        // A quarter of what the panes share, past the handle's own
+        // half.
+        let free = 200.0 - layout::HANDLE;
+        let x = free / 4.0 + layout::HANDLE / 2.0;
+        drag_to(&mut app, handle, Vec2::new(x, 50.0));
 
         let fraction = app
             .world()
@@ -870,7 +872,11 @@ mod tests {
         };
         settle(&mut app);
         assert_eq!(fill_of(&app, handle), Color::NONE);
-        assert_eq!(width(&app, handle), px(6.0), "still to grab");
+        assert_eq!(
+            width(&app, handle),
+            px(layout::HANDLE),
+            "still to grab"
+        );
 
         tests::hover(&mut app, handle, true);
         settle(&mut app);

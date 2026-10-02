@@ -29,7 +29,7 @@ use crate::{
 };
 
 /// How thick the line between two panes is.
-const HANDLE: f32 = 6.0;
+pub(super) const HANDLE: f32 = 2.0;
 
 /// The least a pane keeps when its split is dragged, in logical
 /// pixels.
@@ -319,17 +319,21 @@ mod tests {
 
     #[test]
     fn the_handle_lands_under_the_cursor() {
-        // Panes span 0..206 around a 6px handle: 100px each side.
-        let fraction = fraction_at(103.0, 0.0, 206.0).unwrap();
+        // 100px of pane each side of the handle.
+        let end = 200.0 + HANDLE;
+        let fraction =
+            fraction_at(100.0 + HANDLE / 2.0, 0.0, end).unwrap();
         assert_eq!(fraction, 0.5);
-        let fraction = fraction_at(53.0, 0.0, 206.0).unwrap();
+        let fraction =
+            fraction_at(50.0 + HANDLE / 2.0, 0.0, end).unwrap();
         assert_eq!(fraction, 0.25);
     }
 
     #[test]
     fn a_pane_keeps_its_least_size() {
-        let low = fraction_at(-500.0, 0.0, 206.0).unwrap();
-        let high = fraction_at(900.0, 0.0, 206.0).unwrap();
+        let end = 200.0 + HANDLE;
+        let low = fraction_at(-500.0, 0.0, end).unwrap();
+        let high = fraction_at(900.0, 0.0, end).unwrap();
         assert_eq!(low, MIN_PANE / 200.0);
         assert_eq!(high, 1.0 - MIN_PANE / 200.0);
     }
