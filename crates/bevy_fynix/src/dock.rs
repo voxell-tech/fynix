@@ -821,8 +821,9 @@ mod tests {
         lay(&mut app, second, Rect::new(102.0, 0.0, 200.0, 100.0));
 
         // A quarter of the 196px the panes share, past the handle's
-        // own half.
-        drag_to(&mut app, handle, Vec2::new(51.0, 50.0));
+        // own half, dragged by the wider strip that grabs it.
+        let strip = kids(&app, handle)[0];
+        drag_to(&mut app, strip, Vec2::new(51.0, 50.0));
 
         let fraction = app
             .world()

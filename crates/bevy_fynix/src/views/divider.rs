@@ -2,7 +2,8 @@
 
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
-use bevy::ui::{Val, percent, px};
+use bevy::ecs::hierarchy::ChildOf;
+use bevy::ui::{Node, PositionType, Val, ZIndex, percent, px};
 use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
@@ -22,8 +23,9 @@ pub enum Axis {
 }
 
 /// A line the length of its parent, in the theme's hairline colour,
-/// with the resize cursor of its axis. It only draws: what dragging
-/// it does is the app's to wire.
+/// with the resize cursor of its axis, grabbed by a clear strip the
+/// theme's divider grip thick centred on it. It only draws: what
+/// dragging it does is the app's to wire.
 pub struct Divider {
     pub frame: Frame,
     pub axis: Axis,
@@ -60,16 +62,30 @@ where
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
         let thickness =
             self.thickness.unwrap_or_else(|| cx.theme().divider());
-        let (width, height, cursor) = match self.axis {
+        let grip = cx.theme().divider_grip().max(thickness);
+        let reach = px((thickness - grip) / 2.0);
+        let (width, height, cursor, strip) = match self.axis {
             Axis::Horizontal => (
                 percent(100.0),
                 px(thickness),
                 SystemCursorIcon::NsResize,
+                Node {
+                    top: reach,
+                    width: percent(100.0),
+                    height: px(grip),
+                    ..Node::default()
+                },
             ),
             Axis::Vertical => (
                 px(thickness),
                 percent(100.0),
                 SystemCursorIcon::EwResize,
+                Node {
+                    left: reach,
+                    width: px(grip),
+                    height: percent(100.0),
+                    ..Node::default()
+                },
             ),
         };
         cx.scope(|cx| {
@@ -77,7 +93,18 @@ where
                 cx.root(|cx| line::<T>(cx, width, height));
             });
             let node = cx.build(self.frame);
-            cx.world.entity_mut(node).insert(EntityCursor(cursor));
+            // Above its siblings, so the strip's overhang is not
+            // under the pane beside it.
+            cx.world
+                .entity_mut(node)
+                .insert((EntityCursor(cursor), ZIndex(1)));
+            cx.world.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    ..strip
+                },
+                ChildOf(node),
+            ));
             node
         })
     }
@@ -167,5 +194,21 @@ mod tests {
         app.world_mut().entity_mut(node).remove::<Dragging>();
         settle(&mut app);
         assert_eq!(fill(&app, node), Color::NONE);
+    }
+
+    #[test]
+    fn a_wider_strip_centred_on_the_line_grabs_it() {
+        let mut app = tests::app();
+        let node =
+            mount::<Plain>(app.world_mut(), divider(Axis::Vertical));
+        let theme = Plain::default();
+        let (line, grip) = (theme.divider(), theme.divider_grip());
+        assert!(grip >= line * 2.0);
+
+        let strip = tests::kids(&app, node)[0];
+        let ui = app.world().get::<Node>(strip).unwrap();
+        assert_eq!(ui.width, px(grip));
+        assert_eq!(ui.left, px((line - grip) / 2.0));
+        assert_eq!(fill(&app, strip), Color::NONE, "never drawn");
     }
 }

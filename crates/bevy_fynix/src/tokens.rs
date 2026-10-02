@@ -109,6 +109,12 @@ pub trait SpacingTokens {
         2.0
     }
 
+    /// The thickness of the strip that grabs a divider, centred on
+    /// it. Four times the divider unless a theme says.
+    fn divider_grip(&self) -> f32 {
+        self.divider() * 4.0
+    }
+
     /// The space at each side of a tab's content.
     fn tab_padding(&self) -> f32 {
         8.0

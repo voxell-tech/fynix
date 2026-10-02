@@ -227,16 +227,35 @@ fn fraction_at(
     Some(fraction.clamp(least, 1.0 - least))
 }
 
+/// The handle `node` is, or the handle whose grab strip it is.
+fn handle_of(
+    node: Entity,
+    is_handle: impl Fn(Entity) -> bool,
+    parents: &Query<&ChildOf>,
+) -> Option<Entity> {
+    [Some(node), parents.get(node).ok().map(ChildOf::parent)]
+        .into_iter()
+        .flatten()
+        .find(|&node| is_handle(node))
+}
+
 /// Holds the handle's resize cursor and marks it [`Dragging`] while
 /// it is dragged.
 pub(super) fn grab_handle(
     start: On<Pointer<DragStart>>,
     handles: Query<&EntityCursor, With<SplitHandle>>,
+    parents: Query<&ChildOf>,
     mut forced: ResMut<OverrideCursor>,
     mut commands: Commands,
 ) {
-    let handle = start.event_target();
-    if let Ok(cursor) = handles.get(handle) {
+    let found = handle_of(
+        start.event_target(),
+        |node| handles.contains(node),
+        &parents,
+    );
+    if let Some((handle, cursor)) = found
+        .and_then(|handle| Some((handle, handles.get(handle).ok()?)))
+    {
         forced.0 = Some(cursor.0);
         commands.entity(handle).insert(Dragging);
     }
@@ -247,11 +266,15 @@ pub(super) fn grab_handle(
 pub(super) fn release_handle(
     end: On<Pointer<DragEnd>>,
     handles: Query<(), With<SplitHandle>>,
+    parents: Query<&ChildOf>,
     mut forced: ResMut<OverrideCursor>,
     mut commands: Commands,
 ) {
-    let handle = end.event_target();
-    if handles.contains(handle) {
+    if let Some(handle) = handle_of(
+        end.event_target(),
+        |node| handles.contains(node),
+        &parents,
+    ) {
         forced.0 = None;
         commands.entity(handle).remove::<Dragging>();
     }
@@ -261,12 +284,19 @@ pub(super) fn release_handle(
 pub(super) fn drag_handle(
     mut drag: On<Pointer<Drag>>,
     handles: Query<(&SplitHandle, &ChildOf)>,
+    parents: Query<&ChildOf>,
     siblings: Query<&Children>,
     rects: Query<(&ComputedNode, &UiGlobalTransform)>,
     scale: Option<Res<UiScale>>,
     mut tree: ResMut<DockTree>,
 ) {
-    let handle = drag.event_target();
+    let Some(handle) = handle_of(
+        drag.event_target(),
+        |node| handles.contains(node),
+        &parents,
+    ) else {
+        return;
+    };
     let Ok((split, parent)) = handles.get(handle) else {
         return;
     };
