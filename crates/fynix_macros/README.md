@@ -7,29 +7,46 @@
 [![CI](https://github.com/voxell-tech/fynix/workflows/CI/badge.svg)](https://github.com/voxell-tech/fynix/actions)
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
-**Fynix Macros** provides the derive macros for
+**Fynix Macros** provides the attribute macros for
 [`fynix`](https://github.com/voxell-tech/fynix/tree/main/crates/fynix).
 
 ## `#[element]`
 
-Marks a struct as an element built against one backend. The struct is
-re-emitted with `#[derive(Lenz)]`, then `ElementBase` and `Element` are
-written for it. The backend is `crate::FynixHost` unless
-`#[element(host = <path>)]` names another.
+Marks a struct of props as an element of one backend. Every field is
+a prop, and says how it is written:
 
-- `#[element(build = <fn>)]` - a structural hook run once at build,
-  `fn(&Self, &mut Build<Host, Self>)`.
-- `#[elem(child)]` - a field that is an element in its own right.
-- `#[elem(patch = <tag>)]` - a type implementing
-  `FieldPatch<Host, Target = FieldTy>` that writes the field at build
-  and on change.
-- `#[elem(default = <expr>)]` - the value the field starts from, with
-  `theme` in scope.
-- `#[elem(ignore)]` - a field no path can name, read only by `build`.
+```rust,ignore
+#[element(backend = Bevy, theme = SpacingTokens)]
+pub struct Frame {
+    #[elem(patch = PatchWidth)]
+    pub width: Prop<Val>,
+    #[elem(default = theme.gap(), patch = PatchGap)]
+    pub gap: Prop<f32>,
+    #[elem(default = Color::NONE, patch = PatchFill, blend = blend_color)]
+    pub fill: Prop<Color>,
+}
+```
 
-`#[derive(Lenz)]` itself lives in the
-[`lenz`](https://github.com/nixonyh/lenz) crate, re-exported by
-`fynix`.
+On the struct:
+
+- `backend = <type>` - the backend the element is written for.
+- `theme = <bounds>` - what its defaults read from a theme.
+- `prepare = <fn>` - run on the node before any prop is written.
+
+On a field:
+
+- `patch = <type>` - the `Patch` that writes the prop. It becomes the
+  field's `lenz` tag.
+- `default = <expr>` - the value when unset. It may read `theme`.
+  Without it, the prop type's `Default`.
+- `blend = <fn>` - how two values blend, so the prop travels under a
+  transition rule. Without it, the prop snaps.
+- `shown = <type>, with = <fn>` - writes a value made from the prop
+  and the theme, such as a colour from a tone.
+
+It writes the struct with `#[derive(Lenz)]`, a builder method per
+prop, `Styled`, `Layered` and `Element`, and a `{Struct}Props` trait
+that gives the same builder methods to any composite holding one.
 
 ## Join the community!
 

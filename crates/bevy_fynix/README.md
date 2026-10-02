@@ -9,17 +9,169 @@
 
 **Bevy Fynix** is the Bevy backend for [`fynix`](https://github.com/voxell-tech/fynix/tree/main/crates/fynix).
 
-The seam, and nothing else: nodes are entities, the world is Bevy's
-`World`, and the kernel is a resource flushed once a frame. Elements
-and styles live above this.
+Nodes are entities and the world is Bevy's `World`. On top of that
+seam it ships elements written against `bevy_ui` (`Label`, `Frame`,
+`Icon`), composites (`row`, `column`, `button`, `foldable`), the
+token traits they read, and the states rules wait on.
 
-- `FynixPlugin<Theme>` - runs `Fynix::flush` in `FynixSet` every
-  `Update`, starting the kernel with `Theme::default()`.
-- `BevyHost` - the `Host` impl.
-- `tag` - Bevy pointer events mapped to fynix tags.
+- `FynixPlugin<T>` - keeps every mounted view in step with the world
+  each `Update`, for views built with the theme `T`.
+- `Theme<T>` - the theme, as a resource the app inserts.
+- `mount` - builds a view at the root of the UI.
+- `Hovered`, `Pressed`, `Entering`, `Leaving` - states for
+  `.when::<S, _>(..)`, and any component of your own works too. A
+  view a `keyed` or `each` builds later keeps `Entering` until its
+  space has expanded, so it fades in last, and a view they drop gets
+  `Leaving`, then collapses. `ReducedMotion` skips all of it.
+- `ghost`, `tint`, `icon_button`, `primary`, `danger`, `menu_bar`,
+  `segment` - button looks, as bundles for `.rules(..)`. Only
+  `icon_button` and `tint` never have a surface.
+- `tinted_icon` - a button of one icon in the `tint` look, for an
+  action beside content, such as a plus that adds to a list.
+- `revealed` - a divider look that draws only while hovered or
+  `Dragging`.
+- `popup` - a menu surface hung off a point, over a backdrop that
+  dismisses it when pressed.
+- `DockPlugin` - split panes with tabbed areas, from a `DockTree`.
+- `style` - builds a look of your own. See [Styling](#styling).
 
-`Theme` is the app's own type, never a `Resource` and never read back
-out of `World`; edit it after the fact through `theme_mut`.
+## Quick Start
+
+See [`gallery.rs`](examples/gallery.rs) for a whole app, or run
+`cargo run -p bevy_fynix --example gallery` to see every idea in a
+window.
+
+```rust
+# use std::time::Duration;
+# use bevy::color::Color;
+# use bevy::ecs::world::World;
+use bevy_fynix::views::{
+    FrameProps, Label, button, column, label,
+};
+use bevy_fynix::tokens::{
+    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
+    TextTokens, Tone,
+};
+use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
+
+# struct MyTheme;
+#
+# impl TextTokens for MyTheme {
+#     fn tone(&self, _: Tone) -> Color {
+#         Color::WHITE
+#     }
+#     fn body_size(&self) -> f32 {
+#         14.0
+#     }
+#     fn small_size(&self) -> f32 {
+#         11.0
+#     }
+# }
+#
+# impl SurfaceTokens for MyTheme {
+#     fn fill(&self) -> Color {
+#         Color::BLACK
+#     }
+#     fn hover(&self) -> Color {
+#         Color::BLACK
+#     }
+#     fn panel(&self) -> Color {
+#         Color::BLACK
+#     }
+#     fn accent(&self) -> Color {
+#         Color::WHITE
+#     }
+# }
+#
+# impl SpacingTokens for MyTheme {
+#     fn gap(&self) -> f32 {
+#         8.0
+#     }
+#     fn row(&self) -> f32 {
+#         24.0
+#     }
+#     fn radius(&self) -> f32 {
+#         4.0
+#     }
+# }
+#
+# impl MotionTokens for MyTheme {
+#     fn motion(&self, _: Motion) -> Curve {
+#         Curve {
+#             duration: Duration::from_millis(180),
+#             ease: |t| t,
+#         }
+#     }
+# }
+#
+fn setup(world: &mut World) {
+    mount::<MyTheme>(
+        world,
+        column((
+            label("Settings").size(20.0),
+            button(label("Save"))
+                // Every label in the button turns accent on hover.
+                .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
+                    cx.set::<Label>(|l, _| l.tone(Tone::Accent));
+                })
+                .transition(Motion::Interact),
+        ))
+        .gap(8.0),
+    );
+}
+```
+
+## Styling
+
+Three things decide how a view looks, and they stay apart:
+
+- **Theming** says what the colours, sizes and curves of an app are.
+  A theme implements token traits (`TextTokens`, `SurfaceTokens`,
+  `SpacingTokens`, `MotionTokens`). Views and styles ask for a role
+  (`Tone::Dim`, `theme.hover()`), never a raw colour, so changing the
+  theme restyles everything.
+- **Styling** says which looks a view comes in: ghost, icon, primary.
+  A look is a rule bundle, applied with `.rules(..)`. It is made of
+  set rules, which restyle every `Frame`, `Label` or `Icon` built
+  under it, with `cx.root(..)` keeping a rule to the view's root.
+- **State rules** say what a look does while the pointer is on the
+  view, while a button is down on it, or while any component of your
+  own is on it: `.when::<Hovered, _>(..)`, `.when::<Pressed, _>(..)`.
+  `.transition(Motion::Interact)` makes the change glide.
+
+Buttons ship with their looks as bundles. Each sets a resting, a
+hovered and a pressed look from the theme, and glides between them:
+
+```ignore
+button(label("Cancel")).rules(ghost)
+button(icon(save)).rules(icon_button)
+button(label("Save")).rules(primary)
+button(label("Delete")).rules(danger)
+button(row((icon(tag), label("Tag")))).rules(tint)
+```
+
+For a look of your own, build a `Style` rather than writing `cx.set`
+closures. It takes colours as closures over the theme, and a nested
+look for each state:
+
+```ignore
+let chunky = style::<MyTheme>()
+    .fill(|t| t.panel())
+    .frame(|f, t| f.radius(t.radius() * 3.0))
+    .hovered(|s| s.fill(|t| t.fill()).tone(Tone::Accent))
+    .pressed(|s| s.fill(|t| t.pressed()).tone(Tone::Critical))
+    .transition(Motion::Interact);
+
+button(label("Custom")).rules(chunky.bundle())
+```
+
+`fill` and `frame` reach the root frame alone, and `tone`, `label` and
+`icon` reach every label and icon in the view. Later steps win, and a
+press shows its hover look unless `pressed` says otherwise. Styles
+join with `then`, and `with(ghost)` starts from a bundle. Chained
+`.rules(a).rules(b)` also works, but as set rules go the inner `a` wins
+over `b` for resting looks, while for state looks the outer `b` wins.
+Use `then` when the order matters.
 
 ## Version Matrix
 

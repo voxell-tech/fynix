@@ -7,221 +7,252 @@
 [![CI](https://github.com/voxell-tech/fynix/workflows/CI/badge.svg)](https://github.com/voxell-tech/fynix/actions)
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
-**Fynix** is a backend agnostic reactive element tree.
+**Fynix** is a backend agnostic reactive view tree, styled the way
+[Typst](https://typst.app) styles a document with set rules.
 
-`Fynix<H>` owns every watcher and binding and the tree they maintain.
-A backend implements the `Host` trait to say what a node is and how
-its world is walked.
+A backend implements `Backend` to say what a world and a node are, and
+writes the elements. Everything above the elements, from composites to
+rules, themes and transitions, is the same on every backend.
 
 ## Key Features
 
-- **Backend agnostic**: Drives any renderer or world, elements,
-  styles, and transitions stay the same across backends.
-- **Reactive**: Fine grained reactivity via watchers and bindings.
-- **Comptime keyed**: Powered by [Lenz](https://github.com/nixonyh/lenz),
-  a nested field can be referenced with zero allocation.
-- **Transitions**: A field can ease to its target rather than snap.
+- **Backend agnostic**: views, rules and transitions never name an
+  engine.
+- **Themes as trait bounds**: a view asks for the token traits it
+  reads (`TextTokens`, `SurfaceTokens`, ..) and works under any theme
+  that implements them.
+- **Set rules**: restyle every view of a kind within a scope. A
+  call-site value still wins.
+- **State rules**: rules that hold while a node is hovered, pressed,
+  entering, leaving, or in any state of your own, reaching every view
+  under it.
+- **Reactive**: props bound to the world are re-read only when their
+  source changes.
+- **Transitions**: opt in with a rule, and views animate in and out
+  too. A `keyed` or `each` change is one sequence: the old view fades
+  out and its space collapses, then the new view's space expands and
+  it fades in. `Tick::reduced_motion` skips every step.
 - **`#![no_std]`**: `alloc` only.
 
-## Quick Start
+## Building a UI Framework
 
-The `Host` impl and the `Button` / `Label` elements used below are
-defined in [`docs/host.rs`](docs/host.rs).
+Fynix is the part of a UI framework that does not depend on an
+engine. A framework on top of it fills in five things, and
+[`bevy_fynix`](../bevy_fynix) is a full example of each:
 
-```rust
-# #[path = "docs/host.rs"] mod _doc; use _doc::*;
-// A host world with a root node, plus app state to drive the tree.
-let (mut world, root) = World::with_root();
-world.doc.title = "untitled".into();
+1. **A backend**, which says what a world and a node are. `spawn`,
+   `despawn` and `reorder` are required. `on_mount`, `leave`, `hold`,
+   `collapse` and `release` have empty defaults, and are where
+   cleanup, input blocking and the animation of a view's space plug
+   in: a dropped view is `leave`d, then `collapse`d from 0 to 1; a
+   built one is `hold`ed out of the layout, `collapse`d from 1 to 0
+   once its size can be measured, then `release`d.
+2. **Elements**, structs of props that end up on one node. The
+   `#[element]` macro writes the unset state, the setters and the
+   reactive updates. For each prop you say how its value is written
+   to a node (`Patch`), and optionally its default from the theme.
+3. **Token traits**, which are all a view knows about a theme.
+   Elements and composites bound themselves on the tokens they read,
+   so they work under any theme that implements them, and your
+   framework's users bring their own.
+4. **States**, which implement `Condition`: whether the state holds on
+   a node, and a request to the backend to report the node to
+   `Mounted::mark_dirty` whenever that changes.
+5. **A mount**, which builds a view at the root with a `Cx`, and a
+   frame loop that calls `update_structure` and `update_elements`.
 
-let mut fynix = Fynix::new(());
-
-// Declare a subtree under `root`. `once()` builds it on the first
-// flush and never rebuilds, bindings keep it current after that.
-fynix.watch(
-    root,
-    once(),
-    |ui| {
-        ui.elem(elem!(Button, padding = 8u32)).bind(
-            |button| button.label().text(),
-            |WorldNodeRef { world, .. }| world.doc.dirty,
-            |WorldNodeRef { world, .. }| world.doc.title.clone(),
-        );
-    },
-    &mut world,
-);
-
-let button = FynixHost::children(&world, root)[0];
-let label = FynixHost::children(&world, button)[0];
-assert_eq!(world.get(label).text, "Label");
-assert_eq!(world.get(button).padding, 8);
-
-// A change, announced. The next flush patches just that one field
-// onto the node already there.
-world.doc.title = "report.md".into();
-world.doc.dirty = true;
-fynix.flush(&mut world);
-
-assert_eq!(world.get(label).text, "report.md");
-```
-
-## Reactivity
-
-Fynix has two ways to react to a change. A watcher rebuilds a
-subtree. A binding patches one field.
-
-### Watcher
-
-A watcher is a predicate plus a build closure, anchored to a node.
-On each flush the predicate runs. A `true` reruns the closure and
-rebuilds its subtree.
+Here are all five against a toy backend, a flat list of nodes holding
+text:
 
 ```rust
-# #[path = "docs/host.rs"] mod _doc; use _doc::*;
-let (mut world, root) = World::with_root();
-let mut fynix = Fynix::<FynixHost>::new(());
+use core::time::Duration;
 
-// Rebuild the subtree under `root` on any flush where the
-// predicate returns `true`.
-fynix.watch(
-    root,
-    |WorldNodeRef { world, .. }| world.doc.dirty,
-    |ui| {
-        ui.elem(elem!(Label, text = "rebuilt"));
-    },
-    &mut world,
-);
-```
+// `#[element]` finds these at the root of the crate it is used in,
+// so a framework re-exports them from its own root.
+use fynix::{
+    Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
+    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, View,
+    ViewExt, element, styled,
+};
 
-### Binding
+// 1. A backend.
+#[derive(Default)]
+pub struct World {
+    nodes: Vec<Node>,
+}
 
-A binding is anchored to one field of one node, named by its
-[`lenz`] field path. It carries three closures: which field, when to
-write, and the value. On flush, if the "when" closure returns
-`true`, that one field is patched onto the live node in place.
+#[derive(Default)]
+struct Node {
+    parent: Option<usize>,
+    children: Vec<usize>,
+    text: String,
+    size: f32,
+    hovered: bool,
+}
 
-```rust
-# #[path = "docs/host.rs"] mod _doc; use _doc::*;
-use fynix::prelude::*;
+struct Toy;
 
-fn view(ui: &mut Ui<FynixHost>) {
-    ui.elem(elem!(Button)).bind(
-        // Which field?
-        |button| button.label().text(),
-        // When to write (changed fn)?
-        |WorldNodeRef { world, .. }| world.doc.dirty,
-        // The value to write.
-        |WorldNodeRef { world, .. }| world.doc.title.clone(),
-    );
+impl Backend for Toy {
+    type World = World;
+    type Node = usize;
+
+    fn spawn(world: &mut World, parent: Option<usize>) -> usize {
+        let node = world.nodes.len();
+        world.nodes.push(Node {
+            parent,
+            ..Node::default()
+        });
+        if let Some(parent) = parent {
+            world.nodes[parent].children.push(node);
+        }
+        node
+    }
+
+    fn despawn(world: &mut World, node: usize) {
+        // The node stays in the list, only unlinked from its parent.
+        if let Some(parent) = world.nodes[node].parent {
+            world.nodes[parent].children.retain(|&c| c != node);
+        }
+    }
+
+    fn reorder(world: &mut World, parent: usize, children: &[usize]) {
+        world.nodes[parent].children = children.to_vec();
+    }
+}
+
+// 3. Token traits.
+trait TextTokens {
+    fn body_size(&self) -> f32;
+}
+
+// 2. An element, reading `TextTokens` from any theme.
+#[element(backend = Toy, theme = TextTokens)]
+pub struct Text {
+    #[elem(patch = WriteText)]
+    text: Prop<World, String>,
+    /// The theme's body size when unset.
+    #[elem(default = theme.body_size(), patch = WriteSize)]
+    size: Prop<World, f32>,
+}
+
+fn text(text: impl Into<Prop<World, String>>) -> Text {
+    Text {
+        text: text.into(),
+        ..Text::unset()
+    }
+}
+
+pub struct WriteText;
+
+impl Patch<Toy, String> for WriteText {
+    fn patch(world: &mut World, node: usize, text: &String) {
+        world.nodes[node].text.clone_from(text);
+    }
+}
+
+pub struct WriteSize;
+
+impl Patch<Toy, f32> for WriteSize {
+    fn patch(world: &mut World, node: usize, size: &f32) {
+        world.nodes[node].size = *size;
+    }
+}
+
+// 4. A state.
+struct Hovered;
+
+impl Condition<Toy> for Hovered {
+    fn holds(world: &World, node: usize) -> bool {
+        world.nodes[node].hovered
+    }
+
+    fn watch(_: &mut World, _: usize) {
+        // A real backend hooks its hover events up to `mark_dirty`.
+    }
+}
+
+// A theme, which any app can write its own of.
+struct Warm;
+
+impl TextTokens for Warm {
+    fn body_size(&self) -> f32 {
+        14.0
+    }
+}
+
+impl MotionTokens for Warm {
+    fn motion(&self, _: Motion) -> Curve {
+        Curve {
+            duration: Duration::from_millis(100),
+            ease: |t| t,
+        }
+    }
+}
+
+// 5. Mount a view, then update it from the frame loop.
+fn main() {
+    let mut world = World::default();
+    let mut mounted = Mounted::<Toy, Warm>::default();
+    let node = {
+        let mut cx = Cx::new(&mut world, &Warm, &mut mounted);
+        text("Save")
+            // Every text under this one grows while it is hovered.
+            .when_in::<Hovered, _>(|cx: &mut Cx<Toy, Warm>| {
+                cx.set::<Text>(|t, _| t.size(20.0));
+            })
+            .build(&mut cx)
+    };
+
+    let tick = Tick {
+        delta: Duration::from_millis(16),
+        reduced_motion: false,
+    };
+    mounted.update_structure(&mut world, &Warm);
+    mounted.update_elements(&mut world, &Warm, tick);
+    assert_eq!(world.nodes[node].text, "Save");
+    assert_eq!(world.nodes[node].size, 14.0);
+
+    world.nodes[node].hovered = true;
+    mounted.mark_dirty(node);
+    mounted.update_elements(&mut world, &Warm, tick);
+    assert_eq!(world.nodes[node].size, 20.0);
 }
 ```
 
-### How they fit
+## Views
 
-A watcher lays down the tree. Bindings keep its leaves current
-while the structure holds. Reach for a watcher when the shape of
-the tree changes, a binding when a value does. The field path is
-resolved at compile time, so a binding costs one patch call.
+A view is a struct that owns its props. There are three kinds:
 
-## Defining an element
+- **Elements** are one node each, written by the backend: `Label`,
+  `Frame`, `Icon`.
+- **Composites** are built out of other views: `row`, `column`,
+  `button`, `foldable`. Their parts are ordinary views, so ordinary
+  rules reach them.
+- **Wrappers** add something to any view: `.when(..)`,
+  `.transition(..)`, `.rules(..)`, `.on_activate(..)`.
 
-One struct describes structure, defaults, and per-field write logic. A
-`#[elem(patch = ...)]` tag is a type whose `FieldPatch` impl writes the
-field, at build and on every change. A field can also carry an
-`anim(...)` line, so it eases toward a different source while the node
-is tagged rather than snapping.
+`keyed` and `each` build and drop parts of the tree as the world
+changes, keeping every view whose key stays.
 
-```rust
-# #[path = "docs/host.rs"] mod _doc; use _doc::*;
-use fynix::prelude::*;
-use fynix::motiongfx_interp::ease;
+## Styling
 
-#[element(host = FynixHost)]
-pub struct Field {
-    // A child element: its own node, walked into one hop at a time.
-    #[elem(child)]
-    pub label: Label,
+From weakest to strongest:
 
-    // A default, and the tag that writes the field.
-    #[elem(default = 4, patch = WritePadding)]
-    pub padding: u32,
+| Layer | Example |
+|---|---|
+| View default | a theme token |
+| Composite defaults | `cx.defaults(..)` |
+| Set rules, outer then inner | `cx.set::<Label>(\|l, _\| l.size(12.0))` |
+| State rules from ancestors | `row(..).when::<Hovered, _>(..)` |
+| Call site | `label("x").size(20.0)` |
+| State rules on the node itself | `label("x").when::<Hovered, _>(..)` |
 
-    // A default, the tag that writes it, and a line that eases the
-    // field toward `hover_size` while the node carries `Hovered`.
-    #[elem(default = 13, patch = WriteSize, anim(
-        ms = 120,
-        ease = ease::cubic::ease_in_out,
-        on(Hovered, read = hover_size),
-    ))]
-    pub size: u32,
-
-    // Element state the line reads through, nothing draws it.
-    pub hover_size: u32,
-}
-```
-
-## Building an element with `elem!`
-
-An element is built as its `base()`, then a `Style`, then whatever the
-call site writes. Each layer overrides the last, and `elem!` picks the
-right form.
-
-`elem!(..)` yields a builder that takes `&Theme` and returns the
-element. A `Ui` hands it the theme for you, here it is passed by
-hand. `FynixHost::Theme` is `()`.
-
-```rust
-# #[path = "docs/host.rs"] mod _doc; use _doc::*;
-const THEME: &() = &();
-
-let plain = elem!(Label)(THEME);
-assert_eq!(plain.size, 13); // Label::base
-
-let big = elem!(Label, size = 32u32)(THEME);
-assert_eq!(big.size, 32); // the call site
-
-// A child element field starts from its own base.
-let make = elem!(Button, label = elem!(Label, text = "Save"));
-let button = make(THEME);
-assert_eq!(button.label.text, "Save");
-assert_eq!(button.padding, 4); // Button::base
-```
-
-## Transitions
-
-Tags on a node decide where an animated field heads. Setting one
-starts or redirects the transition, and dropping it falls back to the
-next active line, or to the field's base.
-
-```rust
-# #[path = "docs/host.rs"] mod _doc; use _doc::*;
-# use std::time::Duration;
-let (mut world, root) = World::with_root();
-// A full 120ms line per flush.
-world.delta = Duration::from_millis(120);
-
-let mut fynix = Fynix::new(());
-fynix.watch(
-    root,
-    once(),
-    |ui| {
-        ui.elem(elem!(Button, size = 13u32, hover_size = 24u32));
-    },
-    &mut world,
-);
-let button = FynixHost::children(&world, root)[0];
-
-// Tag it: `size` heads for `hover_size` over the 120ms the line
-// names, which one flush of wall time covers here.
-fynix.set_tag(button, Hovered);
-fynix.flush(&mut world);
-assert_eq!(world.get(button).size, 24);
-
-// Untag: it eases back to the base.
-fynix.unset_tag::<Hovered>(button);
-fynix.flush(&mut world);
-assert_eq!(world.get(button).size, 13);
-```
+A theme says what the tokens are (colours, sizes, curves), a rule
+bundle (`.rules(..)`) says which look a view has, and a state rule
+says what that look does while a state holds. Of several state rules
+on one node, the one in the outer scope wins, and within one scope the
+one written later. The Bevy backend's README shows buttons styled this
+way, with ready-made looks and a `Style` builder.
 
 ## Officially Supported Backends
 
@@ -240,5 +271,3 @@ You can join us on the [Voxell discord server](https://discord.gg/Mhnyp6VYEQ).
 
 This means you can select the license you prefer!
 This dual-licensing approach is the de-facto standard in the Rust ecosystem and there are [very good reasons](https://github.com/bevyengine/bevy/issues/2373) to include both.
-
-[`lenz`]: https://github.com/nixonyh/lenz

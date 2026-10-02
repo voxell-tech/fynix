@@ -12,25 +12,25 @@ repository.workspace = true
 [dependencies]
 # fynix
 fynix = { workspace = true }
+motiongfx_interp = { workspace = true }
+# `#[element]` derives `Lenz`, whose output names this crate.
+lenz = { workspace = true }
 
 # bevy
-bevy_app = { workspace = true }
-bevy_ecs = { workspace = true }
-bevy_picking = { workspace = true }
-bevy_time = { workspace = true }
-bevy_ui = { workspace = true }
+bevy = { workspace = true, features = [
+    "bevy_picking",
+    "bevy_ui_widgets",
+    "bevy_window",
+] }
 
 [features]
 default = ["std"]
 std = ["fynix/std"]
 
 [dev-dependencies]
-bevy = { version = "0.19", default-features = false, features = [
-    "2d",
-    "bevy_ui",
-    "bevy_ui_render",
-    "ui_picking",
-] }
+# Only for the windowed `gallery` example; the library and its tests
+# build with the features above alone.
+bevy = { workspace = true, features = ["2d", "ui"] }
 
 [lints]
 workspace = true

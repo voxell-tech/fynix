@@ -1,8 +1,7 @@
 [package]
 name = "fynix"
-description = "A backend agnostic reactive element tree."
-exclude = ["/examples/"]
-keywords = ["reactive", "element", "ui", "tree", "agnostic"]
+description = "A backend agnostic reactive view tree."
+keywords = ["reactive", "view", "ui", "tree", "agnostic"]
 categories = ["no-std", "gui"]
 readme = "./README.md"
 version.workspace = true

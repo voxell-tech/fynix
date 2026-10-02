@@ -760,12 +760,9 @@ name = "bevy_fynix"
 version = "0.0.1"
 dependencies = [
  "bevy",
- "bevy_app",
- "bevy_ecs",
- "bevy_picking",
- "bevy_time",
- "bevy_ui",
  "fynix",
+ "lenz",
+ "motiongfx_interp",
 ]
 
 [[package]]
@@ -957,6 +954,7 @@ dependencies = [
  "bevy_transform",
  "bevy_ui",
  "bevy_ui_render",
+ "bevy_ui_widgets",
  "bevy_utils",
  "bevy_window",
  "bevy_winit",
@@ -3241,9 +3239,9 @@ dependencies = [
 
 [[package]]
 name = "motiongfx_interp"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c7f0535a3fd94bcd06982b52d9bdc1de3e198f033cbc501efa63b1e01db5a83"
+checksum = "f8164e608c4c02436e77d999d9359bd6ec4e080694b71d031bba08c16485a9f0"
 dependencies = [
  "libm",
 ]
