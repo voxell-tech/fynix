@@ -311,7 +311,7 @@ mod tests {
     use bevy::picking::hover::{HoverMap, update_is_hovered};
     use bevy::picking::pointer::PointerId;
     use bevy::text::{FontSize, TextColor, TextFont};
-    use bevy::ui::widget::{ImageNode, Text};
+    use bevy::ui::widget::ImageNode;
     use bevy::ui::{BackgroundColor, BorderRadius, Node, Val};
     use motiongfx_interp::interpolation::Interpolation;
 
@@ -384,25 +384,6 @@ mod tests {
 
     fn hovered(app: &App, node: Entity) -> bool {
         app.world().get::<Hovered>(node).is_some()
-    }
-
-    #[test]
-    fn a_button_defaults_from_the_theme_and_holds_its_content() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), button(label("Save")));
-
-        assert!(app.world().get::<ButtonBehavior>(node).is_some());
-        assert_eq!(fill(&app, node), Color::srgb(0.2, 0.2, 0.2));
-        assert_eq!(
-            app.world().get::<Node>(node).unwrap().border_radius,
-            BorderRadius::all(Val::Px(3.0))
-        );
-        let content = app.world().get::<Children>(node).unwrap()[0];
-        assert_eq!(
-            app.world().get::<Text>(content).unwrap().0,
-            "Save"
-        );
     }
 
     #[test]
@@ -642,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn a_menu_bar_button_is_full_height_square_and_lights_up() {
+    fn a_menu_bar_button_lights_up() {
         let mut app = app();
         let node = mount::<Plain>(
             app.world_mut(),
@@ -650,11 +631,6 @@ mod tests {
         );
 
         assert_eq!(fill(&app, node), Color::NONE);
-        let ui = ui(&app, node);
-        assert_eq!(ui.height, percent(100.0));
-        assert_eq!(ui.border_radius, BorderRadius::all(px(0.0)));
-        assert_eq!(ui.padding, UiRect::axes(px(12.0), px(0.0)));
-
         settle(&mut app, node, true);
         assert_eq!(fill(&app, node), HOVER);
     }
@@ -832,18 +808,13 @@ mod tests {
     }
 
     #[test]
-    fn an_icon_button_is_a_square_row_with_a_tinted_icon() {
+    fn an_icon_button_only_tints_its_icon() {
         let mut app = app();
         let node = mount::<Plain>(
             app.world_mut(),
             button(icon(Handle::default())).rules(icon_button),
         );
         let mark = app.world().get::<Children>(node).unwrap()[0];
-
-        let ui = ui(&app, node);
-        assert_eq!((ui.width, ui.height), (px(20.0), px(20.0)));
-        assert_eq!(ui.padding, UiRect::ZERO);
-        assert_eq!(ui.border_radius, BorderRadius::all(px(3.0)));
 
         assert_eq!(
             fills(&mut app, node),

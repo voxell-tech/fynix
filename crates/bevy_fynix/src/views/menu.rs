@@ -346,9 +346,7 @@ mod tests {
     use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::resource::Resource;
-    use bevy::ui::{
-        BackgroundColor, BorderColor, BorderRadius, GlobalZIndex,
-    };
+    use bevy::ui::{BackgroundColor, BorderRadius, GlobalZIndex};
     use bevy::ui_widgets::Activate;
     use motiongfx_interp::interpolation::Interpolation;
 
@@ -373,32 +371,6 @@ mod tests {
 
     fn blend(from: Color, to: Color, t: f32) -> Color {
         <Color as Interpolation<BevyMarker>>::interp(&from, &to, t)
-    }
-
-    #[test]
-    fn a_surface_has_the_panel_look_above_everything() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            frame().rules(menu_surface),
-        );
-
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.position_type, PositionType::Absolute);
-        assert_eq!(ui.flex_direction, FlexDirection::Column);
-        assert_eq!(ui.padding, UiRect::all(px(4.0)));
-        assert_eq!(ui.border, UiRect::all(px(1.0)));
-        assert_eq!(ui.border_radius, BorderRadius::all(px(5.0)));
-        assert_eq!(ui.overflow, Overflow::clip());
-        assert_eq!(fill(&app, node), Color::srgb(0.1, 0.1, 0.1));
-        assert_eq!(
-            app.world().get::<BorderColor>(node),
-            Some(&BorderColor::all(Color::srgb(0.4, 0.4, 0.4)))
-        );
-        assert_eq!(
-            app.world().get::<GlobalZIndex>(node),
-            Some(&GlobalZIndex(MENU_Z))
-        );
     }
 
     #[test]

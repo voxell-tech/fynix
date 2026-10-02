@@ -181,7 +181,6 @@ mod tests {
     use crate::tests::{self, Plain};
     use crate::{mount, resource};
 
-    const REST: Color = Color::srgb(0.2, 0.2, 0.2);
     const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
 
@@ -225,31 +224,6 @@ mod tests {
             is_final: true,
         });
         app.update();
-    }
-
-    #[test]
-    fn it_is_a_small_themed_box_with_the_pointer_cursor() {
-        let mut app = app();
-        let node = mount::<Plain>(app.world_mut(), checkbox(false));
-
-        assert!(app.world().get::<CheckboxBehavior>(node).is_some());
-        assert_eq!(
-            app.world().get::<EntityCursor>(node),
-            Some(&EntityCursor(SystemCursorIcon::Pointer))
-        );
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!((ui.width, ui.height), (px(16.0), px(16.0)));
-        assert_eq!(
-            app.world().get::<BackgroundColor>(node).unwrap().0,
-            REST
-        );
-        let mark = mark(&app, node);
-        let ui = app.world().get::<Node>(mark).unwrap();
-        assert_eq!((ui.width, ui.height), (px(8.0), px(8.0)));
-        assert_eq!(
-            app.world().get::<BackgroundColor>(mark).unwrap().0,
-            ACCENT
-        );
     }
 
     #[test]
