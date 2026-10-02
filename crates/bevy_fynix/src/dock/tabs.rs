@@ -18,7 +18,7 @@ use crate::prop::resource;
 use crate::tokens::{Motion, Tone};
 use crate::views::{
     BehaviorExt, Frame, FrameProps, Icon, Label, button, icon, label,
-    row, scroll,
+    row, scroll, tint, tinted_icon,
 };
 use crate::{
     AnyView, Bevy, Cx, Hovered, ScopedExt, StateExt, ViewExt, each,
@@ -233,23 +233,33 @@ fn close<T: DockTokens>(tab: TabId) -> AnyView<Bevy, T> {
     })
 }
 
-/// The "+" button of a bar, a dim plus that turns accent under the
-/// pointer.
+/// The "+" button of a bar: a [`tinted_icon`], or the text "+" in the
+/// same look while the app gave no icon.
 fn add<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
         let image = cx
             .world
             .get_resource::<DockIcons>()
             .and_then(|icons| icons.add.clone());
-        let (size, padding) =
-            (cx.theme().body_size(), cx.theme().tab_padding());
-        cx.build(
-            button(glyph::<T>(image, size, "+"))
-                .padding(UiRect::horizontal(px(padding)))
-                .height(percent(100.0))
-                .shrink(0.0)
-                .tagged(AddButton { leaf })
-                .rules(tinted::<T>(Tone::Accent)),
-        )
+        let padding =
+            UiRect::horizontal(px(cx.theme().tab_padding()));
+        let tag = AddButton { leaf };
+        match image {
+            Some(image) => cx.build(
+                tinted_icon(image)
+                    .padding(padding)
+                    .height(percent(100.0))
+                    .shrink(0.0)
+                    .tagged(tag),
+            ),
+            None => cx.build(
+                button(label("+"))
+                    .padding(padding)
+                    .height(percent(100.0))
+                    .shrink(0.0)
+                    .tagged(tag)
+                    .rules(tint),
+            ),
+        }
     })
 }

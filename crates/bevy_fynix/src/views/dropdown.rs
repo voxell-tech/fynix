@@ -33,7 +33,8 @@ use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{menu_item, menu_popup};
 use crate::views::popup::corners;
 use crate::views::{
-    BehaviorExt, button, frame, icon, label, menu_bar, row, tint,
+    BehaviorExt, button, frame, icon, label, menu_bar, row,
+    tinted_icon,
 };
 use crate::{
     AnyView, Bevy, Cx, ScopedExt, Styled, View, ViewExt as _,
@@ -298,8 +299,8 @@ pub fn menu_button<E: Into<MenuEntry>>(
 }
 
 impl MenuTitle {
-    /// This, showing `image` instead of a title, in the [`tint`]
-    /// look.
+    /// This, showing `image` instead of a title, as a
+    /// [`tinted_icon`].
     pub fn icon(mut self, image: Handle<Image>) -> Self {
         self.face = Face::Icon(image);
         self
@@ -387,9 +388,9 @@ where
                     cx.build(button.rules(menu_bar))
                 }
                 Face::Icon(image) => {
-                    let mut button = button(icon(image));
+                    let mut button = tinted_icon(image);
                     button.frame = control;
-                    cx.build(button.rules(tint))
+                    cx.build(button)
                 }
             };
             cx.world

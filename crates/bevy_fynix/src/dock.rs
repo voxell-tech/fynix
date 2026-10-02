@@ -925,7 +925,8 @@ mod tests {
         for mark in marks {
             let button =
                 app.world().get::<ChildOf>(mark).unwrap().parent();
-            // The cross of an active tab is lit with the rest of it.
+            // The cross of an active tab is lit with the rest of it,
+            // and a plus rests in the body tone.
             let rest = tint(&app, mark);
             assert!(rest == dim || rest == body);
             dims += usize::from(rest == dim);
@@ -945,7 +946,7 @@ mod tests {
             }
             assert_eq!(tint(&app, mark), rest);
         }
-        assert_eq!(dims, 3, "an inactive cross and both pluses");
+        assert_eq!(dims, 1, "the inactive cross");
     }
 
     #[test]

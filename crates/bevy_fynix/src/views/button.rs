@@ -26,8 +26,10 @@
 //! For a look of your own, build a [`Style`] and apply its
 //! [`bundle`](Style::bundle).
 
+use bevy::asset::Handle;
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
+use bevy::image::Image;
 use bevy::ui::{AlignItems, JustifyContent, UiRect, percent, px};
 use bevy::ui_widgets::Button as ButtonBehavior;
 use bevy::window::SystemCursorIcon;
@@ -35,10 +37,12 @@ use bevy::window::SystemCursorIcon;
 use crate::cursor::EntityCursor;
 use crate::style::{Style, style};
 use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens, Tone,
+    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
-use crate::{Bevy, Cx, Styled, View};
+use crate::views::icon::icon;
+use crate::{Bevy, Cx, ScopedExt, Styled, View};
 
 pub struct Button<C> {
     pub frame: Frame,
@@ -270,6 +274,50 @@ where
 impl<C> FrameProps for Button<C> {
     fn frame_mut(&mut self) -> &mut Frame {
         &mut self.frame
+    }
+}
+
+/// A button of one icon in the [`tint`] look, padded by half the
+/// theme's gap: for an action that sits beside content, such as
+/// adding to a list. Its frame styles the button.
+pub struct TintedIcon {
+    pub frame: Frame,
+    image: Handle<Image>,
+}
+
+/// A [`TintedIcon`] showing `image`.
+pub fn tinted_icon(image: Handle<Image>) -> TintedIcon {
+    TintedIcon {
+        frame: Frame::unset(),
+        image,
+    }
+}
+
+impl FrameProps for TintedIcon {
+    fn frame_mut(&mut self) -> &mut Frame {
+        &mut self.frame
+    }
+}
+
+impl<T> View<Bevy, T> for TintedIcon
+where
+    T: TextTokens
+        + SurfaceTokens
+        + SpacingTokens
+        + MotionTokens
+        + Send
+        + Sync
+        + 'static,
+{
+    fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
+        let mut button = button(icon(self.image));
+        button.frame = self.frame;
+        let padded = style::<T>()
+            .frame(|frame, theme| {
+                frame.padding(UiRect::all(px(theme.gap() / 2.0)))
+            })
+            .bundle();
+        cx.build(button.rules(tint).rules(padded))
     }
 }
 

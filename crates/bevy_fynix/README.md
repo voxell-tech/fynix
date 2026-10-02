@@ -26,6 +26,8 @@ token traits they read, and the states rules wait on.
 - `ghost`, `tint`, `icon_button`, `primary`, `danger`, `menu_bar`,
   `segment` - button looks, as bundles for `.rules(..)`. Only
   `icon_button` and `tint` never have a surface.
+- `tinted_icon` - a button of one icon in the `tint` look, for an
+  action beside content, such as a plus that adds to a list.
 - `revealed` - a divider look that draws only while hovered or
   `Dragging`.
 - `popup` - a menu surface hung off a point, over a backdrop that

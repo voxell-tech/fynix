@@ -22,8 +22,8 @@ mod tooltip;
 
 pub use behavior::{BehaviorExt, OnActivate, Seeded, Tagged, Toned};
 pub use button::{
-    Button, button, danger, ghost, icon_button, menu_bar, primary,
-    segment, tint,
+    Button, TintedIcon, button, danger, ghost, icon_button, menu_bar,
+    primary, segment, tint, tinted_icon,
 };
 pub use checkbox::{Checkbox, checkbox};
 pub(crate) use context_menu::dismiss as dismiss_context_menu;
