@@ -82,7 +82,6 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
             .add_observer(layout::release_handle)
             .add_observer(layout::drag_handle)
             .add_observer(popup::open)
-            .add_observer(popup::dismiss)
             .add_observer(drag::start)
             .add_observer(drag::moved::<T>)
             .add_observer(drag::end)
@@ -613,34 +612,22 @@ mod tests {
     }
 
     #[test]
-    fn the_popup_is_a_shared_menu_surface_of_menu_rows() {
+    fn the_popup_hangs_menu_rows_off_its_point_until_dismissed() {
         let (mut app, left, _) = app();
         app.world_mut().resource_mut::<AddPopup>().open =
             Some(OpenPopup {
                 leaf: left,
-                right: 10.0,
-                top: 20.0,
+                at: Vec2::new(10.0, 20.0),
             });
         app.update();
         let root = find::<DockRoot>(&mut app)[0].0;
         let popup = kids(&app, root)[1];
         let backdrop = kids(&app, popup)[0];
-        let surface = kids(&app, backdrop)[0];
+        let anchor = kids(&app, backdrop)[0];
+        let surface = kids(&app, anchor)[0];
 
-        let ui = app.world().get::<Node>(surface).unwrap();
-        assert_eq!(
-            ui.position_type,
-            bevy::ui::PositionType::Absolute
-        );
-        assert_eq!(ui.right, px(10.0));
-        assert_eq!(
-            ui.top,
-            px(20.0 + Plain::default().menu_padding())
-        );
-        assert_eq!(
-            app.world().get::<bevy::ui::GlobalZIndex>(surface),
-            Some(&bevy::ui::GlobalZIndex(crate::views::MENU_Z))
-        );
+        let ui = app.world().get::<Node>(anchor).unwrap();
+        assert_eq!((ui.left, ui.top), (px(10.0), px(20.0)));
         let rows = kids(&app, surface);
         assert_eq!(rows.len(), 1);
         assert!(
@@ -648,6 +635,15 @@ mod tests {
                 .get::<bevy::ui_widgets::MenuItem>(rows[0])
                 .is_some()
         );
+
+        tests::pointer_press(
+            &mut app,
+            backdrop,
+            PointerButton::Primary,
+            Vec2::ZERO,
+        );
+        settle(&mut app);
+        assert!(app.world().resource::<AddPopup>().open.is_none());
     }
 
     #[test]
@@ -656,8 +652,7 @@ mod tests {
         app.world_mut().resource_mut::<AddPopup>().open =
             Some(OpenPopup {
                 leaf: left,
-                right: 0.0,
-                top: 0.0,
+                at: Vec2::ZERO,
             });
         app.update();
         let root = find::<DockRoot>(&mut app)[0].0;

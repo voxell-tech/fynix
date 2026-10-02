@@ -144,7 +144,7 @@ where
 /// A column of `items` on a menu surface, at least `min_width` wide,
 /// that `positions` place against its parent and that closes when it
 /// loses focus. Its focus state starts as `focus`.
-pub(crate) fn popup<T, S>(
+pub(crate) fn menu_popup<T, S>(
     items: S,
     min_width: Val,
     positions: Vec<PopoverPlacement>,

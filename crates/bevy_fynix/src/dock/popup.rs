@@ -2,7 +2,6 @@
 //! can be added.
 
 use bevy::asset::Handle;
-use bevy::ecs::component::Component;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
@@ -10,30 +9,28 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, ResMut};
 use bevy::image::Image;
-use bevy::picking::Pickable;
-use bevy::picking::events::{Click, Pointer};
-use bevy::ui::{
-    AlignItems, ComputedNode, UiGlobalTransform, UiRect, Val, px,
-};
+use bevy::math::Vec2;
+use bevy::ui::{AlignItems, ComputedNode, UiGlobalTransform, px};
 use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::popover::{
+    PopoverAlign, PopoverPlacement, PopoverSide,
+};
 
 use super::tabs::AddButton;
 use super::tree::{DockTree, NodeId};
 use super::{DockRegistry, DockRoot, DockTokens, logical_rect};
 use crate::tokens::Tone;
 use crate::views::{
-    BehaviorExt, FrameProps, column, icon, label, menu_item,
-    menu_surface, overlay, row,
+    BehaviorExt, FrameProps, icon, label, menu_item, popup, row,
 };
-use crate::{AnyView, Bevy, Cx, ScopedExt, ViewExt};
+use crate::{AnyView, Bevy, Cx, ViewExt};
 
-/// Where the popup sits, in the dock's own coordinates: `right` from
-/// the dock's right edge and `top` from its top.
+/// The open popup: the leaf it adds to, and the bottom right corner
+/// of the "+" button that opened it, in the dock's own coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OpenPopup {
     pub leaf: NodeId,
-    pub right: f32,
-    pub top: f32,
+    pub at: Vec2,
 }
 
 /// The open popup, if any.
@@ -42,12 +39,7 @@ pub struct AddPopup {
     pub open: Option<OpenPopup>,
 }
 
-/// On the node behind the popup, which closes it when clicked.
-#[derive(Component, Clone, Copy, Debug)]
-pub(super) struct Backdrop;
-
-/// Opens the popup under the "+" button that was activated, right
-/// aligned to it.
+/// Opens the popup under the "+" button that was activated.
 pub(super) fn open(
     activate: On<Activate>,
     buttons: Query<(&AddButton, &ComputedNode, &UiGlobalTransform)>,
@@ -60,28 +52,16 @@ pub(super) fn open(
         return;
     };
     let rect = logical_rect(computed, transform);
-    let dock = parents
+    let origin = parents
         .iter_ancestors(button)
         .find_map(|ancestor| roots.get(ancestor).ok())
-        .map_or(rect, |(computed, transform)| {
-            logical_rect(computed, transform)
+        .map_or(Vec2::ZERO, |(computed, transform)| {
+            logical_rect(computed, transform).min
         });
     popup.open = Some(OpenPopup {
         leaf: add.leaf,
-        right: (dock.max.x - rect.max.x).max(0.0),
-        top: rect.max.y - dock.min.y,
+        at: rect.max - origin,
     });
-}
-
-/// Closes the popup on a click that lands on its backdrop.
-pub(super) fn dismiss(
-    click: On<Pointer<Click>>,
-    backdrops: Query<(), With<Backdrop>>,
-    mut popup: ResMut<AddPopup>,
-) {
-    if backdrops.contains(click.original_event_target()) {
-        popup.open = None;
-    }
 }
 
 /// The popup, or an empty node while none is open.
@@ -97,11 +77,11 @@ pub(super) fn build<T: DockTokens>(
 /// A window that can be added: its id, name and icon.
 type Choice = (String, String, Option<Handle<Image>>);
 
-/// The popup at `open`. It lists the registered windows that are not
-/// in the tree yet.
+/// The popup at `open`, right aligned under its button. It lists the
+/// registered windows that are not in the tree yet.
 fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
-        let (width, offset) =
+        let (width, gap) =
             (cx.theme().menu_width(), cx.theme().menu_padding());
         let tree = cx.world.resource::<DockTree>();
         let choices = cx
@@ -132,22 +112,21 @@ fn menu<T: DockTokens>(open: OpenPopup) -> AnyView<Bevy, T> {
                 .map(|choice| choice_row(open.leaf, choice))
                 .collect()
         };
-        let menu = column(rows)
-            .inset(UiRect::new(
-                Val::Auto,
-                px(open.right),
-                px(open.top + offset),
-                Val::Auto,
-            ))
-            .min_width(px(width))
-            .rules(|cx: &mut Cx<'_, Bevy, T>| {
-                cx.defaults(menu_surface);
-            });
+        let placement = |side| PopoverPlacement {
+            side,
+            align: PopoverAlign::End,
+            gap,
+        };
         cx.build(
-            overlay((menu,))
-                .with(Pickable::default())
-                .with(Backdrop)
-                .z(Some(180)),
+            popup(open.at, rows)
+                .placements(vec![
+                    placement(PopoverSide::Bottom),
+                    placement(PopoverSide::Top),
+                ])
+                .on_dismiss(|world, _| {
+                    world.resource_mut::<AddPopup>().open = None;
+                })
+                .min_width(px(width)),
         )
     })
 }

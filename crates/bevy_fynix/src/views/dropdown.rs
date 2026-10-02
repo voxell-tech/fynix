@@ -33,10 +33,9 @@ use crate::tokens::{
 };
 use crate::views::foldable::Open;
 use crate::views::frame::{Frame, FrameProps};
-use crate::views::menu::{menu_item, popup};
+use crate::views::menu::{menu_item, menu_popup};
 use crate::views::{
-    BehaviorExt, button, frame, icon, icon_button, label, menu_bar,
-    row,
+    BehaviorExt, button, frame, icon, label, menu_bar, row, tint,
 };
 use crate::{
     AnyView, Bevy, Cx, ScopedExt, Styled, View, ViewExt as _,
@@ -58,7 +57,7 @@ pub struct Dropdown {
 
 /// A [`Dropdown`] over `options`, showing the one at `selected`,
 /// which may be bound to the world, and ending in a dim `chevron`
-/// icon that turns half way round while the list is open.
+/// icon, drawn pointing up, that points down while the list is shut.
 /// `on_select` runs with the index
 /// of the option chosen; showing it is up to whatever `selected`
 /// reads.
@@ -105,8 +104,9 @@ pub(crate) struct Parts {
     popup: Entity,
 }
 
-/// How far the chevron turns while the list is open, in degrees.
-const OPEN_TURN: f32 = 180.0;
+/// How far the up-pointing chevron turns while the list is shut, in
+/// degrees, so it points down.
+const SHUT_TURN: f32 = 180.0;
 
 /// On a dropdown's root node: what its options run when chosen.
 #[derive(Component)]
@@ -168,7 +168,7 @@ where
             .tone(Tone::Dim)
             .size(cx.theme().small_size())
             .rotation(component::<Open, _>(root, |open| {
-                if open.is_some() { OPEN_TURN } else { 0.0 }
+                if open.is_some() { 0.0 } else { SHUT_TURN }
             }))
             .transition(Motion::Interact);
         let (button, popup) = cx.under(root, |cx| {
@@ -184,7 +184,7 @@ where
             cx.world
                 .entity_mut(button)
                 .insert((MenuButton, TabIndex(0)));
-            let popup = cx.build(popup(
+            let popup = cx.build(menu_popup(
                 rows,
                 percent(100.0),
                 vec![
@@ -277,7 +277,7 @@ impl From<String> for MenuEntry {
 /// What a [`MenuTitle`] shows on its button.
 enum Face {
     Title(String),
-    Icon(Handle<Image>, Option<Tone>),
+    Icon(Handle<Image>),
 }
 
 /// A button that opens a list of actions, as a menu bar's titles do:
@@ -307,19 +307,10 @@ pub fn menu_button<E: Into<MenuEntry>>(
 }
 
 impl MenuTitle {
-    /// This, showing `image` as a tinted icon button instead of a
-    /// title.
+    /// This, showing `image` instead of a title, in the [`tint`]
+    /// look.
     pub fn icon(mut self, image: Handle<Image>) -> Self {
-        self.face = Face::Icon(image, None);
-        self
-    }
-
-    /// The tone the icon keeps whatever the pointer does, when it is
-    /// not the button's own dim one. A no-op without an icon.
-    pub fn icon_tone(mut self, tone: Tone) -> Self {
-        if let Face::Icon(_, kept) = &mut self.face {
-            *kept = Some(tone);
-        }
+        self.face = Face::Icon(image);
         self
     }
 }
@@ -404,22 +395,17 @@ where
                     button.frame = control;
                     cx.build(button.rules(menu_bar))
                 }
-                Face::Icon(image, tone) => {
-                    let glyph = icon(image);
-                    let glyph = match tone {
-                        Some(tone) => glyph.tone(tone),
-                        None => glyph,
-                    };
-                    let mut button = button(glyph);
+                Face::Icon(image) => {
+                    let mut button = button(icon(image));
                     button.frame = control;
-                    cx.build(button.rules(icon_button))
+                    cx.build(button.rules(tint))
                 }
             };
             cx.world
                 .entity_mut(button)
                 .insert((MenuButton, TabIndex(0)));
             let width = cx.theme().menu_width();
-            let popup = cx.build(popup(
+            let popup = cx.build(menu_popup(
                 rows,
                 px(width),
                 vec![
@@ -805,20 +791,23 @@ mod tests {
         let content = kids(&app, button)[0];
         let chevron = kids(&app, content)[1];
         assert!(app.world().get::<ImageNode>(chevron).is_some());
-        assert_eq!(turn(&app, root), 0.0);
-
-        open(&mut app, button);
-        for _ in 0..4 {
-            app.update();
-        }
         // Half a turn reads back as either sign.
-        assert!((turn(&app, root).abs() - 180.0).abs() < 0.01);
+        let down = |app: &App| {
+            (turn(app, root).abs() - SHUT_TURN).abs() < 0.01
+        };
+        assert!(down(&app), "pointing down while shut");
 
         open(&mut app, button);
         for _ in 0..4 {
             app.update();
         }
-        assert!(turn(&app, root).abs() < 0.01);
+        assert!(turn(&app, root).abs() < 0.01, "up while open");
+
+        open(&mut app, button);
+        for _ in 0..4 {
+            app.update();
+        }
+        assert!(down(&app));
     }
 
     #[test]

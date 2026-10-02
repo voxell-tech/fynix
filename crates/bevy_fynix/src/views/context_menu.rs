@@ -12,18 +12,13 @@ use bevy::math::Vec2;
 use bevy::picking::events::{Pointer, Press};
 use bevy::picking::pointer::PointerButton;
 use bevy::ui::{UiScale, px};
-use bevy::ui_widgets::popover::{
-    PopoverAlign, PopoverPlacement, PopoverSide,
-};
 use bevy::ui_widgets::{MenuAction, MenuEvent, MenuFocusState};
 
 use crate::prop::component;
 use crate::tokens::{SpacingTokens, SurfaceTokens};
-use crate::views::menu::{Floating, FocusFirst, float, popup};
+use crate::views::menu::{Floating, FocusFirst, float, menu_popup};
+use crate::views::popup::corners;
 use crate::{AnyView, Bevy, Cx, View, ViewSeq};
-
-/// The least width of a context menu.
-const MIN_WIDTH: f32 = 120.0;
 
 /// On a node with a context menu while it is open: where it was
 /// opened, in logical pixels, and which opening of the node it is.
@@ -137,17 +132,6 @@ pub(crate) fn dismiss(
     }
 }
 
-fn placement(
-    side: PopoverSide,
-    align: PopoverAlign,
-) -> PopoverPlacement {
-    PopoverPlacement {
-        side,
-        align,
-        gap: 0.0,
-    }
-}
-
 impl<T, V, F, S> View<Bevy, T> for ContextMenu<V, F, S>
 where
     T: SurfaceTokens + SpacingTokens + Send + Sync + 'static,
@@ -180,19 +164,11 @@ where
     T: SurfaceTokens + SpacingTokens + Send + Sync + 'static,
     S: ViewSeq<Bevy, T> + 'static,
 {
-    use PopoverAlign::{End, Start};
-    use PopoverSide::{Bottom, Top};
-
-    AnyView::new(move |cx| {
-        let surface = popup(
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let surface = menu_popup(
             rows,
-            px(MIN_WIDTH),
-            vec![
-                placement(Bottom, Start),
-                placement(Bottom, End),
-                placement(Top, Start),
-                placement(Top, End),
-            ],
+            px(cx.theme().menu_width()),
+            corners(),
             MenuFocusState::Closed,
         );
         let node = cx.build(surface);

@@ -28,6 +28,9 @@ token traits they read, and the states rules wait on.
   `icon_button` and `tint` never have a surface.
 - `revealed` - a divider look that draws only while hovered or
   `Dragging`.
+- `popup` - a menu surface hung off a point, over a backdrop that
+  dismisses it when pressed.
+- `DockPlugin` - split panes with tabbed areas, from a `DockTree`.
 - `style` - builds a look of your own. See [Styling](#styling).
 
 ## Quick Start
