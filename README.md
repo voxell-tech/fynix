@@ -10,6 +10,8 @@
 **Fynix** is a backend agnostic reactive view tree, styled the way
 [Typst](https://typst.app) styles a document with set rules.
 
+https://github.com/user-attachments/assets/31153e53-c1f4-4564-8eef-4bce4155101a
+
 ## Features
 
 - **Backend agnostic**: views, rules and transitions never name an
