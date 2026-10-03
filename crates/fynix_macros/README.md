@@ -7,7 +7,7 @@
 [![CI](https://github.com/voxell-tech/fynix/workflows/CI/badge.svg)](https://github.com/voxell-tech/fynix/actions)
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
-**Fynix Macros** provides the attribute macros for
+**Fynix Macros** has the attribute macros for
 [`fynix`](https://github.com/voxell-tech/fynix/tree/main/crates/fynix).
 
 ## `#[element]`
@@ -29,19 +29,19 @@ pub struct Frame {
 
 On the struct:
 
-- `backend = <type>` - the backend the element is written for.
-- `theme = <bounds>` - what its defaults read from a theme.
-- `prepare = <fn>` - run on the node before any prop is written.
+- `backend = <type>`: the backend the element is written for.
+- `theme = <bounds>`: what its defaults read from a theme.
+- `prepare = <fn>`: run on the node before any prop is written.
 
 On a field:
 
-- `patch = <type>` - the `Patch` that writes the prop. It becomes the
+- `patch = <type>`: the `Patch` that writes the prop. It becomes the
   field's `lenz` tag.
-- `default = <expr>` - the value when unset. It may read `theme`.
+- `default = <expr>`: the value when unset. It may read `theme`.
   Without it, the prop type's `Default`.
-- `blend = <fn>` - how two values blend, so the prop travels under a
+- `blend = <fn>`: how two values blend, so the prop travels under a
   transition rule. Without it, the prop snaps.
-- `shown = <type>, with = <fn>` - writes a value made from the prop
+- `shown = <type>, with = <fn>`: writes a value made from the prop
   and the theme, such as a colour from a tone.
 
 It writes the struct with `#[derive(Lenz)]`, a builder method per

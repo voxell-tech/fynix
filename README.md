@@ -8,25 +8,27 @@
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
 **Fynix** is a backend agnostic reactive view tree, styled the way
-[Typst](https://typst.app) styles a document with set rules.
+[Typst](https://typst.app) styles a document with set and show rules.
 
 https://github.com/user-attachments/assets/31153e53-c1f4-4564-8eef-4bce4155101a
 
 ## Features
 
-- **Backend agnostic**: views, rules and transitions never name an
-  engine.
-- **Themes as trait bounds**: a view asks for the token traits it
-  reads and works under any theme that implements them.
-- **Set rules**: restyle every view of a kind within a scope. A
-  call-site value still wins.
-- **State rules**: rules that hold while a node is hovered, pressed,
-  entering, leaving, or in any state of your own.
-- **Reactive**: props bound to the world are re-read only when their
-  source changes.
-- **Transitions**: opt in with a rule, and views animate in and out
-  too.
-- **`#![no_std]`**: `alloc` only.
+- Views, rules and transitions never name an engine.
+- A view asks for the token traits it reads, so it works under any
+  theme that implements them.
+- Set and show rules restyle every view of a kind within a scope, as
+  in Typst.
+- State rules hold while a node is hovered, pressed, entering,
+  leaving, or in any state of your own.
+- Props bound to the world are read again only when their source
+  changes.
+- Views can animate their changes, and animate in and out of the
+  tree.
+- `#![no_std]`, with `alloc` only.
+
+The [`fynix` README](crates/fynix#concepts) walks through each of
+these with examples.
 
 ## Example
 
@@ -46,7 +48,7 @@ mount::<MyTheme>(
 );
 ```
 
-## Where Next
+## Where next
 
 - [`fynix`](crates/fynix): the core crate, with a guide to building a
   UI framework on top of it.
