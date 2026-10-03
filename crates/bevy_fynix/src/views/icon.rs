@@ -8,7 +8,7 @@ use fynix::element;
 
 use crate::patch::{
     Paint, PatchInk, PatchOpacity, PatchRotation, PatchScale,
-    PatchSquare, patch,
+    PatchSquare, PatchTint, patch,
 };
 use crate::prop::Prop;
 use crate::state::own_when;
@@ -36,6 +36,9 @@ pub struct Icon {
         blend = blend_color
     )]
     pub tone: Prop<Tone>,
+    /// A colour that replaces the tone's while set.
+    #[elem(patch = PatchTint)]
+    pub tint: Prop<Option<Color>>,
     /// Clockwise, in degrees.
     #[elem(patch = PatchRotation, blend = blend_f32)]
     pub rotation: Prop<f32>,
@@ -99,6 +102,20 @@ mod tests {
         );
         let ui = app.world().get::<Node>(node).unwrap();
         assert_eq!(ui.width, Val::Px(20.0));
+    }
+
+    #[test]
+    fn a_tint_replaces_the_tone_colour() {
+        let mut app = app();
+        let tint = Color::srgb(0.2, 0.4, 0.6);
+        let node = mount::<Plain>(
+            app.world_mut(),
+            icon(Handle::default())
+                .tone(Tone::Accent)
+                .tint(Some(tint)),
+        );
+
+        assert_eq!(image_node(&app, node).color, tint);
     }
 
     #[test]

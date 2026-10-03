@@ -257,6 +257,16 @@ patch!(
         repaint(&mut entity, |paint| paint.ink = *v);
     }
 );
+patch!(
+    /// An image's tint, left to its tone while `None`.
+    PatchTint,
+    Option<Color>,
+    |entity, v| {
+        if let Some(tint) = v {
+            repaint(&mut entity, |paint| paint.ink = *tint);
+        }
+    }
+);
 patch!(PatchOpacity, f32, |entity, v| {
     repaint(&mut entity, |paint| paint.opacity = *v);
 });
