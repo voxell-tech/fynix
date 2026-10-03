@@ -1,26 +1,35 @@
 //! A leaf's tab bar: a scrolling row of tabs and the "+" button.
 
 use bevy::asset::Handle;
+use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
+use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::query::{Has, With};
 use bevy::ecs::resource::Resource;
+use bevy::ecs::system::Query;
 use bevy::ecs::world::World;
 use bevy::image::Image;
+use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::ui::{
     AlignItems, BorderRadius, FlexDirection, Overflow, UiRect,
     percent, px,
 };
+use bevy::ui_widgets::MenuButton;
 use bevy::window::SystemCursorIcon;
 
-use super::DockTokens;
 use super::registry::DockRegistry;
 use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
+use super::{DockTokens, popup};
 use crate::cursor::EntityCursor;
 use crate::prop::resource;
 use crate::tokens::Tone;
 use crate::views::{
-    BehaviorExt, Frame, FrameProps, Icon, Label, button, icon, label,
-    row, scroll, tint, tint_to, tinted_icon,
+    BehaviorExt, Frame, FrameProps, Icon, Label, ListWidth, Parts,
+    button, frame, icon, label, list, row, scroll, tint, tint_to,
+    tinted_icon,
 };
 use crate::{
     AnyView, Bevy, Cx, Hovered, ScopedExt, StateExt, ViewExt, each,
@@ -58,8 +67,31 @@ pub(super) struct TabRow {
 
 /// On the "+" button at the end of a bar.
 #[derive(Component, Clone, Copy, Debug)]
-pub(super) struct AddButton {
-    pub leaf: NodeId,
+pub(super) struct AddButton;
+
+/// On the close button of a tab.
+#[derive(Component, Clone, Copy, Debug)]
+pub(super) struct CloseButton;
+
+/// Shows each close button while its tab is hovered. Hidden nodes
+/// keep their space and are not picked.
+pub(super) fn show_close(
+    tabs: Query<Has<Hovered>, With<DockTab>>,
+    parents: Query<&ChildOf>,
+    mut buttons: Query<(Entity, &mut Visibility), With<CloseButton>>,
+) {
+    for (button, mut visibility) in &mut buttons {
+        let over = parents
+            .iter_ancestors(button)
+            .find_map(|ancestor| tabs.get(ancestor).ok())
+            .unwrap_or(false);
+        let want = if over {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        visibility.set_if_neq(want);
+    }
 }
 
 /// The bar of `leaf`.
@@ -211,26 +243,30 @@ fn close<T: DockTokens>(tab: TabId) -> AnyView<Bevy, T> {
         let remove = move |world: &mut World| {
             world.resource_mut::<DockTree>().remove_tab(tab);
         };
+        let start = (CloseButton, Visibility::Hidden);
         match image {
             Some(image) => cx.build(
                 tinted_icon(image)
                     .size(size)
                     .hover(Tone::Critical)
                     .padding(padding)
-                    .on_activate(remove),
+                    .on_activate(remove)
+                    .seeded(start),
             ),
             None => cx.build(
                 button(label("x").size(size))
                     .padding(padding)
                     .on_activate(remove)
-                    .rules(tint_to(Tone::Critical)),
+                    .rules(tint_to(Tone::Critical))
+                    .seeded(start),
             ),
         }
     })
 }
 
-/// The "+" button of a bar: a [`tinted_icon`], or the text "+" in the
-/// same look while the app gave no icon.
+/// The "+" button of a bar, opening the list of windows to add: a
+/// [`tinted_icon`], or the text "+" in the same look while the app
+/// gave no icon.
 fn add<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
         let image = cx
@@ -239,23 +275,42 @@ fn add<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
             .and_then(|icons| icons.add.clone());
         let padding =
             UiRect::horizontal(px(cx.theme().tab_padding()));
-        let tag = AddButton { leaf };
-        match image {
-            Some(image) => cx.build(
-                tinted_icon(image)
-                    .padding(padding)
-                    .height(percent(100.0))
-                    .shrink(0.0)
-                    .tagged(tag),
-            ),
-            None => cx.build(
-                button(label("+"))
-                    .padding(padding)
-                    .height(percent(100.0))
-                    .shrink(0.0)
-                    .tagged(tag)
-                    .rules(tint),
-            ),
-        }
+        let width = ListWidth::Fixed(cx.theme().menu_width());
+        let positions = popup::placements(cx.theme().menu_padding());
+        let tag = AddButton;
+        let root =
+            cx.build(frame().height(percent(100.0)).shrink(0.0));
+        let button = cx.under(root, |cx| {
+            let button = match image {
+                Some(image) => cx.build(
+                    tinted_icon(image)
+                        .padding(padding)
+                        .height(percent(100.0))
+                        .tagged(tag),
+                ),
+                None => cx.build(
+                    button(label("+"))
+                        .padding(padding)
+                        .height(percent(100.0))
+                        .tagged(tag)
+                        .rules(tint),
+                ),
+            };
+            cx.world
+                .entity_mut(button)
+                .insert((MenuButton, TabIndex(0)));
+            cx.build(list(
+                root,
+                button,
+                width,
+                positions,
+                move |world: &World| {
+                    popup::rows::<T>(world, leaf, root)
+                },
+            ));
+            button
+        });
+        cx.world.entity_mut(root).insert(Parts::new(button));
+        root
     })
 }

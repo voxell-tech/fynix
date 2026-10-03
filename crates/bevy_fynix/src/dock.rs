@@ -23,7 +23,6 @@ use bevy::ui::{
 };
 pub use drag::{DockDrag, DropTarget};
 pub use layout::DockArea;
-pub use popup::{AddPopup, OpenPopup};
 pub use registry::{DockRegistry, DockWindowKind};
 pub use tabs::{ActiveTab, DockIcons, DockTab};
 pub use tree::{
@@ -36,7 +35,7 @@ use crate::prop::{keyed, resource};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
-use crate::views::{BehaviorExt, FrameProps, column, overlay};
+use crate::views::{BehaviorExt, FrameProps, column};
 use crate::{AnyView, Bevy, Cx, ViewExt};
 
 /// The token traits the dock's views read.
@@ -77,17 +76,15 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
     fn build(&self, app: &mut App) {
         app.init_resource::<DockTree>()
             .init_resource::<DockRegistry<T>>()
-            .init_resource::<AddPopup>()
             .init_resource::<DockDrag>()
             .init_resource::<OverrideCursor>()
             .add_observer(layout::grab_handle)
             .add_observer(layout::release_handle)
             .add_observer(layout::drag_handle)
-            .add_observer(popup::open)
             .add_observer(drag::start)
             .add_observer(drag::moved::<T>)
             .add_observer(drag::end)
-            .add_systems(Update, drag::cancel);
+            .add_systems(Update, (drag::cancel, tabs::show_close));
     }
 }
 
@@ -116,12 +113,7 @@ pub fn dock<T: DockTokens>() -> AnyView<Bevy, T> {
             ),
         )
     });
-    let popup = keyed(
-        resource::<AddPopup, _>(|popup| popup.open.clone()),
-        |open| popup::build(open),
-    )
-    .within(overlay(()));
-    column((layout, popup))
+    column((layout,))
         .gap(0.0)
         .width(percent(100.0))
         .height(percent(100.0))
@@ -157,13 +149,15 @@ mod tests {
     use bevy::ui::{
         BackgroundColor, Display, FlexDirection, Node, Val, px,
     };
-    use bevy::ui_widgets::Activate;
+    use bevy::ui_widgets::{
+        Activate, MenuAction, MenuEvent, MenuItem,
+    };
 
     use super::tabs::AddButton;
     use super::*;
     use crate::tests::{self, Plain, kids};
     use crate::tokens::{SurfaceTokens, TextTokens, Tone};
-    use crate::views::label;
+    use crate::views::{Open, label};
     use crate::{Dragging, mount};
 
     fn window(
@@ -281,8 +275,8 @@ mod tests {
         let (mut app, left, right) = app();
         let root = find::<DockRoot>(&mut app)[0].0;
 
-        let [layout, popup] = kids(&app, root)[..] else {
-            panic!("the layout and the popup");
+        let [layout] = kids(&app, root)[..] else {
+            panic!("the layout");
         };
         let [split] = kids(&app, layout)[..] else {
             panic!("one split");
@@ -301,7 +295,6 @@ mod tests {
         assert!(
             app.world().get::<layout::SplitHandle>(handle).is_some()
         );
-        assert_eq!(kids(&app, popup).len(), 1, "an empty popup");
 
         let left_area = area_of(&mut app, left);
         let right_area = area_of(&mut app, right);
@@ -517,6 +510,37 @@ mod tests {
     }
 
     #[test]
+    fn a_close_button_shows_only_while_its_tab_is_hovered() {
+        let (mut app, _, _) = app();
+        let tabs = find::<DockTab>(&mut app);
+        let visibility = |app: &App, tab: Entity| {
+            let close = subtree(app, tab)
+                .into_iter()
+                .find(|&node| {
+                    app.world()
+                        .get::<tabs::CloseButton>(node)
+                        .is_some()
+                })
+                .expect("a close button");
+            *app.world().get::<Visibility>(close).unwrap()
+        };
+        let [(one, _), (two, _), ..] = tabs[..] else {
+            panic!("two tabs");
+        };
+        settle(&mut app);
+        assert_eq!(visibility(&app, one), Visibility::Hidden);
+
+        tests::hover(&mut app, one, true);
+        settle(&mut app);
+        assert_eq!(visibility(&app, one), Visibility::Inherited);
+        assert_eq!(visibility(&app, two), Visibility::Hidden);
+
+        tests::hover(&mut app, one, false);
+        settle(&mut app);
+        assert_eq!(visibility(&app, one), Visibility::Hidden);
+    }
+
+    #[test]
     fn the_active_tab_is_marked_and_filled() {
         let (mut app, left, _) = app();
         let tab_ids = app
@@ -592,88 +616,62 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_add_button_opens_a_popup_listing_what_is_not_open() {
-        let (mut app, left, _) = app();
-        let button = find::<AddButton>(&mut app)
+    /// Opens the list of the "+" button in the area of `leaf`,
+    /// returning the root the button and its list hang under.
+    fn open_add(app: &mut App, leaf: NodeId) -> Entity {
+        let button = find::<AddButton>(app)
             .into_iter()
-            .find(|(_, add)| add.leaf == left)
             .map(|(entity, _)| entity)
+            .find(|&button| {
+                let mut at = button;
+                loop {
+                    let area =
+                        app.world().get::<layout::DockArea>(at);
+                    if let Some(area) = area {
+                        return area.leaf == leaf;
+                    }
+                    match app.world().get::<ChildOf>(at) {
+                        Some(parent) => at = parent.parent(),
+                        None => return false,
+                    }
+                }
+            })
             .unwrap();
+        app.world_mut().trigger(MenuEvent {
+            source: button,
+            action: MenuAction::Toggle,
+        });
+        settle(app);
+        app.world().get::<ChildOf>(button).unwrap().parent()
+    }
 
-        app.world_mut().trigger(Activate { entity: button });
-        app.update();
+    #[test]
+    fn the_add_button_opens_a_list_of_what_is_not_open() {
+        let (mut app, left, _) = app();
+        let root = open_add(&mut app, left);
 
+        assert!(app.world().get::<Open>(root).is_some());
+        let rows = subtree(&app, root)
+            .into_iter()
+            .filter(|node| {
+                app.world().get::<MenuItem>(*node).is_some()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 1);
         assert_eq!(
-            app.world()
-                .resource::<AddPopup>()
-                .open
-                .as_ref()
-                .map(|open| open.leaf),
-            Some(left)
-        );
-        let root = find::<DockRoot>(&mut app)[0].0;
-        let popup = kids(&app, root)[1];
-        assert_eq!(
-            texts(&app, popup),
+            texts(&app, rows[0]),
             ["Extra"],
             "only what is closed"
         );
     }
 
     #[test]
-    fn the_popup_hangs_menu_rows_off_its_button_until_dismissed() {
+    fn picking_a_row_adds_the_window_and_shuts_the_list() {
         let (mut app, left, _) = app();
-        app.world_mut().resource_mut::<AddPopup>().open =
-            Some(OpenPopup {
-                leaf: left,
-                anchor: Rect::new(10.0, 20.0, 30.0, 40.0),
-            });
-        app.update();
-        let root = find::<DockRoot>(&mut app)[0].0;
-        let popup = kids(&app, root)[1];
-        let backdrop = kids(&app, popup)[0];
-        let anchor = kids(&app, backdrop)[0];
-        let surface = kids(&app, anchor)[0];
-
-        let ui = app.world().get::<Node>(anchor).unwrap();
-        assert_eq!((ui.left, ui.top), (px(10.0), px(20.0)));
-        let rows = kids(&app, surface);
-        assert_eq!(rows.len(), 1);
-        assert!(
-            app.world()
-                .get::<bevy::ui_widgets::MenuItem>(rows[0])
-                .is_some()
-        );
-
-        tests::pointer_press(
-            &mut app,
-            backdrop,
-            PointerButton::Primary,
-            Vec2::ZERO,
-        );
-        settle(&mut app);
-        assert!(app.world().resource::<AddPopup>().open.is_none());
-    }
-
-    #[test]
-    fn picking_a_row_adds_the_window_and_closes_the_popup() {
-        let (mut app, left, _) = app();
-        app.world_mut().resource_mut::<AddPopup>().open =
-            Some(OpenPopup {
-                leaf: left,
-                anchor: Rect::default(),
-            });
-        app.update();
-        let root = find::<DockRoot>(&mut app)[0].0;
-        let popup = kids(&app, root)[1];
-        let row = subtree(&app, popup)
+        let root = open_add(&mut app, left);
+        let row = subtree(&app, root)
             .into_iter()
-            .find(|node| {
-                app.world()
-                    .get::<bevy::ui_widgets::MenuItem>(*node)
-                    .is_some()
-            })
+            .find(|node| app.world().get::<MenuItem>(*node).is_some())
             .expect("a row");
 
         app.world_mut().trigger(Activate { entity: row });
@@ -685,9 +683,7 @@ mod tests {
             tree.active(left),
             tree.leaf(left).unwrap().windows.last().map(|tab| tab.id)
         );
-        assert!(app.world().resource::<AddPopup>().open.is_none());
-        assert_eq!(kids(&app, popup).len(), 1);
-        assert!(texts(&app, popup).is_empty(), "the popup is gone");
+        assert!(app.world().get::<Open>(root).is_none());
     }
 
     use bevy::camera::NormalizedRenderTarget;

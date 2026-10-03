@@ -199,6 +199,8 @@ pub struct Paint {
     pub border: Color,
     /// The text colour, or an image's tint.
     pub ink: Color,
+    /// A colour an image is tinted with in place of `ink`.
+    pub tint: Option<Color>,
 }
 
 impl Default for Paint {
@@ -208,6 +210,7 @@ impl Default for Paint {
             fill: Color::NONE,
             border: Color::NONE,
             ink: Color::NONE,
+            tint: None,
         }
     }
 }
@@ -227,6 +230,7 @@ fn repaint(
         fill,
         border,
         ink,
+        tint,
     } = paint;
     if let Some(mut background) = entity.get_mut::<BackgroundColor>()
     {
@@ -239,7 +243,7 @@ fn repaint(
         text.0 = faded(ink, opacity);
     }
     if let Some(mut image) = entity.get_mut::<ImageNode>() {
-        image.color = faded(ink, opacity);
+        image.color = faded(tint.unwrap_or(ink), opacity);
     }
 }
 
@@ -255,6 +259,14 @@ patch!(
     Color,
     |entity, v| {
         repaint(&mut entity, |paint| paint.ink = *v);
+    }
+);
+patch!(
+    /// An image's tint, left to its tone while `None`.
+    PatchTint,
+    Option<Color>,
+    |entity, v| {
+        repaint(&mut entity, |paint| paint.tint = *v);
     }
 );
 patch!(PatchOpacity, f32, |entity, v| {

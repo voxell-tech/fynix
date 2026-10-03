@@ -8,7 +8,7 @@ use fynix::element;
 
 use crate::patch::{
     Paint, PatchInk, PatchOpacity, PatchRotation, PatchScale,
-    PatchSquare, patch,
+    PatchSquare, PatchTint, patch,
 };
 use crate::prop::Prop;
 use crate::state::own_when;
@@ -36,6 +36,9 @@ pub struct Icon {
         blend = blend_color
     )]
     pub tone: Prop<Tone>,
+    /// A colour that replaces the tone's while set.
+    #[elem(patch = PatchTint)]
+    pub tint: Prop<Option<Color>>,
     /// Clockwise, in degrees.
     #[elem(patch = PatchRotation, blend = blend_f32)]
     pub rotation: Prop<f32>,
@@ -72,12 +75,13 @@ patch!(PatchImage, Handle<Image>, |entity, v| {
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
+    use bevy::ecs::resource::Resource;
     use bevy::math::Rot2;
     use bevy::ui::{Node, UiTransform, Val};
 
     use super::*;
-    use crate::mount;
     use crate::tests::{Plain, app};
+    use crate::{mount, resource};
 
     fn image_node(app: &App, node: Entity) -> &ImageNode {
         app.world().get::<ImageNode>(node).expect("an icon")
@@ -99,6 +103,30 @@ mod tests {
         );
         let ui = app.world().get::<Node>(node).unwrap();
         assert_eq!(ui.width, Val::Px(20.0));
+    }
+
+    #[derive(Resource)]
+    struct Tinted(Option<Color>);
+
+    #[test]
+    fn a_tint_replaces_the_tone_colour_until_it_is_cleared() {
+        let mut app = app();
+        let tint = Color::srgb(0.2, 0.4, 0.6);
+        app.insert_resource(Tinted(Some(tint)));
+        let node = mount::<Plain>(
+            app.world_mut(),
+            icon(Handle::default())
+                .tone(Tone::Accent)
+                .tint(resource::<Tinted, _>(|tinted| tinted.0)),
+        );
+        assert_eq!(image_node(&app, node).color, tint);
+
+        app.world_mut().resource_mut::<Tinted>().0 = None;
+        app.update();
+        assert_eq!(
+            image_node(&app, node).color,
+            Color::srgb(1.0, 0.5, 0.0)
+        );
     }
 
     #[test]

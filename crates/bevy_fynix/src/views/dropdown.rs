@@ -6,31 +6,34 @@
 //! [`on_menu_event`].
 
 use bevy::asset::Handle;
-use bevy::camera::visibility::Visibility;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
-use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
+use bevy::ecs::query::Has;
 use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy::input_focus::{FocusCause, InputFocus};
-use bevy::ui::{AlignItems, Overflow, UiRect, percent, px};
+use bevy::ui::{
+    AlignItems, ComputedNode, Overflow, UiRect, percent, px,
+};
+use bevy::ui_widgets::popover::PopoverPlacement;
 use bevy::ui_widgets::{
     MenuAction, MenuButton, MenuEvent, MenuFocusState,
 };
 
 use crate::modifier::ModifierExt;
-use crate::prop::{Prop, component};
+use crate::prop::{Prop, component, each};
+use crate::state::{StateExt, hidden};
 use crate::tokens::{
     Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
     Tone,
 };
 use crate::views::foldable::Open;
 use crate::views::frame::{Frame, FrameProps};
-use crate::views::menu::{menu_item, menu_popup};
+use crate::views::menu::{FocusOn, menu_item, menu_popup, slot};
 use crate::views::popup::corners;
 use crate::views::{
     BehaviorExt, button, frame, icon, label, menu_bar, row,
@@ -95,12 +98,102 @@ impl FrameProps for Dropdown {
     }
 }
 
-/// On a dropdown's root node: the button that opens its popup, and
-/// the popup.
+/// On the root node of a button with a list: the button, which opens
+/// the list.
 #[derive(Component)]
 pub(crate) struct Parts {
     button: Entity,
-    popup: Entity,
+}
+
+impl Parts {
+    pub(crate) fn new(button: Entity) -> Self {
+        Self { button }
+    }
+}
+
+/// On the root node of a button with a list while the list is open:
+/// where the focus starts in it.
+#[derive(Component, Clone, Copy)]
+struct OpenFrom(NavAction);
+
+/// How wide a list is at least.
+#[derive(Clone, Copy)]
+pub(crate) enum ListWidth {
+    /// As wide as the button that opens it.
+    Button,
+    Fixed(f32),
+}
+
+/// Shuts the list of the button at `root`.
+pub(crate) fn shut(world: &mut World, root: Entity) {
+    if let Ok(mut entity) = world.get_entity_mut(root) {
+        entity.remove::<(Open, OpenFrom)>();
+    }
+}
+
+/// The list of the button at `root`: the rows `rows` returns, built
+/// against the root where `positions` say while it is open, and
+/// dropped when it shuts. The root holds [`Parts`], and `button` is a
+/// [`MenuButton`].
+pub(crate) fn list<T>(
+    root: Entity,
+    button: Entity,
+    width: ListWidth,
+    positions: Vec<PopoverPlacement>,
+    rows: impl Fn(&World) -> Vec<AnyView<Bevy, T>>
+    + Clone
+    + Send
+    + Sync
+    + 'static,
+) -> impl View<Bevy, T>
+where
+    T: SurfaceTokens
+        + SpacingTokens
+        + MotionTokens
+        + Send
+        + Sync
+        + 'static,
+{
+    each(
+        component::<OpenFrom, _>(root, |open| {
+            open.copied().into_iter().collect::<Vec<_>>()
+        }),
+        |_| (),
+        move |open: &OpenFrom| {
+            let rows = rows.clone();
+            let positions = positions.clone();
+            let nav = open.0;
+            AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+                let rows = rows(cx.world);
+                let min_width = match width {
+                    ListWidth::Fixed(width) => width,
+                    ListWidth::Button => cx
+                        .world
+                        .get::<ComputedNode>(button)
+                        .map_or(0.0, |node| {
+                            node.size().x
+                                * node.inverse_scale_factor()
+                        }),
+                };
+                // Built closed and focused by `focus_first`: the
+                // menu plugin would close a list it finds open
+                // before it has the focus.
+                let node = cx.build(
+                    menu_popup(
+                        rows,
+                        px(min_width),
+                        positions,
+                        MenuFocusState::Closed,
+                    )
+                    .appear::<T>(hidden)
+                    .transition(Motion::Interact),
+                );
+                cx.world.entity_mut(node).insert(FocusOn(nav));
+                node
+            })
+        },
+    )
+    .within(slot::<T>())
 }
 
 /// How far the up-pointing chevron turns while the list is shut, in
@@ -155,14 +248,20 @@ where
                     .unwrap_or_else(|| placeholder.clone())
             })
         };
-        let rows = options
-            .into_iter()
-            .enumerate()
-            .map(|(at, text)| {
-                menu_item(label(text).wrap(false))
-                    .on_activate(move |world| choose(world, root, at))
-            })
-            .collect::<Vec<_>>();
+        let rows = move |_: &World| {
+            options
+                .iter()
+                .cloned()
+                .enumerate()
+                .map(|(at, text)| {
+                    menu_item(label(text).wrap(false))
+                        .on_activate(move |world| {
+                            choose(world, root, at);
+                        })
+                        .boxed()
+                })
+                .collect::<Vec<_>>()
+        };
         let end = icon(chevron)
             .tone(Tone::Dim)
             .size(cx.theme().small_size())
@@ -170,7 +269,7 @@ where
                 if open.is_some() { 0.0 } else { SHUT_TURN }
             }))
             .transition(Motion::Interact);
-        let (button, popup) = cx.under(root, |cx| {
+        let button = cx.under(root, |cx| {
             let button = cx.scope(|cx| {
                 cx.defaults(|cx| cx.root(control_defaults));
                 let mut button = button(
@@ -184,18 +283,18 @@ where
             cx.world
                 .entity_mut(button)
                 .insert((MenuButton, TabIndex(0)));
-            let popup = cx.build(menu_popup(
-                rows,
-                percent(100.0),
+            cx.build(list(
+                root,
+                button,
+                ListWidth::Button,
                 corners(LIST_GAP),
-                MenuFocusState::Closed,
+                rows,
             ));
-            cx.world.entity_mut(popup).insert(Visibility::Hidden);
-            (button, popup)
+            button
         });
         cx.world
             .entity_mut(root)
-            .insert((Parts { button, popup }, OnSelect(on_select)));
+            .insert((Parts { button }, OnSelect(on_select)));
         root
     }
 }
@@ -218,23 +317,7 @@ fn choose(world: &mut World, root: Entity, at: usize) {
         return;
     };
     entity.insert(OnSelect(select));
-    if let Some(popup) =
-        entity.get::<Parts>().map(|parts| parts.popup)
-    {
-        close(world, popup);
-    }
-}
-
-fn close(world: &mut World, popup: Entity) {
-    if let Ok(mut entity) = world.get_entity_mut(popup) {
-        entity.insert((Visibility::Hidden, MenuFocusState::Closed));
-    }
-    let root = world.get::<ChildOf>(popup).map(ChildOf::parent);
-    if let Some(mut root) =
-        root.and_then(|r| world.get_entity_mut(r).ok())
-    {
-        root.remove::<Open>();
-    }
+    shut(world, root);
 }
 
 /// One row of a [`menu_button`]'s list.
@@ -364,23 +447,28 @@ where
             on_select,
         } = self;
         let root = cx.build(frame().height(percent(100.0)));
-        let mut chosen = 0;
-        let rows = entries
-            .into_iter()
-            .map(|entry| match entry {
-                MenuEntry::Item(text) => {
-                    let at = chosen;
-                    chosen += 1;
-                    menu_item(label(text).wrap(false))
-                        .on_activate(move |world| {
-                            choose(world, root, at);
-                        })
-                        .boxed()
-                }
-                MenuEntry::Section(text) => section_row::<T>(text),
-            })
-            .collect::<Vec<_>>();
-        let (button, popup) = cx.under(root, |cx| {
+        let rows = move |_: &World| {
+            let mut chosen = 0;
+            entries
+                .iter()
+                .cloned()
+                .map(|entry| match entry {
+                    MenuEntry::Item(text) => {
+                        let at = chosen;
+                        chosen += 1;
+                        menu_item(label(text).wrap(false))
+                            .on_activate(move |world| {
+                                choose(world, root, at);
+                            })
+                            .boxed()
+                    }
+                    MenuEntry::Section(text) => {
+                        section_row::<T>(text)
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+        let button = cx.under(root, |cx| {
             let button = match face {
                 Face::Title(title) => {
                     let mut button = button(label(title).wrap(false));
@@ -396,39 +484,35 @@ where
             cx.world
                 .entity_mut(button)
                 .insert((MenuButton, TabIndex(0)));
-            let width = cx.theme().menu_width();
-            let popup = cx.build(menu_popup(
-                rows,
-                px(width),
+            let width = ListWidth::Fixed(cx.theme().menu_width());
+            cx.build(list(
+                root,
+                button,
+                width,
                 corners(LIST_GAP),
-                MenuFocusState::Closed,
+                rows,
             ));
-            cx.world.entity_mut(popup).insert(Visibility::Hidden);
-            (button, popup)
+            button
         });
         cx.world
             .entity_mut(root)
-            .insert((Parts { button, popup }, OnSelect(on_select)));
+            .insert((Parts { button }, OnSelect(on_select)));
         root
     }
 }
 
-/// Opens and closes the popup of the dropdown a [`MenuEvent`] bubbles
-/// up to, and keeps [`Open`] on the dropdown in step.
+/// Opens and shuts the dropdown a [`MenuEvent`] bubbles up to, by
+/// [`Open`] on it.
 pub(crate) fn on_menu_event(
     mut event: On<MenuEvent>,
-    dropdowns: Query<&Parts>,
-    popups: Query<&Visibility>,
+    dropdowns: Query<(&Parts, Has<Open>)>,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
     let root = event.event_target();
-    let Ok(parts) = dropdowns.get(root) else {
+    let Ok((parts, shown)) = dropdowns.get(root) else {
         return;
     };
-    let shown = popups
-        .get(parts.popup)
-        .is_ok_and(|shown| *shown == Visibility::Visible);
     let opens = match event.action {
         MenuAction::Open(nav) => Some(Some(nav)),
         MenuAction::Toggle => {
@@ -439,17 +523,10 @@ pub(crate) fn on_menu_event(
     };
     match opens {
         Some(Some(nav)) => {
-            commands.entity(parts.popup).insert((
-                Visibility::Visible,
-                MenuFocusState::Opening(nav),
-            ));
-            commands.entity(root).insert(Open);
+            commands.entity(root).insert((Open, OpenFrom(nav)));
         }
         Some(None) => {
-            commands
-                .entity(parts.popup)
-                .insert((Visibility::Hidden, MenuFocusState::Closed));
-            commands.entity(root).remove::<Open>();
+            commands.entity(root).remove::<(Open, OpenFrom)>();
         }
         None => focus.set(parts.button, FocusCause::Navigated),
     }
@@ -467,7 +544,7 @@ mod tests {
     use bevy::picking::pointer::PointerButton;
     use bevy::ui::widget::{ImageNode, Text};
     use bevy::ui::{Node, UiTransform};
-    use bevy::ui_widgets::{Activate, MenuPlugin};
+    use bevy::ui_widgets::{Activate, MenuPlugin, MenuPopup};
     use bevy::window::Window;
 
     use super::*;
@@ -496,9 +573,27 @@ mod tests {
         )
     }
 
+    /// The button of the dropdown at `root`, and `root` again for
+    /// what is asked of its list.
     fn parts(app: &App, root: Entity) -> (Entity, Entity) {
-        let parts = app.world().get::<Parts>(root).unwrap();
-        (parts.button, parts.popup)
+        (app.world().get::<Parts>(root).unwrap().button, root)
+    }
+
+    /// The list the dropdown at `root` built last, while it has one.
+    fn list(app: &App, root: Entity) -> Option<Entity> {
+        let mut found = None;
+        let mut left = vec![root];
+        while let Some(node) = left.pop() {
+            if app.world().get::<MenuPopup>(node).is_some() {
+                found = Some(node);
+            }
+            left.extend(kids(app, node).into_iter().rev());
+        }
+        found
+    }
+
+    fn rows(app: &App, root: Entity) -> Vec<Entity> {
+        kids(app, list(app, root).expect("an open list"))
     }
 
     fn text(app: &App, node: Entity) -> &str {
@@ -519,9 +614,8 @@ mod tests {
         text(app, kids(app, content)[0]).to_string()
     }
 
-    fn shut(app: &App, popup: Entity) -> bool {
-        app.world().get::<Visibility>(popup)
-            == Some(&Visibility::Hidden)
+    fn shut(app: &App, root: Entity) -> bool {
+        app.world().get::<Open>(root).is_none()
     }
 
     #[test]
@@ -533,16 +627,17 @@ mod tests {
         assert_eq!(shown(&app, root), "Ease in");
         assert!(shut(&app, popup));
         assert!(app.world().get::<MenuButton>(button).is_some());
-        assert_eq!(kids(&app, root), [button, popup]);
+        assert_eq!(list(&app, root), None);
     }
 
     #[test]
     fn its_list_holds_a_row_per_option() {
         let mut app = app();
         let root = pick(&mut app);
-        let (_, popup) = parts(&app, root);
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
 
-        let rows = kids(&app, popup)
+        let rows = rows(&app, popup)
             .into_iter()
             .map(|row| text(&app, kids(&app, row)[0]).to_string())
             .collect::<Vec<_>>();
@@ -555,20 +650,17 @@ mod tests {
         let root = pick(&mut app);
         let (button, popup) = parts(&app, root);
 
-        app.world_mut().trigger(Activate { entity: button });
-        app.update();
-        assert_eq!(
-            app.world().get::<Visibility>(popup),
-            Some(&Visibility::Visible)
-        );
+        open(&mut app, button);
+        assert!(!shut(&app, popup));
         // The menu plugin focuses the first row once it is open.
         assert_eq!(
-            app.world().get::<MenuFocusState>(popup),
+            app.world()
+                .get::<MenuFocusState>(list(&app, root).unwrap()),
             Some(&MenuFocusState::Open)
         );
         assert_eq!(
             app.world().resource::<InputFocus>().get(),
-            Some(kids(&app, popup)[0])
+            Some(rows(&app, popup)[0])
         );
 
         app.world_mut().trigger(Activate { entity: button });
@@ -584,7 +676,7 @@ mod tests {
         app.world_mut().trigger(Activate { entity: button });
         app.update();
 
-        let third = kids(&app, popup)[2];
+        let third = rows(&app, popup)[2];
         app.world_mut().trigger(Activate { entity: third });
         app.update();
 
@@ -651,11 +743,9 @@ mod tests {
     fn a_close_from_a_row_reaches_the_dropdown() {
         let mut app = app();
         let root = pick(&mut app);
-        let (_, popup) = parts(&app, root);
-        app.world_mut()
-            .entity_mut(popup)
-            .insert(Visibility::Visible);
-        let row = kids(&app, popup)[0];
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
+        let row = rows(&app, popup)[0];
 
         // What `bevy_ui_widgets` sends when a row is activated or
         // escape is pressed.
@@ -690,11 +780,8 @@ mod tests {
         assert!(shut(&app, popup));
 
         open(&mut app, button);
-        assert_eq!(
-            app.world().get::<Visibility>(popup),
-            Some(&Visibility::Visible)
-        );
-        let open_row = kids(&app, popup)[1];
+        assert!(!shut(&app, popup));
+        let open_row = rows(&app, popup)[1];
         app.world_mut().trigger(Activate { entity: open_row });
         app.update();
         assert_eq!(app.world().resource::<Chosen>().0, 1);
@@ -726,7 +813,8 @@ mod tests {
             "an icon on the button"
         );
 
-        let rows = kids(&app, popup);
+        open(&mut app, button);
+        let rows = rows(&app, popup);
         assert_eq!(rows.len(), 5);
         fn heading(app: &App, node: Entity) -> Option<String> {
             if let Some(text) = app.world().get::<Text>(node) {
@@ -745,7 +833,6 @@ mod tests {
             Some("Lighting")
         );
 
-        open(&mut app, button);
         app.world_mut().trigger(Activate { entity: rows[4] });
         app.update();
         assert_eq!(
@@ -807,7 +894,7 @@ mod tests {
         open(&mut app, button);
         assert!(app.world().get::<Open>(root).is_some());
 
-        let row = kids(&app, popup)[0];
+        let row = rows(&app, popup)[0];
         app.world_mut().trigger(Activate { entity: row });
         app.update();
 
@@ -862,7 +949,7 @@ mod tests {
         let (button, popup) = parts(&app, root);
         open(&mut app, button);
 
-        let row = kids(&app, popup)[1];
+        let row = rows(&app, popup)[1];
         tests::pointer_press(
             &mut app,
             row,
