@@ -48,7 +48,7 @@ mount::<MyTheme>(
 );
 ```
 
-## Where next
+## Where Next
 
 - [`fynix`](crates/fynix): the core crate, with a guide to building a
   UI framework on top of it.

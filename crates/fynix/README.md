@@ -208,7 +208,7 @@ the tree as the world changes: the old view fades out and its space
 collapses, then the new view's space expands and it fades in.
 `Tick::reduced_motion` skips every step.
 
-## Building a UI framework
+## Building a UI Framework
 
 Fynix is the part of a UI framework that does not depend on an
 engine. A framework on top of it fills in five things, and
@@ -426,7 +426,7 @@ scope wins, and within one scope the one written later. The Bevy
 backend's README shows buttons styled this way, with ready-made looks
 and a `Style` builder.
 
-## Officially supported backends
+## Officially Supported Backends
 
 - [Bevy Fynix](https://crates.io/crates/bevy_fynix)
 

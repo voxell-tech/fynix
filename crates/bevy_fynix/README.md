@@ -37,7 +37,7 @@ token traits they read, and the states rules wait on.
 - `DockPlugin`: split panes with tabbed areas, from a `DockTree`.
 - `style`: builds a look of your own. See [Styling](#styling).
 
-## Quick start
+## Quick Start
 
 See [`gallery.rs`](examples/gallery.rs) for a whole app, or run
 `cargo run -p bevy_fynix --example gallery` to see every idea in a
@@ -175,7 +175,7 @@ join with `then`, and `with(ghost)` starts from a bundle. Chained
 over `b` for resting looks, while for state looks the outer `b` wins.
 Use `then` when the order matters.
 
-## Version matrix
+## Version Matrix
 
 | Bevy    | Fynix          | Bevy Fynix     |
 | ------- | -------------- | -------------- |
