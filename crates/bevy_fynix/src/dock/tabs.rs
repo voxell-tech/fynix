@@ -12,21 +12,24 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::Query;
 use bevy::ecs::world::World;
 use bevy::image::Image;
+use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::ui::{
     AlignItems, BorderRadius, FlexDirection, Overflow, UiRect,
     percent, px,
 };
+use bevy::ui_widgets::MenuButton;
 use bevy::window::SystemCursorIcon;
 
-use super::DockTokens;
 use super::registry::DockRegistry;
 use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
+use super::{DockTokens, popup};
 use crate::cursor::EntityCursor;
 use crate::prop::resource;
 use crate::tokens::Tone;
 use crate::views::{
-    BehaviorExt, Frame, FrameProps, Icon, Label, button, icon, label,
-    row, scroll, tint, tint_to, tinted_icon,
+    BehaviorExt, Frame, FrameProps, Icon, Label, ListWidth, Parts,
+    button, frame, icon, label, list, row, scroll, tint, tint_to,
+    tinted_icon,
 };
 use crate::{
     AnyView, Bevy, Cx, Hovered, ScopedExt, StateExt, ViewExt, each,
@@ -64,9 +67,7 @@ pub(super) struct TabRow {
 
 /// On the "+" button at the end of a bar.
 #[derive(Component, Clone, Copy, Debug)]
-pub(super) struct AddButton {
-    pub leaf: NodeId,
-}
+pub(super) struct AddButton;
 
 /// On the close button of a tab.
 #[derive(Component, Clone, Copy, Debug)]
@@ -263,8 +264,9 @@ fn close<T: DockTokens>(tab: TabId) -> AnyView<Bevy, T> {
     })
 }
 
-/// The "+" button of a bar: a [`tinted_icon`], or the text "+" in the
-/// same look while the app gave no icon.
+/// The "+" button of a bar, opening the list of windows to add: a
+/// [`tinted_icon`], or the text "+" in the same look while the app
+/// gave no icon.
 fn add<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
         let image = cx
@@ -273,23 +275,42 @@ fn add<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
             .and_then(|icons| icons.add.clone());
         let padding =
             UiRect::horizontal(px(cx.theme().tab_padding()));
-        let tag = AddButton { leaf };
-        match image {
-            Some(image) => cx.build(
-                tinted_icon(image)
-                    .padding(padding)
-                    .height(percent(100.0))
-                    .shrink(0.0)
-                    .tagged(tag),
-            ),
-            None => cx.build(
-                button(label("+"))
-                    .padding(padding)
-                    .height(percent(100.0))
-                    .shrink(0.0)
-                    .tagged(tag)
-                    .rules(tint),
-            ),
-        }
+        let width = ListWidth::Fixed(cx.theme().menu_width());
+        let positions = popup::placements(cx.theme().menu_padding());
+        let tag = AddButton;
+        let root =
+            cx.build(frame().height(percent(100.0)).shrink(0.0));
+        let button = cx.under(root, |cx| {
+            let button = match image {
+                Some(image) => cx.build(
+                    tinted_icon(image)
+                        .padding(padding)
+                        .height(percent(100.0))
+                        .tagged(tag),
+                ),
+                None => cx.build(
+                    button(label("+"))
+                        .padding(padding)
+                        .height(percent(100.0))
+                        .tagged(tag)
+                        .rules(tint),
+                ),
+            };
+            cx.world
+                .entity_mut(button)
+                .insert((MenuButton, TabIndex(0)));
+            cx.build(list(
+                root,
+                button,
+                width,
+                positions,
+                move |world: &World| {
+                    popup::rows::<T>(world, leaf, root)
+                },
+            ));
+            button
+        });
+        cx.world.entity_mut(root).insert(Parts::new(button));
+        root
     })
 }

@@ -8,6 +8,7 @@ use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Commands, Query, Res};
+use bevy::input_focus::tab_navigation::NavAction;
 use bevy::math::Vec2;
 use bevy::picking::events::{Pointer, Press};
 use bevy::picking::pointer::PointerButton;
@@ -15,10 +16,13 @@ use bevy::ui::{Pressed, UiScale, px};
 use bevy::ui_widgets::{MenuAction, MenuEvent, MenuFocusState};
 
 use crate::prop::component;
-use crate::tokens::{SpacingTokens, SurfaceTokens};
-use crate::views::menu::{Floating, FocusFirst, float, menu_popup};
+use crate::state::{StateExt, hidden};
+use crate::tokens::{
+    Motion, MotionTokens, SpacingTokens, SurfaceTokens,
+};
+use crate::views::menu::{Floating, FocusOn, float, menu_popup};
 use crate::views::popup::corners;
-use crate::{AnyView, Bevy, Cx, View, ViewSeq};
+use crate::{AnyView, Bevy, Cx, ScopedExt, View, ViewSeq};
 
 /// On a node with a context menu while it is open: where it was
 /// opened, in logical pixels, and which opening of the node it is.
@@ -139,7 +143,12 @@ pub(crate) fn dismiss(
 
 impl<T, V, F, S> View<Bevy, T> for ContextMenu<V, F, S>
 where
-    T: SurfaceTokens + SpacingTokens + Send + Sync + 'static,
+    T: SurfaceTokens
+        + SpacingTokens
+        + MotionTokens
+        + Send
+        + Sync
+        + 'static,
     V: View<Bevy, T>,
     F: Fn() -> S + Send + Sync + 'static,
     S: ViewSeq<Bevy, T> + 'static,
@@ -166,7 +175,12 @@ where
 /// whichever corner has room, for the opening `serial`.
 fn menu<T, S>(serial: u32, rows: S) -> AnyView<Bevy, T>
 where
-    T: SurfaceTokens + SpacingTokens + Send + Sync + 'static,
+    T: SurfaceTokens
+        + SpacingTokens
+        + MotionTokens
+        + Send
+        + Sync
+        + 'static,
     S: ViewSeq<Bevy, T> + 'static,
 {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
@@ -175,11 +189,13 @@ where
             px(cx.theme().menu_width()),
             corners(0.0),
             MenuFocusState::Closed,
-        );
+        )
+        .appear::<T>(hidden)
+        .transition(Motion::Interact);
         let node = cx.build(surface);
         cx.world
             .entity_mut(node)
-            .insert((FocusFirst, OpenedFor(serial)));
+            .insert((FocusOn(NavAction::First), OpenedFor(serial)));
         node
     })
 }

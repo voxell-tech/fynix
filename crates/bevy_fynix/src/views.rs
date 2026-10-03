@@ -29,9 +29,11 @@ pub use checkbox::{Checkbox, checkbox};
 pub(crate) use context_menu::dismiss as dismiss_context_menu;
 pub use context_menu::{ContextMenu, ContextMenuExt};
 pub use divider::{Axis, Divider, divider, revealed};
-pub(crate) use dropdown::on_menu_event as toggle_dropdown;
 pub use dropdown::{
     Dropdown, MenuEntry, MenuTitle, dropdown, menu_button,
+};
+pub(crate) use dropdown::{
+    ListWidth, Parts, list, on_menu_event as toggle_dropdown, shut,
 };
 pub use field::{TextField, text_field};
 pub use field_row::{AnimatedField, FieldRow, HasAction, field_row};
@@ -45,7 +47,7 @@ pub use menu::{
 };
 pub(crate) use menu::{
     close_on_escape, close_on_outside_press, despawn_orphans,
-    focus_first, show_submenus,
+    focus_first,
 };
 pub use number_field::{Number, NumberField, number_field};
 pub use popup::{Popup, corners, popup};

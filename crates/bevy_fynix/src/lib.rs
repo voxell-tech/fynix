@@ -132,10 +132,7 @@ impl Plugin for CorePlugin {
                     .chain()
                     .in_set(FynixSystems::Settle),
             )
-            .add_systems(
-                Update,
-                (views::despawn_orphans, views::show_submenus),
-            );
+            .add_systems(Update, views::despawn_orphans);
     }
 }
 

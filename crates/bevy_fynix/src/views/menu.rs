@@ -1,6 +1,7 @@
 //! The surface menus are drawn on, the rows in it, and what the
 //! floating widgets built on them share.
 
+use core::marker::PhantomData;
 use core::time::Duration;
 
 use bevy::color::Alpha;
@@ -8,7 +9,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Has, With};
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{KeyCode, KeyboardInput};
@@ -17,9 +18,10 @@ use bevy::input_focus::tab_navigation::{
 };
 use bevy::input_focus::{FocusCause, FocusedInput, InputFocus};
 use bevy::math::Vec2;
+use bevy::picking::Pickable;
 use bevy::picking::events::{Pointer, Press};
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, Node, Overflow, OverrideClip,
+    AlignItems, FlexDirection, Node, Overflow, OverrideClip,
     PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui_widgets::popover::{
@@ -34,7 +36,7 @@ use motiongfx_interp::ease;
 
 use crate::cursor::EntityCursor;
 use crate::prop::{Signal, component, each};
-use crate::state::State;
+use crate::state::{State, StateExt, hidden};
 use crate::tokens::{
     Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
     TextTokens, Tone,
@@ -148,34 +150,54 @@ where
     }
 }
 
-/// A menu row that opens `items` as a menu of their own beside it,
-/// while the pointer is on the row or on them.
-pub struct Submenu<C, S> {
+/// A menu row that opens the rows `items` returns as a menu of their
+/// own beside it, while the pointer is on the row or on them.
+pub struct Submenu<C, F, S> {
     pub frame: Frame,
     pub content: C,
-    pub items: S,
+    items: F,
+    rows: PhantomData<fn() -> S>,
 }
 
-/// A [`Submenu`] row showing `content`, opening `items`.
-pub fn submenu<C, S>(content: C, items: S) -> Submenu<C, S> {
+/// A [`Submenu`] row showing `content`. `items` runs each time its
+/// menu opens.
+pub fn submenu<C, F, S>(content: C, items: F) -> Submenu<C, F, S>
+where
+    F: Fn() -> S + Send + Sync + 'static,
+{
     Submenu {
         frame: Frame::unset(),
         content,
         items,
+        rows: PhantomData,
     }
 }
 
-impl<C, S> FrameProps for Submenu<C, S> {
+impl<C, F, S> FrameProps for Submenu<C, F, S> {
     fn frame_mut(&mut self) -> &mut Frame {
         &mut self.frame
     }
 }
 
-/// On the popup of a [`Submenu`], under its row.
+/// On the node a popup is built and dropped under, laid over the
+/// node the popup hangs from.
 #[derive(Component)]
-pub(crate) struct SubmenuPopup;
+pub(crate) struct Slot;
 
-impl<T, C, S> View<Bevy, T> for Submenu<C, S>
+/// A node laid over its parent, for a `keyed` or an `each` to build
+/// a popup under: the popup is placed against it as against the
+/// parent.
+pub(crate) fn slot<T>() -> impl View<Bevy, T> + 'static
+where
+    T: SpacingTokens + Send + Sync + 'static,
+{
+    column(())
+        .position(PositionType::Absolute)
+        .inset(UiRect::all(Val::ZERO))
+        .with((Slot, Pickable::IGNORE))
+}
+
+impl<T, C, F, S> View<Bevy, T> for Submenu<C, F, S>
 where
     T: TextTokens
         + SurfaceTokens
@@ -185,14 +207,15 @@ where
         + Sync
         + 'static,
     C: View<Bevy, T>,
+    F: Fn() -> S + Send + Sync + 'static,
     S: ViewSeq<Bevy, T> + 'static,
 {
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
-        let window_margin = cx.theme().menu_margin();
         let min_width = px(cx.theme().menu_width());
         // Past the padding of the menu the row is in, and as far
         // again clear of its edge.
         let gap = cx.theme().menu_padding() * 2.0;
+        let items = self.items;
         cx.scope(|cx| {
             cx.defaults(|cx| cx.root(item_defaults));
             let node = cx.build(self.frame);
@@ -203,37 +226,63 @@ where
                 cx.build(self.content);
                 cx.build(row(()).grow(1.0));
                 cx.build(label(">").tone(Tone::Dim));
-                // Above the menu the row is in and the strip around
-                // it, which would otherwise take its rows' pointer.
-                let surface = column(self.items)
-                    .min_width(min_width)
-                    .position(PositionType::Relative)
-                    .z(Some(MENU_Z + 1))
-                    .rules(|cx: &mut Cx<'_, Bevy, T>| {
-                        cx.defaults(menu_surface);
+            });
+            let popup = move |_: &()| {
+                let rows = items();
+                AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+                    // Closed, so the focus stays in the menu the row
+                    // is in: it opens and shuts with the row's hover.
+                    let node = cx.build(
+                        menu_popup(
+                            rows,
+                            min_width,
+                            beside(gap),
+                            MenuFocusState::Closed,
+                        )
+                        .appear::<T>(hidden)
+                        .transition(Motion::Interact),
+                    );
+                    // A strip over the gap on either side, so the
+                    // pointer keeps the row hovered on its way
+                    // across.
+                    cx.under(node, |cx| {
+                        for (left, right) in [
+                            (px(-gap), Val::Auto),
+                            (Val::Auto, px(-gap)),
+                        ] {
+                            cx.build(
+                                column(())
+                                    .position(PositionType::Absolute)
+                                    .inset(UiRect {
+                                        left,
+                                        right,
+                                        top: Val::ZERO,
+                                        bottom: Val::ZERO,
+                                    })
+                                    .width(px(gap))
+                                    .with(OverrideClip),
+                            );
+                        }
                     });
-                // Under the row and touching it, with the gap as its
-                // own padding, so the pointer keeps the row hovered
-                // on its way across and the focus stays in the row's
-                // menu.
-                let popup = cx.build(
-                    column((surface,))
-                        .gap(0.0)
-                        .position(PositionType::Absolute)
-                        .padding(UiRect::horizontal(px(gap)))
-                        .with((
-                            Popover {
-                                positions: beside(),
-                                window_margin,
-                            },
-                            OverrideClip,
-                            SubmenuPopup,
-                        )),
+                    node
+                })
+            };
+            // Under the row, so the focus stays within the menu the
+            // row is in.
+            cx.under(node, |cx| {
+                cx.build(
+                    each(
+                        component::<Hovered, _>(node, |hovered| {
+                            hovered
+                                .map(|_| ())
+                                .into_iter()
+                                .collect::<Vec<_>>()
+                        }),
+                        |_| (),
+                        popup,
+                    )
+                    .within(slot::<T>()),
                 );
-                if let Some(mut ui) = cx.world.get_mut::<Node>(popup)
-                {
-                    ui.display = Display::None;
-                }
             });
             node
         })
@@ -241,37 +290,15 @@ where
 }
 
 /// Right of the anchor, then left of it, lined up with its top, then
-/// its bottom, touching it.
-fn beside() -> Vec<PopoverPlacement> {
+/// its bottom, `gap` away from it.
+fn beside(gap: f32) -> Vec<PopoverPlacement> {
     use PopoverAlign::{End, Start};
     use PopoverSide::{Left, Right};
 
     [(Right, Start), (Left, Start), (Right, End), (Left, End)]
         .into_iter()
-        .map(|(side, align)| PopoverPlacement {
-            side,
-            align,
-            gap: 0.0,
-        })
+        .map(|(side, align)| PopoverPlacement { side, align, gap })
         .collect()
-}
-
-/// Lays each [`Submenu`]'s popup out while its row is hovered, and
-/// takes it out of the layout otherwise.
-pub(crate) fn show_submenus(
-    rows: Query<Has<Hovered>>,
-    mut popups: Query<(&ChildOf, &mut Node), With<SubmenuPopup>>,
-) {
-    for (row, mut ui) in &mut popups {
-        let want = if rows.get(row.parent()).unwrap_or(false) {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if ui.display != want {
-            ui.display = want;
-        }
-    }
 }
 
 /// A column of `items` on a menu surface, at least `min_width` wide,
@@ -308,25 +335,23 @@ where
     })
 }
 
-/// On a popup that takes the keyboard focus on its first row once it
-/// is built.
+/// On a popup that takes the keyboard focus once it is built, on its
+/// first row or its last.
 #[derive(Component)]
-pub(crate) struct FocusFirst;
+pub(crate) struct FocusOn(pub(crate) NavAction);
 
-/// Gives the first row of each popup marked [`FocusFirst`] the focus,
-/// which is what keeps it open.
+/// Gives a row of each popup marked [`FocusOn`] the focus, which is
+/// what keeps it open.
 pub(crate) fn focus_first(
-    popups: Query<Entity, With<FocusFirst>>,
+    popups: Query<(Entity, &FocusOn)>,
     mut states: Query<&mut MenuFocusState>,
     navigation: TabNavigation,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
-    for popup in &popups {
-        commands.entity(popup).remove::<FocusFirst>();
-        if let Ok(row) =
-            navigation.initialize(popup, NavAction::First)
-        {
+    for (popup, on) in &popups {
+        commands.entity(popup).remove::<FocusOn>();
+        if let Ok(row) = navigation.initialize(popup, on.0) {
             focus.set(row, FocusCause::Navigated);
             if let Ok(mut state) = states.get_mut(popup) {
                 *state = MenuFocusState::Open;
@@ -345,11 +370,9 @@ pub(crate) fn focus_first(
 /// Bevy's feathers does not have.
 pub(crate) fn close_on_outside_press(
     press: On<Pointer<Press>>,
-    popups: Query<
-        (Entity, &MenuFocusState, Option<&ChildOf>),
-        With<MenuPopup>,
-    >,
+    popups: Query<(Entity, &MenuFocusState), With<MenuPopup>>,
     parents: Query<&ChildOf>,
+    slots: Query<(), With<Slot>>,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
@@ -360,11 +383,16 @@ pub(crate) fn close_on_outside_press(
         node == ancestor
             || parents.iter_ancestors(node).any(|up| up == ancestor)
     };
-    for (popup, state, parent) in &popups {
+    for (popup, state) in &popups {
         if matches!(state, MenuFocusState::Closed) {
             continue;
         }
-        let owner = parent.map_or(popup, ChildOf::parent);
+        // Past the slot it was built under, which only stands in for
+        // the node it hangs from.
+        let owner = parents
+            .iter_ancestors(popup)
+            .find(|&up| !slots.contains(up))
+            .unwrap_or(popup);
         if within(press.entity, owner) {
             continue;
         }
@@ -529,31 +557,31 @@ mod tests {
     }
 
     #[test]
-    fn a_submenu_is_laid_out_only_while_its_row_is_hovered() {
+    fn a_submenu_is_built_only_while_its_row_is_hovered() {
         let mut app = app();
         let row = mount::<Plain>(
             app.world_mut(),
-            submenu(label("Wrap in"), (menu_item(label("All")),)),
+            submenu(label("Wrap in"), || (menu_item(label("All")),)),
         );
         app.update();
-        let popup = tests::kids(&app, row)
-            .into_iter()
-            .find(|&kid| {
-                app.world().get::<SubmenuPopup>(kid).is_some()
-            })
-            .unwrap();
-        let display = |app: &App| {
-            app.world().get::<Node>(popup).unwrap().display
+        let popups = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<(), With<Popover>>()
+                .iter(app.world())
+                .count()
         };
-        assert_eq!(display(&app), Display::None);
+        assert_eq!(popups(&mut app), 0);
 
         tests::hover(&mut app, row, true);
         app.update();
-        assert_eq!(display(&app), Display::Flex);
+        assert_eq!(popups(&mut app), 1);
 
         tests::hover(&mut app, row, false);
-        app.update();
-        assert_eq!(display(&app), Display::None);
+        // Long enough to have faded out.
+        for _ in 0..8 {
+            app.update();
+        }
+        assert_eq!(popups(&mut app), 0);
     }
 
     #[test]
