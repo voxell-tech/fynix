@@ -7,35 +7,35 @@
 [![CI](https://github.com/voxell-tech/fynix/workflows/CI/badge.svg)](https://github.com/voxell-tech/fynix/actions)
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
-**Bevy Fynix** is the Bevy backend for [`fynix`](https://github.com/voxell-tech/fynix/tree/main/crates/fynix).
+**Bevy Fynix** is the Bevy backend for [`fynix`](https://crates.io/crates/fynix).
 
-Nodes are entities and the world is Bevy's `World`. On top of that
-seam it ships elements written against `bevy_ui` (`Label`, `Frame`,
+Nodes are entities and the world is Bevy's `World`. On top of that,
+it ships elements written against `bevy_ui` (`Label`, `Frame`,
 `Icon`), composites (`row`, `column`, `button`, `foldable`), the
 token traits they read, and the states rules wait on.
 
-![The Bevy gallery example: bound values, hover transitions, button styles, a segmented control and scoped rules.](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/gallery.webp)
+![gallery](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/gallery.webp)
 
-- `FynixPlugin<T>` - keeps every mounted view in step with the world
+- `FynixPlugin<T>`: keeps every mounted view in step with the world
   each `Update`, for views built with the theme `T`.
-- `Theme<T>` - the theme, as a resource the app inserts.
-- `mount` - builds a view at the root of the UI.
-- `Hovered`, `Pressed`, `Entering`, `Leaving` - states for
+- `Theme<T>`: the theme, as a resource the app inserts.
+- `mount`: builds a view at the root of the UI.
+- `Hovered`, `Pressed`, `Entering`, `Leaving`: states for
   `.when::<S, _>(..)`, and any component of your own works too. A
   view a `keyed` or `each` builds later keeps `Entering` until its
   space has expanded, so it fades in last, and a view they drop gets
   `Leaving`, then collapses. `ReducedMotion` skips all of it.
 - `ghost`, `tint`, `icon_button`, `primary`, `danger`, `menu_bar`,
-  `segment` - button looks, as bundles for `.rules(..)`. Only
+  `segment`: button looks, as bundles for `.rules(..)`. Only
   `icon_button` and `tint` never have a surface.
-- `tinted_icon` - a button of one icon in the `tint` look, for an
+- `tinted_icon`: a button of one icon in the `tint` look, for an
   action beside content, such as a plus that adds to a list.
-- `revealed` - a divider look that draws only while hovered or
+- `revealed`: a divider look that draws only while hovered or
   `Dragging`.
-- `popup` - a menu surface hung off a point, over a backdrop that
+- `popup`: a menu surface hung off a point, over a backdrop that
   dismisses it when pressed.
-- `DockPlugin` - split panes with tabbed areas, from a `DockTree`.
-- `style` - builds a look of your own. See [Styling](#styling).
+- `DockPlugin`: split panes with tabbed areas, from a `DockTree`.
+- `style`: builds a look of your own. See [Styling](#styling).
 
 ## Quick Start
 
