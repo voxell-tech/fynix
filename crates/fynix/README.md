@@ -93,11 +93,6 @@ impl TextTokens for Large {
         18.0
     }
 }
-# impl MotionTokens for Large {
-#     fn motion(&self, m: Motion) -> Curve {
-#         Warm.motion(m)
-#     }
-# }
 
 # fn main() {
 let mut ui = Ui::new(Large);

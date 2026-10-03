@@ -123,7 +123,7 @@ pub struct Ui<T> {
     pub mounted: Mounted<Toy, T>,
 }
 
-impl<T: TextTokens + MotionTokens + 'static> Ui<T> {
+impl<T: TextTokens + 'static> Ui<T> {
     pub fn new(theme: T) -> Self {
         Self {
             world: World::default(),
