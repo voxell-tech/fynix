@@ -77,7 +77,22 @@ impl Patch<Toy, f32> for WriteSize {
         world.nodes[node].size = *size;
     }
 }
-# fn main() {}
+
+// A theme: any type that implements the token traits.
+struct Warm;
+
+impl TextTokens for Warm {
+    fn body_size(&self) -> f32 {
+        14.0
+    }
+}
+
+fn main() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(|cx| cx.build(text("Hello")));
+    assert_eq!(ui.world.nodes[node].text, "Hello");
+    assert_eq!(ui.size(node), 14.0);
+}
 ```
 
 ### Tokens and themes
@@ -96,11 +111,11 @@ impl TextTokens for Large {
     }
 }
 
-# fn main() {
-let mut ui = Ui::new(Large);
-let node = ui.build(|cx| cx.build(text("Hello")));
-assert_eq!(ui.size(node), 18.0);
-# }
+fn main() {
+    let mut ui = Ui::new(Large);
+    let node = ui.build(|cx| cx.build(text("Hello")));
+    assert_eq!(ui.size(node), 18.0);
+}
 ```
 
 ### Set rules
@@ -111,18 +126,18 @@ left unset.
 
 ```rust
 # #[path = "docs/toy.rs"] mod _doc; use _doc::*;
-# fn main() {
-let mut ui = Ui::new(Warm);
-let (body, title) = ui.build(|cx| {
-    cx.set::<Text>(|t, _| t.size(12.0));
-    (
-        cx.build(text("Body")),
-        cx.build(text("Title").size(20.0)),
-    )
-});
-assert_eq!(ui.size(body), 12.0);
-assert_eq!(ui.size(title), 20.0);
-# }
+fn main() {
+    let mut ui = Ui::new(Warm);
+    let (body, title) = ui.build(|cx| {
+        cx.set::<Text>(|t, _| t.size(12.0));
+        (
+            cx.build(text("Body")),
+            cx.build(text("Title").size(20.0)),
+        )
+    });
+    assert_eq!(ui.size(body), 12.0);
+    assert_eq!(ui.size(title), 20.0);
+}
 ```
 
 ### Show rules
@@ -132,14 +147,14 @@ after its call site, so it wins over a value set there.
 
 ```rust
 # #[path = "docs/toy.rs"] mod _doc; use _doc::*;
-# fn main() {
-let mut ui = Ui::new(Warm);
-let title = ui.build(|cx| {
-    cx.show::<Text>(|t, _| t.size(30.0));
-    cx.build(text("Title").size(20.0))
-});
-assert_eq!(ui.size(title), 30.0);
-# }
+fn main() {
+    let mut ui = Ui::new(Warm);
+    let title = ui.build(|cx| {
+        cx.show::<Text>(|t, _| t.size(30.0));
+        cx.build(text("Title").size(20.0))
+    });
+    assert_eq!(ui.size(title), 30.0);
+}
 ```
 
 ### Scopes
@@ -148,18 +163,18 @@ Rules end with the scope they are set in.
 
 ```rust
 # #[path = "docs/toy.rs"] mod _doc; use _doc::*;
-# fn main() {
-let mut ui = Ui::new(Warm);
-let (inside, after) = ui.build(|cx| {
-    let inside = cx.scope(|cx| {
-        cx.set::<Text>(|t, _| t.size(12.0));
-        cx.build(text("Inside"))
+fn main() {
+    let mut ui = Ui::new(Warm);
+    let (inside, after) = ui.build(|cx| {
+        let inside = cx.scope(|cx| {
+            cx.set::<Text>(|t, _| t.size(12.0));
+            cx.build(text("Inside"))
+        });
+        (inside, cx.build(text("After")))
     });
-    (inside, cx.build(text("After")))
-});
-assert_eq!(ui.size(inside), 12.0);
-assert_eq!(ui.size(after), 14.0);
-# }
+    assert_eq!(ui.size(inside), 12.0);
+    assert_eq!(ui.size(after), 14.0);
+}
 ```
 
 ### State rules
@@ -169,22 +184,22 @@ hovered. Rules set inside it reach every view under that view.
 
 ```rust
 # #[path = "docs/toy.rs"] mod _doc; use _doc::*;
-# fn main() {
-let mut ui = Ui::new(Warm);
-let node = ui.build(|cx| {
-    text("Save")
-        .when_in::<Hovered, _>(|cx: &mut Cx<Toy, Warm>| {
-            cx.set::<Text>(|t, _| t.size(20.0));
-        })
-        .build(cx)
-});
-assert_eq!(ui.size(node), 14.0);
+fn main() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(|cx| {
+        text("Save")
+            .when_in::<Hovered, _>(|cx: &mut Cx<Toy, Warm>| {
+                cx.set::<Text>(|t, _| t.size(20.0));
+            })
+            .build(cx)
+    });
+    assert_eq!(ui.size(node), 14.0);
 
-ui.world.nodes[node].hovered = true;
-ui.mounted.mark_dirty(node);
-ui.frame();
-assert_eq!(ui.size(node), 20.0);
-# }
+    ui.world.nodes[node].hovered = true;
+    ui.mounted.mark_dirty(node);
+    ui.frame();
+    assert_eq!(ui.size(node), 20.0);
+}
 ```
 
 Add `.transition(..)` to a view and its changes animate over a curve
