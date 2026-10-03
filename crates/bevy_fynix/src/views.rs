@@ -40,11 +40,12 @@ pub use frame::{Frame, FrameProps, frame};
 pub use icon::{Icon, IconProps, icon};
 pub use label::{Label, LabelProps, label};
 pub use menu::{
-    MENU_Z, MenuItem, TOOLTIP_Z, menu_item, menu_surface,
+    MENU_Z, MenuItem, Submenu, TOOLTIP_Z, menu_item, menu_surface,
+    submenu,
 };
 pub(crate) use menu::{
     close_on_escape, close_on_outside_press, despawn_orphans,
-    focus_first,
+    focus_first, show_submenus,
 };
 pub use number_field::{Number, NumberField, number_field};
 pub use popup::{Popup, corners, popup};

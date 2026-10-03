@@ -1,12 +1,14 @@
 //! The surface menus are drawn on, the rows in it, and what the
 //! floating widgets built on them share.
 
+use core::time::Duration;
+
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{KeyCode, KeyboardInput};
@@ -17,23 +19,28 @@ use bevy::input_focus::{FocusCause, FocusedInput, InputFocus};
 use bevy::math::Vec2;
 use bevy::picking::events::{Pointer, Press};
 use bevy::ui::{
-    AlignItems, FlexDirection, Node, Overflow, OverrideClip,
+    AlignItems, Display, FlexDirection, Node, Overflow, OverrideClip,
     PositionType, UiRect, Val, percent, px,
 };
-use bevy::ui_widgets::popover::{Popover, PopoverPlacement};
+use bevy::ui_widgets::popover::{
+    Popover, PopoverAlign, PopoverPlacement, PopoverSide,
+};
 use bevy::ui_widgets::{
     MenuAction, MenuEvent, MenuFocusState,
     MenuItem as MenuItemBehavior, MenuPopup,
 };
 use bevy::window::SystemCursorIcon;
+use motiongfx_interp::ease;
 
 use crate::cursor::EntityCursor;
 use crate::prop::{Signal, component, each};
 use crate::state::State;
 use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens,
+    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
+    TextTokens, Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
+use crate::views::label::label;
 use crate::views::stack::{column, row};
 use crate::{
     AnyView, Bevy, Cx, Hovered, ScopedExt, Styled, View, ViewSeq,
@@ -138,6 +145,132 @@ where
             cx.under(node, |cx| cx.build(self.content));
             node
         })
+    }
+}
+
+/// A menu row that opens `items` as a menu of their own beside it,
+/// while the pointer is on the row or on them.
+pub struct Submenu<C, S> {
+    pub frame: Frame,
+    pub content: C,
+    pub items: S,
+}
+
+/// A [`Submenu`] row showing `content`, opening `items`.
+pub fn submenu<C, S>(content: C, items: S) -> Submenu<C, S> {
+    Submenu {
+        frame: Frame::unset(),
+        content,
+        items,
+    }
+}
+
+impl<C, S> FrameProps for Submenu<C, S> {
+    fn frame_mut(&mut self) -> &mut Frame {
+        &mut self.frame
+    }
+}
+
+/// On the popup of a [`Submenu`], under its row.
+#[derive(Component)]
+pub(crate) struct SubmenuPopup;
+
+impl<T, C, S> View<Bevy, T> for Submenu<C, S>
+where
+    T: TextTokens
+        + SurfaceTokens
+        + SpacingTokens
+        + MotionTokens
+        + Send
+        + Sync
+        + 'static,
+    C: View<Bevy, T>,
+    S: ViewSeq<Bevy, T> + 'static,
+{
+    fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
+        let window_margin = cx.theme().menu_margin();
+        let min_width = px(cx.theme().menu_width());
+        // Past the padding of the menu the row is in, and as far
+        // again clear of its edge.
+        let gap = cx.theme().menu_padding() * 2.0;
+        cx.scope(|cx| {
+            cx.defaults(|cx| cx.root(item_defaults));
+            let node = cx.build(self.frame);
+            cx.world
+                .entity_mut(node)
+                .insert(EntityCursor(SystemCursorIcon::Pointer));
+            cx.under(node, |cx| {
+                cx.build(self.content);
+                cx.build(row(()).grow(1.0));
+                cx.build(label(">").tone(Tone::Dim));
+                // Above the menu the row is in and the strip around
+                // it, which would otherwise take its rows' pointer.
+                let surface = column(self.items)
+                    .min_width(min_width)
+                    .position(PositionType::Relative)
+                    .z(Some(MENU_Z + 1))
+                    .rules(|cx: &mut Cx<'_, Bevy, T>| {
+                        cx.defaults(menu_surface);
+                    });
+                // Under the row and touching it, with the gap as its
+                // own padding, so the pointer keeps the row hovered
+                // on its way across and the focus stays in the row's
+                // menu.
+                let popup = cx.build(
+                    column((surface,))
+                        .gap(0.0)
+                        .position(PositionType::Absolute)
+                        .padding(UiRect::horizontal(px(gap)))
+                        .with((
+                            Popover {
+                                positions: beside(),
+                                window_margin,
+                            },
+                            OverrideClip,
+                            SubmenuPopup,
+                        )),
+                );
+                if let Some(mut ui) = cx.world.get_mut::<Node>(popup)
+                {
+                    ui.display = Display::None;
+                }
+            });
+            node
+        })
+    }
+}
+
+/// Right of the anchor, then left of it, lined up with its top, then
+/// its bottom, touching it.
+fn beside() -> Vec<PopoverPlacement> {
+    use PopoverAlign::{End, Start};
+    use PopoverSide::{Left, Right};
+
+    [(Right, Start), (Left, Start), (Right, End), (Left, End)]
+        .into_iter()
+        .map(|(side, align)| PopoverPlacement {
+            side,
+            align,
+            gap: 0.0,
+        })
+        .collect()
+}
+
+/// Lays each [`Submenu`]'s popup out while its row is hovered, and
+/// takes it out of the layout otherwise.
+pub(crate) fn show_submenus(
+    rows: Query<Has<Hovered>>,
+    mut popups: Query<(&ChildOf, &mut Node), With<SubmenuPopup>>,
+) {
+    for (row, mut ui) in &mut popups {
+        let want = if rows.get(row.parent()).unwrap_or(false) {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if ui.display != want {
+            ui.display = want;
+        }
     }
 }
 
@@ -342,7 +475,17 @@ where
 {
     let view =
         each(items, key, build).within(anchor::<T, C>(source, at));
-    cx.at_root(|cx| cx.build(view))
+    cx.at_root(|cx| {
+        cx.scope(|cx| {
+            // Still under the rules of where it was built, whose
+            // transition would ease it in from an unset look.
+            cx.transition_over(Curve {
+                duration: Duration::ZERO,
+                ease: ease::linear,
+            });
+            cx.build(view)
+        })
+    })
 }
 
 #[cfg(test)]
@@ -383,6 +526,34 @@ mod tests {
         let inner = app.world().get::<Children>(node).unwrap()[0];
         assert_eq!(fill(&app, inner), Color::NONE);
         assert!(app.world().get::<GlobalZIndex>(inner).is_none());
+    }
+
+    #[test]
+    fn a_submenu_is_laid_out_only_while_its_row_is_hovered() {
+        let mut app = app();
+        let row = mount::<Plain>(
+            app.world_mut(),
+            submenu(label("Wrap in"), (menu_item(label("All")),)),
+        );
+        app.update();
+        let popup = tests::kids(&app, row)
+            .into_iter()
+            .find(|&kid| {
+                app.world().get::<SubmenuPopup>(kid).is_some()
+            })
+            .unwrap();
+        let display = |app: &App| {
+            app.world().get::<Node>(popup).unwrap().display
+        };
+        assert_eq!(display(&app), Display::None);
+
+        tests::hover(&mut app, row, true);
+        app.update();
+        assert_eq!(display(&app), Display::Flex);
+
+        tests::hover(&mut app, row, false);
+        app.update();
+        assert_eq!(display(&app), Display::None);
     }
 
     #[test]
