@@ -62,6 +62,14 @@ fn text(text: impl Into<Prop<World, String>>) -> Text {
     }
 }
 
+pub struct WriteText;
+
+impl Patch<Toy, String> for WriteText {
+    fn patch(world: &mut World, node: usize, text: &String) {
+        world.nodes[node].text.clone_from(text);
+    }
+}
+
 pub struct WriteSize;
 
 impl Patch<Toy, f32> for WriteSize {
@@ -69,12 +77,6 @@ impl Patch<Toy, f32> for WriteSize {
         world.nodes[node].size = *size;
     }
 }
-# pub struct WriteText;
-# impl Patch<Toy, String> for WriteText {
-#     fn patch(world: &mut World, node: usize, text: &String) {
-#         world.nodes[node].text.clone_from(text);
-#     }
-# }
 # fn main() {}
 ```
 
