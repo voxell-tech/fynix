@@ -11,7 +11,7 @@ use bevy::ecs::system::{Commands, Query, Res};
 use bevy::math::Vec2;
 use bevy::picking::events::{Pointer, Press};
 use bevy::picking::pointer::PointerButton;
-use bevy::ui::{UiScale, px};
+use bevy::ui::{Pressed, UiScale, px};
 use bevy::ui_widgets::{MenuAction, MenuEvent, MenuFocusState};
 
 use crate::prop::component;
@@ -90,13 +90,18 @@ fn open(
     let serial = openings
         .get(source)
         .map_or(0, |count| count.0.wrapping_add(1));
-    commands.entity(source).insert((
-        OpenAt {
-            at: press.pointer_location.position / scale,
-            serial,
-        },
-        Openings(serial),
-    ));
+    commands
+        .entity(source)
+        .insert((
+            OpenAt {
+                at: press.pointer_location.position / scale,
+                serial,
+            },
+            Openings(serial),
+        ))
+        // A button is pressed by any pointer button, and letting go
+        // would activate it under its own menu.
+        .remove::<Pressed>();
 }
 
 /// Closes the context menu a close request bubbles up to, unless the
@@ -300,6 +305,22 @@ mod tests {
                 .is_none(),
             "hangs at the root of the window"
         );
+    }
+
+    #[test]
+    fn a_right_press_opens_the_menu_and_leaves_a_button_unpressed() {
+        let mut app = app();
+        app.add_plugins(bevy::ui_widgets::ButtonPlugin);
+        let source = mount::<Plain>(
+            app.world_mut(),
+            crate::views::button(label("row"))
+                .context_menu(|| (menu_item(label("Delete")),)),
+        );
+
+        press(&mut app, source, PointerButton::Secondary, Vec2::ZERO);
+
+        assert_eq!(popups(&mut app).len(), 1);
+        assert!(app.world().get::<Pressed>(source).is_none());
     }
 
     #[test]
