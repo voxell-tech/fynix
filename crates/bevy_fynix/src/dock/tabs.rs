@@ -1,9 +1,15 @@
 //! A leaf's tab bar: a scrolling row of tabs and the "+" button.
 
 use bevy::asset::Handle;
+use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
+use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::query::{Has, With};
 use bevy::ecs::resource::Resource;
+use bevy::ecs::system::Query;
 use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::ui::{
@@ -60,6 +66,31 @@ pub(super) struct TabRow {
 #[derive(Component, Clone, Copy, Debug)]
 pub(super) struct AddButton {
     pub leaf: NodeId,
+}
+
+/// On the close button of a tab.
+#[derive(Component, Clone, Copy, Debug)]
+pub(super) struct CloseButton;
+
+/// Shows each close button while its tab is hovered. Hidden nodes
+/// keep their space and are not picked.
+pub(super) fn show_close(
+    tabs: Query<Has<Hovered>, With<DockTab>>,
+    parents: Query<&ChildOf>,
+    mut buttons: Query<(Entity, &mut Visibility), With<CloseButton>>,
+) {
+    for (button, mut visibility) in &mut buttons {
+        let over = parents
+            .iter_ancestors(button)
+            .find_map(|ancestor| tabs.get(ancestor).ok())
+            .unwrap_or(false);
+        let want = if over {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        visibility.set_if_neq(want);
+    }
 }
 
 /// The bar of `leaf`.
@@ -211,19 +242,22 @@ fn close<T: DockTokens>(tab: TabId) -> AnyView<Bevy, T> {
         let remove = move |world: &mut World| {
             world.resource_mut::<DockTree>().remove_tab(tab);
         };
+        let start = (CloseButton, Visibility::Hidden);
         match image {
             Some(image) => cx.build(
                 tinted_icon(image)
                     .size(size)
                     .hover(Tone::Critical)
                     .padding(padding)
-                    .on_activate(remove),
+                    .on_activate(remove)
+                    .seeded(start),
             ),
             None => cx.build(
                 button(label("x").size(size))
                     .padding(padding)
                     .on_activate(remove)
-                    .rules(tint_to(Tone::Critical)),
+                    .rules(tint_to(Tone::Critical))
+                    .seeded(start),
             ),
         }
     })

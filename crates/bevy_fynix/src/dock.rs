@@ -87,7 +87,7 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
             .add_observer(drag::start)
             .add_observer(drag::moved::<T>)
             .add_observer(drag::end)
-            .add_systems(Update, drag::cancel);
+            .add_systems(Update, (drag::cancel, tabs::show_close));
     }
 }
 
@@ -514,6 +514,37 @@ mod tests {
             texts(&app, left_area),
             ["+", "One", "one body", "x"]
         );
+    }
+
+    #[test]
+    fn a_close_button_shows_only_while_its_tab_is_hovered() {
+        let (mut app, _, _) = app();
+        let tabs = find::<DockTab>(&mut app);
+        let visibility = |app: &App, tab: Entity| {
+            let close = subtree(app, tab)
+                .into_iter()
+                .find(|&node| {
+                    app.world()
+                        .get::<tabs::CloseButton>(node)
+                        .is_some()
+                })
+                .expect("a close button");
+            *app.world().get::<Visibility>(close).unwrap()
+        };
+        let [(one, _), (two, _), ..] = tabs[..] else {
+            panic!("two tabs");
+        };
+        settle(&mut app);
+        assert_eq!(visibility(&app, one), Visibility::Hidden);
+
+        tests::hover(&mut app, one, true);
+        settle(&mut app);
+        assert_eq!(visibility(&app, one), Visibility::Inherited);
+        assert_eq!(visibility(&app, two), Visibility::Hidden);
+
+        tests::hover(&mut app, one, false);
+        settle(&mut app);
+        assert_eq!(visibility(&app, one), Visibility::Hidden);
     }
 
     #[test]
