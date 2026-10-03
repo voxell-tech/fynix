@@ -212,7 +212,7 @@ collapses, then the new view's space expands and it fades in.
 
 Fynix is the part of a UI framework that does not depend on an
 engine. A framework on top of it fills in five things, and
-[`bevy_fynix`](../bevy_fynix) is a full example of each:
+[`bevy_fynix`](https://crates.io/crates/bevy_fynix) is a full example of each:
 
 1. **A backend**, which says what a world and a node are. `spawn`,
    `despawn` and `reorder` are required. `on_mount`, `leave`, `hold`,

@@ -14,7 +14,7 @@ it ships elements written against `bevy_ui` (`Label`, `Frame`,
 `Icon`), composites (`row`, `column`, `button`, `foldable`), the
 token traits they read, and the states rules wait on.
 
-![The Bevy gallery example: bound values, hover transitions, button styles, a segmented control and scoped rules.](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/gallery.webp)
+![gallery](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/gallery.webp)
 
 - `FynixPlugin<T>`: keeps every mounted view in step with the world
   each `Update`, for views built with the theme `T`.
