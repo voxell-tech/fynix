@@ -12,12 +12,14 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::{Commands, Query, ResMut};
-use bevy::ecs::world::World;
+use bevy::ecs::system::{Commands, EntityCommand, Query, ResMut};
+use bevy::ecs::world::{EntityWorldMut, World};
 use bevy::image::Image;
 use bevy::input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy::input_focus::{FocusCause, InputFocus};
-use bevy::ui::{AlignItems, Overflow, UiRect, percent, px};
+use bevy::ui::{
+    AlignItems, Display, Node, Overflow, UiRect, percent, px,
+};
 use bevy::ui_widgets::{
     MenuAction, MenuButton, MenuEvent, MenuFocusState,
 };
@@ -191,12 +193,25 @@ where
                 MenuFocusState::Closed,
             ));
             cx.world.entity_mut(popup).insert(Visibility::Hidden);
+            laid_out(false).apply(cx.world.entity_mut(popup));
             (button, popup)
         });
         cx.world
             .entity_mut(root)
             .insert((Parts { button, popup }, OnSelect(on_select)));
         root
+    }
+}
+
+/// Takes a popup into the layout, or out of it. A shut popup is
+/// hidden, but a hidden node still has a place, and its absolute box
+/// stretches the content of a scroll area it hangs in.
+fn laid_out(shown: bool) -> impl EntityCommand {
+    move |mut entity: EntityWorldMut| {
+        if let Some(mut node) = entity.get_mut::<Node>() {
+            node.display =
+                if shown { Display::Flex } else { Display::None };
+        }
     }
 }
 
@@ -228,6 +243,7 @@ fn choose(world: &mut World, root: Entity, at: usize) {
 fn close(world: &mut World, popup: Entity) {
     if let Ok(mut entity) = world.get_entity_mut(popup) {
         entity.insert((Visibility::Hidden, MenuFocusState::Closed));
+        laid_out(false).apply(entity);
     }
     let root = world.get::<ChildOf>(popup).map(ChildOf::parent);
     if let Some(mut root) =
@@ -404,6 +420,7 @@ where
                 MenuFocusState::Closed,
             ));
             cx.world.entity_mut(popup).insert(Visibility::Hidden);
+            laid_out(false).apply(cx.world.entity_mut(popup));
             (button, popup)
         });
         cx.world
@@ -439,16 +456,20 @@ pub(crate) fn on_menu_event(
     };
     match opens {
         Some(Some(nav)) => {
-            commands.entity(parts.popup).insert((
-                Visibility::Visible,
-                MenuFocusState::Opening(nav),
-            ));
+            commands
+                .entity(parts.popup)
+                .insert((
+                    Visibility::Visible,
+                    MenuFocusState::Opening(nav),
+                ))
+                .queue(laid_out(true));
             commands.entity(root).insert(Open);
         }
         Some(None) => {
             commands
                 .entity(parts.popup)
-                .insert((Visibility::Hidden, MenuFocusState::Closed));
+                .insert((Visibility::Hidden, MenuFocusState::Closed))
+                .queue(laid_out(false));
             commands.entity(root).remove::<Open>();
         }
         None => focus.set(parts.button, FocusCause::Navigated),
@@ -534,6 +555,25 @@ mod tests {
         assert!(shut(&app, popup));
         assert!(app.world().get::<MenuButton>(button).is_some());
         assert_eq!(kids(&app, root), [button, popup]);
+    }
+
+    #[test]
+    fn a_shut_list_is_out_of_the_layout_and_an_open_one_in() {
+        let mut app = app();
+        let root = pick(&mut app);
+        let (button, popup) = parts(&app, root);
+        let display = |app: &App| {
+            app.world().get::<Node>(popup).unwrap().display
+        };
+        assert_eq!(display(&app), Display::None);
+
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+        assert_eq!(display(&app), Display::Flex);
+
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+        assert_eq!(display(&app), Display::None);
     }
 
     #[test]
