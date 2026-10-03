@@ -48,6 +48,12 @@ pub trait SurfaceTokens {
         self.hover()
     }
 
+    /// The border around a dock area. The hairline unless a theme
+    /// says.
+    fn dock_edge(&self) -> Color {
+        self.hairline()
+    }
+
     /// A selected row's tint. The hover surface unless a theme says.
     fn selection(&self) -> Color {
         self.hover()
@@ -123,5 +129,22 @@ pub trait SpacingTokens {
     /// The space between two tabs.
     fn tab_gap(&self) -> f32 {
         2.0
+    }
+
+    /// The space between two dock areas, and between an area and the
+    /// dock's edge. The theme's gap unless a theme says.
+    fn dock_gap(&self) -> f32 {
+        self.gap()
+    }
+
+    /// The corner radius of a dock area. The theme's radius unless a
+    /// theme says.
+    fn dock_radius(&self) -> f32 {
+        self.radius()
+    }
+
+    /// The width of the border around a dock area.
+    fn dock_border(&self) -> f32 {
+        1.0
     }
 }

@@ -10,7 +10,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
 use bevy::ui::{
     ComputedNode, Display, FlexDirection, Overflow,
-    UiGlobalTransform, UiScale, percent, px,
+    UiGlobalTransform, UiRect, UiScale, percent, px,
 };
 
 use super::tree::{
@@ -157,20 +157,39 @@ fn area<T: DockTokens>(
     }
 }
 
-/// The root of an area around `children`.
+/// How far an area is set in from its pane. Two areas side by side
+/// are the dock's gap apart, counting the split's handle between
+/// them.
+pub(super) fn inset<T: DockTokens>(theme: &T) -> f32 {
+    ((theme.dock_gap() - theme.divider()) / 2.0).max(0.0)
+}
+
+/// The root of an area around `children`: a bordered card set in by
+/// [`inset`].
 fn shell<T: DockTokens, C: ViewSeq<Bevy, T> + 'static>(
     leaf: NodeId,
     children: C,
 ) -> AnyView<Bevy, T> {
-    column(children)
-        .gap(0.0)
-        .width(percent(100.0))
-        .height(percent(100.0))
-        .min_width(px(0.0))
-        .min_height(px(0.0))
-        .overflow(Overflow::clip())
-        .tagged(DockArea { leaf })
-        .boxed()
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let theme = cx.theme();
+        let inset = inset(theme);
+        let radius = theme.dock_radius();
+        let border = theme.dock_border();
+        let edge = theme.dock_edge();
+        cx.build(
+            column(children)
+                .gap(0.0)
+                .grow(1.0)
+                .margin(UiRect::all(px(inset)))
+                .min_width(px(0.0))
+                .min_height(px(0.0))
+                .overflow(Overflow::clip())
+                .radius(radius)
+                .border(border)
+                .border_color(edge)
+                .tagged(DockArea { leaf }),
+        )
+    })
 }
 
 /// The pane of one tab's window. Switching tabs flips its display and

@@ -7,7 +7,8 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::ui::{
-    AlignItems, FlexDirection, Overflow, UiRect, percent, px,
+    AlignItems, BorderRadius, FlexDirection, Overflow, UiRect,
+    percent, px,
 };
 use bevy::window::SystemCursorIcon;
 
@@ -67,6 +68,11 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
         let height = cx.theme().row();
         let fill = cx.theme().panel();
         let gap = cx.theme().tab_gap();
+        // Concentric with the area's corners across its border, which
+        // a clip does not round.
+        let corner = px((cx.theme().dock_radius()
+            - cx.theme().dock_border())
+        .max(0.0));
         let tabs = each(
             resource::<DockTree, _>(move |tree| {
                 tree.leaf(leaf)
@@ -92,7 +98,12 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
                 .height(px(height))
                 .shrink(0.0)
                 .align(AlignItems::Center)
-                .fill(fill),
+                .fill(fill)
+                .corners(BorderRadius {
+                    top_left: corner,
+                    top_right: corner,
+                    ..BorderRadius::ZERO
+                }),
         )
     })
 }

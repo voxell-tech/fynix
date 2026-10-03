@@ -18,7 +18,9 @@ use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::system::Res;
 use bevy::math::{Rect, Vec2};
-use bevy::ui::{ComputedNode, UiGlobalTransform, UiScale, percent};
+use bevy::ui::{
+    ComputedNode, UiGlobalTransform, UiRect, UiScale, percent, px,
+};
 pub use drag::{DockDrag, DropTarget};
 pub use layout::DockArea;
 pub use popup::{AddPopup, OpenPopup};
@@ -35,7 +37,7 @@ use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
 use crate::views::{BehaviorExt, FrameProps, column, overlay};
-use crate::{AnyView, Bevy, ViewExt};
+use crate::{AnyView, Bevy, Cx, ViewExt};
 
 /// The token traits the dock's views read.
 pub trait DockTokens:
@@ -96,16 +98,24 @@ pub struct DockRoot;
 /// The dock shown from the [`DockTree`] resource: split panes, each
 /// leaf a tab bar over the content of its active tab.
 pub fn dock<T: DockTokens>() -> AnyView<Bevy, T> {
-    let layout =
-        keyed(resource::<DockTree, _>(DockTree::shape), |shape| {
-            layout::build(shape)
-        })
-        .within(
-            column(())
-                .gap(0.0)
-                .width(percent(100.0))
-                .height(percent(100.0)),
-        );
+    let layout = AnyView::new(|cx: &mut Cx<'_, Bevy, T>| {
+        // The rest of the gap, with each area's own inset making a
+        // whole one at the edge.
+        let inset = cx.theme().dock_gap() - layout::inset(cx.theme());
+        cx.build(
+            keyed(
+                resource::<DockTree, _>(DockTree::shape),
+                |shape| layout::build(shape),
+            )
+            .within(
+                column(())
+                    .gap(0.0)
+                    .padding(UiRect::all(px(inset)))
+                    .width(percent(100.0))
+                    .height(percent(100.0)),
+            ),
+        )
+    });
     let popup = keyed(
         resource::<AddPopup, _>(|popup| popup.open.clone()),
         |open| popup::build(open),
