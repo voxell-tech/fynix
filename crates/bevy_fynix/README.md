@@ -44,9 +44,9 @@ See [`gallery.rs`](examples/gallery.rs) for a whole app, or run
 window.
 
 ```rust
-# use std::time::Duration;
-# use bevy::color::Color;
-# use bevy::ecs::world::World;
+use std::time::Duration;
+use bevy::color::Color;
+use bevy::ecs::world::World;
 use bevy_fynix::views::{
     FrameProps, Label, button, column, label,
 };
@@ -56,56 +56,56 @@ use bevy_fynix::tokens::{
 };
 use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
 
-# struct MyTheme;
-#
-# impl TextTokens for MyTheme {
-#     fn tone(&self, _: Tone) -> Color {
-#         Color::WHITE
-#     }
-#     fn body_size(&self) -> f32 {
-#         14.0
-#     }
-#     fn small_size(&self) -> f32 {
-#         11.0
-#     }
-# }
-#
-# impl SurfaceTokens for MyTheme {
-#     fn fill(&self) -> Color {
-#         Color::BLACK
-#     }
-#     fn hover(&self) -> Color {
-#         Color::BLACK
-#     }
-#     fn panel(&self) -> Color {
-#         Color::BLACK
-#     }
-#     fn accent(&self) -> Color {
-#         Color::WHITE
-#     }
-# }
-#
-# impl SpacingTokens for MyTheme {
-#     fn gap(&self) -> f32 {
-#         8.0
-#     }
-#     fn row(&self) -> f32 {
-#         24.0
-#     }
-#     fn radius(&self) -> f32 {
-#         4.0
-#     }
-# }
-#
-# impl MotionTokens for MyTheme {
-#     fn motion(&self, _: Motion) -> Curve {
-#         Curve {
-#             duration: Duration::from_millis(180),
-#             ease: |t| t,
-#         }
-#     }
-# }
-#
+struct MyTheme;
+
+impl TextTokens for MyTheme {
+    fn tone(&self, _: Tone) -> Color {
+        Color::WHITE
+    }
+    fn body_size(&self) -> f32 {
+        14.0
+    }
+    fn small_size(&self) -> f32 {
+        11.0
+    }
+}
+
+impl SurfaceTokens for MyTheme {
+    fn fill(&self) -> Color {
+        Color::BLACK
+    }
+    fn hover(&self) -> Color {
+        Color::BLACK
+    }
+    fn panel(&self) -> Color {
+        Color::BLACK
+    }
+    fn accent(&self) -> Color {
+        Color::WHITE
+    }
+}
+
+impl SpacingTokens for MyTheme {
+    fn gap(&self) -> f32 {
+        8.0
+    }
+    fn row(&self) -> f32 {
+        24.0
+    }
+    fn radius(&self) -> f32 {
+        4.0
+    }
+}
+
+impl MotionTokens for MyTheme {
+    fn motion(&self, _: Motion) -> Curve {
+        Curve {
+            duration: Duration::from_millis(180),
+            ease: |t| t,
+        }
+    }
+}
+
 fn setup(world: &mut World) {
     mount::<MyTheme>(
         world,
@@ -144,19 +144,19 @@ Three things decide how a view looks, and they stay apart:
 Buttons ship with their looks as bundles. Each sets a resting, a
 hovered and a pressed look from the theme, and glides between them:
 
-```ignore
-button(label("Cancel")).rules(ghost)
-button(icon(save)).rules(icon_button)
-button(label("Save")).rules(primary)
-button(label("Delete")).rules(danger)
-button(row((icon(tag), label("Tag")))).rules(tint)
+```rust,ignore
+button(label("Cancel")).rules(ghost);
+button(icon(save)).rules(icon_button);
+button(label("Save")).rules(primary);
+button(label("Delete")).rules(danger);
+button(row((icon(tag), label("Tag")))).rules(tint);
 ```
 
 For a look of your own, build a `Style` rather than writing `cx.set`
 closures. It takes colours as closures over the theme, and a nested
 look for each state:
 
-```ignore
+```rust,ignore
 let chunky = style::<MyTheme>()
     .fill(|t| t.panel())
     .frame(|f, t| f.radius(t.radius() * 3.0))
@@ -164,7 +164,7 @@ let chunky = style::<MyTheme>()
     .pressed(|s| s.fill(|t| t.pressed()).tone(Tone::Critical))
     .transition(Motion::Interact);
 
-button(label("Custom")).rules(chunky.bundle())
+button(label("Custom")).rules(chunky.bundle());
 ```
 
 `fill` and `frame` reach the root frame alone, and `tone`, `label` and
