@@ -7,7 +7,7 @@
 [![CI](https://github.com/voxell-tech/fynix/workflows/CI/badge.svg)](https://github.com/voxell-tech/fynix/actions)
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
-**Bevy Fynix** is the Bevy backend for [`fynix`](https://github.com/voxell-tech/fynix/tree/main/crates/fynix).
+**Bevy Fynix** is the Bevy backend for [`fynix`](https://crates.io/crates/fynix).
 
 Nodes are entities and the world is Bevy's `World`. On top of that,
 it ships elements written against `bevy_ui` (`Label`, `Frame`,

@@ -8,7 +8,7 @@
 [![Discord](https://img.shields.io/discord/442334985471655946.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/Mhnyp6VYEQ)
 
 **Fynix Macros** has the attribute macros for
-[`fynix`](https://github.com/voxell-tech/fynix/tree/main/crates/fynix).
+[`fynix`](https://crates.io/crates/fynix).
 
 ## `#[element]`
 
