@@ -14,6 +14,8 @@ seam it ships elements written against `bevy_ui` (`Label`, `Frame`,
 `Icon`), composites (`row`, `column`, `button`, `foldable`), the
 token traits they read, and the states rules wait on.
 
+![The Bevy gallery example: bound values, hover transitions, button styles, a segmented control and scoped rules.](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/gallery.webp)
+
 - `FynixPlugin<T>` - keeps every mounted view in step with the world
   each `Update`, for views built with the theme `T`.
 - `Theme<T>` - the theme, as a resource the app inserts.
@@ -175,9 +177,9 @@ Use `then` when the order matters.
 
 ## Version Matrix
 
-| Bevy | Bevy Fynix |
-| ---- | ---------- |
-| 0.19 | 0.0.1      |
+| Bevy    | Fynix          | Bevy Fynix     |
+| ------- | -------------- | -------------- |
+| 0.19    | 0.0.1 - 0.0.2  | 0.0.1 - 0.0.2  |
 
 ## Join the community!
 
@@ -187,8 +189,8 @@ You can join us on the [Voxell discord server](https://discord.gg/Mhnyp6VYEQ).
 
 `bevy_fynix` is dual-licensed under either:
 
-- MIT License ([LICENSE-MIT](/LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
-- Apache License, Version 2.0 ([LICENSE-APACHE](/LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+- MIT License ([LICENSE-MIT](../../LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
 
 This means you can select the license you prefer!
 This dual-licensing approach is the de-facto standard in the Rust ecosystem and there are [very good reasons](https://github.com/bevyengine/bevy/issues/2373) to include both.

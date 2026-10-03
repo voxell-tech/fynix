@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_fynix"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "bevy",
  "fynix",
@@ -2509,7 +2509,7 @@ dependencies = [
 
 [[package]]
 name = "fynix"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "fynix_macros",
  "hashbrown 0.17.1",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "fynix_macros"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
