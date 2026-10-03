@@ -3,16 +3,16 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/voxell-tech/fynix"
 
 [workspace.dependencies]
 # fynix
-fynix = { version = "0.0.1", path = "crates/fynix", default-features = false }
-fynix_macros = { version = "0.0.1", path = "crates/fynix_macros" }
-bevy_fynix = { version = "0.0.1", path = "crates/bevy_fynix", default-features = false }
+fynix = { version = "0.0.2", path = "crates/fynix", default-features = false }
+fynix_macros = { version = "0.0.2", path = "crates/fynix_macros" }
+bevy_fynix = { version = "0.0.2", path = "crates/bevy_fynix", default-features = false }
 
 # motiongfx
 motiongfx_interp = { version = "0.4.0", default-features = false }
