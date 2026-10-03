@@ -175,9 +175,9 @@ Use `then` when the order matters.
 
 ## Version Matrix
 
-| Bevy | Bevy Fynix    |
-| ---- | ------------- |
-| 0.19 | 0.0.1 - 0.0.2 |
+| Bevy    | Fynix          | Bevy Fynix     |
+| ------- | -------------- | -------------- |
+| 0.19    | 0.0.1 - 0.0.2  | 0.0.1 - 0.0.2  |
 
 ## Join the community!
 
