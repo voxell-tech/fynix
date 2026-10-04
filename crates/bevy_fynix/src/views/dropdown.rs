@@ -26,7 +26,6 @@ use bevy::ui_widgets::{
 
 use crate::modifier::ModifierExt;
 use crate::prop::{Prop, component, each};
-use crate::state::{StateExt, hidden};
 use crate::tokens::{
     Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
     Tone,
@@ -178,16 +177,12 @@ where
                 // Built closed and focused by `focus_first`: the
                 // menu plugin would close a list it finds open
                 // before it has the focus.
-                let node = cx.build(
-                    menu_popup(
-                        rows,
-                        px(min_width),
-                        positions,
-                        MenuFocusState::Closed,
-                    )
-                    .appear::<T>(hidden)
-                    .transition(Motion::Interact),
-                );
+                let node = cx.build(menu_popup(
+                    rows,
+                    px(min_width),
+                    positions,
+                    MenuFocusState::Closed,
+                ));
                 cx.world.entity_mut(node).insert(FocusOn(nav));
                 node
             })

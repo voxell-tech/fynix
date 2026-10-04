@@ -16,13 +16,10 @@ use bevy::ui::{Pressed, UiScale, px};
 use bevy::ui_widgets::{MenuAction, MenuEvent, MenuFocusState};
 
 use crate::prop::component;
-use crate::state::{StateExt, hidden};
-use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-};
+use crate::tokens::{MotionTokens, SpacingTokens, SurfaceTokens};
 use crate::views::menu::{Floating, FocusOn, float, menu_popup};
 use crate::views::popup::corners;
-use crate::{AnyView, Bevy, Cx, ScopedExt, View, ViewSeq};
+use crate::{AnyView, Bevy, Cx, View, ViewSeq};
 
 /// On a node with a context menu while it is open: where it was
 /// opened, in logical pixels, and which opening of the node it is.
@@ -189,9 +186,7 @@ where
             px(cx.theme().menu_width()),
             corners(0.0),
             MenuFocusState::Closed,
-        )
-        .appear::<T>(hidden)
-        .transition(Motion::Interact);
+        );
         let node = cx.build(surface);
         cx.world
             .entity_mut(node)
