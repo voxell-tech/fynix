@@ -7,6 +7,7 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::input_focus::tab_navigation::TabGroup;
 use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
 use bevy::ui::{
     ComputedNode, Display, FlexDirection, Overflow,
@@ -221,6 +222,8 @@ fn content<T: DockTokens>(
                     }
                 })),
         );
+        // Tab stays among the fields of the window it is pressed in.
+        cx.world.entity_mut(pane).insert(TabGroup::default());
         if let Some(window) = window {
             cx.under(pane, |cx| cx.build(window));
         }

@@ -10,6 +10,7 @@ pub mod patch;
 pub mod prop;
 pub mod state;
 pub mod style;
+mod tab;
 pub mod tokens;
 pub mod transition;
 pub mod views;
@@ -27,6 +28,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::world::World;
 use bevy::input_focus::InputFocus;
+use bevy::input_focus::tab_navigation::TabGroup;
 pub use cursor::{CursorPlugin, EntityCursor, OverrideCursor};
 pub use fynix::{
     AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
@@ -109,6 +111,7 @@ impl Plugin for CorePlugin {
             .add_observer(views::close_on_escape)
             .add_observer(views::toggle_dropdown)
             .add_observer(views::dismiss_context_menu)
+            .add_observer(tab::tab)
             .configure_sets(
                 Update,
                 (
@@ -136,15 +139,22 @@ impl Plugin for CorePlugin {
     }
 }
 
-/// Builds `view` at the root of the UI, with no rules in force.
+/// Builds `view` at the root of the UI, with no rules in force. Its
+/// root is a [`TabGroup`], unless the view made it one already.
 pub fn mount<T: Send + Sync + 'static>(
     world: &mut World,
     view: impl View<Bevy, T>,
 ) -> Entity {
-    world.resource_scope::<Mounts<T>, _>(|world, mut mounts| {
-        world.resource_scope::<Theme<T>, _>(|world, theme| {
-            let mut cx = Cx::new(world, &theme.0, &mut mounts.0);
-            view.build(&mut cx)
-        })
-    })
+    let root =
+        world.resource_scope::<Mounts<T>, _>(|world, mut mounts| {
+            world.resource_scope::<Theme<T>, _>(|world, theme| {
+                let mut cx = Cx::new(world, &theme.0, &mut mounts.0);
+                view.build(&mut cx)
+            })
+        });
+    let mut entity = world.entity_mut(root);
+    if !entity.contains::<TabGroup>() {
+        entity.insert(TabGroup::default());
+    }
+    root
 }
