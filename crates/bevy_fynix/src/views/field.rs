@@ -170,7 +170,7 @@ pub(super) mod fixtures {
     use bevy::picking::backend::HitData;
     use bevy::picking::events::{Click, Drag, DragEnd};
     use bevy::picking::pointer::{Location, PointerId};
-    use bevy::window::PrimaryWindow;
+    use bevy::window::{PrimaryWindow, Window};
 
     use super::*;
     pub(crate) use crate::tests::Plain;
@@ -182,7 +182,8 @@ pub(super) mod fixtures {
             InputFocusPlugin,
             InputDispatchPlugin,
         ));
-        app.world_mut().spawn(PrimaryWindow);
+        // A window proper: a focused key bubbles until it meets one.
+        app.world_mut().spawn((Window::default(), PrimaryWindow));
         app
     }
 

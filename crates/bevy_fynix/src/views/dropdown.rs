@@ -26,6 +26,7 @@ use bevy::ui_widgets::{
 
 use crate::modifier::ModifierExt;
 use crate::prop::{Prop, component, each};
+use crate::shortcut::{CommandId, CommandList, shortcut_text};
 use crate::tokens::{
     Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
     Tone,
@@ -320,6 +321,9 @@ fn choose(world: &mut World, root: Entity, at: usize) {
 pub enum MenuEntry {
     /// A row that runs the handler when chosen.
     Item(String),
+    /// An [`Item`](Self::Item) with a dim note at its end, as the key
+    /// it is bound to.
+    Noted(String, String),
     /// A heading over the rows after it. It is not chosen, and does
     /// not count in the index the handler gets.
     Section(String),
@@ -329,6 +333,20 @@ impl MenuEntry {
     /// A heading over the rows after it.
     pub fn section(text: impl Into<String>) -> Self {
         Self::Section(text.into())
+    }
+
+    /// The row of the command `id`: its label, and the key it is
+    /// bound to when it has one. `None` for one not registered.
+    pub fn command(world: &World, id: CommandId) -> Option<Self> {
+        let label = world
+            .get_resource::<CommandList>()?
+            .get(id)?
+            .label
+            .to_string();
+        Some(match shortcut_text(world, id) {
+            Some(keys) => Self::Noted(label, keys),
+            None => Self::Item(label),
+        })
     }
 }
 
@@ -456,6 +474,24 @@ where
                                 choose(world, root, at);
                             })
                             .boxed()
+                    }
+                    MenuEntry::Noted(text, note) => {
+                        let at = chosen;
+                        chosen += 1;
+                        menu_item(
+                            row((
+                                label(text).wrap(false).grown(1.0),
+                                label(note)
+                                    .wrap(false)
+                                    .tone(Tone::Dim),
+                            ))
+                            .grow(1.0)
+                            .align(AlignItems::Center),
+                        )
+                        .on_activate(move |world| {
+                            choose(world, root, at);
+                        })
+                        .boxed()
                     }
                     MenuEntry::Section(text) => {
                         section_row::<T>(text)

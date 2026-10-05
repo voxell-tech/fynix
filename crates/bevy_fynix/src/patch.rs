@@ -12,7 +12,7 @@ use bevy::ui::widget::ImageNode;
 use bevy::ui::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display,
     FlexDirection, GlobalZIndex, JustifyContent, Overflow,
-    PositionType, UiRect, UiTransform, Val, px,
+    OverflowClipMargin, PositionType, UiRect, UiTransform, Val, px,
 };
 
 use crate::visual::faded;
@@ -122,6 +122,9 @@ size_patch!(PatchInset, UiRect, |ui, v| {
     ui.bottom = v.bottom;
 });
 size_patch!(PatchOverflow, Overflow, |ui, v| ui.overflow = *v);
+node_patch!(PatchClipMargin, OverflowClipMargin, |ui, v| ui
+    .overflow_clip_margin =
+    *v);
 node_patch!(PatchDisplay, Display, |ui, v| ui.display = *v);
 node_patch!(PatchBorder, f32, |ui, v| ui.border =
     UiRect::all(px(*v)));

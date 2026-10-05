@@ -8,6 +8,8 @@ pub mod modifier;
 pub mod mounted;
 pub mod patch;
 pub mod prop;
+pub mod scroll;
+pub mod shortcut;
 pub mod state;
 pub mod style;
 mod tab;
@@ -99,7 +101,8 @@ impl Plugin for CorePlugin {
         if !app.is_plugin_added::<CursorPlugin>() {
             app.add_plugins(CursorPlugin);
         }
-        app.init_resource::<InputFocus>()
+        app.add_plugins((shortcut::plugin, scroll::plugin))
+            .init_resource::<InputFocus>()
             .init_resource::<Unmounted>()
             .init_resource::<DirtyNodes>()
             .init_resource::<mounted::Receivers>()

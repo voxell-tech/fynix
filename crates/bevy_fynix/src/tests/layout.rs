@@ -17,15 +17,16 @@ use bevy::math::UVec2;
 use bevy::picking::Pickable;
 use bevy::time::TimeUpdateStrategy;
 use bevy::ui::{
-    BackgroundColor, ComputedNode, Node, UiGlobalTransform, UiPlugin,
-    px,
+    BackgroundColor, ComputedNode, Node, ScrollPosition,
+    UiGlobalTransform, UiPlugin, px,
 };
 use fynix::{Motion, ScopedExt};
 
 use super::children;
 use crate::leave::{Collapsing, Held};
+use crate::scroll::{ScrollbarStyle, ScrollbarVisibility};
 use crate::tests::{Plain, app_with};
-use crate::views::{FrameProps, column, frame, row};
+use crate::views::{FrameProps, column, frame, row, scroll};
 use crate::{
     AnyView, Bevy, ReducedMotion, StateExt, View, ViewExt, each,
     hidden, keyed, mount, resource,
@@ -694,4 +695,69 @@ fn a_size_bound_while_held_is_kept_for_the_release() {
         app.world().get::<Node>(second).unwrap().width,
         px(80.0)
     );
+}
+
+/// The bars of `area` that show, each as its size and how far its
+/// middle is from the area's.
+fn bars(app: &App, area: Entity) -> Vec<((f32, f32), (f32, f32))> {
+    let middle = |node: Entity| {
+        app.world()
+            .get::<UiGlobalTransform>(node)
+            .expect("placed")
+            .to_scale_angle_translation()
+            .2
+    };
+    children(app, area)
+        .into_iter()
+        .filter(|&node| !app.world().entity(node).contains::<Node>())
+        .filter(|&node| {
+            app.world().get::<Visibility>(node)
+                != Some(&Visibility::Hidden)
+        })
+        .map(|bar| {
+            let off = middle(bar) - middle(area);
+            (size(app, bar), (off.x, off.y))
+        })
+        .collect()
+}
+
+#[test]
+fn a_scroll_areas_bar_is_its_share_long_and_ends_where_it_does() {
+    let mut app = laid_out();
+    app.world_mut().resource_mut::<ScrollbarStyle>().visibility =
+        ScrollbarVisibility::WhenNeeded;
+    // 100 tall, with 200 to show: a track of 96 between the insets.
+    let area = mount::<Plain>(
+        app.world_mut(),
+        scroll((frame().height(px(200.0)).shrink(0.0),))
+            .width(px(200.0))
+            .height(px(100.0))
+            .gap(0.0),
+    );
+    settle(&mut app, 3);
+    assert_eq!(
+        bars(&app, area),
+        [((6.0, 48.0), (95.0, -24.0))],
+        "at the top, along the right edge, and none across"
+    );
+
+    app.world_mut().get_mut::<ScrollPosition>(area).unwrap().y =
+        100.0;
+    settle(&mut app, 3);
+    assert_eq!(bars(&app, area), [((6.0, 48.0), (95.0, 24.0))]);
+
+    // Beside the content, in room the area keeps for it.
+    app.world_mut().resource_mut::<ScrollbarStyle>().floating = false;
+    settle(&mut app, 3);
+    let content = children(&app, area)
+        .into_iter()
+        .find(|&node| app.world().entity(node).contains::<Node>())
+        .unwrap();
+    assert_eq!(width(&app, content), 190.0);
+
+    app.world_mut().resource_mut::<ScrollbarStyle>().visibility =
+        ScrollbarVisibility::Hidden;
+    settle(&mut app, 3);
+    assert_eq!(bars(&app, area), []);
+    assert_eq!(width(&app, content), 200.0);
 }

@@ -5,8 +5,8 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use bevy::ui::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display,
-    FlexDirection, JustifyContent, Overflow, PositionType, UiRect,
-    Val,
+    FlexDirection, JustifyContent, Overflow, OverflowClipMargin,
+    PositionType, UiRect, Val,
 };
 use fynix::element;
 
@@ -67,6 +67,10 @@ pub struct Frame {
     pub inset: Prop<UiRect>,
     #[elem(patch = PatchOverflow)]
     pub overflow: Prop<Overflow>,
+    /// The box what overflows is clipped to. The padding box when
+    /// unset.
+    #[elem(patch = PatchClipMargin)]
+    pub clip_margin: Prop<OverflowClipMargin>,
     /// `Display::None` hides it and takes it out of the layout.
     #[elem(patch = PatchDisplay)]
     pub display: Prop<Display>,
