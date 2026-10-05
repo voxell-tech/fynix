@@ -36,6 +36,7 @@ use motiongfx_interp::ease;
 
 use crate::cursor::EntityCursor;
 use crate::prop::{Signal, component, each};
+use crate::shortcut::{MENU, Scope};
 use crate::state::State;
 use crate::tokens::{
     Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
@@ -323,6 +324,7 @@ where
                         window_margin,
                     },
                     OverrideClip,
+                    Scope(MENU),
                 ))
                 .rules(|cx: &mut Cx<'_, Bevy, T>| {
                     cx.defaults(menu_surface);
