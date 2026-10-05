@@ -9,8 +9,8 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::world::EntityWorldMut;
 use bevy::picking::Pickable;
 use bevy::ui::{
-    FlexDirection, Overflow, PositionType, ScrollPosition, UiRect,
-    percent, px,
+    FlexDirection, Overflow, OverflowClipMargin, PositionType,
+    ScrollPosition, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 
@@ -63,12 +63,13 @@ pub fn column<C>(children: C) -> Stack<C> {
 
 /// A column that scrolls what does not fit, by wheel or trackpad. It
 /// can shrink below its content, which is what leaves something to
-/// scroll.
+/// scroll. What scrolls is clipped inside its padding.
 pub fn scroll<C>(
     children: C,
 ) -> Stack<C, ((), (ScrollArea, ScrollPosition))> {
     column(children)
         .overflow(Overflow::scroll())
+        .clip_margin(OverflowClipMargin::content_box())
         .min_width(px(0.0))
         .min_height(px(0.0))
         .with((ScrollArea, ScrollPosition::default()))
