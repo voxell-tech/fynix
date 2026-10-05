@@ -556,6 +556,38 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_gesture_under_way_answers_alone() {
+        const DRAG: ScopeId = ScopeId("test.drag");
+        let mut app = app();
+        app.add_scope(ScopeSpec {
+            id: DRAG,
+            label: "Drag",
+            layer: Layer::Gesture,
+            // Until its own command has run.
+            active: Some(|world| world.resource::<Ran>().0 < 10),
+        })
+        .add_command(
+            CommandSpec {
+                id: CommandId("test.cancel"),
+                label: "Cancel",
+                scope: DRAG,
+                run: |world, _| world.resource_mut::<Ran>().0 += 10,
+                enabled: |_| true,
+                repeat: false,
+            },
+            &[Chord::key(KeyCode::Escape)],
+        );
+        let w = || Key::Character("w".into());
+
+        tests::key_down(&mut app, KeyCode::KeyW, w());
+        assert_eq!(ran(&app), 0, "the global one is shut out");
+        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
+        assert_eq!(ran(&app), 10);
+        tests::key_down(&mut app, KeyCode::KeyW, w());
+        assert_eq!(ran(&app), 11, "the gesture is over");
+    }
+
     #[derive(Resource, Default)]
     struct Aimed(Option<Entity>);
 
