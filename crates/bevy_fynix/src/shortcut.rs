@@ -22,6 +22,8 @@ use bevy::input_focus::{FocusedInput, InputFocus};
 use bevy::picking::events::{Pointer, Press};
 use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::PointerId;
+use bevy::reflect::Reflect;
+use bevy::reflect::std_traits::ReflectDefault;
 use bevy::text::EditableText;
 use bevy::ui_widgets::popover::Popover;
 use bevy::window::Window;
@@ -116,17 +118,42 @@ impl CommandList {
 }
 
 /// Modifier keys held with a [`Chord`], left and right alike.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Mods(u8);
+#[derive(
+    Reflect, Clone, Copy, Debug, Default, PartialEq, Eq, Hash,
+)]
+#[reflect(Default, Clone, PartialEq)]
+pub struct Mods {
+    /// Command on macOS, Control elsewhere.
+    pub primary: bool,
+    pub shift: bool,
+    pub alt: bool,
+    /// Control on macOS, where it is not `primary`.
+    pub ctrl: bool,
+}
 
 impl Mods {
-    pub const NONE: Self = Self(0);
-    /// Command on macOS, Control elsewhere.
-    pub const PRIMARY: Self = Self(1);
-    pub const SHIFT: Self = Self(2);
-    pub const ALT: Self = Self(4);
-    /// Control on macOS, where it is not [`Self::PRIMARY`].
-    pub const CTRL: Self = Self(8);
+    pub const NONE: Self = Self {
+        primary: false,
+        shift: false,
+        alt: false,
+        ctrl: false,
+    };
+    pub const PRIMARY: Self = Self {
+        primary: true,
+        ..Self::NONE
+    };
+    pub const SHIFT: Self = Self {
+        shift: true,
+        ..Self::NONE
+    };
+    pub const ALT: Self = Self {
+        alt: true,
+        ..Self::NONE
+    };
+    pub const CTRL: Self = Self {
+        ctrl: true,
+        ..Self::NONE
+    };
 
     /// The modifiers down in `keys`.
     pub fn held(keys: &ButtonInput<KeyCode>) -> Self {
@@ -139,35 +166,36 @@ impl Mods {
         } else {
             (control, false)
         };
-        let mut mods = Self::NONE;
-        for (held, bit) in [
-            (primary, Self::PRIMARY),
-            (
-                down([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
-                Self::SHIFT,
-            ),
-            (down([KeyCode::AltLeft, KeyCode::AltRight]), Self::ALT),
-            (ctrl, Self::CTRL),
-        ] {
-            if held {
-                mods = mods.with(bit);
-            }
+        Self {
+            primary,
+            shift: down([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
+            alt: down([KeyCode::AltLeft, KeyCode::AltRight]),
+            ctrl,
         }
-        mods
     }
 
     pub const fn with(self, other: Self) -> Self {
-        Self(self.0 | other.0)
+        Self {
+            primary: self.primary || other.primary,
+            shift: self.shift || other.shift,
+            alt: self.alt || other.alt,
+            ctrl: self.ctrl || other.ctrl,
+        }
     }
 
+    /// Whether every modifier of `other` is among these.
     pub const fn has(self, other: Self) -> bool {
-        self.0 & other.0 == other.0
+        (self.primary || !other.primary)
+            && (self.shift || !other.shift)
+            && (self.alt || !other.alt)
+            && (self.ctrl || !other.ctrl)
     }
 }
 
 /// A key, by its place on the keyboard, with the modifiers held as
 /// it goes down.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Reflect, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[reflect(Clone, PartialEq)]
 pub struct Chord {
     pub key: KeyCode,
     pub mods: Mods,
@@ -206,68 +234,6 @@ impl fmt::Display for Chord {
             .or_else(|| key.strip_prefix("Digit"))
             .unwrap_or(&key);
         write!(f, "{face}")
-    }
-}
-
-/// The names a saved chord spells its modifiers with, the same on
-/// every platform.
-const SAVED_MODS: [(Mods, &str); 4] = [
-    (Mods::PRIMARY, "Primary"),
-    (Mods::CTRL, "Ctrl"),
-    (Mods::ALT, "Alt"),
-    (Mods::SHIFT, "Shift"),
-];
-
-/// The keys a chord can be saved with, each under the name of its
-/// [`KeyCode`].
-macro_rules! saved_keys {
-    ($($key:ident)*) => {
-        &[$((KeyCode::$key, stringify!($key))),*]
-    };
-}
-
-const SAVED_KEYS: &[(KeyCode, &str)] = saved_keys![
-    KeyA KeyB KeyC KeyD KeyE KeyF KeyG KeyH KeyI KeyJ KeyK KeyL KeyM
-    KeyN KeyO KeyP KeyQ KeyR KeyS KeyT KeyU KeyV KeyW KeyX KeyY KeyZ
-    Digit0 Digit1 Digit2 Digit3 Digit4 Digit5 Digit6 Digit7 Digit8
-    Digit9
-    Backquote Backslash BracketLeft BracketRight Comma Equal Minus
-    Period Quote Semicolon Slash
-    Backspace Enter Space Tab Escape Delete End Home Insert PageDown
-    PageUp ArrowDown ArrowLeft ArrowRight ArrowUp
-    Numpad0 Numpad1 Numpad2 Numpad3 Numpad4 Numpad5 Numpad6 Numpad7
-    Numpad8 Numpad9 NumpadAdd NumpadDecimal NumpadDivide NumpadEnter
-    NumpadEqual NumpadMultiply NumpadSubtract
-    F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12
-];
-
-impl Chord {
-    /// The chord as a file keeps it, `Primary+Shift+KeyS`, which
-    /// [`Chord::from_saved`] reads back. `None` for a key that has
-    /// no saved name.
-    pub fn saved(&self) -> Option<String> {
-        let (_, key) =
-            SAVED_KEYS.iter().find(|(key, _)| *key == self.key)?;
-        let mods = SAVED_MODS
-            .iter()
-            .filter(|(bit, _)| self.mods.has(*bit))
-            .map(|(_, name)| format!("{name}+"))
-            .collect::<String>();
-        Some(format!("{mods}{key}"))
-    }
-
-    pub fn from_saved(text: &str) -> Option<Self> {
-        let mut parts = text.split('+').collect::<Vec<_>>();
-        let key = parts.pop()?;
-        let (key, _) =
-            SAVED_KEYS.iter().find(|(_, name)| *name == key)?;
-        let mut mods = Mods::NONE;
-        for part in parts {
-            let (bit, _) =
-                SAVED_MODS.iter().find(|(_, name)| *name == part)?;
-            mods = mods.with(*bit);
-        }
-        Some(Self { key: *key, mods })
     }
 }
 
@@ -733,14 +699,6 @@ mod tests {
     fn a_rebound_command_answers_its_new_key_only() {
         let mut app = app();
         let w = Chord::key(KeyCode::KeyW);
-        let q = Chord {
-            key: KeyCode::KeyQ,
-            mods: Mods::PRIMARY.with(Mods::SHIFT),
-        };
-        assert_eq!(q.saved().as_deref(), Some("Primary+Shift+KeyQ"));
-        assert_eq!(Chord::from_saved("Primary+Shift+KeyQ"), Some(q));
-        assert_eq!(Chord::from_saved("Hyper+KeyQ"), None);
-
         let e = Chord::key(KeyCode::KeyE);
         app.world_mut()
             .resource_mut::<Keymap>()
