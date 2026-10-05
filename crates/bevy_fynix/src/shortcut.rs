@@ -97,6 +97,16 @@ impl CommandList {
         self.commands.iter().find(|command| command.id == id)
     }
 
+    /// Every command, in the order they were registered.
+    pub fn commands(&self) -> &[CommandSpec] {
+        &self.commands
+    }
+
+    /// Every scope, in the order they were registered.
+    pub fn scopes(&self) -> &[ScopeSpec] {
+        &self.scopes
+    }
+
     fn layer(&self, scope: ScopeId) -> Layer {
         self.scopes
             .iter()
@@ -199,6 +209,68 @@ impl fmt::Display for Chord {
     }
 }
 
+/// The names a saved chord spells its modifiers with, the same on
+/// every platform.
+const SAVED_MODS: [(Mods, &str); 4] = [
+    (Mods::PRIMARY, "Primary"),
+    (Mods::CTRL, "Ctrl"),
+    (Mods::ALT, "Alt"),
+    (Mods::SHIFT, "Shift"),
+];
+
+/// The keys a chord can be saved with, each under the name of its
+/// [`KeyCode`].
+macro_rules! saved_keys {
+    ($($key:ident)*) => {
+        &[$((KeyCode::$key, stringify!($key))),*]
+    };
+}
+
+const SAVED_KEYS: &[(KeyCode, &str)] = saved_keys![
+    KeyA KeyB KeyC KeyD KeyE KeyF KeyG KeyH KeyI KeyJ KeyK KeyL KeyM
+    KeyN KeyO KeyP KeyQ KeyR KeyS KeyT KeyU KeyV KeyW KeyX KeyY KeyZ
+    Digit0 Digit1 Digit2 Digit3 Digit4 Digit5 Digit6 Digit7 Digit8
+    Digit9
+    Backquote Backslash BracketLeft BracketRight Comma Equal Minus
+    Period Quote Semicolon Slash
+    Backspace Enter Space Tab Escape Delete End Home Insert PageDown
+    PageUp ArrowDown ArrowLeft ArrowRight ArrowUp
+    Numpad0 Numpad1 Numpad2 Numpad3 Numpad4 Numpad5 Numpad6 Numpad7
+    Numpad8 Numpad9 NumpadAdd NumpadDecimal NumpadDivide NumpadEnter
+    NumpadEqual NumpadMultiply NumpadSubtract
+    F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12
+];
+
+impl Chord {
+    /// The chord as a file keeps it, `Primary+Shift+KeyS`, which
+    /// [`Chord::from_saved`] reads back. `None` for a key that has
+    /// no saved name.
+    pub fn saved(&self) -> Option<String> {
+        let (_, key) =
+            SAVED_KEYS.iter().find(|(key, _)| *key == self.key)?;
+        let mods = SAVED_MODS
+            .iter()
+            .filter(|(bit, _)| self.mods.has(*bit))
+            .map(|(_, name)| format!("{name}+"))
+            .collect::<String>();
+        Some(format!("{mods}{key}"))
+    }
+
+    pub fn from_saved(text: &str) -> Option<Self> {
+        let mut parts = text.split('+').collect::<Vec<_>>();
+        let key = parts.pop()?;
+        let (key, _) =
+            SAVED_KEYS.iter().find(|(_, name)| *name == key)?;
+        let mut mods = Mods::NONE;
+        for part in parts {
+            let (bit, _) =
+                SAVED_MODS.iter().find(|(_, name)| *name == part)?;
+            mods = mods.with(*bit);
+        }
+        Some(Self { key: *key, mods })
+    }
+}
+
 /// A chord bound to a command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Binding {
@@ -206,9 +278,24 @@ pub struct Binding {
     pub chord: Chord,
 }
 
-/// The bindings in force.
+/// The bindings in force: the ones commands were registered with,
+/// and over them the user's own.
 #[derive(Resource, Default)]
-pub struct Keymap(Vec<Binding>);
+pub struct Keymap {
+    defaults: Vec<Binding>,
+    /// The chords of each command the user rebound, which stand in
+    /// for its defaults even when there are none.
+    overrides: Vec<(CommandId, Vec<Chord>)>,
+}
+
+/// One chord bound to several commands of one scope, of which only
+/// the first can answer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Conflict {
+    pub chord: Chord,
+    pub scope: ScopeId,
+    pub commands: Vec<CommandId>,
+}
 
 impl Keymap {
     /// The chords bound to `command`, in the order they were bound.
@@ -216,10 +303,58 @@ impl Keymap {
         &self,
         command: CommandId,
     ) -> impl Iterator<Item = Chord> + '_ {
-        self.0
+        let own = self.rebound(command);
+        let defaults = self
+            .defaults
             .iter()
-            .filter(move |binding| binding.command == command)
-            .map(|binding| binding.chord)
+            .filter(move |binding| {
+                own.is_none() && binding.command == command
+            })
+            .map(|binding| binding.chord);
+        own.into_iter().flatten().copied().chain(defaults)
+    }
+
+    /// The user's own chords for `command`, if they rebound it.
+    pub fn rebound(&self, command: CommandId) -> Option<&[Chord]> {
+        self.overrides
+            .iter()
+            .find(|(id, _)| *id == command)
+            .map(|(_, chords)| chords.as_slice())
+    }
+
+    /// Binds `command` to `chords` and nothing else. None unbinds
+    /// it.
+    pub fn rebind(&mut self, command: CommandId, chords: Vec<Chord>) {
+        self.reset(command);
+        self.overrides.push((command, chords));
+    }
+
+    /// Puts `command` back on the chords it was registered with.
+    pub fn reset(&mut self, command: CommandId) {
+        self.overrides.retain(|(id, _)| *id != command);
+    }
+
+    /// The chords bound to more than one command of a scope.
+    pub fn conflicts(&self, list: &CommandList) -> Vec<Conflict> {
+        let mut found = Vec::<Conflict>::new();
+        for command in list.commands() {
+            for chord in self.chords(command.id) {
+                let at = found.iter().position(|conflict| {
+                    conflict.chord == chord
+                        && conflict.scope == command.scope
+                });
+                match at {
+                    Some(at) => found[at].commands.push(command.id),
+                    None => found.push(Conflict {
+                        chord,
+                        scope: command.scope,
+                        commands: vec![command.id],
+                    }),
+                }
+            }
+        }
+        found.retain(|conflict| conflict.commands.len() > 1);
+        found
     }
 }
 
@@ -254,12 +389,12 @@ impl ShortcutAppExt for App {
             .init_resource::<Keymap>();
         let world = self.world_mut();
         world.resource_mut::<CommandList>().commands.push(command);
-        world.resource_mut::<Keymap>().0.extend(chords.iter().map(
-            |&chord| Binding {
+        world.resource_mut::<Keymap>().defaults.extend(
+            chords.iter().map(|&chord| Binding {
                 command: command.id,
                 chord,
-            },
-        ));
+            }),
+        );
         self
     }
 }
@@ -326,6 +461,12 @@ pub fn shortcut_text(world: &World, id: CommandId) -> Option<String> {
 pub(crate) fn plugin(app: &mut App) {
     app.init_resource::<CommandList>()
         .init_resource::<Keymap>()
+        .add_scope(ScopeSpec {
+            id: GLOBAL,
+            label: "Everywhere",
+            layer: Layer::Global,
+            active: None,
+        })
         .add_scope(ScopeSpec {
             id: MENU,
             label: "Menu",
@@ -435,12 +576,12 @@ fn bound(
     in_force(world)
         .into_iter()
         .flat_map(|(scope, target)| {
-            keymap
-                .0
+            list.commands()
                 .iter()
-                .filter(|binding| binding.chord == chord)
-                .filter_map(|binding| list.get(binding.command))
                 .filter(move |command| command.scope == scope)
+                .filter(|command| {
+                    keymap.chords(command.id).any(|own| own == chord)
+                })
                 .filter(move |command| command.repeat || !repeat)
                 .map(move |command| (command.id, Invoke { target }))
         })
@@ -586,6 +727,65 @@ mod tests {
         assert_eq!(ran(&app), 10);
         tests::key_down(&mut app, KeyCode::KeyW, w());
         assert_eq!(ran(&app), 11, "the gesture is over");
+    }
+
+    #[test]
+    fn a_rebound_command_answers_its_new_key_only() {
+        let mut app = app();
+        let w = Chord::key(KeyCode::KeyW);
+        let q = Chord {
+            key: KeyCode::KeyQ,
+            mods: Mods::PRIMARY.with(Mods::SHIFT),
+        };
+        assert_eq!(q.saved().as_deref(), Some("Primary+Shift+KeyQ"));
+        assert_eq!(Chord::from_saved("Primary+Shift+KeyQ"), Some(q));
+        assert_eq!(Chord::from_saved("Hyper+KeyQ"), None);
+
+        let e = Chord::key(KeyCode::KeyE);
+        app.world_mut()
+            .resource_mut::<Keymap>()
+            .rebind(BUMP, vec![e]);
+        tests::key_down(
+            &mut app,
+            KeyCode::KeyW,
+            Key::Character("w".into()),
+        );
+        assert_eq!(ran(&app), 0, "its old key is free");
+        tests::key_down(
+            &mut app,
+            KeyCode::KeyE,
+            Key::Character("e".into()),
+        );
+        assert_eq!(ran(&app), 1);
+
+        // A second command of the scope, on the key the first went
+        // to.
+        app.add_command(
+            CommandSpec {
+                id: CommandId("test.other"),
+                label: "Other",
+                scope: GLOBAL,
+                run: |_, _| {},
+                enabled: |_| true,
+                repeat: false,
+            },
+            &[e],
+        );
+        let world = app.world_mut();
+        let conflicts = world
+            .resource::<Keymap>()
+            .conflicts(world.resource::<CommandList>());
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].commands.len(), 2);
+
+        world.resource_mut::<Keymap>().reset(BUMP);
+        let keymap = world.resource::<Keymap>();
+        assert_eq!(keymap.chords(BUMP).collect::<Vec<_>>(), [w]);
+        assert!(
+            keymap
+                .conflicts(world.resource::<CommandList>())
+                .is_empty()
+        );
     }
 
     #[derive(Resource, Default)]
