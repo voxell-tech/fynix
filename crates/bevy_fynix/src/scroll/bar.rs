@@ -3,6 +3,8 @@
 //! A bar has no `Node`: it is placed after the layout, against the
 //! area and not the content scrolling in it.
 
+use core::time::Duration;
+
 use bevy::app::{App, PostUpdate};
 use bevy::camera::visibility::Visibility;
 use bevy::color::{Alpha, Color};
@@ -18,6 +20,8 @@ use bevy::ecs::system::{Commands, Query, Res};
 use bevy::math::{Affine2, Vec2};
 use bevy::picking::events::{Drag, DragEnd, Pointer, Press};
 use bevy::picking::hover::Hovered;
+use bevy::picking::pointer::PointerLocation;
+use bevy::time::Time;
 use bevy::ui::{
     BackgroundColor, BorderRadius, ComputedNode,
     ComputedUiRenderTargetInfo, ComputedUiTargetCamera, FocusPolicy,
@@ -51,8 +55,11 @@ pub(super) fn plugin(app: &mut App) {
 pub enum ScrollbarVisibility {
     /// Never. The wheel still scrolls.
     Hidden,
-    /// While there is something to scroll that way.
+    /// While the area scrolls or the pointer is by the edge the bar
+    /// runs along, fading away a while after.
     #[default]
+    WhenActive,
+    /// While there is something to scroll that way.
     WhenNeeded,
     Always,
 }
@@ -80,18 +87,28 @@ pub struct ScrollbarStyle {
     pub rest: Color,
     /// A bar under the pointer, or dragged.
     pub hot: Color,
+    /// How near its edge the pointer brings a bar back, for
+    /// [`ScrollbarVisibility::WhenActive`].
+    pub reach: f32,
+    /// How long such a bar stays once nothing keeps it.
+    pub linger: Duration,
+    /// How long a bar takes to fade in or out.
+    pub fade: Duration,
 }
 
 impl Default for ScrollbarStyle {
     fn default() -> Self {
         Self {
-            visibility: ScrollbarVisibility::WhenNeeded,
+            visibility: ScrollbarVisibility::WhenActive,
             floating: true,
             width: 6.0,
             inset: 2.0,
             min_length: 24.0,
             rest: Color::WHITE.with_alpha(0.16),
             hot: Color::WHITE.with_alpha(0.4),
+            reach: 16.0,
+            linger: Duration::from_millis(800),
+            fade: Duration::from_millis(150),
         }
     }
 }
@@ -156,6 +173,12 @@ impl Way {
 struct ScrollThumb {
     way: Way,
     dragged: bool,
+    /// How far the area was scrolled when the bar was last placed.
+    scrolled: f32,
+    /// How long nothing has kept the bar showing.
+    idle: Duration,
+    /// How far it has faded in, from 0 to 1.
+    shown: f32,
 }
 
 fn add_thumbs(added: On<Add, ScrollGoal>, mut commands: Commands) {
@@ -164,6 +187,10 @@ fn add_thumbs(added: On<Add, ScrollGoal>, mut commands: Commands) {
             ScrollThumb {
                 way,
                 dragged: false,
+                scrolled: 0.0,
+                // Nothing has kept it yet.
+                idle: Duration::MAX,
+                shown: 0.0,
             },
             ChildOf(added.entity),
         ));
@@ -216,7 +243,8 @@ impl Bar {
         let range = (way.of(area.content_size()) - visible).max(0.0);
         let shown = match style.visibility {
             ScrollbarVisibility::Hidden => false,
-            ScrollbarVisibility::WhenNeeded => range >= 1.0,
+            ScrollbarVisibility::WhenActive
+            | ScrollbarVisibility::WhenNeeded => range >= 1.0,
             ScrollbarVisibility::Always => true,
         };
         let scale = area.inverse_scale_factor().recip();
@@ -246,7 +274,7 @@ impl Bar {
 
 /// What placing a bar reads and writes of it.
 type Thumb = (
-    &'static ScrollThumb,
+    &'static mut ScrollThumb,
     &'static ChildOf,
     &'static Hovered,
     &'static ComputedUiRenderTargetInfo,
@@ -257,7 +285,9 @@ type Thumb = (
 );
 
 fn place_thumbs(
+    time: Res<Time>,
     style: Res<ScrollbarStyle>,
+    pointers: Query<&PointerLocation>,
     areas: Query<(
         &Node,
         &ComputedNode,
@@ -267,7 +297,7 @@ fn place_thumbs(
     mut thumbs: Query<Thumb, Without<Node>>,
 ) {
     for (
-        thumb,
+        mut thumb,
         parent,
         hovered,
         target,
@@ -288,9 +318,65 @@ fn place_thumbs(
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
+        let scale = area.inverse_scale_factor().recip();
+        let half = area.size() / 2.0;
+        let (along, beside) = match thumb.way {
+            Way::Across => (half.x, half.y),
+            Way::Down => (half.y, half.x),
+        };
+
+        // Kept by a scroll, a drag, or a pointer by its edge.
+        let scrolled = thumb.way.of(area.scroll_position);
+        let by_edge = || {
+            let inverse = at.affine().inverse();
+            pointers
+                .iter()
+                .filter_map(|pointer| pointer.location.as_ref())
+                .map(|location| {
+                    inverse.transform_point2(
+                        location.position * target.scale_factor(),
+                    )
+                })
+                .any(|point| {
+                    let (a, b) = match thumb.way {
+                        Way::Across => (point.x, point.y),
+                        Way::Down => (point.y, point.x),
+                    };
+                    a.abs() <= along
+                        && b <= beside
+                        && b >= beside - style.reach * scale
+                })
+        };
+        let kept = scrolled != thumb.scrolled
+            || thumb.dragged
+            || hovered.0
+            || by_edge();
+        thumb.scrolled = scrolled;
+        thumb.idle = if kept {
+            Duration::ZERO
+        } else {
+            thumb.idle.saturating_add(time.delta())
+        };
+        let showing = style.visibility
+            != ScrollbarVisibility::WhenActive
+            || thumb.idle < style.linger;
+        let step = if style.fade.is_zero() {
+            1.0
+        } else {
+            time.delta_secs() / style.fade.as_secs_f32()
+        };
+        thumb.shown = if showing {
+            (thumb.shown + step).min(1.0)
+        } else {
+            (thumb.shown - step).max(0.0)
+        };
+        // Out of the way of what is under it once it has gone.
+        if thumb.shown <= 0.0 {
+            visibility.set_if_neq(Visibility::Hidden);
+            continue;
+        }
         visibility.set_if_neq(Visibility::Inherited);
 
-        let scale = area.inverse_scale_factor().recip();
         let thick = style.width * scale;
         let size = thumb.way.vec(bar.length, thick);
         if computed.size != size {
@@ -306,11 +392,6 @@ fn place_thumbs(
         }
         // From the middle of the area to the middle of the bar,
         // which lies along the far edge.
-        let half = area.size() / 2.0;
-        let (along, beside) = match thumb.way {
-            Way::Across => (half.x, half.y),
-            Way::Down => (half.y, half.x),
-        };
         let middle = thumb.way.vec(
             -along + bar.at + bar.length / 2.0,
             beside - style.inset * scale - thick / 2.0,
@@ -325,6 +406,7 @@ fn place_thumbs(
         } else {
             style.rest
         };
+        let color = color.with_alpha(color.alpha() * thumb.shown);
         if fill.0 != color {
             fill.0 = color;
         }

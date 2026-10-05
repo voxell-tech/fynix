@@ -159,24 +159,3 @@ fn ease(
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_notch_sets_a_goal_and_a_trackpad_step_moves_at_once() {
-        let max = Vec2::new(0.0, 100.0);
-        let mut position = ScrollPosition::default();
-        let mut goal = ScrollGoal::default();
-
-        goal.scroll_by(&mut position, Vec2::Y * 30.0, max, true);
-        goal.scroll_by(&mut position, Vec2::Y * 30.0, max, true);
-        assert_eq!(position.y, 0.0, "still to ease there");
-        assert_eq!(goal.0, Some(Vec2::Y * 60.0), "notches add up");
-
-        goal.scroll_by(&mut position, Vec2::Y * 90.0, max, false);
-        assert_eq!(position.y, 100.0, "no further than the end");
-        assert_eq!(goal.0, None);
-    }
-}

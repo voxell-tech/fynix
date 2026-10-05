@@ -724,6 +724,8 @@ fn bars(app: &App, area: Entity) -> Vec<((f32, f32), (f32, f32))> {
 #[test]
 fn a_scroll_areas_bar_is_its_share_long_and_ends_where_it_does() {
     let mut app = laid_out();
+    app.world_mut().resource_mut::<ScrollbarStyle>().visibility =
+        ScrollbarVisibility::WhenNeeded;
     // 100 tall, with 200 to show: a track of 96 between the insets.
     let area = mount::<Plain>(
         app.world_mut(),
