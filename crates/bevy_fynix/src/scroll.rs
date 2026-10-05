@@ -110,7 +110,6 @@ fn on_scroll(
     else {
         return;
     };
-    scroll.propagate(false);
     let (turned, notched) = wheel(&scroll);
     let scrolls = |axis| axis == OverflowAxis::Scroll;
     let delta = Vec2::new(
@@ -125,7 +124,14 @@ fn on_scroll(
             0.0
         },
     );
+    // A wheel this area has no use for, turned the other way or
+    // past its end, is left to an area around it.
+    let before = (goal.0, **position);
     goal.scroll_by(&mut position, delta, overflow(computed), notched);
+    let settled = goal.0.unwrap_or(**position);
+    if settled != before.0.unwrap_or(before.1) {
+        scroll.propagate(false);
+    }
 }
 
 fn ease(

@@ -301,8 +301,8 @@ impl Keymap {
             .map(|(_, chords)| chords.as_slice())
     }
 
-    /// Binds `command` to `chords` and nothing else. None unbinds
-    /// it.
+    /// Binds `command` to `chords` and nothing else. With no chords
+    /// it is bound to no key.
     pub fn rebind(&mut self, command: CommandId, chords: Vec<Chord>) {
         self.reset(command);
         self.overrides.push((command, chords));
