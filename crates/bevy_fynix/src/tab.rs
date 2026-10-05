@@ -33,7 +33,10 @@ pub(crate) fn tab(
     stops: Query<Stop>,
     mut focus: ResMut<InputFocus>,
 ) {
-    let focused = event.focused_entity;
+    // Off the focus: the event names whatever it has bubbled to.
+    let Some(focused) = focus.get() else {
+        return;
+    };
     let key = &event.input;
     // The event bubbles, and this answers it once.
     if event.event_target() != focused
