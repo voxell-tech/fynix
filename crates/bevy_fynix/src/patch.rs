@@ -293,6 +293,20 @@ patch!(
     PatchRotation,
     f32,
     |entity, v| {
-        transform(&mut entity, |t| t.rotation = Rot2::degrees(*v));
+        // Bevy cannot clip a node that is turned, and draws one in a
+        // scroll area over what is beside it. Half a turn of an
+        // image is the image flipped both ways, which it can clip.
+        let halves = *v / 180.0;
+        let flipped = halves.fract() == 0.0 && halves as i64 % 2 != 0;
+        let flips = entity.get_mut::<ImageNode>().map(|mut image| {
+            image.flip_x = flipped;
+            image.flip_y = flipped;
+        });
+        let turn = if flips.is_some() && halves.fract() == 0.0 {
+            Rot2::IDENTITY
+        } else {
+            Rot2::degrees(*v)
+        };
+        transform(&mut entity, |t| t.rotation = turn);
     }
 );

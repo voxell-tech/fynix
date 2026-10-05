@@ -36,7 +36,7 @@ use motiongfx_interp::ease;
 
 use crate::cursor::EntityCursor;
 use crate::prop::{Signal, component, each};
-use crate::state::{State, StateExt, hidden};
+use crate::state::State;
 use crate::tokens::{
     Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
     TextTokens, Tone,
@@ -232,16 +232,12 @@ where
                 AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
                     // Closed, so the focus stays in the menu the row
                     // is in: it opens and shuts with the row's hover.
-                    let node = cx.build(
-                        menu_popup(
-                            rows,
-                            min_width,
-                            beside(gap),
-                            MenuFocusState::Closed,
-                        )
-                        .appear::<T>(hidden)
-                        .transition(Motion::Interact),
-                    );
+                    let node = cx.build(menu_popup(
+                        rows,
+                        min_width,
+                        beside(gap),
+                        MenuFocusState::Closed,
+                    ));
                     // A strip over the gap on either side, so the
                     // pointer keeps the row hovered on its way
                     // across.

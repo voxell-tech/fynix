@@ -26,7 +26,6 @@ use bevy::ui_widgets::{
 
 use crate::modifier::ModifierExt;
 use crate::prop::{Prop, component, each};
-use crate::state::{StateExt, hidden};
 use crate::tokens::{
     Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
     Tone,
@@ -178,16 +177,12 @@ where
                 // Built closed and focused by `focus_first`: the
                 // menu plugin would close a list it finds open
                 // before it has the focus.
-                let node = cx.build(
-                    menu_popup(
-                        rows,
-                        px(min_width),
-                        positions,
-                        MenuFocusState::Closed,
-                    )
-                    .appear::<T>(hidden)
-                    .transition(Motion::Interact),
-                );
+                let node = cx.build(menu_popup(
+                    rows,
+                    px(min_width),
+                    positions,
+                    MenuFocusState::Closed,
+                ));
                 cx.world.entity_mut(node).insert(FocusOn(nav));
                 node
             })
@@ -848,15 +843,25 @@ mod tests {
         app.update();
     }
 
-    fn turn(app: &App, root: Entity) -> f32 {
+    /// Whether the chevron points down. At rest half a turn is the
+    /// image flipped, with no turn on the node.
+    fn down(app: &App, root: Entity) -> bool {
         let (button, _) = parts(app, root);
         let content = kids(app, button)[0];
         let chevron = kids(app, content)[1];
-        app.world()
+        let turn = app
+            .world()
             .get::<UiTransform>(chevron)
             .expect("an icon")
-            .rotation
-            .as_degrees()
+            .rotation;
+        let image =
+            app.world().get::<ImageNode>(chevron).expect("an image");
+        assert_eq!(
+            turn,
+            bevy::math::Rot2::IDENTITY,
+            "a turned node at rest"
+        );
+        image.flip_y
     }
 
     #[test]
@@ -864,26 +869,19 @@ mod tests {
         let mut app = app();
         let root = pick(&mut app);
         let (button, _) = parts(&app, root);
-        let content = kids(&app, button)[0];
-        let chevron = kids(&app, content)[1];
-        assert!(app.world().get::<ImageNode>(chevron).is_some());
-        // Half a turn reads back as either sign.
-        let down = |app: &App| {
-            (turn(app, root).abs() - SHUT_TURN).abs() < 0.01
-        };
-        assert!(down(&app), "pointing down while shut");
+        assert!(down(&app, root), "pointing down while shut");
 
         open(&mut app, button);
         for _ in 0..4 {
             app.update();
         }
-        assert!(turn(&app, root).abs() < 0.01, "up while open");
+        assert!(!down(&app, root), "up while open");
 
         open(&mut app, button);
         for _ in 0..4 {
             app.update();
         }
-        assert!(down(&app));
+        assert!(down(&app, root));
     }
 
     #[test]
