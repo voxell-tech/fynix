@@ -4,9 +4,14 @@
 //! sets where the area is headed and it eases there. A trackpad
 //! already reports small steps with momentum of its own, and those
 //! are followed as they come.
+//!
+//! An area's bars are styled by [`ScrollbarStyle`].
+
+mod bar;
 
 use core::time::Duration;
 
+pub use bar::{OwnScrollbar, ScrollbarStyle, ScrollbarVisibility};
 use bevy::app::{App, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
@@ -21,7 +26,8 @@ use bevy::ui::{ComputedNode, Node, OverflowAxis, ScrollPosition};
 use crate::transition::ReducedMotion;
 
 pub(crate) fn plugin(app: &mut App) {
-    app.init_resource::<ScrollMotion>()
+    app.add_plugins(bar::plugin)
+        .init_resource::<ScrollMotion>()
         .add_observer(on_scroll)
         .add_systems(Update, ease);
 }
@@ -81,9 +87,11 @@ impl ScrollGoal {
     }
 }
 
-/// How far the content of a node overflows it.
+/// How far the content of a node overflows what it has to itself,
+/// which leaves out any room kept for bars.
 fn overflow(computed: &ComputedNode) -> Vec2 {
-    ((computed.content_size() - computed.size())
+    let visible = computed.size() - computed.scrollbar_size;
+    ((computed.content_size() - visible)
         * computed.inverse_scale_factor())
     .max(Vec2::ZERO)
 }

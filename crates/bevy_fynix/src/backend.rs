@@ -1,6 +1,8 @@
 //! The Bevy backend of the core.
 
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::Children;
 use bevy::ecs::lifecycle::Despawn;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
@@ -14,6 +16,11 @@ pub struct Bevy;
 /// The UI nodes despawned since the last update.
 #[derive(Resource, Default, Debug)]
 pub struct Unmounted(pub Vec<Entity>);
+
+/// A child its parent spawned for itself, kept when the views under
+/// the parent are put in order.
+#[derive(Component, Default)]
+pub(crate) struct Kept;
 
 /// A change to a node as it is spawned.
 type Sow = Box<dyn FnOnce(&mut EntityWorldMut) + Send + Sync>;
@@ -78,7 +85,17 @@ impl fynix::Backend for Bevy {
         parent: Entity,
         children: &[Entity],
     ) {
-        world.entity_mut(parent).replace_children(children);
+        // Ahead of the views, where it was spawned: what the node
+        // made for itself.
+        let kept = world
+            .get::<Children>(parent)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|&child| world.get::<Kept>(child).is_some());
+        let all =
+            kept.chain(children.iter().copied()).collect::<Vec<_>>();
+        world.entity_mut(parent).replace_children(&all);
     }
 
     fn leave(world: &mut World, node: Entity) {

@@ -237,7 +237,11 @@ mod tests {
         assert_eq!((ui.min_width, ui.min_height), (px(0.0), px(0.0)));
         assert_eq!(ui.flex_direction, FlexDirection::Column);
         assert!(app.world().get::<ScrollGoal>(node).is_some());
-        assert_eq!(kids(&app, node).len(), 1);
+        assert_eq!(
+            kids(&app, node).len(),
+            3,
+            "its two bars and the label"
+        );
     }
 
     #[test]

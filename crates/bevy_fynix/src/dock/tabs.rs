@@ -25,6 +25,9 @@ use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
 use super::{DockTokens, popup};
 use crate::cursor::EntityCursor;
 use crate::prop::resource;
+use crate::scroll::{
+    OwnScrollbar, ScrollbarStyle, ScrollbarVisibility,
+};
 use crate::tokens::Tone;
 use crate::views::{
     BehaviorExt, Frame, FrameProps, Icon, Label, ListWidth, Parts,
@@ -116,7 +119,14 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
         )
         .within(
             scroll(())
-                .with(TabRow { leaf })
+                // A bar would lie over the tabs.
+                .with((
+                    TabRow { leaf },
+                    OwnScrollbar(ScrollbarStyle {
+                        visibility: ScrollbarVisibility::Hidden,
+                        ..Default::default()
+                    }),
+                ))
                 .direction(FlexDirection::Row)
                 .overflow(Overflow::scroll_x())
                 .gap(gap)
