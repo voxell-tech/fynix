@@ -10,10 +10,10 @@ use bevy::ecs::world::EntityWorldMut;
 use bevy::picking::Pickable;
 use bevy::ui::{
     FlexDirection, Overflow, OverflowClipMargin, PositionType,
-    ScrollPosition, UiRect, percent, px,
+    UiRect, percent, px,
 };
-use bevy::ui_widgets::ScrollArea;
 
+use crate::scroll::ScrollGoal;
 use crate::tokens::SpacingTokens;
 use crate::views::frame::{Frame, FrameProps};
 use crate::{Bevy, Cx, Styled, View, ViewSeq};
@@ -63,16 +63,15 @@ pub fn column<C>(children: C) -> Stack<C> {
 
 /// A column that scrolls what does not fit, by wheel or trackpad. It
 /// can shrink below its content, which is what leaves something to
-/// scroll. What scrolls is clipped inside its padding.
-pub fn scroll<C>(
-    children: C,
-) -> Stack<C, ((), (ScrollArea, ScrollPosition))> {
+/// scroll. What scrolls is clipped inside its padding, and a wheel
+/// notch eases to where it leads.
+pub fn scroll<C>(children: C) -> Stack<C, ((), ScrollGoal)> {
     column(children)
         .overflow(Overflow::scroll())
         .clip_margin(OverflowClipMargin::content_box())
         .min_width(px(0.0))
         .min_height(px(0.0))
-        .with((ScrollArea, ScrollPosition::default()))
+        .with(ScrollGoal::default())
 }
 
 /// A stack the size of its parent and out of its layout, for what
@@ -237,7 +236,7 @@ mod tests {
         assert_eq!(ui.overflow, Overflow::scroll());
         assert_eq!((ui.min_width, ui.min_height), (px(0.0), px(0.0)));
         assert_eq!(ui.flex_direction, FlexDirection::Column);
-        assert!(app.world().get::<ScrollArea>(node).is_some());
+        assert!(app.world().get::<ScrollGoal>(node).is_some());
         assert_eq!(kids(&app, node).len(), 1);
     }
 
