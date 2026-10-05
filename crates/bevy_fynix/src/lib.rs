@@ -100,8 +100,8 @@ impl Plugin for CorePlugin {
         if !app.is_plugin_added::<CursorPlugin>() {
             app.add_plugins(CursorPlugin);
         }
-        shortcut::plugin(app);
-        app.init_resource::<InputFocus>()
+        app.add_plugins(shortcut::plugin)
+            .init_resource::<InputFocus>()
             .init_resource::<Unmounted>()
             .init_resource::<DirtyNodes>()
             .init_resource::<mounted::Receivers>()
