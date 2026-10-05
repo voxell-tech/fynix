@@ -50,8 +50,9 @@ pub(crate) fn tab(
         return;
     };
     let mut found = Vec::new();
-    gather(group, &groups, &stops, &mut found);
-    let Some(at) = found.iter().position(|&node| node == focused)
+    gather(group, true, &groups, &stops, &mut found);
+    let Some(at) =
+        found.iter().position(|&(node, _)| node == focused)
     else {
         return;
     };
@@ -59,36 +60,40 @@ pub(crate) fn tab(
         keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
     });
     let step = if back { found.len() - 1 } else { 1 };
-    let next = found[(at + step) % found.len()];
+    // From the focus even when it has been hidden since it took it,
+    // on to the first after it that is on screen.
+    let next = (1..found.len())
+        .map(|steps| found[(at + step * steps) % found.len()])
+        .find(|&(_, shown)| shown);
     event.propagate(false);
-    if next != focused {
+    if let Some((next, _)) = next {
         focus.set(next, FocusCause::Navigated);
     }
 }
 
-/// The nodes under `node` that take the focus, in tree order. What
-/// is out of the layout or hidden is skipped with all under it, and
-/// so is a group of its own.
+/// The nodes under `node` that take the focus, in tree order, each
+/// with whether it is on screen: `shown`, and neither it nor anything
+/// over it out of the layout or hidden. A group of its own is
+/// skipped.
 fn gather(
     node: Entity,
+    shown: bool,
     groups: &Query<(), With<TabGroup>>,
     stops: &Query<Stop>,
-    found: &mut Vec<Entity>,
+    found: &mut Vec<(Entity, bool)>,
 ) {
     let Ok((index, ui, visible, children)) = stops.get(node) else {
         return;
     };
-    if ui.is_some_and(|ui| ui.display == Display::None)
-        || visible == Some(&Visibility::Hidden)
-    {
-        return;
-    }
+    let shown = shown
+        && !ui.is_some_and(|ui| ui.display == Display::None)
+        && visible != Some(&Visibility::Hidden);
     if index.is_some_and(|index| index.0 >= 0) {
-        found.push(node);
+        found.push((node, shown));
     }
     for &child in children.into_iter().flatten() {
         if !groups.contains(child) {
-            gather(child, groups, stops, found);
+            gather(child, shown, groups, stops, found);
         }
     }
 }
