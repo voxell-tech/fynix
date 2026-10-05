@@ -129,6 +129,8 @@ pub struct Mods {
     pub alt: bool,
     /// Control on macOS, where it is not `primary`.
     pub ctrl: bool,
+    /// The Super key off macOS, where it is not `primary`.
+    pub meta: bool,
 }
 
 impl Mods {
@@ -137,6 +139,7 @@ impl Mods {
         shift: false,
         alt: false,
         ctrl: false,
+        meta: false,
     };
     pub const PRIMARY: Self = Self {
         primary: true,
@@ -154,6 +157,10 @@ impl Mods {
         ctrl: true,
         ..Self::NONE
     };
+    pub const META: Self = Self {
+        meta: true,
+        ..Self::NONE
+    };
 
     /// The modifiers down in `keys`.
     pub fn held(keys: &ButtonInput<KeyCode>) -> Self {
@@ -161,16 +168,19 @@ impl Mods {
         let control =
             down([KeyCode::ControlLeft, KeyCode::ControlRight]);
         let command = down([KeyCode::SuperLeft, KeyCode::SuperRight]);
-        let (primary, ctrl) = if cfg!(target_os = "macos") {
-            (command, control)
+        // Held with a key, Super makes another chord of it, not the
+        // bare key.
+        let (primary, ctrl, meta) = if cfg!(target_os = "macos") {
+            (command, control, false)
         } else {
-            (control, false)
+            (control, false, command)
         };
         Self {
             primary,
             shift: down([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
             alt: down([KeyCode::AltLeft, KeyCode::AltRight]),
             ctrl,
+            meta,
         }
     }
 
@@ -180,6 +190,7 @@ impl Mods {
             shift: self.shift || other.shift,
             alt: self.alt || other.alt,
             ctrl: self.ctrl || other.ctrl,
+            meta: self.meta || other.meta,
         }
     }
 
@@ -189,6 +200,7 @@ impl Mods {
             && (self.shift || !other.shift)
             && (self.alt || !other.alt)
             && (self.ctrl || !other.ctrl)
+            && (self.meta || !other.meta)
     }
 }
 
@@ -220,6 +232,7 @@ impl fmt::Display for Chord {
         for (bit, name) in [
             (Mods::PRIMARY, primary),
             (Mods::CTRL, "Ctrl"),
+            (Mods::META, "Super"),
             (Mods::ALT, "Alt"),
             (Mods::SHIFT, "Shift"),
         ] {
@@ -472,9 +485,7 @@ fn dispatch(
     // A bare key in a text field is that field's to type. The field
     // is read off the focus: the event names whatever it has bubbled
     // to.
-    let plain = !(mods.has(Mods::PRIMARY)
-        || mods.has(Mods::CTRL)
-        || mods.has(Mods::ALT));
+    let plain = !(mods.primary || mods.ctrl || mods.alt || mods.meta);
     let in_field =
         focus.get().is_some_and(|held| typing.contains(held));
     if plain && in_field {
@@ -525,6 +536,13 @@ fn in_force(world: &World) -> Vec<(ScopeId, Option<Entity>)> {
         .resource::<Hovered>()
         .0
         .iter()
+        // A panel closed with the pointer off the window is still
+        // listed.
+        .filter(|&&(node, scope)| {
+            world
+                .get::<Scope>(node)
+                .is_some_and(|open| open.0 == scope)
+        })
         .map(|&(node, scope)| (scope, Some(node)))
         .chain([(GLOBAL, None)])
         .collect()
