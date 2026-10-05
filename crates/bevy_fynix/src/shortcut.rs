@@ -6,8 +6,9 @@
 
 use core::fmt;
 
-use bevy::app::App;
+use bevy::app::{App, PreUpdate};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
@@ -19,6 +20,8 @@ use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::input_focus::{FocusedInput, InputFocus};
 use bevy::picking::events::{Pointer, Press};
+use bevy::picking::hover::HoverMap;
+use bevy::picking::pointer::PointerId;
 use bevy::text::EditableText;
 use bevy::ui_widgets::popover::Popover;
 use bevy::window::Window;
@@ -41,7 +44,17 @@ pub const MENU: ScopeId = ScopeId("menu");
 pub enum Layer {
     /// A popup, menu or dialog that is open.
     Modal,
+    /// A panel of the window, in force while the pointer is over it.
+    Panel,
     Global,
+}
+
+/// What ran a command.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Invoke {
+    /// The node carrying the [`Scope`] the command was found under,
+    /// for a command of a panel.
+    pub target: Option<Entity>,
 }
 
 /// A place commands belong to.
@@ -62,7 +75,7 @@ pub struct CommandSpec {
     pub id: CommandId,
     pub label: &'static str,
     pub scope: ScopeId,
-    pub run: fn(&mut World),
+    pub run: fn(&mut World, Invoke),
     pub enabled: fn(&World) -> bool,
     /// Whether a held key runs it again.
     pub repeat: bool,
@@ -249,16 +262,54 @@ impl ShortcutAppExt for App {
 
 /// Runs the command `id`, if it is registered and enabled. Whether
 /// it ran.
-pub fn run_command(world: &mut World, id: CommandId) -> bool {
+pub fn run_command(
+    world: &mut World,
+    id: CommandId,
+    invoke: Invoke,
+) -> bool {
     let command = world
         .get_resource::<CommandList>()
         .and_then(|list| list.get(id).copied());
     match command {
         Some(command) if (command.enabled)(world) => {
-            (command.run)(world);
+            (command.run)(world, invoke);
             true
         }
         _ => false,
+    }
+}
+
+/// The panel scopes under the pointer, innermost first, or under
+/// where it last was over anything.
+#[derive(Resource, Default)]
+struct Hovered(Vec<(Entity, ScopeId)>);
+
+fn track_hovered(
+    hover: Option<Res<HoverMap>>,
+    scopes: Query<&Scope>,
+    parents: Query<&ChildOf>,
+    list: Res<CommandList>,
+    mut hovered: ResMut<Hovered>,
+) {
+    let top = hover
+        .as_deref()
+        .and_then(|hover| hover.get(&PointerId::Mouse))
+        .and_then(|hits| {
+            hits.iter()
+                .min_by(|(_, a), (_, b)| a.depth.total_cmp(&b.depth))
+        })
+        .map(|(&node, _)| node);
+    // Off the window, the pointer is still where it left.
+    let Some(top) = top else {
+        return;
+    };
+    let chain = core::iter::once(top)
+        .chain(parents.iter_ancestors(top))
+        .filter_map(|node| Some((node, scopes.get(node).ok()?.0)))
+        .filter(|&(_, scope)| list.layer(scope) == Layer::Panel)
+        .collect::<Vec<_>>();
+    if hovered.0 != chain {
+        hovered.0 = chain;
     }
 }
 
@@ -276,6 +327,8 @@ pub(crate) fn plugin(app: &mut App) {
             label: "Menu",
             layer: Layer::Modal,
         })
+        .init_resource::<Hovered>()
+        .add_systems(PreUpdate, track_hovered)
         .add_observer(dispatch)
         .add_observer(blur_on_outside_press);
 }
@@ -292,7 +345,11 @@ fn dispatch(
     ),
     typing: Query<(), With<EditableText>>,
     open: Query<&Scope>,
-    (list, keymap): (Res<CommandList>, Res<Keymap>),
+    (list, keymap, hovered): (
+        Res<CommandList>,
+        Res<Keymap>,
+        Res<Hovered>,
+    ),
     mut commands: Commands,
 ) {
     let key = &event.input;
@@ -317,29 +374,45 @@ fn dispatch(
     if plain && in_field {
         return;
     }
-    // Only what is open over everything else answers while it is.
-    let modal =
-        open.iter().any(|scope| list.layer(scope.0) == Layer::Modal);
-    let in_force = |scope: ScopeId| match list.layer(scope) {
-        Layer::Modal => open.iter().any(|open| open.0 == scope),
-        Layer::Global => !modal,
-    };
-    let bound = keymap
-        .0
+    // The scopes in force, the first to answer first. Only what is
+    // open over everything else answers while it is. Otherwise the
+    // panels under the pointer do, innermost first, and then
+    // whatever belongs to no place.
+    let modal = open
         .iter()
-        .filter(|binding| binding.chord == chord)
-        .filter_map(|binding| list.get(binding.command))
-        .filter(|command| in_force(command.scope))
-        .filter(|command| command.repeat || !key.repeat)
-        .map(|command| command.id)
+        .filter(|scope| list.layer(scope.0) == Layer::Modal)
+        .map(|scope| (scope.0, None))
+        .collect::<Vec<_>>();
+    let in_force = if modal.is_empty() {
+        hovered
+            .0
+            .iter()
+            .map(|&(node, scope)| (scope, Some(node)))
+            .chain([(GLOBAL, None)])
+            .collect()
+    } else {
+        modal
+    };
+    let bound = in_force
+        .into_iter()
+        .flat_map(|(scope, target)| {
+            keymap
+                .0
+                .iter()
+                .filter(|binding| binding.chord == chord)
+                .filter_map(|binding| list.get(binding.command))
+                .filter(move |command| command.scope == scope)
+                .filter(|command| command.repeat || !key.repeat)
+                .map(move |command| (command.id, Invoke { target }))
+        })
         .collect::<Vec<_>>();
     if bound.is_empty() {
         return;
     }
     commands.queue(move |world: &mut World| {
         // The first of them that is enabled.
-        for id in bound {
-            if run_command(world, id) {
+        for (id, invoke) in bound {
+            if run_command(world, id, invoke) {
                 break;
             }
         }
@@ -399,7 +472,7 @@ mod tests {
                 id: BUMP,
                 label: "Bump",
                 scope: GLOBAL,
-                run: |world| world.resource_mut::<Ran>().0 += 1,
+                run: |world, _| world.resource_mut::<Ran>().0 += 1,
                 enabled: |_| true,
                 repeat: false,
             },
@@ -453,5 +526,51 @@ mod tests {
             shortcut_text(app.world(), BUMP).as_deref(),
             Some("W")
         );
+    }
+
+    #[derive(Resource, Default)]
+    struct Aimed(Option<Entity>);
+
+    #[test]
+    fn a_panels_key_runs_only_with_the_pointer_over_the_panel() {
+        const PANEL: ScopeId = ScopeId("test.panel");
+        let mut app = app();
+        app.init_resource::<Aimed>()
+            .add_scope(ScopeSpec {
+                id: PANEL,
+                label: "Panel",
+                layer: Layer::Panel,
+            })
+            .add_command(
+                CommandSpec {
+                    id: CommandId("test.aim"),
+                    label: "Aim",
+                    scope: PANEL,
+                    run: |world, invoke| {
+                        world.resource_mut::<Aimed>().0 =
+                            invoke.target;
+                    },
+                    enabled: |_| true,
+                    repeat: false,
+                },
+                // The key the global command is on, which it
+                // shadows.
+                &[Chord::key(KeyCode::KeyW)],
+            );
+        let panel = mount::<Plain>(
+            app.world_mut(),
+            frame().tagged(Scope(PANEL)),
+        );
+        let w = || Key::Character("w".into());
+
+        tests::key_down(&mut app, KeyCode::KeyW, w());
+        assert_eq!(app.world().resource::<Aimed>().0, None);
+        assert_eq!(ran(&app), 1, "the global one answers");
+
+        app.world_mut().resource_mut::<Hovered>().0 =
+            vec![(panel, PANEL)];
+        tests::key_down(&mut app, KeyCode::KeyW, w());
+        assert_eq!(app.world().resource::<Aimed>().0, Some(panel));
+        assert_eq!(ran(&app), 1, "shadowed by the panel's");
     }
 }
