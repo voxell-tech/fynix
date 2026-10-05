@@ -49,8 +49,15 @@ pub(crate) fn tab(
     else {
         return;
     };
+    // Nothing in a group under something hidden is on screen.
+    let shown = parents.iter_ancestors(group).all(|above| {
+        stops.get(above).is_ok_and(|(_, ui, visible, _)| {
+            !ui.is_some_and(|ui| ui.display == Display::None)
+                && visible != Some(&Visibility::Hidden)
+        })
+    });
     let mut found = Vec::new();
-    gather(group, true, &groups, &stops, &mut found);
+    gather(group, shown, &groups, &stops, &mut found);
     let Some(at) =
         found.iter().position(|&(node, _)| node == focused)
     else {
