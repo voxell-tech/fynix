@@ -42,6 +42,8 @@ pub const MENU: ScopeId = ScopeId("menu");
 /// How a scope ranks against the others. Earlier outranks later.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Layer {
+    /// A drag or other gesture under way.
+    Gesture,
     /// A popup, menu or dialog that is open.
     Modal,
     /// A panel of the window, in force while the pointer is over it.
@@ -63,6 +65,8 @@ pub struct ScopeSpec {
     pub id: ScopeId,
     pub label: &'static str,
     pub layer: Layer,
+    /// Whether it is in force, for a scope no node stands for.
+    pub active: Option<fn(&World) -> bool>,
 }
 
 /// On the root node of what a scope covers, while it is there.
@@ -326,6 +330,7 @@ pub(crate) fn plugin(app: &mut App) {
             id: MENU,
             label: "Menu",
             layer: Layer::Modal,
+            active: None,
         })
         .init_resource::<Hovered>()
         .add_systems(PreUpdate, track_hovered)
@@ -344,12 +349,6 @@ fn dispatch(
         Res<InputFocus>,
     ),
     typing: Query<(), With<EditableText>>,
-    open: Query<&Scope>,
-    (list, keymap, hovered): (
-        Res<CommandList>,
-        Res<Keymap>,
-        Res<Hovered>,
-    ),
     mut commands: Commands,
 ) {
     let key = &event.input;
@@ -374,26 +373,66 @@ fn dispatch(
     if plain && in_field {
         return;
     }
-    // The scopes in force, the first to answer first. Only what is
-    // open over everything else answers while it is. Otherwise the
-    // panels under the pointer do, innermost first, and then
-    // whatever belongs to no place.
-    let modal = open
+    let repeat = key.repeat;
+    commands.queue(move |world: &mut World| {
+        // The first of them that is enabled.
+        for (id, invoke) in bound(world, chord, repeat) {
+            if run_command(world, id, invoke) {
+                break;
+            }
+        }
+    });
+}
+
+/// The scopes in force, the first to answer first. A gesture under
+/// way answers alone, and failing one, whatever is open over
+/// everything else. Otherwise the panels under the pointer do,
+/// innermost first, and then whatever belongs to no place.
+fn in_force(world: &World) -> Vec<(ScopeId, Option<Entity>)> {
+    let list = world.resource::<CommandList>();
+    let gestures = list
+        .scopes
         .iter()
-        .filter(|scope| list.layer(scope.0) == Layer::Modal)
-        .map(|scope| (scope.0, None))
+        .filter(|spec| spec.layer == Layer::Gesture)
+        .filter(|spec| {
+            spec.active.is_some_and(|active| active(world))
+        })
+        .map(|spec| (spec.id, None))
         .collect::<Vec<_>>();
-    let in_force = if modal.is_empty() {
-        hovered
-            .0
-            .iter()
-            .map(|&(node, scope)| (scope, Some(node)))
-            .chain([(GLOBAL, None)])
-            .collect()
-    } else {
-        modal
-    };
-    let bound = in_force
+    if !gestures.is_empty() {
+        return gestures;
+    }
+    let modal = world
+        .try_query::<&Scope>()
+        .map(|mut open| {
+            open.iter(world)
+                .filter(|scope| list.layer(scope.0) == Layer::Modal)
+                .map(|scope| (scope.0, None))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !modal.is_empty() {
+        return modal;
+    }
+    world
+        .resource::<Hovered>()
+        .0
+        .iter()
+        .map(|&(node, scope)| (scope, Some(node)))
+        .chain([(GLOBAL, None)])
+        .collect()
+}
+
+/// The commands `chord` is bound to in the scopes in force, in the
+/// order they answer.
+fn bound(
+    world: &World,
+    chord: Chord,
+    repeat: bool,
+) -> Vec<(CommandId, Invoke)> {
+    let list = world.resource::<CommandList>();
+    let keymap = world.resource::<Keymap>();
+    in_force(world)
         .into_iter()
         .flat_map(|(scope, target)| {
             keymap
@@ -402,21 +441,10 @@ fn dispatch(
                 .filter(|binding| binding.chord == chord)
                 .filter_map(|binding| list.get(binding.command))
                 .filter(move |command| command.scope == scope)
-                .filter(|command| command.repeat || !key.repeat)
+                .filter(move |command| command.repeat || !repeat)
                 .map(move |command| (command.id, Invoke { target }))
         })
-        .collect::<Vec<_>>();
-    if bound.is_empty() {
-        return;
-    }
-    commands.queue(move |world: &mut World| {
-        // The first of them that is enabled.
-        for (id, invoke) in bound {
-            if run_command(world, id, invoke) {
-                break;
-            }
-        }
-    });
+        .collect()
 }
 
 /// Drops the focus on a press that lands away from the node holding
@@ -540,6 +568,7 @@ mod tests {
                 id: PANEL,
                 label: "Panel",
                 layer: Layer::Panel,
+                active: None,
             })
             .add_command(
                 CommandSpec {

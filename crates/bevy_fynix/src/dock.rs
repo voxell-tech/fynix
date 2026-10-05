@@ -17,6 +17,7 @@ use core::marker::PhantomData;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::system::Res;
+use bevy::input::keyboard::KeyCode;
 use bevy::math::{Rect, Vec2};
 use bevy::ui::{
     ComputedNode, UiGlobalTransform, UiRect, UiScale, percent, px,
@@ -32,6 +33,7 @@ pub use tree::{
 
 use crate::cursor::OverrideCursor;
 use crate::prop::{keyed, resource};
+use crate::shortcut::{Chord, CommandList, ShortcutAppExt};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
@@ -84,7 +86,18 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
             .add_observer(drag::start)
             .add_observer(drag::moved::<T>)
             .add_observer(drag::end)
-            .add_systems(Update, (drag::cancel, tabs::show_close));
+            .add_systems(Update, tabs::show_close);
+        // Once, whatever the number of themes.
+        let known = app
+            .world()
+            .get_resource::<CommandList>()
+            .is_some_and(|list| list.get(drag::CANCEL.id).is_some());
+        if !known {
+            app.add_scope(drag::DRAG).add_command(
+                drag::CANCEL,
+                &[Chord::key(KeyCode::Escape)],
+            );
+        }
     }
 }
 
@@ -688,8 +701,7 @@ mod tests {
 
     use bevy::camera::NormalizedRenderTarget;
     use bevy::camera::visibility::Visibility;
-    use bevy::input::ButtonInput;
-    use bevy::input::keyboard::KeyCode;
+    use bevy::input::keyboard::Key;
     use bevy::math::{Rect, Vec2};
     use bevy::picking::backend::HitData;
     use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
@@ -977,15 +989,12 @@ mod tests {
     fn cancelling_a_tab_drag_lets_go_of_the_cursor() {
         let (mut app, left, right) = app();
         lay_out(&mut app, left, right);
-        app.init_resource::<ButtonInput<KeyCode>>();
+        tests::keyboard(&mut app);
         let one = tab_node(&mut app, left, 0);
         press(&mut app, one, Vec2::new(10.0, 10.0));
         drag_to(&mut app, one, Vec2::new(230.0, 10.0));
 
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::Escape);
-        app.update();
+        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
 
         assert_eq!(forced(&app), None);
     }
@@ -1138,7 +1147,7 @@ mod tests {
     fn escape_ends_the_drag_without_dropping() {
         let (mut app, left, right) = app();
         lay_out(&mut app, left, right);
-        app.init_resource::<ButtonInput<KeyCode>>();
+        tests::keyboard(&mut app);
         let one = tab_node(&mut app, left, 0);
 
         press(&mut app, one, Vec2::new(10.0, 10.0));
@@ -1149,10 +1158,7 @@ mod tests {
         else {
             panic!("dragging");
         };
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::Escape);
-        app.update();
+        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
         // Once more, for the commands the cancel queued.
         app.update();
 

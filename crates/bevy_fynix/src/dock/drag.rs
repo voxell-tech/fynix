@@ -8,8 +8,6 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
 use bevy::math::{Rect, Vec2};
 use bevy::picking::Pickable;
 use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
@@ -31,6 +29,9 @@ use super::tree::{DockTree, Edge, NodeId};
 use super::{DockTokens, logical, logical_rect};
 use crate::Theme;
 use crate::cursor::OverrideCursor;
+use crate::shortcut::{
+    CommandId, CommandSpec, Layer, ScopeId, ScopeSpec,
+};
 use crate::tokens::Tone;
 
 /// How far the pointer moves before a press on a tab is a drag, in
@@ -360,24 +361,37 @@ pub(super) fn end(
     }
 }
 
-/// Ends the drag without dropping on Escape.
-pub(super) fn cancel(
-    keys: Option<Res<ButtonInput<KeyCode>>>,
-    mut state: ResMut<DockDrag>,
-    mut forced: ResMut<OverrideCursor>,
-    mut commands: Commands,
-) {
-    if !keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)) {
-        return;
-    }
-    if let DockDrag::Dragging {
-        node, ghost, hint, ..
-    } = core::mem::take(&mut *state)
-    {
-        forced.0 = None;
-        clean_up(&mut commands, node, ghost, hint);
-    }
-}
+/// The scope of a tab being dragged.
+pub(super) const DRAG: ScopeSpec = ScopeSpec {
+    id: ScopeId("dock.drag"),
+    label: "Dragging a tab",
+    layer: Layer::Gesture,
+    active: Some(|world| {
+        world.get_resource::<DockDrag>().is_some_and(|drag| {
+            matches!(drag, DockDrag::Dragging { .. })
+        })
+    }),
+};
+
+/// The command that ends the drag without dropping.
+pub(super) const CANCEL: CommandSpec = CommandSpec {
+    id: CommandId("dock.cancel_drag"),
+    label: "Cancel the drag",
+    scope: DRAG.id,
+    run: |world, _| {
+        let state =
+            core::mem::take(&mut *world.resource_mut::<DockDrag>());
+        if let DockDrag::Dragging {
+            node, ghost, hint, ..
+        } = state
+        {
+            world.resource_mut::<OverrideCursor>().0 = None;
+            clean_up(&mut world.commands(), node, ghost, hint);
+        }
+    },
+    enabled: |_| true,
+    repeat: false,
+};
 
 /// Removes the ghost and the hint, and shows the tab again.
 fn clean_up(
