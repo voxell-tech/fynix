@@ -268,11 +268,19 @@ where
         let button = cx.under(root, |cx| {
             let button = cx.scope(|cx| {
                 cx.defaults(|cx| cx.root(control_defaults));
-                let mut button = button(
-                    row((label(shown).wrap(false).grown(1.0), end))
+                // Words too long for the control are cut at its
+                // edge, so that the chevron keeps its place.
+                let words = row((label(shown).wrap(false),))
+                    .grow(1.0)
+                    .min_width(px(0.0))
+                    .overflow(Overflow::clip());
+                let button = button(
+                    row((words, row((end,)).shrink(0.0)))
                         .grow(1.0)
+                        .min_width(px(0.0))
                         .align(AlignItems::Center),
                 );
+                let mut button = button;
                 button.frame = control;
                 cx.build(button)
             });
@@ -642,7 +650,9 @@ mod tests {
     fn shown(app: &App, root: Entity) -> String {
         let (button, _) = parts(app, root);
         let content = kids(app, button)[0];
-        text(app, kids(app, content)[0]).to_string()
+        // The words are in a box of their own, which cuts them.
+        let words = kids(app, content)[0];
+        text(app, kids(app, words)[0]).to_string()
     }
 
     fn shut(app: &App, root: Entity) -> bool {
@@ -884,7 +894,8 @@ mod tests {
     fn down(app: &App, root: Entity) -> bool {
         let (button, _) = parts(app, root);
         let content = kids(app, button)[0];
-        let chevron = kids(app, content)[1];
+        // It keeps its width in a box of its own.
+        let chevron = kids(app, kids(app, content)[1])[0];
         let turn = app
             .world()
             .get::<UiTransform>(chevron)
