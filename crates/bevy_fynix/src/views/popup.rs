@@ -1,10 +1,13 @@
 //! A surface floating over everything else, hung off what opened it.
 
+use bevy::app::App;
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::Commands;
 use bevy::ecs::world::World;
+use bevy::input::keyboard::KeyCode;
 use bevy::math::Rect;
 use bevy::picking::Pickable;
 use bevy::picking::events::{Pointer, Press};
@@ -13,20 +16,67 @@ use bevy::ui_widgets::popover::{
     Popover, PopoverAlign, PopoverPlacement, PopoverSide,
 };
 
+use crate::shortcut::{
+    Chord, CommandId, CommandSpec, Layer, Scope, ScopeId, ScopeSpec,
+    ShortcutAppExt,
+};
 use crate::tokens::{SpacingTokens, SurfaceTokens};
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{MENU_Z, menu_surface};
 use crate::views::stack::{column, overlay, row};
 use crate::{Bevy, Cx, ScopedExt, Styled, View, ViewSeq};
 
-/// What runs when a press lands outside a [`Popup`], given its root.
+/// What runs when a [`Popup`] is dismissed, given its root.
 type Dismiss = fn(&mut World, Entity);
+
+/// The scope of an open [`Popup`].
+pub const POPUP: ScopeId = ScopeId("popup");
+
+/// The command that dismisses the popup opened last.
+pub const DISMISS: CommandId = CommandId("popup.dismiss");
+
+/// On a popup's root: what dismisses it.
+#[derive(Component, Clone, Copy)]
+struct Dismisses(Dismiss);
+
+/// Registers the popup's scope and binds Escape to its dismissal.
+pub(crate) fn plugin(app: &mut App) {
+    app.add_scope(ScopeSpec {
+        id: POPUP,
+        label: "Popup",
+        layer: Layer::Modal,
+        active: None,
+    })
+    .add_command(
+        CommandSpec {
+            id: DISMISS,
+            label: "Close the popup",
+            scope: POPUP,
+            run: |world, _| {
+                let newest = world
+                    .try_query::<(Entity, &Dismisses)>()
+                    .and_then(|mut open| {
+                        open.iter(world)
+                            .map(|(root, dismiss)| (root, dismiss.0))
+                            .max_by_key(|(root, _)| *root)
+                    });
+                if let Some((root, dismiss)) = newest {
+                    dismiss(world, root);
+                }
+            },
+            enabled: |_| true,
+            repeat: false,
+        },
+        &[Chord::key(KeyCode::Escape)],
+    );
+}
 
 /// `content` in a column on a menu surface, hung off an anchor in its
 /// parent and placed by [`Popover`] where the window cuts off least
 /// of it, over a backdrop filling the parent. A press on the backdrop
-/// runs the dismiss handler, which despawns the popup unless set. Its
-/// frame styles the surface.
+/// runs the dismiss handler, which despawns the popup unless set,
+/// and so does [`DISMISS`], which Escape is bound to. Its frame
+/// styles the surface.
 pub struct Popup<C> {
     pub frame: Frame,
     content: C,
@@ -63,8 +113,8 @@ impl<C> Popup<C> {
         self
     }
 
-    /// What a press on the backdrop runs instead of despawning the
-    /// popup.
+    /// What a press on the backdrop or [`DISMISS`] runs instead of
+    /// despawning the popup.
     pub fn on_dismiss(mut self, on_dismiss: Dismiss) -> Self {
         self.on_dismiss = on_dismiss;
         self
@@ -104,7 +154,13 @@ where
         } = self;
         let window_margin = cx.theme().menu_margin();
         let root = cx.build(
-            overlay(()).with(Pickable::default()).z(Some(MENU_Z - 1)),
+            overlay(())
+                .with((
+                    Pickable::default(),
+                    Scope(POPUP),
+                    Dismisses(on_dismiss),
+                ))
+                .z(Some(MENU_Z - 1)),
         );
         cx.world.entity_mut(root).observe(
             move |press: On<Pointer<Press>>,
@@ -225,6 +281,21 @@ mod tests {
         assert_eq!(app.world().resource::<Dismissed>().0, 0);
 
         press(&mut app, root);
+        assert_eq!(app.world().resource::<Dismissed>().0, 1);
+    }
+
+    #[test]
+    fn escape_dismisses_it() {
+        use bevy::input::keyboard::Key;
+
+        let mut app = tests::app();
+        tests::keyboard(&mut app);
+        mounted(&mut app);
+        app.update();
+
+        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
+        app.update();
+
         assert_eq!(app.world().resource::<Dismissed>().0, 1);
     }
 
