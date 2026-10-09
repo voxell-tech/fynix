@@ -131,7 +131,9 @@ where
                         Val::Auto,
                     ))
                     .width(px(anchor.width()))
-                    .height(px(anchor.height())),
+                    .height(px(anchor.height()))
+                    // A press on the anchor is one on the backdrop.
+                    .with(Pickable::IGNORE),
             );
             cx.under(anchor, |cx| {
                 let mut surface = column(content);
@@ -209,6 +211,8 @@ mod tests {
         let ui = app.world().get::<Node>(anchor).unwrap();
         assert_eq!((ui.left, ui.top), (px(10.0), px(20.0)));
         assert_eq!((ui.width, ui.height), (px(30.0), px(24.0)));
+        let picked = app.world().get::<Pickable>(anchor).unwrap();
+        assert!(!picked.should_block_lower && !picked.is_hoverable);
     }
 
     #[test]
