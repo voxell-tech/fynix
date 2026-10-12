@@ -101,44 +101,48 @@ impl Plugin for CorePlugin {
         if !app.is_plugin_added::<CursorPlugin>() {
             app.add_plugins(CursorPlugin);
         }
-        app.add_plugins((shortcut::plugin, scroll::plugin))
-            .init_resource::<InputFocus>()
-            .init_resource::<Unmounted>()
-            .init_resource::<DirtyNodes>()
-            .init_resource::<mounted::Receivers>()
-            .init_resource::<ReducedMotion>()
-            .init_resource::<Entrances>()
-            .init_resource::<TooltipTiming>()
-            .add_observer(backend::queue_unmounted)
-            .add_observer(views::close_on_outside_press)
-            .add_observer(views::close_on_escape)
-            .add_observer(views::toggle_dropdown)
-            .add_observer(views::dismiss_context_menu)
-            .add_observer(tab::tab)
-            .configure_sets(
-                Update,
-                (
-                    FynixSystems::Prepare,
-                    FynixSystems::Mount,
-                    FynixSystems::Settle,
-                )
-                    .chain(),
+        app.add_plugins((
+            shortcut::plugin,
+            scroll::plugin,
+            views::popup_plugin,
+        ))
+        .init_resource::<InputFocus>()
+        .init_resource::<Unmounted>()
+        .init_resource::<DirtyNodes>()
+        .init_resource::<mounted::Receivers>()
+        .init_resource::<ReducedMotion>()
+        .init_resource::<Entrances>()
+        .init_resource::<TooltipTiming>()
+        .add_observer(backend::queue_unmounted)
+        .add_observer(views::close_on_outside_press)
+        .add_observer(views::close_on_escape)
+        .add_observer(views::toggle_dropdown)
+        .add_observer(views::dismiss_context_menu)
+        .add_observer(tab::tab)
+        .configure_sets(
+            Update,
+            (
+                FynixSystems::Prepare,
+                FynixSystems::Mount,
+                FynixSystems::Settle,
             )
-            .add_systems(
-                Update,
-                views::tick_tooltips.in_set(FynixSystems::Prepare),
+                .chain(),
+        )
+        .add_systems(
+            Update,
+            views::tick_tooltips.in_set(FynixSystems::Prepare),
+        )
+        .add_systems(
+            Update,
+            (
+                views::sync_text_inputs,
+                leave::settle_entrances,
+                views::focus_first,
             )
-            .add_systems(
-                Update,
-                (
-                    views::sync_text_inputs,
-                    leave::settle_entrances,
-                    views::focus_first,
-                )
-                    .chain()
-                    .in_set(FynixSystems::Settle),
-            )
-            .add_systems(Update, views::despawn_orphans);
+                .chain()
+                .in_set(FynixSystems::Settle),
+        )
+        .add_systems(Update, views::despawn_orphans);
     }
 }
 

@@ -16,6 +16,7 @@ mod menu;
 mod number_field;
 mod popup;
 mod segmented;
+mod slider;
 mod stack;
 mod text_input;
 mod tooltip;
@@ -50,8 +51,10 @@ pub(crate) use menu::{
     focus_first,
 };
 pub use number_field::{Number, NumberField, number_field};
-pub use popup::{Popup, corners, popup};
+pub(crate) use popup::plugin as popup_plugin;
+pub use popup::{DISMISS, POPUP, Popup, corners, popup};
 pub use segmented::{Segmented, segmented};
+pub use slider::{Slider, slider};
 pub use stack::{Extra, Stack, column, overlay, row, scroll};
 pub(crate) use text_input::sync_text_inputs;
 pub use text_input::{TextInput, TextInputProps};
