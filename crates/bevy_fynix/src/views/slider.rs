@@ -176,7 +176,9 @@ where
         let (well, accent, edge) =
             (theme.fill(), theme.accent(), theme.hairline());
         let (least, most) = self.range;
-        let span = (most - least).abs().max(f32::EPSILON);
+        // Signed, so a range that falls from left to right fills
+        // the same way a press on it reads.
+        let span = most - least;
         cx.scope(|cx| {
             cx.defaults(|cx| cx.root(defaults));
             let node = cx.build(self.frame);
@@ -197,9 +199,11 @@ where
                 node,
                 self.value,
                 move |world, node, &value| {
-                    let to = Along(
-                        ((value - least) / span).clamp(0.0, 1.0),
-                    );
+                    let to = Along(if span == 0.0 {
+                        0.0
+                    } else {
+                        ((value - least) / span).clamp(0.0, 1.0)
+                    });
                     if let Ok(mut entity) = world.get_entity_mut(node)
                         && entity.get::<Along>() != Some(&to)
                     {
@@ -343,5 +347,17 @@ mod tests {
         assert_eq!(app.world().get::<Along>(node).unwrap().0, 0.5);
         assert_eq!(press(&mut app, node, 900.0), 20.0);
         assert_eq!(press(&mut app, node, 0.0), 10.0);
+    }
+
+    #[test]
+    fn a_range_that_falls_fills_as_far_as_its_value() {
+        let mut app = tests::app();
+        app.insert_resource(Level(0.75));
+        let node = mounted(&mut app, (1.0, 0.0));
+        app.update();
+
+        assert_eq!(app.world().get::<Along>(node).unwrap().0, 0.25);
+        assert_eq!(press(&mut app, node, 900.0), 0.0);
+        assert_eq!(app.world().get::<Along>(node).unwrap().0, 1.0);
     }
 }
