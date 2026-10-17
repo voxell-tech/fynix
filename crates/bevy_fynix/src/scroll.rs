@@ -26,8 +26,10 @@ use bevy::ui::{ComputedNode, Node, OverflowAxis, ScrollPosition};
 use crate::transition::ReducedMotion;
 
 pub(crate) fn plugin(app: &mut App) {
+    // Kept as the input plugin set it, if it is there first.
     app.add_plugins(bar::plugin)
         .init_resource::<ScrollMotion>()
+        .init_resource::<MouseScrollPixelsPerLine>()
         .add_observer(on_scroll)
         .add_systems(Update, ease);
 }
@@ -164,5 +166,41 @@ fn ease(
         } else {
             **position += left * share;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::camera::NormalizedRenderTarget;
+    use bevy::ecs::entity::Entity;
+    use bevy::input::touch::TouchPhase;
+    use bevy::picking::backend::HitData;
+    use bevy::picking::events::Pointer;
+    use bevy::picking::pointer::{Location, PointerId};
+
+    use super::*;
+    use crate::tests;
+
+    #[test]
+    fn a_wheel_turns_without_the_input_plugin() {
+        let mut app = tests::app();
+        let node = app.world_mut().spawn_empty().id();
+        let location = Location {
+            target: NormalizedRenderTarget::None {
+                width: 100,
+                height: 100,
+            },
+            position: Vec2::ZERO,
+        };
+        app.world_mut().trigger(PointerScroll {
+            entity: node,
+            pointer: Pointer::new(PointerId::Mouse, location),
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: 1.0,
+            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+            phase: TouchPhase::Moved,
+        });
+        app.update();
     }
 }
