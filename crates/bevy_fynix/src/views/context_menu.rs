@@ -340,6 +340,9 @@ mod tests {
         let source = source(&mut app);
 
         press(&mut app, source, PointerButton::Secondary, Vec2::ZERO);
+        // The menu is held hidden the frame it enters, and a hidden
+        // row takes no focus.
+        app.update();
 
         let popup = popups(&mut app)[0];
         let first = kids(&app, popup)[0];

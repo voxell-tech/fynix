@@ -4,6 +4,7 @@
 use core::marker::PhantomData;
 use core::time::Duration;
 
+use bevy::camera::visibility::InheritedVisibility;
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -333,21 +334,25 @@ where
     })
 }
 
-/// On a popup that takes the keyboard focus once it is built, on its
+/// On a popup that takes the keyboard focus once it shows, on its
 /// first row or its last.
 #[derive(Component)]
 pub(crate) struct FocusOn(pub(crate) NavAction);
 
 /// Gives a row of each popup marked [`FocusOn`] the focus, which is
-/// what keeps it open.
+/// what keeps it open. Navigation passes over hidden rows, so a popup
+/// held hidden as it enters waits until it shows.
 pub(crate) fn focus_first(
-    popups: Query<(Entity, &FocusOn)>,
+    popups: Query<(Entity, &FocusOn, &InheritedVisibility)>,
     mut states: Query<&mut MenuFocusState>,
     navigation: TabNavigation,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
-    for (popup, on) in &popups {
+    for (popup, on, shown) in &popups {
+        if !shown.get() {
+            continue;
+        }
         commands.entity(popup).remove::<FocusOn>();
         if let Ok(row) = navigation.initialize(popup, on.0) {
             focus.set(row, FocusCause::Navigated);
