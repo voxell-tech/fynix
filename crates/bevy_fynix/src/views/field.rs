@@ -5,7 +5,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::Commands;
 use bevy::ecs::world::World;
-use bevy::picking::events::{Pointer, Press};
+use bevy::picking::events::PointerPress;
 use bevy::picking::pointer::PointerButton;
 use bevy::text::{EditableText, TextCursorStyle};
 use bevy::ui::{AlignItems, UiRect, px};
@@ -140,7 +140,7 @@ where
             .entity_mut(root)
             .insert(EntityCursor(SystemCursorIcon::Text))
             .observe(
-                move |press: On<Pointer<Press>>,
+                move |press: On<PointerPress>,
                       mut commands: Commands| {
                     if press.button == PointerButton::Primary {
                         commands.queue(move |world: &mut World| {
@@ -168,7 +168,9 @@ pub(super) mod fixtures {
     };
     use bevy::math::Vec2;
     use bevy::picking::backend::HitData;
-    use bevy::picking::events::{Click, Drag, DragEnd};
+    use bevy::picking::events::{
+        Pointer, PointerClick, PointerDrag, PointerDragEnd,
+    };
     use bevy::picking::pointer::{Location, PointerId};
     use bevy::window::{PrimaryWindow, Window};
 
@@ -253,14 +255,15 @@ pub(super) mod fixtures {
         app.update();
     }
 
-    fn location() -> Location {
-        Location {
+    fn pointer() -> Pointer {
+        let location = Location {
             target: NormalizedRenderTarget::None {
                 width: 100,
                 height: 100,
             },
             position: Vec2::ZERO,
-        }
+        };
+        Pointer::new(PointerId::Mouse, location)
     }
 
     fn hit() -> HitData {
@@ -269,65 +272,49 @@ pub(super) mod fixtures {
 
     /// A primary-button press on `target`.
     pub fn press(app: &mut App, target: Entity) {
-        let event = Press {
+        app.world_mut().trigger(PointerPress {
+            entity: target,
+            pointer: pointer(),
             button: PointerButton::Primary,
             hit: hit(),
             count: 1,
-        };
-        app.world_mut().trigger(Pointer::new(
-            PointerId::Mouse,
-            location(),
-            event,
-            target,
-        ));
+        });
         app.update();
     }
 
     /// A primary-button drag of `target`, `dx` pixels from where it
     /// began.
     pub fn drag(app: &mut App, target: Entity, dx: f32) {
-        let event = Drag {
+        app.world_mut().trigger(PointerDrag {
+            entity: target,
+            pointer: pointer(),
             button: PointerButton::Primary,
             distance: Vec2::new(dx, 0.0),
             delta: Vec2::ZERO,
-        };
-        app.world_mut().trigger(Pointer::new(
-            PointerId::Mouse,
-            location(),
-            event,
-            target,
-        ));
+        });
         app.update();
     }
 
     pub fn drag_end(app: &mut App, target: Entity) {
-        let event = DragEnd {
+        app.world_mut().trigger(PointerDragEnd {
+            entity: target,
+            pointer: pointer(),
             button: PointerButton::Primary,
             distance: Vec2::ZERO,
-        };
-        app.world_mut().trigger(Pointer::new(
-            PointerId::Mouse,
-            location(),
-            event,
-            target,
-        ));
+        });
         app.update();
     }
 
     /// A primary-button click on `target`.
     pub fn click(app: &mut App, target: Entity) {
-        let event = Click {
+        app.world_mut().trigger(PointerClick {
+            entity: target,
+            pointer: pointer(),
             button: PointerButton::Primary,
             hit: hit(),
             duration: Duration::ZERO,
             count: 1,
-        };
-        app.world_mut().trigger(Pointer::new(
-            PointerId::Mouse,
-            location(),
-            event,
-            target,
-        ));
+        });
         app.update();
     }
 }

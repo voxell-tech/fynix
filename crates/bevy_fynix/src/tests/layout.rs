@@ -50,6 +50,7 @@ fn laid_out() -> App {
     .init_resource::<bevy::text::TextPipeline>()
     .init_resource::<bevy::text::FontCx>()
     .init_resource::<bevy::text::ScaleCx>()
+    .init_resource::<bevy::text::RemSize>()
     .add_plugins(UiPlugin)
     // The text and image systems of the plugin have nothing to read
     // here, and skip their run.

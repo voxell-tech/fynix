@@ -6,7 +6,7 @@ use bevy::ecs::event::EntityEvent;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Commands, Query};
 use bevy::ecs::world::World;
-use bevy::picking::events::{Drag, Pointer, Press};
+use bevy::picking::events::{PointerDrag, PointerPress};
 use bevy::picking::pointer::PointerButton;
 use bevy::ui::{
     AlignItems, ComputedNode, PositionType, UiGlobalTransform,
@@ -125,7 +125,7 @@ fn slide_to(
 }
 
 fn pressed(
-    mut press: On<Pointer<Press>>,
+    mut press: On<PointerPress>,
     tracks: Query<(&Slides, &ComputedNode, &UiGlobalTransform)>,
     mut commands: Commands,
 ) {
@@ -133,12 +133,12 @@ fn pressed(
         return;
     }
     press.propagate(false);
-    let x = press.pointer_location.position.x;
+    let x = press.pointer.position.x;
     slide_to(press.event_target(), x, &tracks, &mut commands);
 }
 
 fn dragged(
-    mut drag: On<Pointer<Drag>>,
+    mut drag: On<PointerDrag>,
     tracks: Query<(&Slides, &ComputedNode, &UiGlobalTransform)>,
     mut commands: Commands,
 ) {
@@ -146,7 +146,7 @@ fn dragged(
         return;
     }
     drag.propagate(false);
-    let x = drag.pointer_location.position.x;
+    let x = drag.pointer.position.x;
     slide_to(drag.event_target(), x, &tracks, &mut commands);
 }
 

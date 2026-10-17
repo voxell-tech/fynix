@@ -48,7 +48,7 @@ impl Seed {
 /// Queues every despawned [`Node`]. Only a queue, as the mounts are
 /// out of the world while they update, and a despawn can happen then.
 pub(crate) fn queue_unmounted(
-    despawn: On<Despawn, Node>,
+    despawn: On<Despawn<Node>>,
     mut queue: ResMut<Unmounted>,
 ) {
     queue.0.push(despawn.entity);

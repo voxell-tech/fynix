@@ -10,7 +10,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::input_focus::tab_navigation::NavAction;
 use bevy::math::Vec2;
-use bevy::picking::events::{Pointer, Press};
+use bevy::picking::events::PointerPress;
 use bevy::picking::pointer::PointerButton;
 use bevy::ui::{Pressed, UiScale, px};
 use bevy::ui_widgets::{MenuAction, MenuEvent, MenuFocusState};
@@ -77,7 +77,7 @@ pub trait ContextMenuExt: Sized {
 impl<V> ContextMenuExt for V {}
 
 fn open(
-    mut press: On<Pointer<Press>>,
+    mut press: On<PointerPress>,
     scale: Option<Res<UiScale>>,
     openings: Query<&Openings>,
     mut commands: Commands,
@@ -95,7 +95,7 @@ fn open(
         .entity(source)
         .insert((
             OpenAt {
-                at: press.pointer_location.position / scale,
+                at: press.pointer.position / scale,
                 serial,
             },
             Openings(serial),

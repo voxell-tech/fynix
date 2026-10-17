@@ -10,9 +10,10 @@ use bevy::math::{Rot2, Vec2};
 use bevy::text::TextColor;
 use bevy::ui::widget::ImageNode;
 use bevy::ui::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, Display,
-    FlexDirection, GlobalZIndex, JustifyContent, Overflow,
-    OverflowClipMargin, PositionType, UiRect, UiTransform, Val, px,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius,
+    CornerRadius, Display, FlexDirection, GlobalZIndex,
+    JustifyContent, Overflow, OverflowClipMargin, PositionType,
+    UiRect, UiTransform, Val, px,
 };
 
 use crate::visual::faded;
@@ -151,7 +152,15 @@ patch!(
 );
 
 /// The value of a corners prop that is left unset.
-pub const NO_CORNERS: BorderRadius = BorderRadius::all(Val::Auto);
+pub const NO_CORNERS: BorderRadius = {
+    let unset = CornerRadius::all(Val::Auto);
+    BorderRadius {
+        top_left: unset,
+        top_right: unset,
+        bottom_right: unset,
+        bottom_left: unset,
+    }
+};
 
 /// The rounding a node is given, kept so `radius` and `corners` can
 /// be written in any order: the corners win while they are set.

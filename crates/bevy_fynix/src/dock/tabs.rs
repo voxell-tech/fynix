@@ -141,11 +141,7 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
                 .shrink(0.0)
                 .align(AlignItems::Center)
                 .fill(fill)
-                .corners(BorderRadius {
-                    top_left: corner,
-                    top_right: corner,
-                    ..BorderRadius::ZERO
-                }),
+                .corners(BorderRadius::top(corner)),
         )
     })
 }

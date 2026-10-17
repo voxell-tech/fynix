@@ -9,7 +9,9 @@ use bevy::ecs::system::Commands;
 use bevy::ecs::world::World;
 use bevy::input_focus::{FocusGained, FocusLost};
 use bevy::picking::Pickable;
-use bevy::picking::events::{Click, Drag, DragEnd, Pointer};
+use bevy::picking::events::{
+    PointerClick, PointerDrag, PointerDragEnd,
+};
 use bevy::picking::pointer::PointerButton;
 use bevy::text::{EditableText, TextEdit};
 use bevy::window::SystemCursorIcon;
@@ -306,7 +308,7 @@ where
             .entity_mut(root)
             .insert(DRAG_CURSOR)
             .observe(
-                move |drag: On<Pointer<Drag>>,
+                move |drag: On<PointerDrag>,
                       mut commands: Commands| {
                     if drag.button != PointerButton::Primary {
                         return;
@@ -318,7 +320,7 @@ where
                 },
             )
             .observe(
-                move |_: On<Pointer<DragEnd>>,
+                move |_: On<PointerDragEnd>,
                       mut commands: Commands| {
                     commands.queue(move |world: &mut World| {
                         if let Ok(mut root) =
@@ -332,7 +334,7 @@ where
                 },
             )
             .observe(
-                move |click_: On<Pointer<Click>>,
+                move |click_: On<PointerClick>,
                       mut commands: Commands| {
                     if click_.button != PointerButton::Primary {
                         return;

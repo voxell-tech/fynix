@@ -426,7 +426,7 @@ mod tests {
         app.init_resource::<Releases>()
             .add_systems(PreUpdate, update_is_hovered)
             .add_observer(
-                |_: On<Remove, Hovered>,
+                |_: On<Remove<Hovered>>,
                  mut releases: ResMut<Releases>| {
                     releases.0 += 1;
                 },

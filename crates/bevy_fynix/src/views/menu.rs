@@ -19,7 +19,7 @@ use bevy::input_focus::tab_navigation::{
 use bevy::input_focus::{FocusCause, FocusedInput, InputFocus};
 use bevy::math::Vec2;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, Press};
+use bevy::picking::events::PointerPress;
 use bevy::ui::{
     AlignItems, FlexDirection, Node, Overflow, OverrideClip,
     PositionType, UiRect, Val, percent, px,
@@ -363,11 +363,10 @@ pub(crate) fn focus_first(
 /// a dropdown's button, is left to that node.
 ///
 /// `bevy_ui_widgets` closes a popup when the focus leaves it, but
-/// nothing moves the focus on a press: that is the tab navigation
-/// plugin's `click_to_focus`, which an app that does not draw with
-/// Bevy's feathers does not have.
+/// only `PointerFocusPlugin` moves the focus on a press, and an app
+/// need not have it.
 pub(crate) fn close_on_outside_press(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     popups: Query<(Entity, &MenuFocusState), With<MenuPopup>>,
     parents: Query<&ChildOf>,
     slots: Query<(), With<Slot>>,

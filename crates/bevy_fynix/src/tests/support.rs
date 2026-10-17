@@ -14,7 +14,7 @@ use bevy::input::{ButtonState, InputPlugin};
 use bevy::input_focus::InputDispatchPlugin;
 use bevy::math::Vec2;
 use bevy::picking::backend::HitData;
-use bevy::picking::events::{Pointer, Press};
+use bevy::picking::events::{Pointer, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::time::{TimePlugin, TimeUpdateStrategy};
 use bevy::window::{PrimaryWindow, Window};
@@ -187,16 +187,13 @@ pub fn pointer_press(
         position: at,
     };
     let hit = HitData::new(Entity::PLACEHOLDER, 0.0, None, None);
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        location,
-        Press {
-            button,
-            hit,
-            count: 1,
-        },
-        on,
-    ));
+    app.world_mut().trigger(PointerPress {
+        entity: on,
+        pointer: Pointer::new(PointerId::Mouse, location),
+        button,
+        hit,
+        count: 1,
+    });
 }
 
 /// Gives `app` a primary window and what routes key presses to the
