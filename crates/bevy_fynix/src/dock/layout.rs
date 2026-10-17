@@ -8,7 +8,9 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input_focus::tab_navigation::TabGroup;
-use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{
+    PointerDrag, PointerDragEnd, PointerDragStart,
+};
 use bevy::ui::{
     ComputedNode, Display, FlexDirection, Overflow,
     UiGlobalTransform, UiRect, UiScale, percent, px,
@@ -264,7 +266,7 @@ fn handle_of(
 /// Holds the handle's resize cursor and marks it [`Dragging`] while
 /// it is dragged.
 pub(super) fn grab_handle(
-    start: On<Pointer<DragStart>>,
+    start: On<PointerDragStart>,
     handles: Query<&EntityCursor, With<SplitHandle>>,
     parents: Query<&ChildOf>,
     mut forced: ResMut<OverrideCursor>,
@@ -286,7 +288,7 @@ pub(super) fn grab_handle(
 /// Lets go of the cursor held and the [`Dragging`] mark of a handle
 /// that was dragged.
 pub(super) fn release_handle(
-    end: On<Pointer<DragEnd>>,
+    end: On<PointerDragEnd>,
     handles: Query<(), With<SplitHandle>>,
     parents: Query<&ChildOf>,
     mut forced: ResMut<OverrideCursor>,
@@ -304,7 +306,7 @@ pub(super) fn release_handle(
 
 /// Moves the split of the handle dragged to follow the pointer.
 pub(super) fn drag_handle(
-    mut drag: On<Pointer<Drag>>,
+    mut drag: On<PointerDrag>,
     handles: Query<(&SplitHandle, &ChildOf)>,
     parents: Query<&ChildOf>,
     siblings: Query<&Children>,
@@ -348,7 +350,7 @@ pub(super) fn drag_handle(
     else {
         return;
     };
-    let cursor = logical(drag.pointer_location.position, scale);
+    let cursor = logical(drag.pointer.position, scale);
     let (cursor, start, end, handle) = if split.horizontal {
         (
             cursor.x,

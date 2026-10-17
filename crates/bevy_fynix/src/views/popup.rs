@@ -11,7 +11,7 @@ use bevy::ecs::world::World;
 use bevy::input::keyboard::KeyCode;
 use bevy::math::Rect;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, Press};
+use bevy::picking::events::PointerPress;
 use bevy::ui::{OverrideClip, PositionType, UiRect, Val, px};
 use bevy::ui_widgets::popover::{
     Popover, PopoverAlign, PopoverPlacement, PopoverSide,
@@ -183,8 +183,7 @@ where
                 .z(Some(MENU_Z - 1)),
         );
         cx.world.entity_mut(root).observe(
-            move |press: On<Pointer<Press>>,
-                  mut commands: Commands| {
+            move |press: On<PointerPress>, mut commands: Commands| {
                 if press.original_event_target()
                     != press.event_target()
                 {

@@ -24,13 +24,15 @@ mod tests;
 use core::marker::PhantomData;
 
 pub use backend::{Bevy, Unmounted};
-use bevy::app::{App, Plugin, Update};
+use bevy::app::{App, Plugin, PostUpdate, Update};
+use bevy::camera::visibility::VisibilitySystems;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::world::World;
-use bevy::input_focus::InputFocus;
 use bevy::input_focus::tab_navigation::TabGroup;
+use bevy::input_focus::{InputFocus, InputFocusSystems};
+use bevy::ui_widgets::MenuFocusSystem;
 pub use cursor::{CursorPlugin, EntityCursor, OverrideCursor};
 pub use fynix::{
     AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
@@ -134,13 +136,18 @@ impl Plugin for CorePlugin {
         )
         .add_systems(
             Update,
-            (
-                views::sync_text_inputs,
-                leave::settle_entrances,
-                views::focus_first,
-            )
+            (views::sync_text_inputs, leave::settle_entrances)
                 .chain()
                 .in_set(FynixSystems::Settle),
+        )
+        // Navigation passes over hidden rows, and a popup built this
+        // frame is hidden until its visibility propagates.
+        .add_systems(
+            PostUpdate,
+            views::focus_first
+                .after(VisibilitySystems::VisibilityPropagate)
+                .before(MenuFocusSystem)
+                .before(InputFocusSystems::FocusChangeEvents),
         )
         .add_systems(Update, views::despawn_orphans);
     }

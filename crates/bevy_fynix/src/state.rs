@@ -13,7 +13,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::ecs::world::World;
 use bevy::input_focus::{FocusGained, FocusLost};
-use bevy::picking::events::{Pointer, Press, Release};
+use bevy::picking::events::{PointerPress, PointerRelease};
 use bevy::picking::hover::Hovered as PickingHovered;
 use fynix::{Condition, ScopedExt, When};
 
@@ -50,7 +50,7 @@ fn focus_lost(lost: On<FocusLost>, mut commands: Commands) {
 /// counts a hovered descendant as hovering its ancestors, so moving
 /// between a node and its children never lets go of it.
 fn sync_hover(
-    insert: On<Insert, PickingHovered>,
+    insert: On<Insert<PickingHovered>>,
     picked: Query<&PickingHovered>,
     mut commands: Commands,
 ) {
@@ -65,11 +65,11 @@ fn sync_hover(
     }
 }
 
-fn press(press: On<Pointer<Press>>, mut commands: Commands) {
+fn press(press: On<PointerPress>, mut commands: Commands) {
     commands.entity(press.event_target()).insert(Pressed);
 }
 
-fn release(release: On<Pointer<Release>>, mut commands: Commands) {
+fn release(release: On<PointerRelease>, mut commands: Commands) {
     commands.entity(release.event_target()).remove::<Pressed>();
 }
 
@@ -79,14 +79,14 @@ fn release(release: On<Pointer<Release>>, mut commands: Commands) {
 pub struct DirtyNodes(pub Vec<Entity>);
 
 fn state_inserted<S: Component>(
-    insert: On<Insert, S>,
+    insert: On<Insert<S>>,
     mut dirty: ResMut<DirtyNodes>,
 ) {
     dirty.0.push(insert.event_target());
 }
 
 fn state_removed<S: Component>(
-    remove: On<Remove, S>,
+    remove: On<Remove<S>>,
     mut dirty: ResMut<DirtyNodes>,
 ) {
     dirty.0.push(remove.event_target());

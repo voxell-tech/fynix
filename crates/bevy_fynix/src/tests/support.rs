@@ -3,18 +3,24 @@
 
 use core::time::Duration;
 
-use bevy::app::App;
+use bevy::app::{App, PostUpdate};
 use bevy::camera::NormalizedRenderTarget;
+use bevy::camera::visibility::{
+    InheritedVisibility, Visibility, VisibilitySystems,
+};
 use bevy::color::Color;
+use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::Children;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::relationship::RelationshipTarget;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::Query;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::input_focus::InputDispatchPlugin;
 use bevy::math::Vec2;
 use bevy::picking::backend::HitData;
-use bevy::picking::events::{Pointer, Press};
+use bevy::picking::events::{Pointer, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::time::{TimePlugin, TimeUpdateStrategy};
 use bevy::window::{PrimaryWindow, Window};
@@ -143,6 +149,11 @@ pub fn app() -> App {
 pub fn app_with(theme: Plain) -> App {
     let mut app = App::new();
     app.add_plugins((TimePlugin, FynixPlugin::<Plain>::default()))
+        .add_systems(
+            PostUpdate,
+            propagate_visibility
+                .in_set(VisibilitySystems::VisibilityPropagate),
+        )
         .insert_resource(Theme(theme))
         .insert_resource(TimeUpdateStrategy::ManualDuration(
             Duration::from_millis(50),
@@ -150,6 +161,33 @@ pub fn app_with(theme: Plain) -> App {
     // The first update only starts the clock.
     app.update();
     app
+}
+
+/// Stands in for Bevy's visibility propagation, whose plugin needs
+/// more than a headless app has. Navigation passes over what is
+/// hidden, as every node is until its visibility propagates.
+fn propagate_visibility(
+    mut nodes: Query<(Entity, &mut InheritedVisibility)>,
+    visibilities: Query<&Visibility>,
+    parents: Query<&ChildOf>,
+) {
+    for (node, mut inherited) in &mut nodes {
+        // The nearest of it and its ancestors that is not inherited
+        // decides, and with none it shows.
+        let shown = core::iter::once(node)
+            .chain(parents.iter_ancestors(node))
+            .find_map(|up| match visibilities.get(up) {
+                Ok(Visibility::Hidden) => Some(false),
+                Ok(Visibility::Visible) => Some(true),
+                _ => None,
+            })
+            .unwrap_or(true);
+        inherited.set_if_neq(if shown {
+            InheritedVisibility::VISIBLE
+        } else {
+            InheritedVisibility::HIDDEN
+        });
+    }
 }
 
 /// The nodes directly under `node`, in order.
@@ -187,16 +225,13 @@ pub fn pointer_press(
         position: at,
     };
     let hit = HitData::new(Entity::PLACEHOLDER, 0.0, None, None);
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        location,
-        Press {
-            button,
-            hit,
-            count: 1,
-        },
-        on,
-    ));
+    app.world_mut().trigger(PointerPress {
+        entity: on,
+        pointer: Pointer::new(PointerId::Mouse, location),
+        button,
+        hit,
+        count: 1,
+    });
 }
 
 /// Gives `app` a primary window and what routes key presses to the

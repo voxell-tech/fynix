@@ -18,7 +18,9 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::math::{Affine2, Vec2};
-use bevy::picking::events::{Drag, DragEnd, Pointer, Press};
+use bevy::picking::events::{
+    PointerDrag, PointerDragEnd, PointerPress,
+};
 use bevy::picking::hover::Hovered;
 use bevy::picking::pointer::PointerLocation;
 use bevy::time::Time;
@@ -181,7 +183,7 @@ struct ScrollThumb {
     shown: f32,
 }
 
-fn add_thumbs(added: On<Add, ScrollGoal>, mut commands: Commands) {
+fn add_thumbs(added: On<Add<ScrollGoal>>, mut commands: Commands) {
     for way in [Way::Across, Way::Down] {
         commands.spawn((
             ScrollThumb {
@@ -388,6 +390,8 @@ fn place_thumbs(
                 scale,
                 size,
                 target.physical_size().as_vec2(),
+                area.em_size,
+                area.rem_size,
             );
         }
         // From the middle of the area to the middle of the bar,
@@ -414,7 +418,7 @@ fn place_thumbs(
 }
 
 fn on_thumb_press(
-    mut press: On<Pointer<Press>>,
+    mut press: On<PointerPress>,
     thumbs: Query<(), With<ScrollThumb>>,
 ) {
     // Or what is under the bar takes the press too.
@@ -424,7 +428,7 @@ fn on_thumb_press(
 }
 
 fn on_thumb_drag(
-    mut drag: On<Pointer<Drag>>,
+    mut drag: On<PointerDrag>,
     style: Res<ScrollbarStyle>,
     mut thumbs: Query<(&mut ScrollThumb, &ChildOf)>,
     mut areas: Query<(
@@ -455,7 +459,7 @@ fn on_thumb_drag(
 }
 
 fn on_thumb_drag_end(
-    end: On<Pointer<DragEnd>>,
+    end: On<PointerDragEnd>,
     mut thumbs: Query<&mut ScrollThumb>,
 ) {
     if let Ok(mut thumb) = thumbs.get_mut(end.entity) {

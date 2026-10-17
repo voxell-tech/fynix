@@ -1,7 +1,7 @@
 //! The editable text node inside a [`TextField`](super::TextField)
 //! or a [`NumberField`](super::NumberField).
 //!
-//! It needs Bevy's `EditableTextInputPlugin` for the keys and the
+//! It needs Bevy's `TextInputPlugin` for the keys and the
 //! pointer, which `DefaultPlugins` adds.
 
 use bevy::color::Color;

@@ -18,7 +18,7 @@ bevy_fynix = { version = "0.0.2", path = "crates/bevy_fynix", default-features =
 motiongfx_interp = { version = "0.4.0", default-features = false }
 
 # bevy
-bevy = { version = "0.19", default-features = false }
+bevy = { version = "0.20", default-features = false }
 
 # other
 lenz = { version = "0.1.0", default-features = false }

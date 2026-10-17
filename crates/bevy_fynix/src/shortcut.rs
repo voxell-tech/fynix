@@ -19,7 +19,7 @@ use bevy::ecs::world::World;
 use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::input_focus::{FocusedInput, InputFocus};
-use bevy::picking::events::{Pointer, Press};
+use bevy::picking::events::PointerPress;
 use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::PointerId;
 use bevy::reflect::Reflect;
@@ -575,7 +575,7 @@ fn bound(
 /// Drops the focus on a press that lands away from the node holding
 /// it, as nothing else does.
 fn blur_on_outside_press(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     parents: Query<&ChildOf>,
     popups: Query<(), With<Popover>>,
     mut focus: ResMut<InputFocus>,

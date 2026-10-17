@@ -704,18 +704,15 @@ mod tests {
     use bevy::input::keyboard::Key;
     use bevy::math::{Rect, Vec2};
     use bevy::picking::backend::HitData;
-    use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
+    use bevy::picking::events::{
+        Pointer, PointerDrag, PointerDragEnd, PointerDragStart,
+    };
     use bevy::picking::pointer::{
         Location, PointerButton, PointerId,
     };
-    use bevy::reflect::Reflect;
     use bevy::ui::{ComputedNode, UiGlobalTransform};
 
-    fn pointer<E: core::fmt::Debug + Clone + Reflect>(
-        node: Entity,
-        at: Vec2,
-        event: E,
-    ) -> Pointer<E> {
+    fn pointer(at: Vec2) -> Pointer {
         let target = NormalizedRenderTarget::None {
             width: 0,
             height: 0,
@@ -726,36 +723,37 @@ mod tests {
                 target,
                 position: at,
             },
-            event,
-            node,
         )
     }
 
     fn press(app: &mut App, node: Entity, at: Vec2) {
         let hit = HitData::new(Entity::PLACEHOLDER, 0.0, None, None);
-        let event = DragStart {
+        app.world_mut().trigger(PointerDragStart {
+            entity: node,
+            pointer: pointer(at),
             button: PointerButton::Primary,
             hit,
-        };
-        app.world_mut().trigger(pointer(node, at, event));
+        });
     }
 
     fn drag_to(app: &mut App, node: Entity, at: Vec2) {
-        let event = Drag {
+        app.world_mut().trigger(PointerDrag {
+            entity: node,
+            pointer: pointer(at),
             button: PointerButton::Primary,
             distance: Vec2::ZERO,
             delta: Vec2::ZERO,
-        };
-        app.world_mut().trigger(pointer(node, at, event));
+        });
         app.update();
     }
 
     fn release(app: &mut App, node: Entity, at: Vec2) {
-        let event = DragEnd {
+        app.world_mut().trigger(PointerDragEnd {
+            entity: node,
+            pointer: pointer(at),
             button: PointerButton::Primary,
             distance: Vec2::ZERO,
-        };
-        app.world_mut().trigger(pointer(node, at, event));
+        });
         app.update();
     }
 

@@ -579,12 +579,14 @@ mod tests {
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
     use bevy::input::keyboard::{Key, KeyCode};
+    use bevy::input_focus::InputFocusPlugin;
+    use bevy::input_focus::pointer_focus::PointerFocusPlugin;
     use bevy::math::Vec2;
     use bevy::picking::pointer::PointerButton;
     use bevy::ui::widget::{ImageNode, Text};
     use bevy::ui::{Node, UiTransform};
     use bevy::ui_widgets::{Activate, MenuPlugin, MenuPopup};
-    use bevy::window::Window;
+    use bevy::window::{PrimaryWindow, Window};
 
     use super::*;
     use crate::tests::{self, Plain};
@@ -1014,6 +1016,63 @@ mod tests {
         app.update();
         assert!(!shut(&app, popup));
         app.world_mut().trigger(Activate { entity: button });
+        app.update();
+        assert!(shut(&app, popup));
+    }
+
+    /// As `DefaultPlugins` has it, a press moves the focus to what is
+    /// pressed.
+    fn focusing_app() -> App {
+        let mut app = app();
+        app.add_plugins((InputFocusPlugin, PointerFocusPlugin));
+        app.world_mut().spawn((Window::default(), PrimaryWindow));
+        app.update();
+        app
+    }
+
+    #[test]
+    fn a_press_that_moves_the_focus_shuts_the_list_once() {
+        let mut app = focusing_app();
+        let root = pick(&mut app);
+        let (button, popup) = parts(&app, root);
+        open(&mut app, button);
+
+        let row = rows(&app, popup)[1];
+        tests::pointer_press(
+            &mut app,
+            row,
+            PointerButton::Primary,
+            Vec2::ONE,
+        );
+        app.update();
+        assert!(!shut(&app, popup));
+        assert_eq!(
+            app.world().resource::<InputFocus>().get(),
+            Some(row)
+        );
+
+        // The press on the button and its activation shut the list,
+        // and it stays shut.
+        tests::pointer_press(
+            &mut app,
+            button,
+            PointerButton::Primary,
+            Vec2::ONE,
+        );
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+        app.update();
+        assert!(shut(&app, popup));
+
+        open(&mut app, button);
+        let other = app.world_mut().spawn(Node::default()).id();
+        tests::pointer_press(
+            &mut app,
+            other,
+            PointerButton::Primary,
+            Vec2::ONE,
+        );
+        app.update();
         app.update();
         assert!(shut(&app, popup));
     }

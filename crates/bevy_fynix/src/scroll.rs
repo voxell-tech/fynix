@@ -17,17 +17,19 @@ use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res};
-use bevy::input::mouse::MouseScrollUnit;
+use bevy::input::mouse::{MouseScrollPixelsPerLine, MouseScrollUnit};
 use bevy::math::Vec2;
-use bevy::picking::events::{Pointer, Scroll};
+use bevy::picking::events::PointerScroll;
 use bevy::time::Time;
 use bevy::ui::{ComputedNode, Node, OverflowAxis, ScrollPosition};
 
 use crate::transition::ReducedMotion;
 
 pub(crate) fn plugin(app: &mut App) {
+    // Kept as the input plugin set it, if it is there first.
     app.add_plugins(bar::plugin)
         .init_resource::<ScrollMotion>()
+        .init_resource::<MouseScrollPixelsPerLine>()
         .add_observer(on_scroll)
         .add_systems(Update, ease);
 }
@@ -48,14 +50,14 @@ impl Default for ScrollMotion {
 }
 
 /// How far a wheel event turned, in pixels, and whether it came in
-/// notches.
-pub fn wheel(scroll: &Pointer<Scroll>) -> (Vec2, bool) {
+/// notches, each `per_line` pixels.
+pub fn wheel(
+    scroll: &PointerScroll,
+    per_line: MouseScrollPixelsPerLine,
+) -> (Vec2, bool) {
     let turned = Vec2::new(scroll.x, scroll.y);
     match scroll.unit {
-        MouseScrollUnit::Line => (
-            turned * MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR,
-            true,
-        ),
+        MouseScrollUnit::Line => (turned * per_line, true),
         MouseScrollUnit::Pixel => (turned, false),
     }
 }
@@ -97,20 +99,21 @@ fn overflow(computed: &ComputedNode) -> Vec2 {
 }
 
 fn on_scroll(
-    mut scroll: On<Pointer<Scroll>>,
+    mut scroll: On<PointerScroll>,
     mut areas: Query<(
         &Node,
         &ComputedNode,
         &mut ScrollPosition,
         &mut ScrollGoal,
     )>,
+    per_line: Res<MouseScrollPixelsPerLine>,
 ) {
     let Ok((node, computed, mut position, mut goal)) =
         areas.get_mut(scroll.entity)
     else {
         return;
     };
-    let (turned, notched) = wheel(&scroll);
+    let (turned, notched) = wheel(&scroll, *per_line);
     let scrolls = |axis| axis == OverflowAxis::Scroll;
     let delta = Vec2::new(
         if scrolls(node.overflow.x) {
@@ -163,5 +166,41 @@ fn ease(
         } else {
             **position += left * share;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::camera::NormalizedRenderTarget;
+    use bevy::ecs::entity::Entity;
+    use bevy::input::touch::TouchPhase;
+    use bevy::picking::backend::HitData;
+    use bevy::picking::events::Pointer;
+    use bevy::picking::pointer::{Location, PointerId};
+
+    use super::*;
+    use crate::tests;
+
+    #[test]
+    fn a_wheel_turns_without_the_input_plugin() {
+        let mut app = tests::app();
+        let node = app.world_mut().spawn_empty().id();
+        let location = Location {
+            target: NormalizedRenderTarget::None {
+                width: 100,
+                height: 100,
+            },
+            position: Vec2::ZERO,
+        };
+        app.world_mut().trigger(PointerScroll {
+            entity: node,
+            pointer: Pointer::new(PointerId::Mouse, location),
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: 1.0,
+            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+            phase: TouchPhase::Moved,
+        });
+        app.update();
     }
 }

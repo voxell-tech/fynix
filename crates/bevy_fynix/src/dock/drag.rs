@@ -10,7 +10,9 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::math::{Rect, Vec2};
 use bevy::picking::Pickable;
-use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{
+    PointerDrag, PointerDragEnd, PointerDragStart,
+};
 use bevy::text::{
     FontSize, FontWeight, LineBreak, TextColor, TextFont, TextLayout,
 };
@@ -182,7 +184,7 @@ fn edge_half(rect: Rect, edge: Edge) -> Rect {
 
 /// A press that starts on a tab waits for the pointer to move.
 pub(super) fn start(
-    drag: On<Pointer<DragStart>>,
+    drag: On<PointerDragStart>,
     tabs: Query<&DockTab>,
     scale: Option<Res<UiScale>>,
     mut state: ResMut<DockDrag>,
@@ -194,7 +196,7 @@ pub(super) fn start(
     *state = DockDrag::Pending {
         node,
         tab,
-        start: logical(drag.pointer_location.position, scale),
+        start: logical(drag.pointer.position, scale),
     };
 }
 
@@ -202,7 +204,7 @@ pub(super) fn start(
 /// the ghost under the pointer and the hint on the drop target.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn moved<T: DockTokens>(
-    mut drag: On<Pointer<Drag>>,
+    mut drag: On<PointerDrag>,
     mut state: ResMut<DockDrag>,
     tree: Res<DockTree>,
     registry: Res<DockRegistry<T>>,
@@ -215,7 +217,7 @@ pub(super) fn moved<T: DockTokens>(
     mut forced: ResMut<OverrideCursor>,
     mut commands: Commands,
 ) {
-    let cursor = logical(drag.pointer_location.position, scale);
+    let cursor = logical(drag.pointer.position, scale);
     match &mut *state {
         DockDrag::Idle => {}
         DockDrag::Pending { node, tab, start } => {
@@ -330,7 +332,7 @@ pub(super) fn moved<T: DockTokens>(
 
 /// Drops the tab on the target the drag ended over.
 pub(super) fn end(
-    _: On<Pointer<DragEnd>>,
+    _: On<PointerDragEnd>,
     mut state: ResMut<DockDrag>,
     mut tree: ResMut<DockTree>,
     mut forced: ResMut<OverrideCursor>,
