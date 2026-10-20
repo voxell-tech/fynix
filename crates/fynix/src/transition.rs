@@ -26,9 +26,20 @@ pub trait MotionTokens {
     fn motion(&self, motion: Motion) -> Curve;
 }
 
-/// How a prop's value `S` travels: over `curve`, blended by `interp`.
+/// How the values of an element under a transition rule travel: over
+/// `curve`, which the theme gave for `motion` when the rule named
+/// one.
+#[derive(Clone, Copy, Debug)]
+pub struct Travel {
+    pub curve: Curve,
+    pub motion: Option<Motion>,
+}
+
+/// How a prop's value `S` travels: over `curve`, given for `motion`
+/// when one was named, blended by `interp`.
 pub struct Tween<S> {
     pub curve: Curve,
+    pub motion: Option<Motion>,
     pub interp: InterpFn<S>,
 }
 
@@ -54,6 +65,11 @@ impl<S> Run<S> {
             elapsed: Duration::ZERO,
             tween,
         }
+    }
+
+    /// The motion it was given for, if one was named.
+    pub(crate) fn motion(&self) -> Option<Motion> {
+        self.tween.motion
     }
 
     /// Where the value is `delta` later, heading to `to`. `None` once

@@ -604,7 +604,7 @@ fn curve<B: Backend, T: 'static, E: Element<B, T>>(
     table: &TypeTable<B::Node>,
     node: B::Node,
 ) -> Option<Curve> {
-    table.get::<Mount<B, T, E>>(&node)?.live.curve
+    Some(table.get::<Mount<B, T, E>>(&node)?.live.travel?.curve)
 }
 
 fn remove<B: Backend, T: 'static, E: Element<B, T>>(

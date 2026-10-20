@@ -18,8 +18,8 @@ mod structure;
 
 use crate::{
     AnyView, Backend, Condition, Curve, Cx, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Signal, Styled, Tick, Trace,
-    View, ViewExt, derived, element,
+    Mounted, Patch, Prop, ScopedExt, Signal, Slot, Styled, Tick,
+    Trace, Tween, View, ViewExt, derived, element,
 };
 
 #[derive(Default)]
@@ -599,6 +599,29 @@ fn an_update_says_whether_anything_still_moves() {
     assert!(ui.update(Duration::ZERO, false));
     assert!(ui.update(Duration::from_millis(500), false));
     assert!(!ui.update(Duration::from_millis(500), false), "arrived");
+}
+
+#[test]
+fn a_travel_over_a_motion_is_handed_over_once() {
+    let tween = Tween {
+        curve: Warm.motion(Motion::Expand),
+        motion: Some(Motion::Expand),
+        interp: blend,
+    };
+    let tick = Tick {
+        delta: Duration::from_millis(100),
+        reduced_motion: false,
+    };
+    let mut slot = Slot::default();
+    let mut writes = Vec::new();
+    for target in [0.0, 10.0, 10.0] {
+        slot.aim(target, Some(tween), tick);
+        let moving = slot.hand_over(tick, |value, motion| {
+            writes.push((*value, motion));
+        });
+        assert!(!moving);
+    }
+    assert_eq!(writes, [(0.0, None), (10.0, Some(Motion::Expand))]);
 }
 
 #[test]
