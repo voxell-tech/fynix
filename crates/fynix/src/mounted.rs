@@ -62,13 +62,14 @@ pub struct Tick {
     pub reduced_motion: bool,
 }
 
-/// Brings every mounted element of one kind up to date.
+/// Brings every mounted element of one kind up to date: whether any
+/// prop of one still travels.
 type UpdateFn<B, T> = fn(
     &mut TypeTable<<B as Backend>::Node>,
     &mut <B as Backend>::World,
     &T,
     Tick,
-);
+) -> bool;
 
 /// How many elements of one kind are mounted.
 type CountFn<B> = fn(&TypeTable<<B as Backend>::Node>) -> usize;
@@ -524,18 +525,24 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
 
     /// Writes what changed to every mounted element that reports a
     /// change or is marked dirty, and keeps every transition under
-    /// way advancing.
+    /// way advancing. Returns whether anything still moves: a prop
+    /// travelling, or a view coming in or leaving. While nothing
+    /// does, a backend need not update again until the world changes.
     pub fn update_elements(
         &mut self,
         world: &mut B::World,
         theme: &T,
         tick: Tick,
-    ) {
+    ) -> bool {
+        let mut moving = false;
         for update in &self.updates {
-            update(&mut self.table, world, theme, tick);
+            moving |= update(&mut self.table, world, theme, tick);
         }
         self.update_leaving(world, tick);
         self.update_arriving(world, tick);
+        moving
+            || !self.leaving.is_empty()
+            || !self.arriving.is_empty()
     }
 
     /// The rules stored for the scopes and captures alive.
@@ -575,10 +582,13 @@ fn update_kind<B: Backend, T: 'static, E: Element<B, T>>(
     world: &mut B::World,
     theme: &T,
     tick: Tick,
-) {
+) -> bool {
+    let mut moving = false;
     for (&node, mount) in table.iter_mut::<Mount<B, T, E>>() {
         mount.update(world, node, theme, tick);
+        moving |= mount.moving;
     }
+    moving
 }
 
 fn mark<B: Backend, T: 'static, E: Element<B, T>>(
