@@ -215,7 +215,8 @@ engine. A framework on top of it fills in five things, and
 [`bevy_fynix`](https://crates.io/crates/bevy_fynix) is a full example of each:
 
 1. **A backend**, which says what a world and a node are. `spawn`,
-   `despawn` and `reorder` are required. `on_mount`, `leave`, `hold`,
+   `despawn` and `reorder` are required, and `spawn` is told the type
+   of the element a node is for. `on_mount`, `leave`, `hold`,
    `collapse` and `release` have empty defaults. Cleanup, input
    blocking and the animation of a view's space go there: a dropped
    view is `leave`d, then `collapse`d from 0 to 1, and a new one is
@@ -238,6 +239,7 @@ engine. A framework on top of it fills in five things, and
 Here are all five in one file:
 
 ```rust
+use core::any::TypeId;
 use core::time::Duration;
 
 // `#[element]` finds these at the root of the crate it is used in,
@@ -269,7 +271,11 @@ impl Backend for Toy {
     type World = World;
     type Node = usize;
 
-    fn spawn(world: &mut World, parent: Option<usize>) -> usize {
+    fn spawn(
+        world: &mut World,
+        parent: Option<usize>,
+        _kind: Option<TypeId>,
+    ) -> usize {
         let node = world.nodes.len();
         world.nodes.push(Node {
             parent,

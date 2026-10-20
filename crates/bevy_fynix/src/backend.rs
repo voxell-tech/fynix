@@ -1,5 +1,7 @@
 //! The Bevy backend of the core.
 
+use core::any::TypeId;
+
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -58,7 +60,11 @@ impl fynix::Backend for Bevy {
     type World = World;
     type Node = Entity;
 
-    fn spawn(world: &mut World, parent: Option<Entity>) -> Entity {
+    fn spawn(
+        world: &mut World,
+        parent: Option<Entity>,
+        _kind: Option<TypeId>,
+    ) -> Entity {
         let seeds = world
             .get_resource_mut::<Seed>()
             .map(|mut seed| core::mem::take(&mut seed.0))
