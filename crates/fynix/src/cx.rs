@@ -204,7 +204,16 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     /// A new, empty node where a view built now hangs. It is the root
     /// of every rule set since the last node was spawned.
     pub fn spawn(&mut self) -> B::Node {
-        let node = B::spawn(self.world, self.parent);
+        self.spawn_for(None)
+    }
+
+    /// As [`spawn`](Self::spawn), for the element whose type is
+    /// `kind`.
+    pub(crate) fn spawn_for(
+        &mut self,
+        kind: Option<TypeId>,
+    ) -> B::Node {
+        let node = B::spawn(self.world, self.parent, kind);
         for entry in &mut self.entries {
             entry.root.get_or_insert(node);
         }

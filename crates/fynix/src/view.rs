@@ -4,6 +4,7 @@
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::any::TypeId;
 
 use crate::backend::Backend;
 use crate::cx::Cx;
@@ -213,7 +214,7 @@ impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
             // After the element's own rules, which are more specific.
             visual.fill(cx.resolve(Visual::unset()));
         }
-        let node = cx.spawn();
+        let node = cx.spawn_for(Some(TypeId::of::<E>()));
         let mut live = Live {
             layers,
             call,

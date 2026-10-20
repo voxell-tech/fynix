@@ -1,6 +1,7 @@
 //! The core against a fake backend: a flat list of nodes holding some
 //! text at a size, and one number the text can be bound to.
 
+use core::any::TypeId;
 use core::mem;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::time::Duration;
@@ -43,6 +44,8 @@ pub struct World {
 #[derive(Default)]
 struct Node {
     parent: Option<usize>,
+    /// The element it was spawned for.
+    kind: Option<TypeId>,
     children: Vec<usize>,
     text: String,
     size: f32,
@@ -63,9 +66,14 @@ impl Backend for Fake {
     type World = World;
     type Node = usize;
 
-    fn spawn(world: &mut World, parent: Option<usize>) -> usize {
+    fn spawn(
+        world: &mut World,
+        parent: Option<usize>,
+        kind: Option<TypeId>,
+    ) -> usize {
         world.nodes.push(Some(Node {
             parent,
+            kind,
             ..Node::default()
         }));
         let node = world.nodes.len() - 1;
@@ -336,6 +344,19 @@ fn an_unset_prop_falls_back_to_the_theme() {
 
     assert_eq!(ui.world.node(node).text, "Save");
     assert_eq!(ui.world.node(node).size, 14.0);
+}
+
+#[test]
+fn spawn_is_told_the_element_a_node_is_for() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(text("Save"));
+    assert_eq!(ui.world.node(node).kind, Some(TypeId::of::<Text>()));
+
+    let bare =
+        ui.build(AnyView::new(|cx: &mut Cx<'_, Fake, Warm>| {
+            cx.spawn()
+        }));
+    assert_eq!(ui.world.node(bare).kind, None);
 }
 
 #[test]
