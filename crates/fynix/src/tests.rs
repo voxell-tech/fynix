@@ -294,7 +294,12 @@ impl<T: 'static> Ui<T> {
         }
     }
 
-    fn update(&mut self, delta: Duration, reduced_motion: bool) {
+    /// Whether anything still moves after.
+    fn update(
+        &mut self,
+        delta: Duration,
+        reduced_motion: bool,
+    ) -> bool {
         self.unmount_gone();
         self.mounted.run_effects(&mut self.world);
         self.mounted.update_structure(&mut self.world, &self.theme);
@@ -306,7 +311,7 @@ impl<T: 'static> Ui<T> {
                 delta,
                 reduced_motion,
             },
-        );
+        )
     }
 
     /// A root node with whatever `build` puts under it.
@@ -582,6 +587,18 @@ fn a_transition_reaches_its_target_over_the_curve() {
 
     ui.update(Duration::from_millis(500), false);
     assert_eq!(ui.world.node(node).size, 20.0);
+}
+
+#[test]
+fn an_update_says_whether_anything_still_moves() {
+    let mut ui = Ui::new(Warm);
+    ui.build(counted(Some(Motion::Interact)));
+    assert!(!ui.update(Duration::ZERO, false), "nothing changed");
+
+    ui.world.set(20);
+    assert!(ui.update(Duration::ZERO, false));
+    assert!(ui.update(Duration::from_millis(500), false));
+    assert!(!ui.update(Duration::from_millis(500), false), "arrived");
 }
 
 #[test]
