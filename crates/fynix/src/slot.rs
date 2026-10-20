@@ -3,13 +3,26 @@
 
 use crate::backend::Backend;
 use crate::mounted::Tick;
-use crate::transition::{Run, Tween};
+use crate::transition::{Motion, Run, Tween};
 
 /// How one prop of an element is written onto its node. A type with
 /// no value, named by the prop's `#[lenz(tag = ..)]`, so anything
 /// that names the prop by its path knows how to write it.
 pub trait Patch<B: Backend, P> {
     fn patch(world: &mut B::World, node: B::Node, value: &P);
+
+    /// How a backend that [animates](Backend::ANIMATES) writes
+    /// `value`: moving to it over the theme's curve for `motion`, or
+    /// at once when there is none. At once by default.
+    fn patch_over(
+        world: &mut B::World,
+        node: B::Node,
+        value: &P,
+        motion: Option<Motion>,
+    ) {
+        let _ = motion;
+        Self::patch(world, node, value);
+    }
 }
 
 /// What `#[elem(with = ..)]` runs: `make(value, theme)`. A function
@@ -99,5 +112,25 @@ impl<P: Clone + PartialEq> Slot<P> {
             self.shown = Some(next);
         }
         self.run.is_some()
+    }
+
+    /// As [`step`](Self::step), for a backend that
+    /// [animates](Backend::ANIMATES): a travel over a motion is not
+    /// stepped, its target is written at once with the motion, for
+    /// the backend to move to. `write` is given no motion otherwise.
+    pub fn hand_over(
+        &mut self,
+        tick: Tick,
+        write: impl FnOnce(&P, Option<Motion>),
+    ) -> bool {
+        let motion = self
+            .run
+            .as_ref()
+            .and_then(Run::motion)
+            .filter(|_| !tick.reduced_motion);
+        if motion.is_some() {
+            self.run = None;
+        }
+        self.step(tick, |value| write(value, motion))
     }
 }

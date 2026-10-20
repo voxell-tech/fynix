@@ -6,8 +6,8 @@ use core::time::Duration;
 // `#[element]` finds these at the root of the crate it is used in.
 pub use fynix::{
     Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, View,
-    ViewExt, element, styled,
+    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, Travel,
+    View, ViewExt, element, styled,
 };
 
 #[derive(Default)]
