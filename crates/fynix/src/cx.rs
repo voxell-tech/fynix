@@ -656,7 +656,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             core::any::type_name::<E>(),
         );
         self.show_depth += 1;
-        let node = replacement.build(self);
+        let node = self.scope(|cx| replacement.build(cx));
         self.show_depth -= 1;
         node
     }

@@ -143,6 +143,38 @@ fn a_filtered_rule_leaves_what_it_does_not_take_to_older_rules() {
 }
 
 #[test]
+fn a_rule_set_in_a_replacement_ends_with_it() {
+    let mut ui = Ui::new(Warm);
+    let [replaced, after] = ui.under(|cx| {
+        cx.show_where::<Text>(
+            |it| matches!(&it.text, Prop::Value(text) if text == "x"),
+            |it, _| {
+                AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
+                    cx.set::<Text>(|t, _| t.size(40.0));
+                    let node = cx.spawn();
+                    cx.under(node, |cx| {
+                        cx.build(it);
+                        cx.build(text("inside"));
+                    });
+                    node
+                })
+            },
+        );
+        cx.build(text("x"));
+        cx.build(text("after"));
+    })[..] else {
+        panic!("a replacement and a text");
+    };
+
+    let [x, inside] = ui.world.children(replaced)[..] else {
+        panic!("two texts");
+    };
+    assert_eq!(ui.world.node(x).size, 14.0, "resolved before");
+    assert_eq!(ui.world.node(inside).size, 40.0);
+    assert_eq!(ui.world.node(after).size, 14.0);
+}
+
+#[test]
 #[should_panic(expected = "nested 64 deep")]
 fn a_rule_that_always_builds_its_own_kind_stops_at_a_depth() {
     let mut ui = Ui::new(Warm);
