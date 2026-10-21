@@ -6,7 +6,7 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 
 use super::{
-    Fake, Frame, Text, TextCursor, Ui, Warm, World, text, watch,
+    Fake, Frame, Text, TextCursor, Ui, Warm, World, text, watch, wrap,
 };
 use crate::{
     AnyView, Cx, Each, Keyed, Styled, View, ViewExt, each, keyed,
@@ -136,18 +136,19 @@ fn a_set_rule_outside_a_keyed_view_applies_to_what_it_rebuilds() {
     let mut ui = Ui::new(Warm);
     let [container] = ui.under(|cx| {
         cx.set::<Text>(|t, _| t.size(20.0));
-        cx.show::<Text>(|t, _| t.boxed());
+        cx.show::<Text>(wrap("shown"));
         cx.build(picked());
     })[..] else {
         panic!("a container");
     };
-    assert_eq!(ui.world.node(only_child(&ui, container)).size, 20.0);
 
     ui.world.pick(1);
     ui.update(Duration::ZERO, false);
 
-    let child = ui.world.node(only_child(&ui, container));
-    assert_eq!(child.size, 20.0, "show rules are captured too");
+    let shown = only_child(&ui, container);
+    assert_eq!(texts(&ui, container), ["shown"], "show rules too");
+    let child = ui.world.node(only_child(&ui, shown));
+    assert_eq!(child.size, 20.0);
     assert_eq!(child.text, "1");
 }
 
@@ -229,7 +230,7 @@ fn rebuilding_a_keyed_view_does_not_grow_the_rule_arena() {
         cx.build(keyed(watch(|world: &World| world.pick), |&pick| {
             AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
                 cx.set::<Text>(|t, _| t.size(40.0));
-                cx.show::<Text>(|t, _| t.boxed());
+                cx.show::<Text>(wrap("shown"));
                 cx.scope(|cx| {
                     cx.set_field(Text::cursor().size(), 42.0);
                     cx.build(text(pick.to_string()))
@@ -247,7 +248,9 @@ fn rebuilding_a_keyed_view_does_not_grow_the_rule_arena() {
         ui.update(Duration::ZERO, false);
         assert_eq!(ui.mounted.rules().len(), built);
     }
-    assert_eq!(texts(&ui, container), ["100"]);
+    let shown = only_child(&ui, container);
+    assert_eq!(texts(&ui, container), ["shown"]);
+    assert_eq!(texts(&ui, shown), ["100"]);
 
     ui.mounted.unmount(container);
     assert!(ui.mounted.rules().is_empty(), "released with its view");

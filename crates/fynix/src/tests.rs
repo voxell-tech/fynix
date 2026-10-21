@@ -19,9 +19,9 @@ mod state;
 mod structure;
 
 use crate::{
-    AnyView, Backend, Condition, Curve, Cx, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Signal, Slot, Styled, Tick,
-    Trace, Tween, View, ViewExt, derived, element,
+    AnyView, Backend, Condition, Curve, Cx, Matched, Motion,
+    MotionTokens, Mounted, Patch, Prop, ScopedExt, Signal, Slot,
+    Styled, Tick, Trace, Tween, View, ViewExt, derived, element,
 };
 
 #[derive(Default)]
@@ -192,6 +192,27 @@ fn text(text: impl Into<Prop<World, String>>) -> Text {
     Text {
         text: text.into(),
         ..Text::unset()
+    }
+}
+
+/// A show rule putting the text it matches in a bare node named
+/// `name`.
+fn wrap(
+    name: &'static str,
+) -> impl Fn(Matched<Text>, &Warm) -> AnyView<Fake, Warm>
++ Send
++ Sync
++ 'static {
+    move |it, _| {
+        AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
+            let node = cx.spawn();
+            cx.world.nodes[node]
+                .as_mut()
+                .expect("a live node")
+                .text = name.to_string();
+            cx.under(node, |cx| cx.build(it));
+            node
+        })
     }
 }
 

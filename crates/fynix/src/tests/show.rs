@@ -4,29 +4,8 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 use std::{panic, vec};
 
-use super::{Fake, Frame, Lit, Text, Ui, Warm, text};
-use crate::{AnyView, Cx, Matched, Prop, Styled, ViewExt};
-
-/// A show rule putting the text it matches in a bare node named
-/// `name`.
-fn wrap(
-    name: &'static str,
-) -> impl Fn(Matched<Text>, &Warm) -> AnyView<Fake, Warm>
-+ Send
-+ Sync
-+ 'static {
-    move |it, _| {
-        AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
-            let node = cx.spawn();
-            cx.world.nodes[node]
-                .as_mut()
-                .expect("a live node")
-                .text = name.to_string();
-            cx.under(node, |cx| cx.build(it));
-            node
-        })
-    }
-}
+use super::{Fake, Frame, Lit, Text, Ui, Warm, text, wrap};
+use crate::{AnyView, Cx, Prop, Styled, ViewExt};
 
 /// The texts of `node` and of its first child, its first child's,
 /// and so on down.
