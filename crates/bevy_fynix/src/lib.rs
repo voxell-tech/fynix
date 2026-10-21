@@ -36,8 +36,8 @@ use bevy::input_focus::{InputFocus, InputFocusSystems};
 use bevy::ui_widgets::MenuFocusSystem;
 pub use cursor::{CursorPlugin, EntityCursor, OverrideCursor};
 pub use fynix::{
-    AnyView, Cx, Element, Layered, ScopedExt, Styled, View, ViewExt,
-    ViewSeq,
+    AnyView, Cx, Element, Layered, Matched, ScopedExt, Styled, View,
+    ViewExt, ViewSeq,
 };
 pub use leave::{Collapsing, Entering, Entrances, Held, Leaving};
 pub use modifier::ModifierExt;

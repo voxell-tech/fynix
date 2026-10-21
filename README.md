@@ -17,8 +17,8 @@ https://github.com/user-attachments/assets/31153e53-c1f4-4564-8eef-4bce4155101a
 - Views, rules and transitions never name an engine.
 - A view asks for the token traits it reads, so it works under any
   theme that implements them.
-- Set rules restyle and show rules replace every view of a kind within
-  a scope, as in Typst.
+- Set rules restyle every view of a kind within a scope, and show
+  rules replace every element of a kind, as in Typst.
 - State rules hold while a node is hovered, pressed, entering,
   leaving, or in any state of your own.
 - Props bound to the world are read again only when their source

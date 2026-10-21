@@ -19,7 +19,8 @@ transitions, is the same on every backend.
 - Views, rules and transitions never name an engine.
 - A view asks for the token traits it reads, so it works under any
   theme that implements them.
-- Set rules restyle and show rules replace every view of a kind within a scope.
+- Set rules restyle every view of a kind within a scope, and show
+  rules replace every element of a kind.
 - State rules hold while a node is hovered, pressed, entering,
   leaving, or in any state of your own.
 - Props bound to the world are read again only when their source
@@ -142,35 +143,53 @@ fn main() {
 
 ### Show rules
 
-A show rule, like Typst's `#show`, replaces every view of one kind.
-It receives the matched view as written, so it can react to inline
-values. The matched view can be placed anywhere inside the replacement;
-its set rules are applied when it is built there, and its inline values
-still win.
+A show rule, like Typst's `#show`, replaces every element of one kind
+built after it with any view. The rule receives the element with its
+set rules applied, and `call_mask` tells which props its call site
+set. Built in the replacement, the element keeps its props and is not
+replaced by the same rule again, though older show rules still replace
+it in turn. Every other element of the kind is replaced, so a rule
+that builds a new element of the kind it matches leaves it out with
+`show_where`, Typst's `.where`.
 
 ```rust
 # #[path = "docs/toy.rs"] mod _doc; use _doc::*;
 fn main() {
     let mut ui = Ui::new(Warm);
-    let title = ui.build(|cx| {
-        cx.show::<Text>(|text, _| {
-            let size = text.inline_size().unwrap_or(14.0);
-            AnyView::new(move |cx| {
-                let frame = cx.spawn();
-                cx.under(frame, |cx| {
-                    cx.build(text);
-                    cx.build(_doc::text(format!("{size}px")));
-                });
-                frame
-            })
-        });
-        cx.build(text("Title").size(20.0))
+    let (title, body) = ui.build(|cx| {
+        cx.set::<Text>(|t, _| t.size(20.0));
+        // Every text of 20 or more gets a mark before it.
+        cx.show_where::<Text>(
+            |it| matches!(it.size, Prop::Value(size) if size >= 20.0),
+            |it, _| {
+                AnyView::new(move |cx| {
+                    let frame = cx.spawn();
+                    cx.under(frame, |cx| {
+                        cx.build(text("#").size(12.0));
+                        cx.build(it);
+                    });
+                    frame
+                })
+            },
+        );
+        (cx.build(text("Title")), cx.build(text("Body").size(14.0)))
     });
     let children = &ui.world.nodes[title].children;
-    assert_eq!(ui.world.nodes[children[0]].size, 20.0);
-    assert_eq!(ui.world.nodes[children[1]].text, "20px");
+    assert_eq!(ui.world.nodes[children[0]].text, "#");
+    assert_eq!(ui.size(children[1]), 20.0);
+    assert_eq!(ui.world.nodes[body].text, "Body");
 }
 ```
+
+A show-set rule, `cx.show_set::<E, W>(..)`, is a set rule for `W` that
+holds within every element `E`, like Typst's `show E: set W(..)`: on
+the element itself when `W` is `E`, in its replacement, and on every
+view built under its node.
+
+Show rules match elements by kind, and a composite is reached through
+the elements it builds. There is no selector for text or a pattern in
+it, and no show rule for every element. A show rule cannot wait on a
+state.
 
 ### Scopes
 
@@ -441,10 +460,10 @@ From weakest to strongest:
 | Call site | `label("x").size(20.0)` |
 | State rules on the node itself | `label("x").when::<Hovered, _>(..)` |
 
-Show rules then transform the result. A theme says what the tokens
-are (colours, sizes, curves), a rule bundle (`.rules(..)`) says which
-look a view has, and a state rule says what that look does while a
-state holds. Of several state rules on one node, the one in the outer
+Show rules then replace the element, its set rules applied. A theme
+says what the tokens are (colours, sizes, curves), a rule bundle
+(`.rules(..)`) says which look a view has, and a state rule says what
+that look does while a state holds. Of several state rules on one node, the one in the outer
 scope wins, and within one scope the one written later. The Bevy
 backend's README shows buttons styled this way, with ready-made looks
 and a `Style` builder.

@@ -65,24 +65,15 @@ pub trait TextTokens {
 #[element(backend = Toy, theme = TextTokens)]
 pub struct Text {
     #[elem(patch = WriteText)]
-    text: Prop<World, String>,
+    pub text: Prop<World, String>,
     #[elem(default = theme.body_size(), patch = WriteSize)]
-    size: Prop<World, f32>,
+    pub size: Prop<World, f32>,
 }
 
 pub fn text(text: impl Into<Prop<World, String>>) -> Text {
     Text {
         text: text.into(),
         ..Text::unset()
-    }
-}
-
-impl Text {
-    pub fn inline_size(&self) -> Option<f32> {
-        match &self.size {
-            Prop::Value(size) => Some(*size),
-            _ => None,
-        }
     }
 }
 
