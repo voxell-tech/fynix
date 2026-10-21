@@ -4,7 +4,7 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 use std::{panic, vec};
 
-use super::{Fake, Frame, Text, Ui, Warm, text};
+use super::{Fake, Frame, Lit, Text, Ui, Warm, text};
 use crate::{AnyView, Cx, Matched, Prop, Styled, ViewExt};
 
 /// A show rule putting the text it matches in a bare node named
@@ -197,6 +197,13 @@ fn a_show_set_rule_holds_within_every_element_of_its_kind() {
     assert_eq!(ui.world.node(ruled).size, 30.0);
     assert_eq!(ui.world.node(inline).size, 9.0, "call site wins");
     assert_eq!(ui.world.node(after).size, 14.0, "outside the frame");
+}
+
+#[test]
+#[should_panic(expected = "cannot wait on a state")]
+fn a_show_rule_cannot_wait_on_a_state() {
+    let mut ui = Ui::new(Warm);
+    ui.under(|cx| cx.when::<Lit>(|cx| cx.show::<Text>(wrap("lit"))));
 }
 
 #[test]

@@ -360,7 +360,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     /// On that root they beat its call site, as a state rule does. On
     /// a view under it they only fill what that view's call site
     /// left unset, as a set rule does. Either way they beat rules
-    /// that do not wait on a state.
+    /// that do not wait on a state. Show rules cannot be set in it.
     pub fn when<C: Condition<B>>(
         &mut self,
         set: impl FnOnce(&mut Self),
@@ -635,6 +635,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         &mut self,
         rule: impl Fn(W, &T) -> W + Send + Sync + 'static,
     ) {
+        self.refuse_state();
         let key =
             self.mounted.rules.insert(Box::new(rule) as Rule<W, T>);
         self.entry(
@@ -656,6 +657,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         + Sync
         + 'static,
     ) {
+        self.refuse_state();
         let key = self.mounted.rules.insert(Box::new(
             move |matched: Matched<E>, theme: &T| {
                 if filter(&matched) {
@@ -667,6 +669,16 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         )
             as ShowRule<B, E, T>);
         self.entry(TypeId::of::<E>(), RuleKind::Show, key, None);
+    }
+
+    /// Panics in a [`when`](Self::when) block: a show rule cannot
+    /// wait on a state.
+    fn refuse_state(&self) {
+        assert!(
+            self.marks.when.is_none(),
+            "a show rule cannot wait on a state: set it outside \
+             `when`",
+        );
     }
 
     /// `view` with the set rules in force applied: rules fill what
@@ -694,7 +706,6 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
                 let entry = self.entries[index];
                 if entry.kind != RuleKind::Show
                     || entry.view != TypeId::of::<E>()
-                    || entry.when.is_some()
                     || entry.default != default
                     || !entry.reaches()
                     || matched.done.contains(&entry.key)
