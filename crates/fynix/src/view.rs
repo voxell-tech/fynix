@@ -4,12 +4,13 @@
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::any::TypeId;
 
 use crate::backend::Backend;
 use crate::cx::Cx;
 use crate::layer::Live;
 use crate::mounted::Tick;
-use crate::transition::Curve;
+use crate::transition::Travel;
 use crate::visual::{Visual, VisualMut};
 
 /// Something that can be built under a node, with the theme `T`.
@@ -151,8 +152,9 @@ pub trait Element<B: Backend, T>: Layered {
     fn prepare(world: &mut B::World, node: B::Node);
 
     /// Re-reads the props whose bits are in `dirty`, heads each for
-    /// its new value, over `curve` if it blends, and moves every prop
-    /// still travelling on by `tick`. Returns whether any still is.
+    /// its new value, as `travel` says if it blends, and moves every
+    /// prop still travelling on by `tick`. Returns whether any still
+    /// is.
     #[allow(clippy::too_many_arguments)]
     fn update(
         &self,
@@ -162,7 +164,7 @@ pub trait Element<B: Backend, T>: Layered {
         node: B::Node,
         theme: &T,
         tick: Tick,
-        curve: Option<Curve>,
+        travel: Option<Travel>,
     ) -> bool;
 
     /// Whether anything it holds can change after the build.
@@ -206,19 +208,19 @@ impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
             }
             None => (0, Vec::new()),
         };
-        let curve = cx.curve();
+        let travel = cx.travel();
         let mut element = E::resolve(self, cx);
         if let Some(mut visual) = element.visual() {
             // After the element's own rules, which are more specific.
             visual.fill(cx.resolve(Visual::unset()));
         }
-        let node = cx.spawn();
+        let node = cx.spawn_for(Some(TypeId::of::<E>()));
         let mut live = Live {
             layers,
             call,
             visual_layers,
             visual_call,
-            curve,
+            travel,
         };
         E::prepare(cx.world, node);
         // Before the first write, which a state set on watching can
@@ -237,7 +239,7 @@ impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
         // One with a transition is kept too, so it can animate out.
         if element.is_live()
             || live.is_layered()
-            || live.curve.is_some()
+            || live.travel.is_some()
         {
             cx.mount(node, element, shown, live);
         }

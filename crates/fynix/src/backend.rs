@@ -1,5 +1,6 @@
 //! What views are built into.
 
+use core::any::TypeId;
 use core::hash::Hash;
 
 /// A world of nodes. Views above the elements are generic over it;
@@ -8,10 +9,20 @@ pub trait Backend: 'static {
     type World: 'static;
     type Node: Copy + Eq + Hash + Send + Sync + 'static;
 
-    /// A new, empty node under `parent`, or at the root.
+    /// Whether the backend moves values itself. When it does, a prop
+    /// travelling over a theme's [`Motion`](crate::Motion) is
+    /// written once, its target handed to
+    /// [`Patch::patch_over`](crate::Patch::patch_over) with the
+    /// motion, in place of a write at every step of the way.
+    const ANIMATES: bool = false;
+
+    /// A new, empty node under `parent`, or at the root, for the
+    /// element whose type is `kind`. `None` for a node no element is
+    /// written on, such as a composite's root.
     fn spawn(
         world: &mut Self::World,
         parent: Option<Self::Node>,
+        kind: Option<TypeId>,
     ) -> Self::Node;
 
     /// Removes `node` and every node under it.

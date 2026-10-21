@@ -1,13 +1,14 @@
 //! A toy backend for the README's examples: a flat list of nodes
 //! holding text.
 
+use core::any::TypeId;
 use core::time::Duration;
 
 // `#[element]` finds these at the root of the crate it is used in.
 pub use fynix::{
     Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, View,
-    ViewExt, element, styled,
+    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, Travel,
+    View, ViewExt, element, styled,
 };
 
 #[derive(Default)]
@@ -30,7 +31,11 @@ impl Backend for Toy {
     type World = World;
     type Node = usize;
 
-    fn spawn(world: &mut World, parent: Option<usize>) -> usize {
+    fn spawn(
+        world: &mut World,
+        parent: Option<usize>,
+        _kind: Option<TypeId>,
+    ) -> usize {
         let node = world.nodes.len();
         world.nodes.push(Node {
             parent,

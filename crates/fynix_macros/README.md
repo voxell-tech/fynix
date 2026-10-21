@@ -40,7 +40,9 @@ On a field:
 - `default = <expr>`: the value when unset. It may read `theme`.
   Without it, the prop type's `Default`.
 - `blend = <fn>`: how two values blend, so the prop travels under a
-  transition rule. Without it, the prop snaps.
+  transition rule. Without it, the prop snaps. Under a backend that
+  animates, a travel over a motion goes to the `Patch`'s
+  `patch_over` once, with the motion.
 - `shown = <type>, with = <fn>`: writes a value made from the prop
   and the theme, such as a colour from a tone.
 

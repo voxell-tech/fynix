@@ -1,6 +1,7 @@
 //! The core against a fake backend: a flat list of nodes holding some
 //! text at a size, and one number the text can be bound to.
 
+use core::any::TypeId;
 use core::mem;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::time::Duration;
@@ -18,8 +19,8 @@ mod structure;
 
 use crate::{
     AnyView, Backend, Condition, Curve, Cx, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Signal, Styled, Tick, Trace,
-    View, ViewExt, derived, element,
+    Mounted, Patch, Prop, ScopedExt, Signal, Slot, Styled, Tick,
+    Trace, Tween, View, ViewExt, derived, element,
 };
 
 #[derive(Default)]
@@ -43,6 +44,8 @@ pub struct World {
 #[derive(Default)]
 struct Node {
     parent: Option<usize>,
+    /// The element it was spawned for.
+    kind: Option<TypeId>,
     children: Vec<usize>,
     text: String,
     size: f32,
@@ -63,9 +66,14 @@ impl Backend for Fake {
     type World = World;
     type Node = usize;
 
-    fn spawn(world: &mut World, parent: Option<usize>) -> usize {
+    fn spawn(
+        world: &mut World,
+        parent: Option<usize>,
+        kind: Option<TypeId>,
+    ) -> usize {
         world.nodes.push(Some(Node {
             parent,
+            kind,
             ..Node::default()
         }));
         let node = world.nodes.len() - 1;
@@ -294,7 +302,12 @@ impl<T: 'static> Ui<T> {
         }
     }
 
-    fn update(&mut self, delta: Duration, reduced_motion: bool) {
+    /// Whether anything still moves after.
+    fn update(
+        &mut self,
+        delta: Duration,
+        reduced_motion: bool,
+    ) -> bool {
         self.unmount_gone();
         self.mounted.run_effects(&mut self.world);
         self.mounted.update_structure(&mut self.world, &self.theme);
@@ -306,7 +319,7 @@ impl<T: 'static> Ui<T> {
                 delta,
                 reduced_motion,
             },
-        );
+        )
     }
 
     /// A root node with whatever `build` puts under it.
@@ -331,6 +344,19 @@ fn an_unset_prop_falls_back_to_the_theme() {
 
     assert_eq!(ui.world.node(node).text, "Save");
     assert_eq!(ui.world.node(node).size, 14.0);
+}
+
+#[test]
+fn spawn_is_told_the_element_a_node_is_for() {
+    let mut ui = Ui::new(Warm);
+    let node = ui.build(text("Save"));
+    assert_eq!(ui.world.node(node).kind, Some(TypeId::of::<Text>()));
+
+    let bare =
+        ui.build(AnyView::new(|cx: &mut Cx<'_, Fake, Warm>| {
+            cx.spawn()
+        }));
+    assert_eq!(ui.world.node(bare).kind, None);
 }
 
 #[test]
@@ -582,6 +608,41 @@ fn a_transition_reaches_its_target_over_the_curve() {
 
     ui.update(Duration::from_millis(500), false);
     assert_eq!(ui.world.node(node).size, 20.0);
+}
+
+#[test]
+fn an_update_says_whether_anything_still_moves() {
+    let mut ui = Ui::new(Warm);
+    ui.build(counted(Some(Motion::Interact)));
+    assert!(!ui.update(Duration::ZERO, false), "nothing changed");
+
+    ui.world.set(20);
+    assert!(ui.update(Duration::ZERO, false));
+    assert!(ui.update(Duration::from_millis(500), false));
+    assert!(!ui.update(Duration::from_millis(500), false), "arrived");
+}
+
+#[test]
+fn a_travel_over_a_motion_is_handed_over_once() {
+    let tween = Tween {
+        curve: Warm.motion(Motion::Expand),
+        motion: Some(Motion::Expand),
+        interp: blend,
+    };
+    let tick = Tick {
+        delta: Duration::from_millis(100),
+        reduced_motion: false,
+    };
+    let mut slot = Slot::default();
+    let mut writes = Vec::new();
+    for target in [0.0, 10.0, 10.0] {
+        slot.aim(target, Some(tween), tick);
+        let moving = slot.hand_over(tick, |value, motion| {
+            writes.push((*value, motion));
+        });
+        assert!(!moving);
+    }
+    assert_eq!(writes, [(0.0, None), (10.0, Some(Motion::Expand))]);
 }
 
 #[test]

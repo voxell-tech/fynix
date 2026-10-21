@@ -9,7 +9,7 @@ use crate::layer::{Layer, Live};
 use crate::mounted::{Group, Mounted};
 use crate::prop::Prop;
 use crate::rules::{Condition, RuleKind, ScopeEntry, When};
-use crate::transition::{Curve, Motion, MotionTokens};
+use crate::transition::{Curve, Motion, MotionTokens, Travel};
 use crate::view::{Element, Styled, View};
 
 /// One rule restyling a `V`, with the theme in hand.
@@ -204,7 +204,16 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     /// A new, empty node where a view built now hangs. It is the root
     /// of every rule set since the last node was spawned.
     pub fn spawn(&mut self) -> B::Node {
-        let node = B::spawn(self.world, self.parent);
+        self.spawn_for(None)
+    }
+
+    /// As [`spawn`](Self::spawn), for the element whose type is
+    /// `kind`.
+    pub(crate) fn spawn_for(
+        &mut self,
+        kind: Option<TypeId>,
+    ) -> B::Node {
+        let node = B::spawn(self.world, self.parent, kind);
         for entry in &mut self.entries {
             entry.root.get_or_insert(node);
         }
@@ -401,10 +410,10 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         layers.into_iter().map(|(_, layer)| layer).collect()
     }
 
-    /// The curve a transition rule in force gives an element resolved
-    /// now: the innermost that is not a default, else the innermost
-    /// default.
-    pub(crate) fn curve(&self) -> Option<Curve> {
+    /// How a transition rule in force has an element resolved now
+    /// travel: the innermost that is not a default, else the
+    /// innermost default.
+    pub(crate) fn travel(&self) -> Option<Travel> {
         let innermost = |default: bool| {
             self.entries
                 .iter()
@@ -417,7 +426,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
                 .find_map(|entry| {
                     self.mounted
                         .rules
-                        .get::<Curve>(&entry.key)
+                        .get::<Travel>(&entry.key)
                         .copied()
                 })
         };
@@ -431,14 +440,25 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     where
         T: MotionTokens,
     {
-        self.transition_over(self.theme.motion(motion));
+        self.travel_over(Travel {
+            curve: self.theme.motion(motion),
+            motion: Some(motion),
+        });
     }
 
-    /// As [`transition`](Self::transition), over `curve`.
+    /// As [`transition`](Self::transition), over `curve`. Fynix moves
+    /// the values itself, whether the backend animates or not.
     pub fn transition_over(&mut self, curve: Curve) {
-        let key = self.mounted.rules.insert(curve);
+        self.travel_over(Travel {
+            curve,
+            motion: None,
+        });
+    }
+
+    fn travel_over(&mut self, travel: Travel) {
+        let key = self.mounted.rules.insert(travel);
         self.entry(
-            TypeId::of::<Curve>(),
+            TypeId::of::<Travel>(),
             RuleKind::Motion,
             key,
             None,

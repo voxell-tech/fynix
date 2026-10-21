@@ -28,6 +28,7 @@ use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::common_conditions::resource_exists;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::world::World;
 use bevy::input_focus::tab_navigation::TabGroup;
@@ -59,8 +60,9 @@ pub use visual::Visual;
 pub struct Theme<T>(pub T);
 
 /// Keeps every mounted view's bound props in step with the world.
-/// The app inserts [`Theme<T>`] itself. An app may add one per theme
-/// it builds views with.
+/// The app inserts [`Theme<T>`] itself, and may do so late, once the
+/// theme has loaded: until then nothing is updated, and nothing may
+/// be mounted. An app may add one per theme it builds views with.
 pub struct FynixPlugin<T>(PhantomData<fn() -> T>);
 
 impl<T> Default for FynixPlugin<T> {
@@ -78,7 +80,9 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
             .init_resource::<mounted::Pending<T>>()
             .add_systems(
                 Update,
-                mounted::update::<T>.in_set(FynixSystems::Mount),
+                mounted::update::<T>
+                    .run_if(resource_exists::<Theme<T>>)
+                    .in_set(FynixSystems::Mount),
             );
         app.world_mut()
             .resource_mut::<mounted::Receivers>()
