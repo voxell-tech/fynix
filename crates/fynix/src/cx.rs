@@ -10,14 +10,18 @@ use crate::mounted::{Group, Mounted};
 use crate::prop::Prop;
 use crate::rules::{Condition, RuleKind, ScopeEntry, When};
 use crate::transition::{Curve, Motion, MotionTokens, Travel};
-use crate::view::{AnyView, Element, Styled, View};
+use crate::view::{AnyView, Element, Matched, Styled, View};
+
+/// How many replacements can be built one inside another before a
+/// show rule is taken to match its own replacement forever.
+const MAX_SHOW_DEPTH: usize = 64;
 
 /// One rule restyling a `V`, with the theme in hand.
 type Rule<V, T> = Box<dyn Fn(V, &T) -> V + Send + Sync>;
 
-/// One rule replacing a `V`, with the theme in hand.
-type ShowRule<B, V, T> =
-    Box<dyn Fn(V, &T) -> AnyView<B, T> + Send + Sync>;
+/// One rule replacing an `E`, with the theme in hand.
+type ShowRule<B, E, T> =
+    Box<dyn Fn(Matched<E>, &T) -> AnyView<B, T> + Send + Sync>;
 
 /// Which set rules in force could decide a field, for telling where a
 /// value came from.
@@ -68,8 +72,8 @@ pub struct Cx<'a, B: Backend, T> {
     /// The group structural views built now belong to.
     owner: Option<Group>,
     marks: Marks<B>,
-    /// Show rules whose replacements are being built now.
-    showing: Vec<typarena::type_pool::PoolKey>,
+    /// How many replacements are being built, one inside another.
+    show_depth: usize,
 }
 
 impl<B: Backend, T> Drop for Cx<'_, B, T> {
@@ -95,7 +99,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: 0,
             owner: None,
             marks: Marks::default(),
-            showing: Vec::new(),
+            show_depth: 0,
         }
     }
 
@@ -120,22 +124,16 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: capture.last().map_or(0, |entry| entry.depth),
             owner: Some(owner),
             marks: Marks::default(),
-            showing: Vec::new(),
+            show_depth: 0,
         }
     }
 
     /// The rules in force now, each referred to once more.
     pub(crate) fn capture(&mut self) -> Vec<ScopeEntry<B>> {
-        let capture = self
-            .entries
-            .iter()
-            .filter(|entry| !self.showing.contains(&entry.key))
-            .copied()
-            .collect::<Vec<_>>();
-        for entry in &capture {
+        for entry in &self.entries {
             self.mounted.rules.retain(entry.key);
         }
-        capture
+        self.entries.clone()
     }
 
     pub(crate) fn owner(&self) -> Option<Group> {
@@ -543,19 +541,27 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         trace
     }
 
-    /// Replaces every `V` built from here to the end of the scope.
-    /// The rule receives `V` as written at its call site, and may put
-    /// it in the replacement without applying itself again. Its set
-    /// rules are applied when it is built there.
-    pub fn show<V: Styled>(
+    /// Replaces every element `E` built from here to the end of the
+    /// scope with the view `rule` makes of it.
+    ///
+    /// The rule receives the element as written at its call site.
+    /// Built in the replacement, that element skips this rule and any
+    /// later one it went through, and older rules replace it in turn.
+    /// Every other `E`, a new one in the replacement too, is replaced
+    /// again: a rule that always builds a new `E` panics once
+    /// replacements nest 64 deep.
+    pub fn show<E: Element<B, T>>(
         &mut self,
-        rule: impl Fn(V, &T) -> AnyView<B, T> + Send + Sync + 'static,
+        rule: impl Fn(Matched<E>, &T) -> AnyView<B, T>
+        + Send
+        + Sync
+        + 'static,
     ) {
         let key = self
             .mounted
             .rules
-            .insert(Box::new(rule) as ShowRule<B, V, T>);
-        self.entry(TypeId::of::<V>(), RuleKind::Show, key, None);
+            .insert(Box::new(rule) as ShowRule<B, E, T>);
+        self.entry(TypeId::of::<E>(), RuleKind::Show, key, None);
     }
 
     /// `view` with the set rules in force applied: rules fill what
@@ -571,36 +577,44 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         view.over(below)
     }
 
-    /// Builds the strongest show rule for `view`, or gives it back.
-    pub(crate) fn apply_show<V: Styled>(
+    /// Builds what the latest show rule `matched` has not gone
+    /// through makes of it, or gives it back. Defaults go last.
+    pub(crate) fn apply_show<E: Element<B, T>>(
         &mut self,
-        view: V,
-    ) -> Result<B::Node, V> {
-        let matching = |default: bool| {
+        mut matched: Matched<E>,
+    ) -> Result<B::Node, Matched<E>> {
+        let latest = |default: bool| {
             self.entries.iter().rev().find(|entry| {
                 entry.kind == RuleKind::Show
-                    && entry.view == TypeId::of::<V>()
+                    && entry.view == TypeId::of::<E>()
                     && entry.when.is_none()
                     && entry.default == default
                     && entry.reaches()
-                    && !self.showing.contains(&entry.key)
+                    && !matched.done.contains(&entry.key)
             })
         };
-        let Some(entry) = matching(false).or_else(|| matching(true))
+        let Some(entry) = latest(false).or_else(|| latest(true))
         else {
-            return Err(view);
+            return Err(matched);
         };
         let key = entry.key;
+        matched.done.push(key);
         let replacement = self
             .mounted
             .rules
-            .get::<ShowRule<B, V, T>>(&key)
+            .get::<ShowRule<B, E, T>>(&key)
             .expect("a show rule of its stored type")(
-            view, self.theme,
+            matched, self.theme,
         );
-        self.showing.push(key);
+        assert!(
+            self.show_depth < MAX_SHOW_DEPTH,
+            "show rules for `{}` nested {MAX_SHOW_DEPTH} deep: a \
+             rule builds a new view of the kind it matches",
+            core::any::type_name::<E>(),
+        );
+        self.show_depth += 1;
         let node = replacement.build(self);
-        self.showing.pop();
+        self.show_depth -= 1;
         Ok(node)
     }
 }

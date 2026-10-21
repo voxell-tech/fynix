@@ -14,6 +14,7 @@ use motiongfx_interp::ease;
 use motiongfx_interp::interpolation::Interpolation;
 
 mod leave;
+mod show;
 mod state;
 mod structure;
 
@@ -412,35 +413,6 @@ fn an_inner_scope_wins_and_ends_with_its_scope() {
 
     assert_eq!(ui.world.node(inner).size, 30.0);
     assert_eq!(ui.world.node(after).size, 20.0);
-}
-
-#[test]
-fn a_show_rule_can_replace_an_element_with_another_view() {
-    let mut ui = Ui::new(Warm);
-    let nodes = ui.under(|cx| {
-        cx.set::<Text>(|text, _| text.size(20.0));
-        cx.show::<Text>(|original, _| {
-            let reaction = match &original.size {
-                Prop::Value(9.0) => "inline",
-                _ => "not inline",
-            };
-            AnyView::new(move |cx| {
-                let wrapper = cx.spawn();
-                cx.under(wrapper, |cx| {
-                    cx.build(original);
-                    cx.build(text(reaction));
-                });
-                wrapper
-            })
-        });
-        cx.build(text("original").size(9.0));
-    });
-
-    let children = ui.world.children(nodes[0]);
-    assert_eq!(children.len(), 2);
-    assert_eq!(ui.world.node(children[0]).text, "original");
-    assert_eq!(ui.world.node(children[0]).size, 9.0);
-    assert_eq!(ui.world.node(children[1]).text, "inline");
 }
 
 #[test]

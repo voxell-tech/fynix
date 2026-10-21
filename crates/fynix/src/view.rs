@@ -5,6 +5,9 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::any::TypeId;
+use core::ops::Deref;
+
+use typarena::type_pool::PoolKey;
 
 use crate::backend::Backend;
 use crate::cx::Cx;
@@ -200,20 +203,60 @@ pub trait Element<B: Backend, T>: Layered {
 
 impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
     fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
-        let mut unshown = match cx.apply_show(self) {
-            Ok(node) => return node,
-            Err(element) => element,
-        };
-        let call = unshown.set_mask();
+        Matched {
+            element: self,
+            done: Vec::new(),
+        }
+        .build(cx)
+    }
+}
+
+/// An element a show rule matched, as the rule is handed it.
+pub struct Matched<E> {
+    element: E,
+    /// The show rules it went through, which it skips when built.
+    pub(crate) done: Vec<PoolKey>,
+}
+
+impl<E> Deref for Matched<E> {
+    type Target = E;
+
+    fn deref(&self) -> &E {
+        &self.element
+    }
+}
+
+impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T>
+    for Matched<E>
+{
+    fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
+        match cx.apply_show(self) {
+            Ok(node) => node,
+            Err(matched) => matched.mount(cx),
+        }
+    }
+}
+
+impl<E> Matched<E> {
+    /// Builds the element on a node of its own.
+    fn mount<B: Backend, T: 'static>(
+        self,
+        cx: &mut Cx<'_, B, T>,
+    ) -> B::Node
+    where
+        E: Element<B, T>,
+    {
+        let mut written = self.element;
+        let call = written.set_mask();
         let layers = cx.layers::<E>();
-        let (visual_call, visual_layers) = match unshown.visual() {
+        let (visual_call, visual_layers) = match written.visual() {
             Some(visual) => {
                 (visual.set_mask(), cx.layers::<Visual<B::World>>())
             }
             None => (0, Vec::new()),
         };
         let travel = cx.travel();
-        let mut element = E::resolve(unshown, cx);
+        let mut element = E::resolve(written, cx);
         if let Some(mut visual) = element.visual() {
             // After the element's own rules, which are more specific.
             visual.fill(cx.resolve(Visual::unset()));
