@@ -123,6 +123,26 @@ fn a_new_text_in_a_replacement_is_replaced_too() {
 }
 
 #[test]
+fn a_filtered_rule_leaves_what_it_does_not_take_to_older_rules() {
+    let mut ui = Ui::new(Warm);
+    let [ruled, inline] = ui.under(|cx| {
+        cx.set::<Text>(|t, _| t.size(20.0));
+        cx.show::<Text>(wrap("any"));
+        cx.show_where::<Text>(
+            |it| matches!(it.size, Prop::Value(size) if size > 16.0),
+            wrap("big"),
+        );
+        cx.build(text("ruled"));
+        cx.build(text("inline").size(9.0));
+    })[..] else {
+        panic!("two replacements");
+    };
+
+    assert_eq!(chain(&ui, ruled), ["big", "any", "ruled"]);
+    assert_eq!(chain(&ui, inline), ["any", "inline"]);
+}
+
+#[test]
 #[should_panic(expected = "nested 64 deep")]
 fn a_rule_that_always_builds_its_own_kind_stops_at_a_depth() {
     let mut ui = Ui::new(Warm);

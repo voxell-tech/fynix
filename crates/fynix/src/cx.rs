@@ -19,9 +19,13 @@ const MAX_SHOW_DEPTH: usize = 64;
 /// One rule restyling a `V`, with the theme in hand.
 type Rule<V, T> = Box<dyn Fn(V, &T) -> V + Send + Sync>;
 
-/// One rule replacing an `E`, with the theme in hand.
-type ShowRule<B, E, T> =
-    Box<dyn Fn(Matched<E>, &T) -> AnyView<B, T> + Send + Sync>;
+/// One rule replacing an `E`, or handing back one it does not take,
+/// with the theme in hand.
+type ShowRule<B, E, T> = Box<
+    dyn Fn(Matched<E>, &T) -> Result<AnyView<B, T>, Matched<E>>
+        + Send
+        + Sync,
+>;
 
 /// Which set rules in force could decide a field, for telling where a
 /// value came from.
@@ -559,10 +563,30 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         + Sync
         + 'static,
     ) {
-        let key = self
-            .mounted
-            .rules
-            .insert(Box::new(rule) as ShowRule<B, E, T>);
+        self.show_where(|_| true, rule);
+    }
+
+    /// As [`show`](Self::show), for the elements `filter` takes, as
+    /// the rule would receive them. An `E` it does not take is left
+    /// to the rules before it.
+    pub fn show_where<E: Element<B, T>>(
+        &mut self,
+        filter: impl Fn(&E) -> bool + Send + Sync + 'static,
+        rule: impl Fn(Matched<E>, &T) -> AnyView<B, T>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        let key = self.mounted.rules.insert(Box::new(
+            move |matched: Matched<E>, theme: &T| {
+                if filter(&matched) {
+                    Ok(rule(matched, theme))
+                } else {
+                    Err(matched)
+                }
+            },
+        )
+            as ShowRule<B, E, T>);
         self.entry(TypeId::of::<E>(), RuleKind::Show, key, None);
     }
 
@@ -579,35 +603,52 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         view.over(below)
     }
 
-    /// Builds what the latest show rule `matched` has not gone
-    /// through makes of it, or gives it back. Defaults go last.
+    /// Builds what the latest show rule that takes `matched` and that
+    /// it has not gone through makes of it, or gives it back.
+    /// Defaults go last.
     pub(crate) fn apply_show<E: Element<B, T>>(
         &mut self,
         mut matched: Matched<E>,
     ) -> Result<B::Node, Matched<E>> {
-        let latest = |default: bool| {
-            self.entries.iter().rev().find(|entry| {
-                entry.kind == RuleKind::Show
-                    && entry.view == TypeId::of::<E>()
-                    && entry.when.is_none()
-                    && entry.default == default
-                    && entry.reaches()
-                    && !matched.done.contains(&entry.key)
-            })
-        };
-        let Some(entry) = latest(false).or_else(|| latest(true))
-        else {
-            return Err(matched);
-        };
-        let key = entry.key;
-        matched.done.push(key);
-        let replacement = self
-            .mounted
-            .rules
-            .get::<ShowRule<B, E, T>>(&key)
-            .expect("a show rule of its stored type")(
-            matched, self.theme,
-        );
+        for default in [false, true] {
+            for index in (0..self.entries.len()).rev() {
+                let entry = self.entries[index];
+                if entry.kind != RuleKind::Show
+                    || entry.view != TypeId::of::<E>()
+                    || entry.when.is_some()
+                    || entry.default != default
+                    || !entry.reaches()
+                    || matched.done.contains(&entry.key)
+                {
+                    continue;
+                }
+                let rule = self
+                    .mounted
+                    .rules
+                    .get::<ShowRule<B, E, T>>(&entry.key)
+                    .expect("a show rule of its stored type");
+                matched.done.push(entry.key);
+                match rule(matched, self.theme) {
+                    Ok(replacement) => {
+                        return Ok(
+                            self.build_replacement::<E>(replacement)
+                        );
+                    }
+                    Err(passed) => {
+                        matched = passed;
+                        matched.done.pop();
+                    }
+                }
+            }
+        }
+        Err(matched)
+    }
+
+    /// Builds what a show rule for an `E` made.
+    fn build_replacement<E: 'static>(
+        &mut self,
+        replacement: AnyView<B, T>,
+    ) -> B::Node {
         assert!(
             self.show_depth < MAX_SHOW_DEPTH,
             "show rules for `{}` nested {MAX_SHOW_DEPTH} deep: a \
@@ -617,6 +658,6 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         self.show_depth += 1;
         let node = replacement.build(self);
         self.show_depth -= 1;
-        Ok(node)
+        node
     }
 }
