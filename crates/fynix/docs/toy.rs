@@ -6,9 +6,9 @@ use core::time::Duration;
 
 // `#[element]` finds these at the root of the crate it is used in.
 pub use fynix::{
-    Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, Travel,
-    View, ViewExt, element, styled,
+    AnyView, Backend, Condition, Curve, Cx, Element, Motion,
+    MotionTokens, Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick,
+    Travel, View, ViewExt, element, styled,
 };
 
 #[derive(Default)]
@@ -74,6 +74,15 @@ pub fn text(text: impl Into<Prop<World, String>>) -> Text {
     Text {
         text: text.into(),
         ..Text::unset()
+    }
+}
+
+impl Text {
+    pub fn inline_size(&self) -> Option<f32> {
+        match &self.size {
+            Prop::Value(size) => Some(*size),
+            _ => None,
+        }
     }
 }
 

@@ -9,8 +9,8 @@ use typarena::type_pool::{PoolKey, TypePool};
 
 use crate::backend::Backend;
 
-/// Whether a rule fills what the call site left unset, transforms the
-/// result after it, or names the curve values travel over.
+/// Whether a rule fills what the call site left unset, replaces the
+/// view, or names the curve values travel over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RuleKind {
     Set,

@@ -10,10 +10,14 @@ use crate::mounted::{Group, Mounted};
 use crate::prop::Prop;
 use crate::rules::{Condition, RuleKind, ScopeEntry, When};
 use crate::transition::{Curve, Motion, MotionTokens, Travel};
-use crate::view::{Element, Styled, View};
+use crate::view::{AnyView, Element, Styled, View};
 
 /// One rule restyling a `V`, with the theme in hand.
 type Rule<V, T> = Box<dyn Fn(V, &T) -> V + Send + Sync>;
+
+/// One rule replacing a `V`, with the theme in hand.
+type ShowRule<B, V, T> =
+    Box<dyn Fn(V, &T) -> AnyView<B, T> + Send + Sync>;
 
 /// Which set rules in force could decide a field, for telling where a
 /// value came from.
@@ -64,6 +68,8 @@ pub struct Cx<'a, B: Backend, T> {
     /// The group structural views built now belong to.
     owner: Option<Group>,
     marks: Marks<B>,
+    /// Show rules whose replacements are being built now.
+    showing: Vec<typarena::type_pool::PoolKey>,
 }
 
 impl<B: Backend, T> Drop for Cx<'_, B, T> {
@@ -89,6 +95,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: 0,
             owner: None,
             marks: Marks::default(),
+            showing: Vec::new(),
         }
     }
 
@@ -113,15 +120,22 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: capture.last().map_or(0, |entry| entry.depth),
             owner: Some(owner),
             marks: Marks::default(),
+            showing: Vec::new(),
         }
     }
 
     /// The rules in force now, each referred to once more.
     pub(crate) fn capture(&mut self) -> Vec<ScopeEntry<B>> {
-        for entry in &self.entries {
+        let capture = self
+            .entries
+            .iter()
+            .filter(|entry| !self.showing.contains(&entry.key))
+            .copied()
+            .collect::<Vec<_>>();
+        for entry in &capture {
             self.mounted.rules.retain(entry.key);
         }
-        self.entries.clone()
+        capture
     }
 
     pub(crate) fn owner(&self) -> Option<Group> {
@@ -379,7 +393,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             .iter()
             .enumerate()
             .filter(|(_, entry)| {
-                entry.kind != RuleKind::Motion
+                entry.kind == RuleKind::Set
                     && entry.view == TypeId::of::<E>()
                     && entry.reaches()
             })
@@ -529,18 +543,24 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         trace
     }
 
-    /// Transforms every `V` built from here to the end of the scope,
-    /// after its call site, so unlike a set rule it wins over it.
+    /// Replaces every `V` built from here to the end of the scope.
+    /// The rule receives `V` as written at its call site, and may put
+    /// it in the replacement without applying itself again. Its set
+    /// rules are applied when it is built there.
     pub fn show<V: Styled>(
         &mut self,
-        rule: impl Fn(V, &T) -> V + Send + Sync + 'static,
+        rule: impl Fn(V, &T) -> AnyView<B, T> + Send + Sync + 'static,
     ) {
-        self.push::<V>(RuleKind::Show, None, Box::new(rule));
+        let key = self
+            .mounted
+            .rules
+            .insert(Box::new(rule) as ShowRule<B, V, T>);
+        self.entry(TypeId::of::<V>(), RuleKind::Show, key, None);
     }
 
-    /// `view` with the rules in force applied: set rules fill what
-    /// its call site left unset, defaults first, then outer
-    /// scopes before inner, then show rules transform the result.
+    /// `view` with the set rules in force applied: rules fill what
+    /// its call site left unset, defaults first, then outer scopes
+    /// before inner.
     /// Rules waiting on a state are left out: an element puts
     /// them on top while mounted.
     pub fn resolve<V: Styled>(&self, view: V) -> V {
@@ -548,7 +568,39 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         let below = self
             .rules::<V>(RuleKind::Set)
             .fold(V::unset(), |below, rule| rule(below, theme));
-        self.rules::<V>(RuleKind::Show)
-            .fold(view.over(below), |view, rule| rule(view, theme))
+        view.over(below)
+    }
+
+    /// Builds the strongest show rule for `view`, or gives it back.
+    pub(crate) fn apply_show<V: Styled>(
+        &mut self,
+        view: V,
+    ) -> Result<B::Node, V> {
+        let matching = |default: bool| {
+            self.entries.iter().rev().find(|entry| {
+                entry.kind == RuleKind::Show
+                    && entry.view == TypeId::of::<V>()
+                    && entry.when.is_none()
+                    && entry.default == default
+                    && entry.reaches()
+                    && !self.showing.contains(&entry.key)
+            })
+        };
+        let Some(entry) = matching(false).or_else(|| matching(true))
+        else {
+            return Err(view);
+        };
+        let key = entry.key;
+        let replacement = self
+            .mounted
+            .rules
+            .get::<ShowRule<B, V, T>>(&key)
+            .expect("a show rule of its stored type")(
+            view, self.theme,
+        );
+        self.showing.push(key);
+        let node = replacement.build(self);
+        self.showing.pop();
+        Ok(node)
     }
 }

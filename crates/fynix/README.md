@@ -19,7 +19,7 @@ transitions, is the same on every backend.
 - Views, rules and transitions never name an engine.
 - A view asks for the token traits it reads, so it works under any
   theme that implements them.
-- Set and show rules restyle every view of a kind within a scope.
+- Set rules restyle and show rules replace every view of a kind within a scope.
 - State rules hold while a node is hovered, pressed, entering,
   leaving, or in any state of your own.
 - Props bound to the world are read again only when their source
@@ -142,18 +142,33 @@ fn main() {
 
 ### Show rules
 
-A show rule, like Typst's `#show`, transforms every view of one kind
-after its call site, so it wins over a value set there.
+A show rule, like Typst's `#show`, replaces every view of one kind.
+It receives the matched view as written, so it can react to inline
+values. The matched view can be placed anywhere inside the replacement;
+its set rules are applied when it is built there, and its inline values
+still win.
 
 ```rust
 # #[path = "docs/toy.rs"] mod _doc; use _doc::*;
 fn main() {
     let mut ui = Ui::new(Warm);
     let title = ui.build(|cx| {
-        cx.show::<Text>(|t, _| t.size(30.0));
+        cx.show::<Text>(|text, _| {
+            let size = text.inline_size().unwrap_or(14.0);
+            AnyView::new(move |cx| {
+                let frame = cx.spawn();
+                cx.under(frame, |cx| {
+                    cx.build(text);
+                    cx.build(_doc::text(format!("{size}px")));
+                });
+                frame
+            })
+        });
         cx.build(text("Title").size(20.0))
     });
-    assert_eq!(ui.size(title), 30.0);
+    let children = &ui.world.nodes[title].children;
+    assert_eq!(ui.world.nodes[children[0]].size, 20.0);
+    assert_eq!(ui.world.nodes[children[1]].text, "20px");
 }
 ```
 

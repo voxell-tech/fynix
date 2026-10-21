@@ -199,17 +199,21 @@ pub trait Element<B: Backend, T>: Layered {
 }
 
 impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
-    fn build(mut self, cx: &mut Cx<'_, B, T>) -> B::Node {
-        let call = self.set_mask();
+    fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
+        let mut unshown = match cx.apply_show(self) {
+            Ok(node) => return node,
+            Err(element) => element,
+        };
+        let call = unshown.set_mask();
         let layers = cx.layers::<E>();
-        let (visual_call, visual_layers) = match self.visual() {
+        let (visual_call, visual_layers) = match unshown.visual() {
             Some(visual) => {
                 (visual.set_mask(), cx.layers::<Visual<B::World>>())
             }
             None => (0, Vec::new()),
         };
         let travel = cx.travel();
-        let mut element = E::resolve(self, cx);
+        let mut element = E::resolve(unshown, cx);
         if let Some(mut visual) = element.visual() {
             // After the element's own rules, which are more specific.
             visual.fill(cx.resolve(Visual::unset()));
