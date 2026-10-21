@@ -179,6 +179,21 @@ fn a_show_set_rule_holds_within_every_element_of_its_kind() {
 }
 
 #[test]
+fn a_rule_set_under_an_element_with_show_set_rules_stays_in_force() {
+    let mut ui = Ui::new(Warm);
+    let [_, after] = ui.under(|cx| {
+        cx.show_set::<Frame, Text>(|t, _| t.size(30.0));
+        let frame = cx.build(Frame::unset());
+        cx.under(frame, |cx| cx.set::<Text>(|t, _| t.size(20.0)));
+        cx.build(text("after"));
+    })[..] else {
+        panic!("a frame and a text");
+    };
+
+    assert_eq!(ui.world.node(after).size, 20.0, "as under any node");
+}
+
+#[test]
 #[should_panic(expected = "cannot wait on a state")]
 fn a_show_rule_cannot_wait_on_a_state() {
     let mut ui = Ui::new(Warm);

@@ -267,10 +267,16 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         let built = match self.show_sets.get(&parent) {
             Some(sets) => {
                 let sets = sets.clone();
-                self.scope(|cx| {
-                    cx.hold(&sets);
-                    build(cx)
-                })
+                let start = self.entries.len();
+                self.hold(&sets);
+                let built = build(self);
+                // Not a scope: rules `build` set stay in force.
+                let held =
+                    self.entries.drain(start..start + sets.len());
+                for entry in held {
+                    self.mounted.rules.release(entry.key);
+                }
+                built
             }
             None => build(self),
         };

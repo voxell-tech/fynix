@@ -231,6 +231,7 @@ fn rebuilding_a_keyed_view_does_not_grow_the_rule_arena() {
             AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
                 cx.set::<Text>(|t, _| t.size(40.0));
                 cx.show::<Text>(wrap("shown"));
+                cx.show_set::<Text, Text>(|t, _| t.size(41.0));
                 cx.scope(|cx| {
                     cx.set_field(Text::cursor().size(), 42.0);
                     cx.build(text(pick.to_string()))
