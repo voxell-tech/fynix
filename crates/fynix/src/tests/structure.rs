@@ -5,8 +5,12 @@ use std::format;
 use std::string::{String, ToString};
 use std::vec::Vec;
 
-use super::{Fake, Text, TextCursor, Ui, Warm, World, text, watch};
-use crate::{AnyView, Cx, Each, Keyed, View, ViewExt, each, keyed};
+use super::{
+    Fake, Frame, Text, TextCursor, Ui, Warm, World, text, watch,
+};
+use crate::{
+    AnyView, Cx, Each, Keyed, Styled, View, ViewExt, each, keyed,
+};
 
 impl World {
     fn pick(&mut self, pick: u32) {
@@ -145,6 +149,22 @@ fn a_set_rule_outside_a_keyed_view_applies_to_what_it_rebuilds() {
     let child = ui.world.node(only_child(&ui, container));
     assert_eq!(child.size, 20.0, "show rules are captured too");
     assert_eq!(child.text, "1");
+}
+
+#[test]
+fn a_show_set_rule_of_a_container_applies_to_a_rebuild() {
+    let mut ui = Ui::new(Warm);
+    let [container] = ui.under(|cx| {
+        cx.show_set::<Frame, Text>(|t, _| t.size(30.0));
+        cx.build(picked().within(Frame::unset()));
+    })[..] else {
+        panic!("a container");
+    };
+
+    ui.world.pick(1);
+    ui.update(Duration::ZERO, false);
+
+    assert_eq!(ui.world.node(only_child(&ui, container)).size, 30.0);
 }
 
 #[test]

@@ -105,7 +105,8 @@ where
         let container = container(cx, self.within.take());
         let parent = cx.owner();
         let id = cx.mounted().new_group();
-        let capture = cx.capture();
+        // Under the container, for the show-set rules it holds.
+        let capture = cx.under(container, Cx::capture);
         let last = self.key.get(cx.world);
         // The first check fires on any source, and the build covers
         // it.
@@ -252,7 +253,8 @@ where
         let container = container(cx, self.within.take());
         let parent = cx.owner();
         let id = cx.mounted().new_group();
-        let capture = cx.capture();
+        // Under the container, for the show-set rules it holds.
+        let capture = cx.under(container, Cx::capture);
         let items = self.items.get(cx.world);
         self.items.changed(cx.world);
         let mut rows = Vec::with_capacity(items.len());

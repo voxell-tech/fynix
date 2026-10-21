@@ -195,6 +195,13 @@ fn text(text: impl Into<Prop<World, String>>) -> Text {
     }
 }
 
+/// A box other views are built under.
+#[element(backend = Fake)]
+pub struct Frame {
+    #[elem(patch = WriteSize)]
+    size: Prop<World, f32>,
+}
+
 fn blend(from: &f32, to: &f32, t: f32) -> f32 {
     <f32 as Interpolation<()>>::interp(from, to, t)
 }

@@ -4,8 +4,8 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 use std::{panic, vec};
 
-use super::{Fake, Text, Ui, Warm, text};
-use crate::{AnyView, Cx, Matched, Prop, ViewExt};
+use super::{Fake, Frame, Text, Ui, Warm, text};
+use crate::{AnyView, Cx, Matched, Prop, Styled, ViewExt};
 
 /// A show rule putting the text it matches in a bare node named
 /// `name`.
@@ -172,6 +172,31 @@ fn a_rule_set_in_a_replacement_ends_with_it() {
     assert_eq!(ui.world.node(x).size, 14.0, "resolved before");
     assert_eq!(ui.world.node(inside).size, 40.0);
     assert_eq!(ui.world.node(after).size, 14.0);
+}
+
+#[test]
+fn a_show_set_rule_holds_within_every_element_of_its_kind() {
+    let mut ui = Ui::new(Warm);
+    let [framed, after] = ui.under(|cx| {
+        cx.show_set::<Frame, Text>(|t, _| t.size(30.0));
+        cx.show_set::<Frame, Frame>(|frame, _| frame.size(5.0));
+        let frame = cx.build(Frame::unset());
+        cx.under(frame, |cx| {
+            cx.build(text("ruled"));
+            cx.build(text("inline").size(9.0));
+        });
+        cx.build(text("after"));
+    })[..] else {
+        panic!("a frame and a text");
+    };
+
+    assert_eq!(ui.world.node(framed).size, 5.0, "the frame itself");
+    let [ruled, inline] = ui.world.children(framed)[..] else {
+        panic!("two texts");
+    };
+    assert_eq!(ui.world.node(ruled).size, 30.0);
+    assert_eq!(ui.world.node(inline).size, 9.0, "call site wins");
+    assert_eq!(ui.world.node(after).size, 14.0, "outside the frame");
 }
 
 #[test]

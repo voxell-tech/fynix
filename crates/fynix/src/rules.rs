@@ -10,11 +10,13 @@ use typarena::type_pool::{PoolKey, TypePool};
 use crate::backend::Backend;
 
 /// Whether a rule fills what the call site left unset, replaces the
-/// view, or names the curve values travel over.
+/// view, does what a set rule does within every element of a kind,
+/// or names the curve values travel over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RuleKind {
     Set,
     Show,
+    ShowSet(TypeId),
     Motion,
 }
 

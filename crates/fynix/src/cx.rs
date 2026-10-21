@@ -2,6 +2,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::any::TypeId;
 
+use hashbrown::HashMap;
 use lenz::{Cursor, FieldId, FieldPath};
 
 use crate::backend::Backend;
@@ -78,11 +79,15 @@ pub struct Cx<'a, B: Backend, T> {
     marks: Marks<B>,
     /// How many replacements are being built, one inside another.
     show_depth: usize,
+    /// The show-set rules that held where each node was built, for
+    /// the views built under it.
+    show_sets: HashMap<B::Node, Vec<ScopeEntry<B>>>,
 }
 
 impl<B: Backend, T> Drop for Cx<'_, B, T> {
     fn drop(&mut self) {
-        for entry in self.entries.drain(..) {
+        let held = self.show_sets.values().flatten();
+        for entry in self.entries.iter().chain(held) {
             self.mounted.rules.release(entry.key);
         }
     }
@@ -104,6 +109,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             owner: None,
             marks: Marks::default(),
             show_depth: 0,
+            show_sets: HashMap::new(),
         }
     }
 
@@ -129,6 +135,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             owner: Some(owner),
             marks: Marks::default(),
             show_depth: 0,
+            show_sets: HashMap::new(),
         }
     }
 
@@ -241,16 +248,70 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         view.build(self)
     }
 
-    /// Runs `build` with views hanging under `parent`.
+    /// Runs `build` with views hanging under `parent`, within the
+    /// show-set rules for the element on it.
     pub fn under<R>(
         &mut self,
         parent: B::Node,
         build: impl FnOnce(&mut Self) -> R,
     ) -> R {
         let outer = self.parent.replace(parent);
-        let built = build(self);
+        let built = match self.show_sets.get(&parent) {
+            Some(sets) => {
+                let sets = sets.clone();
+                self.scope(|cx| {
+                    cx.hold(&sets);
+                    build(cx)
+                })
+            }
+            None => build(self),
+        };
         self.parent = outer;
         built
+    }
+
+    /// Builds `element` within the show-set rules for an `E` in
+    /// force, which then hold under its node too.
+    pub(crate) fn build_element<E: Element<B, T>>(
+        &mut self,
+        element: E,
+    ) -> B::Node {
+        let sets = self
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.kind == RuleKind::ShowSet(TypeId::of::<E>())
+                    && entry.reaches()
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        if sets.is_empty() {
+            return Matched::resolve(element, self).build(self);
+        }
+        self.scope(|cx| {
+            cx.hold(&sets);
+            let node = Matched::resolve(element, cx).build(cx);
+            for entry in &sets {
+                cx.mounted.rules.retain(entry.key);
+            }
+            cx.show_sets.entry(node).or_default().extend(sets);
+            node
+        })
+    }
+
+    /// Puts the set rules of the show-set rules `sets` in force, in
+    /// the innermost scope.
+    fn hold(&mut self, sets: &[ScopeEntry<B>]) {
+        for entry in sets {
+            self.mounted.rules.retain(entry.key);
+            self.entries.push(ScopeEntry {
+                kind: RuleKind::Set,
+                depth: self.depth,
+                root: None,
+                root_only: false,
+                ..*entry
+            });
+        }
     }
 
     /// Runs `build` with views hanging at the root, whatever they
@@ -564,6 +625,24 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         + 'static,
     ) {
         self.show_where(|_| true, rule);
+    }
+
+    /// Restyles every `W` built within an element `E` from here to
+    /// the end of the scope, as a set rule set there would: the
+    /// element itself, its replacement and what is built under
+    /// its node.
+    pub fn show_set<E: Element<B, T>, W: Styled>(
+        &mut self,
+        rule: impl Fn(W, &T) -> W + Send + Sync + 'static,
+    ) {
+        let key =
+            self.mounted.rules.insert(Box::new(rule) as Rule<W, T>);
+        self.entry(
+            TypeId::of::<W>(),
+            RuleKind::ShowSet(TypeId::of::<E>()),
+            key,
+            None,
+        );
     }
 
     /// As [`show`](Self::show), for the elements `filter` takes, as

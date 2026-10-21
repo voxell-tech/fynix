@@ -203,7 +203,7 @@ pub trait Element<B: Backend, T>: Layered {
 
 impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
     fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
-        Matched::resolve(self, cx).build(cx)
+        cx.build_element(self)
     }
 }
 
@@ -221,7 +221,7 @@ pub struct Matched<E> {
 
 impl<E> Matched<E> {
     /// `element` with the set rules in force applied.
-    fn resolve<B: Backend, T: 'static>(
+    pub(crate) fn resolve<B: Backend, T: 'static>(
         mut element: E,
         cx: &Cx<'_, B, T>,
     ) -> Self
