@@ -78,8 +78,8 @@ pub struct Cx<'a, B: Backend, T> {
     owner: Option<Group>,
     marks: Marks<B>,
     /// The kind of element each show and show-set rule in force
-    /// matches, so an element no rule matches skips the search.
-    shown: Vec<TypeId>,
+    /// matches.
+    show_kinds: Vec<TypeId>,
     /// How many replacements are being built, one inside another.
     show_depth: usize,
     /// The show-set rules that held where each node was built, for
@@ -111,7 +111,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: 0,
             owner: None,
             marks: Marks::default(),
-            shown: Vec::new(),
+            show_kinds: Vec::new(),
             show_depth: 0,
             show_sets: HashMap::new(),
         }
@@ -138,7 +138,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: capture.last().map_or(0, |entry| entry.depth),
             owner: Some(owner),
             marks: Marks::default(),
-            shown: capture
+            show_kinds: capture
                 .iter()
                 .filter_map(ScopeEntry::shows)
                 .collect(),
@@ -290,18 +290,13 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         &mut self,
         element: E,
     ) -> B::Node {
-        if !self.shown.contains(&TypeId::of::<E>()) {
-            return Matched::resolve(element, self).build(self);
-        }
-        let sets = self
-            .entries
-            .iter()
-            .filter(|entry| {
+        let mut sets = Vec::new();
+        if self.show_kinds.contains(&TypeId::of::<E>()) {
+            sets.extend(self.entries.iter().filter(|entry| {
                 entry.kind == RuleKind::ShowSet(TypeId::of::<E>())
                     && entry.reaches()
-            })
-            .copied()
-            .collect::<Vec<_>>();
+            }));
+        }
         if sets.is_empty() {
             return Matched::resolve(element, self).build(self);
         }
@@ -356,9 +351,9 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             self.mounted.rules.release(entry.key);
             if let Some(kind) = entry.shows()
                 && let Some(at) =
-                    self.shown.iter().position(|&shown| shown == kind)
+                    self.show_kinds.iter().position(|&of| of == kind)
             {
-                self.shown.swap_remove(at);
+                self.show_kinds.swap_remove(at);
             }
         }
         self.depth -= 1;
@@ -442,7 +437,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             default: self.marks.default,
             when: self.marks.when,
         };
-        self.shown.extend(entry.shows());
+        self.show_kinds.extend(entry.shows());
         self.entries.push(entry);
     }
 
@@ -719,14 +714,14 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         view.over(below)
     }
 
-    /// Builds what the latest show rule that takes `matched` and that
-    /// it has not gone through makes of it, or gives it back.
-    /// Defaults go last.
+    /// Builds the replacement of `matched` by the latest show rule
+    /// that takes it, skipping the rules it went through and trying
+    /// defaults last. Gives it back when none takes it.
     pub(crate) fn apply_show<E: Element<B, T>>(
         &mut self,
         mut matched: Matched<E>,
     ) -> Result<B::Node, Matched<E>> {
-        if !self.shown.contains(&TypeId::of::<E>()) {
+        if !self.show_kinds.contains(&TypeId::of::<E>()) {
             return Err(matched);
         }
         for default in [false, true] {

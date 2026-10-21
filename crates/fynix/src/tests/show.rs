@@ -7,15 +7,19 @@ use std::{panic, vec};
 use super::{Fake, Frame, Lit, Text, Ui, Warm, text, wrap};
 use crate::{AnyView, Cx, Prop, Styled, ViewExt};
 
-/// The texts of `node` and of its first child, its first child's,
-/// and so on down.
-fn chain(ui: &Ui<Warm>, mut node: usize) -> Vec<String> {
-    let mut texts = vec![ui.world.node(node).text.clone()];
-    while let Some(&child) = ui.world.node(node).children.first() {
-        texts.push(ui.world.node(child).text.clone());
-        node = child;
+impl Ui<Warm> {
+    /// The texts of `node` and of its first child, its first
+    /// child's, and so on down.
+    fn chain(&self, mut node: usize) -> Vec<String> {
+        let mut texts = vec![self.world.node(node).text.clone()];
+        while let Some(&child) =
+            self.world.node(node).children.first()
+        {
+            texts.push(self.world.node(child).text.clone());
+            node = child;
+        }
+        texts
     }
-    texts
 }
 
 #[test]
@@ -70,7 +74,7 @@ fn the_latest_show_rule_is_outermost_and_each_runs_once() {
         cx.build(text("x"));
     });
 
-    assert_eq!(chain(&ui, nodes[0]), ["newer", "older", "x"]);
+    assert_eq!(ui.chain(nodes[0]), ["newer", "older", "x"]);
 }
 
 #[test]
@@ -98,7 +102,7 @@ fn a_new_text_in_a_replacement_is_replaced_too() {
         panic!("the text and its label");
     };
     assert_eq!(ui.world.node(shown).text, "x");
-    assert_eq!(chain(&ui, label), ["", "label"]);
+    assert_eq!(ui.chain(label), ["", "label"]);
 }
 
 #[test]
@@ -117,8 +121,8 @@ fn a_filtered_rule_leaves_what_it_does_not_take_to_older_rules() {
         panic!("two replacements");
     };
 
-    assert_eq!(chain(&ui, ruled), ["big", "any", "ruled"]);
-    assert_eq!(chain(&ui, inline), ["any", "inline"]);
+    assert_eq!(ui.chain(ruled), ["big", "any", "ruled"]);
+    assert_eq!(ui.chain(inline), ["any", "inline"]);
 }
 
 #[test]
