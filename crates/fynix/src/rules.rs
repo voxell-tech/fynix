@@ -91,6 +91,15 @@ impl<B: Backend> ScopeEntry<B> {
     pub fn reaches(&self) -> bool {
         !self.root_only || self.root.is_none()
     }
+
+    /// The kind of element a show or show-set rule matches.
+    pub fn shows(&self) -> Option<TypeId> {
+        match self.kind {
+            RuleKind::Show => Some(self.view),
+            RuleKind::ShowSet(element) => Some(element),
+            RuleKind::Set | RuleKind::Motion => None,
+        }
+    }
 }
 
 /// Every rule any live scope or capture can still reach. A rule is

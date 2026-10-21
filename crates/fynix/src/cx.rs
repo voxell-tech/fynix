@@ -77,6 +77,9 @@ pub struct Cx<'a, B: Backend, T> {
     /// The group structural views built now belong to.
     owner: Option<Group>,
     marks: Marks<B>,
+    /// The kind of element each show and show-set rule in force
+    /// matches, so an element no rule matches skips the search.
+    shown: Vec<TypeId>,
     /// How many replacements are being built, one inside another.
     show_depth: usize,
     /// The show-set rules that held where each node was built, for
@@ -108,6 +111,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: 0,
             owner: None,
             marks: Marks::default(),
+            shown: Vec::new(),
             show_depth: 0,
             show_sets: HashMap::new(),
         }
@@ -134,6 +138,10 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             depth: capture.last().map_or(0, |entry| entry.depth),
             owner: Some(owner),
             marks: Marks::default(),
+            shown: capture
+                .iter()
+                .filter_map(ScopeEntry::shows)
+                .collect(),
             show_depth: 0,
             show_sets: HashMap::new(),
         }
@@ -276,6 +284,9 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         &mut self,
         element: E,
     ) -> B::Node {
+        if !self.shown.contains(&TypeId::of::<E>()) {
+            return Matched::resolve(element, self).build(self);
+        }
         let sets = self
             .entries
             .iter()
@@ -337,6 +348,12 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             self.entries.pop_if(|entry| entry.depth == self.depth)
         {
             self.mounted.rules.release(entry.key);
+            if let Some(kind) = entry.shows()
+                && let Some(at) =
+                    self.shown.iter().position(|&shown| shown == kind)
+            {
+                self.shown.swap_remove(at);
+            }
         }
         self.depth -= 1;
         built
@@ -408,7 +425,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         key: typarena::type_pool::PoolKey,
         field: Option<FieldId>,
     ) {
-        self.entries.push(ScopeEntry {
+        let entry = ScopeEntry {
             view,
             kind,
             key,
@@ -418,7 +435,9 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
             root_only: self.marks.root_only,
             default: self.marks.default,
             when: self.marks.when,
-        });
+        };
+        self.shown.extend(entry.shows());
+        self.entries.push(entry);
     }
 
     /// The rules for a `V` that hold whatever the state, of `kind`,
@@ -701,6 +720,9 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         &mut self,
         mut matched: Matched<E>,
     ) -> Result<B::Node, Matched<E>> {
+        if !self.shown.contains(&TypeId::of::<E>()) {
+            return Err(matched);
+        }
         for default in [false, true] {
             for index in (0..self.entries.len()).rev() {
                 let entry = self.entries[index];
