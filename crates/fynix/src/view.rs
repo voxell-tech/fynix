@@ -203,19 +203,52 @@ pub trait Element<B: Backend, T>: Layered {
 
 impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
     fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
-        Matched {
-            element: self,
-            done: Vec::new(),
-        }
-        .build(cx)
+        Matched::resolve(self, cx).build(cx)
     }
 }
 
-/// An element a show rule matched, as the rule is handed it.
+/// An element a show rule matched, as the rule is handed it: with the
+/// set rules in force applied.
 pub struct Matched<E> {
     element: E,
+    /// The props its call site set.
+    call: u64,
+    /// The [`Visual`] props its call site set.
+    visual_call: u64,
     /// The show rules it went through, which it skips when built.
     pub(crate) done: Vec<PoolKey>,
+}
+
+impl<E> Matched<E> {
+    /// `element` with the set rules in force applied.
+    fn resolve<B: Backend, T: 'static>(
+        mut element: E,
+        cx: &Cx<'_, B, T>,
+    ) -> Self
+    where
+        E: Element<B, T>,
+    {
+        let call = element.set_mask();
+        let visual_call =
+            element.visual().map_or(0, |visual| visual.set_mask());
+        let mut element = E::resolve(element, cx);
+        if let Some(mut visual) = element.visual() {
+            // After the element's own rules, which are more specific.
+            visual.fill(cx.resolve(Visual::unset()));
+        }
+        Self {
+            element,
+            call,
+            visual_call,
+            done: Vec::new(),
+        }
+    }
+
+    /// The bits of the props its call site set, numbered as
+    /// [`Layered`] numbers them. The rest are unset or set by rules.
+    pub fn call_mask(&self) -> u64 {
+        self.call
+    }
 }
 
 impl<E> Deref for Matched<E> {
@@ -246,21 +279,18 @@ impl<E> Matched<E> {
     where
         E: Element<B, T>,
     {
-        let mut written = self.element;
-        let call = written.set_mask();
+        let Self {
+            mut element,
+            call,
+            visual_call,
+            ..
+        } = self;
         let layers = cx.layers::<E>();
-        let (visual_call, visual_layers) = match written.visual() {
-            Some(visual) => {
-                (visual.set_mask(), cx.layers::<Visual<B::World>>())
-            }
-            None => (0, Vec::new()),
+        let visual_layers = match element.visual() {
+            Some(_) => cx.layers::<Visual<B::World>>(),
+            None => Vec::new(),
         };
         let travel = cx.travel();
-        let mut element = E::resolve(written, cx);
-        if let Some(mut visual) = element.visual() {
-            // After the element's own rules, which are more specific.
-            visual.fill(cx.resolve(Visual::unset()));
-        }
         let node = cx.spawn_for(Some(TypeId::of::<E>()));
         let mut live = Live {
             layers,

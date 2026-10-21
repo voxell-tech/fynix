@@ -544,8 +544,10 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     /// Replaces every element `E` built from here to the end of the
     /// scope with the view `rule` makes of it.
     ///
-    /// The rule receives the element as written at its call site.
-    /// Built in the replacement, that element skips this rule and any
+    /// The rule receives the element with the set rules in force
+    /// applied, and what its call site set in
+    /// [`Matched::call_mask`]. Built in the replacement, that element
+    /// keeps its props and skips this rule and any
     /// later one it went through, and older rules replace it in turn.
     /// Every other `E`, a new one in the replacement too, is replaced
     /// again: a rule that always builds a new `E` panics once

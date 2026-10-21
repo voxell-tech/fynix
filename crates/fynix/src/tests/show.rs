@@ -40,32 +40,46 @@ fn chain(ui: &Ui<Warm>, mut node: usize) -> Vec<String> {
 }
 
 #[test]
-fn a_show_rule_can_replace_an_element_with_another_view() {
+fn a_show_rule_is_handed_the_element_with_its_set_rules_applied() {
     let mut ui = Ui::new(Warm);
     let nodes = ui.under(|cx| {
-        cx.set::<Text>(|text, _| text.size(20.0));
-        cx.show::<Text>(|original, _| {
-            let reaction = match &original.size {
-                Prop::Value(9.0) => "inline",
-                _ => "not inline",
+        cx.set::<Text>(|text, _| text.size(20.0).text("ruled"));
+        cx.show::<Text>(|it, _| {
+            let size = match it.size {
+                Prop::Value(size) => size,
+                _ => 0.0,
             };
-            AnyView::new(move |cx| {
-                let wrapper = cx.spawn();
-                cx.under(wrapper, |cx| {
-                    cx.build(original);
-                    cx.build(text(reaction));
-                });
-                wrapper
+            let call = it.call_mask();
+            AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
+                let node = cx.spawn();
+                let shown = cx.world.nodes[node]
+                    .as_mut()
+                    .expect("a live node");
+                shown.size = size;
+                shown.text = call.to_string();
+                cx.under(node, |cx| cx.build(it));
+                node
             })
         });
-        cx.build(text("original").size(9.0));
+        cx.build(text(Prop::Unset).size(9.0));
+        cx.build(text(Prop::Unset));
     });
 
-    let children = ui.world.children(nodes[0]);
-    assert_eq!(children.len(), 2);
-    assert_eq!(ui.world.node(children[0]).text, "original");
-    assert_eq!(ui.world.node(children[0]).size, 9.0);
-    assert_eq!(ui.world.node(children[1]).text, "inline");
+    let [inline, ruled] = nodes[..] else {
+        panic!("two replacements");
+    };
+    assert_eq!(ui.world.node(inline).size, 9.0);
+    assert_eq!(ui.world.node(inline).text, "2", "the size bit alone");
+    assert_eq!(
+        ui.world.node(ruled).size,
+        20.0,
+        "the rule saw the set"
+    );
+    assert_eq!(ui.world.node(ruled).text, "0");
+    let [text] = ui.world.children(ruled)[..] else {
+        panic!("the text");
+    };
+    assert_eq!(ui.world.node(text).text, "ruled");
 }
 
 #[test]
