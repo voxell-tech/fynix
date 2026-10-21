@@ -5,6 +5,9 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::any::TypeId;
+use core::ops::Deref;
+
+use typarena::type_pool::PoolKey;
 
 use crate::backend::Backend;
 use crate::cx::Cx;
@@ -199,21 +202,95 @@ pub trait Element<B: Backend, T>: Layered {
 }
 
 impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T> for E {
-    fn build(mut self, cx: &mut Cx<'_, B, T>) -> B::Node {
-        let call = self.set_mask();
-        let layers = cx.layers::<E>();
-        let (visual_call, visual_layers) = match self.visual() {
-            Some(visual) => {
-                (visual.set_mask(), cx.layers::<Visual<B::World>>())
-            }
-            None => (0, Vec::new()),
-        };
-        let travel = cx.travel();
-        let mut element = E::resolve(self, cx);
+    fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
+        cx.build_element(self)
+    }
+}
+
+/// An element a show rule matched, as the rule is handed it: with the
+/// set rules in force applied.
+pub struct Matched<E> {
+    element: E,
+    /// The props its call site set.
+    call: u64,
+    /// The [`Visual`] props its call site set.
+    visual_call: u64,
+    /// The show rules it went through, which it skips when built.
+    pub(crate) done: Vec<PoolKey>,
+}
+
+impl<E> Matched<E> {
+    /// `element` with the set rules in force applied.
+    pub(crate) fn resolve<B: Backend, T: 'static>(
+        mut element: E,
+        cx: &Cx<'_, B, T>,
+    ) -> Self
+    where
+        E: Element<B, T>,
+    {
+        let call = element.set_mask();
+        let visual_call =
+            element.visual().map_or(0, |visual| visual.set_mask());
+        let mut element = E::resolve(element, cx);
         if let Some(mut visual) = element.visual() {
             // After the element's own rules, which are more specific.
             visual.fill(cx.resolve(Visual::unset()));
         }
+        Self {
+            element,
+            call,
+            visual_call,
+            done: Vec::new(),
+        }
+    }
+
+    /// The bits of the props its call site set, numbered as
+    /// [`Layered`] numbers them. The rest are unset or set by rules.
+    pub fn call_mask(&self) -> u64 {
+        self.call
+    }
+}
+
+impl<E> Deref for Matched<E> {
+    type Target = E;
+
+    fn deref(&self) -> &E {
+        &self.element
+    }
+}
+
+impl<B: Backend, T: 'static, E: Element<B, T>> View<B, T>
+    for Matched<E>
+{
+    fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
+        match cx.apply_show(self) {
+            Ok(node) => node,
+            Err(matched) => matched.mount(cx),
+        }
+    }
+}
+
+impl<E> Matched<E> {
+    /// Builds the element on a node of its own.
+    fn mount<B: Backend, T: 'static>(
+        self,
+        cx: &mut Cx<'_, B, T>,
+    ) -> B::Node
+    where
+        E: Element<B, T>,
+    {
+        let Self {
+            mut element,
+            call,
+            visual_call,
+            ..
+        } = self;
+        let layers = cx.layers::<E>();
+        let visual_layers = match element.visual() {
+            Some(_) => cx.layers::<Visual<B::World>>(),
+            None => Vec::new(),
+        };
+        let travel = cx.travel();
         let node = cx.spawn_for(Some(TypeId::of::<E>()));
         let mut live = Live {
             layers,

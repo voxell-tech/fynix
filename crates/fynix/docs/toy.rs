@@ -6,9 +6,9 @@ use core::time::Duration;
 
 // `#[element]` finds these at the root of the crate it is used in.
 pub use fynix::{
-    Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, Travel,
-    View, ViewExt, element, styled,
+    AnyView, Backend, Condition, Curve, Cx, Element, Motion,
+    MotionTokens, Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick,
+    Travel, View, ViewExt, element, styled,
 };
 
 #[derive(Default)]
@@ -65,9 +65,9 @@ pub trait TextTokens {
 #[element(backend = Toy, theme = TextTokens)]
 pub struct Text {
     #[elem(patch = WriteText)]
-    text: Prop<World, String>,
+    pub text: Prop<World, String>,
     #[elem(default = theme.body_size(), patch = WriteSize)]
-    size: Prop<World, f32>,
+    pub size: Prop<World, f32>,
 }
 
 pub fn text(text: impl Into<Prop<World, String>>) -> Text {

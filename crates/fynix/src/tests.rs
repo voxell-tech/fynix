@@ -14,13 +14,14 @@ use motiongfx_interp::ease;
 use motiongfx_interp::interpolation::Interpolation;
 
 mod leave;
+mod show;
 mod state;
 mod structure;
 
 use crate::{
-    AnyView, Backend, Condition, Curve, Cx, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Signal, Slot, Styled, Tick,
-    Trace, Tween, View, ViewExt, derived, element,
+    AnyView, Backend, Condition, Curve, Cx, Matched, Motion,
+    MotionTokens, Mounted, Patch, Prop, ScopedExt, Signal, Slot,
+    Styled, Tick, Trace, Tween, View, ViewExt, derived, element,
 };
 
 #[derive(Default)]
@@ -192,6 +193,34 @@ fn text(text: impl Into<Prop<World, String>>) -> Text {
         text: text.into(),
         ..Text::unset()
     }
+}
+
+/// A show rule putting the text it matches in a bare node named
+/// `name`.
+fn wrap(
+    name: &'static str,
+) -> impl Fn(Matched<Text>, &Warm) -> AnyView<Fake, Warm>
++ Send
++ Sync
++ 'static {
+    move |it, _| {
+        AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
+            let node = cx.spawn();
+            cx.world.nodes[node]
+                .as_mut()
+                .expect("a live node")
+                .text = name.to_string();
+            cx.under(node, |cx| cx.build(it));
+            node
+        })
+    }
+}
+
+/// A box other views are built under.
+#[element(backend = Fake)]
+pub struct Frame {
+    #[elem(patch = WriteSize)]
+    size: Prop<World, f32>,
 }
 
 fn blend(from: &f32, to: &f32, t: f32) -> f32 {
@@ -412,17 +441,6 @@ fn an_inner_scope_wins_and_ends_with_its_scope() {
 
     assert_eq!(ui.world.node(inner).size, 30.0);
     assert_eq!(ui.world.node(after).size, 20.0);
-}
-
-#[test]
-fn a_show_rule_wins_over_the_call_site() {
-    let mut ui = Ui::new(Warm);
-    let nodes = ui.under(|cx| {
-        cx.show::<Text>(|t, _| t.size(1.0));
-        cx.build(text("x").size(9.0));
-    });
-
-    assert_eq!(ui.world.node(nodes[0]).size, 1.0);
 }
 
 #[test]

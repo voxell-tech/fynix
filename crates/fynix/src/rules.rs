@@ -9,12 +9,14 @@ use typarena::type_pool::{PoolKey, TypePool};
 
 use crate::backend::Backend;
 
-/// Whether a rule fills what the call site left unset, transforms the
-/// result after it, or names the curve values travel over.
+/// Whether a rule fills what the call site left unset, replaces the
+/// view, does what a set rule does within every element of a kind,
+/// or names the curve values travel over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RuleKind {
     Set,
     Show,
+    ShowSet(TypeId),
     Motion,
 }
 
@@ -88,6 +90,15 @@ impl<B: Backend> ScopeEntry<B> {
     /// Whether the rule reaches a view resolved now.
     pub fn reaches(&self) -> bool {
         !self.root_only || self.root.is_none()
+    }
+
+    /// The kind of element a show or show-set rule matches.
+    pub fn shows(&self) -> Option<TypeId> {
+        match self.kind {
+            RuleKind::Show => Some(self.view),
+            RuleKind::ShowSet(element) => Some(element),
+            RuleKind::Set | RuleKind::Motion => None,
+        }
     }
 }
 

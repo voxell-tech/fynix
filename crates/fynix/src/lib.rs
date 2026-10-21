@@ -34,7 +34,7 @@ pub use slot::{Patch, Slot};
 pub use structure::{Each, Keyed, each, keyed};
 pub use transition::{Curve, Motion, MotionTokens, Travel, Tween};
 pub use view::{
-    AnyView, Element, Layered, Settable, Styled, View, ViewExt,
-    ViewSeq,
+    AnyView, Element, Layered, Matched, Settable, Styled, View,
+    ViewExt, ViewSeq,
 };
 pub use visual::{Visual, VisualMut};
