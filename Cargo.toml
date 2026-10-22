@@ -15,7 +15,7 @@ fynix_macros = { version = "0.0.3", path = "crates/fynix_macros" }
 bevy_fynix = { version = "0.0.3", path = "crates/bevy_fynix", default-features = false }
 
 # motiongfx
-motiongfx_interp = { version = "0.4.0", default-features = false }
+motiongfx_interp = { version = "0.5.0", default-features = false }
 
 # bevy
 bevy = { version = "0.20", default-features = false }
