@@ -37,6 +37,7 @@ use crate::shortcut::{Chord, CommandList, ShortcutAppExt};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
+use crate::transition::ReducedMotion;
 use crate::views::{BehaviorExt, FrameProps, column};
 use crate::{AnyView, Bevy, Cx, ViewExt};
 
@@ -80,6 +81,7 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
             .init_resource::<DockRegistry<T>>()
             .init_resource::<DockDrag>()
             .init_resource::<OverrideCursor>()
+            .init_resource::<ReducedMotion>()
             .add_observer(layout::grab_handle)
             .add_observer(layout::release_handle)
             .add_observer(layout::drag_handle)
@@ -93,10 +95,12 @@ impl<T: DockTokens> Plugin for DockPlugin<T> {
             .get_resource::<CommandList>()
             .is_some_and(|list| list.get(drag::CANCEL.id).is_some());
         if !known {
-            app.add_scope(drag::DRAG).add_command(
-                drag::CANCEL,
-                &[Chord::key(KeyCode::Escape)],
-            );
+            app.add_scope(drag::DRAG)
+                .add_command(
+                    drag::CANCEL,
+                    &[Chord::key(KeyCode::Escape)],
+                )
+                .add_systems(Update, drag::ease_hints);
         }
     }
 }
@@ -1046,12 +1050,51 @@ mod tests {
         let ghost_ui = app.world().get::<Node>(ghost).unwrap();
         assert_eq!(ghost_ui.left, px(231.0 - 40.0));
         assert_eq!(texts(&app, ghost), ["One"]);
-        let hint_ui = app.world().get::<Node>(hint.unwrap()).unwrap();
+        settle(&mut app);
+        let hint = hint.unwrap();
+        let hint_ui = app.world().get::<Node>(hint).unwrap();
         assert_eq!(hint_ui.left, px(230.0));
         assert_eq!(hint_ui.width, px(30.0));
+        assert_eq!(fill_of(&app, hint), Plain::default().dock_hint());
         assert_eq!(
             app.world().get::<Visibility>(one),
             Some(&Visibility::Hidden)
+        );
+    }
+
+    #[test]
+    fn the_hint_glides_between_targets_unless_motion_is_reduced() {
+        let (mut app, left, right) = app();
+        lay_out(&mut app, left, right);
+        let one = tab_node(&mut app, left, 0);
+        let hint =
+            |app: &App| match *app.world().resource::<DockDrag>() {
+                DockDrag::Dragging { hint, .. } => hint.unwrap(),
+                _ => panic!("dragging"),
+            };
+        let at = |app: &App| {
+            let ui = app.world().get::<Node>(hint(app)).unwrap();
+            (ui.left, ui.width)
+        };
+
+        press(&mut app, one, Vec2::new(10.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(230.0, 10.0));
+        drag_to(&mut app, one, Vec2::new(231.0, 10.0));
+        settle(&mut app);
+        let first = hint(&app);
+        assert_eq!(at(&app), (px(230.0), px(30.0)));
+
+        // Half of the way to the whole right area.
+        drag_to(&mut app, one, Vec2::new(300.0, 100.0));
+        assert_eq!(hint(&app), first, "the same hint");
+        assert_eq!(at(&app), (px(215.0), px(115.0)));
+
+        app.insert_resource(ReducedMotion(true));
+        drag_to(&mut app, one, Vec2::new(390.0, 100.0));
+        assert_eq!(
+            at(&app),
+            (px(300.0), px(100.0)),
+            "its right half"
         );
     }
 

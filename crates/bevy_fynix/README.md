@@ -35,6 +35,9 @@ token traits they read, and the states rules wait on.
 - `popup`: a menu surface hung off a point, over a backdrop that
   dismisses it when pressed.
 - `DockPlugin`: split panes with tabbed areas, from a `DockTree`.
+  A dragged tab shows where it would land with a see-through hint,
+  `dock_hint` over a `dock_hint_edge` border, that glides from one
+  target to the next on the theme's `Motion::Interact` curve.
 - `style`: builds a look of your own. See [Styling](#styling).
 
 ## Quick Start

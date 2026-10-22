@@ -1,7 +1,15 @@
 //! Dragging a tab to the bar of an area, the middle of an area, or
 //! one of its edges, with a hint showing where it lands.
+//!
+//! The hint is one node for the whole drag. It grows in at the first
+//! target, glides to each one after, and fades where it is when the
+//! pointer leaves them all.
+
+use core::time::Duration;
 
 use bevy::camera::visibility::Visibility;
+use bevy::color::Color;
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -14,11 +22,12 @@ use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
 use bevy::text::{
     FontSize, FontWeight, LineBreak, TextColor, TextFont, TextLayout,
 };
+use bevy::time::Time;
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BackgroundColor, BorderRadius, ComputedNode,
-    GlobalZIndex, Node, PositionType, UiGlobalTransform, UiRect,
-    UiScale, px,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius,
+    ComputedNode, GlobalZIndex, Node, PositionType,
+    UiGlobalTransform, UiRect, UiScale, px,
 };
 use bevy::window::SystemCursorIcon;
 
@@ -32,7 +41,9 @@ use crate::cursor::OverrideCursor;
 use crate::shortcut::{
     CommandId, CommandSpec, Layer, ScopeId, ScopeSpec,
 };
-use crate::tokens::Tone;
+use crate::tokens::{Curve, Motion, Tone};
+use crate::transition::ReducedMotion;
+use crate::visual::faded;
 
 /// How far the pointer moves before a press on a tab is a drag, in
 /// logical pixels.
@@ -46,6 +57,10 @@ const EMPTY_HINT: f32 = 40.0;
 
 /// Where the ghost sits against the pointer.
 const GRAB: Vec2 = Vec2::new(40.0, 12.0);
+
+/// The share of its first target the hint grows in from, around the
+/// target's centre.
+const APPEAR: f32 = 0.5;
 
 const GHOST_Z: i32 = 200;
 const HINT_Z: i32 = 190;
@@ -76,9 +91,91 @@ pub enum DockDrag {
         node: Entity,
         tab: DockTab,
         ghost: Entity,
+        /// The hint, from the first target on, kept while it fades
+        /// away from the last.
         hint: Option<Entity>,
         target: Option<DropTarget>,
     },
+}
+
+/// Where the hint is drawn, and how much of it shows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Shown {
+    rect: Rect,
+    opacity: f32,
+}
+
+impl Shown {
+    fn lerp(self, to: Self, t: f32) -> Self {
+        Self {
+            rect: Rect {
+                min: self.rect.min.lerp(to.rect.min, t),
+                max: self.rect.max.lerp(to.rect.max, t),
+            },
+            opacity: self.opacity + (to.opacity - self.opacity) * t,
+        }
+    }
+}
+
+/// On the hint: where it travels from and to, over the theme's curve
+/// for [`Motion::Interact`].
+#[derive(Component, Clone, Copy, Debug)]
+pub(super) struct DockHint {
+    from: Shown,
+    to: Shown,
+    elapsed: Duration,
+    curve: Curve,
+    fill: Color,
+    edge: Color,
+    /// Drawn where it was headed, with nothing left to move.
+    still: bool,
+}
+
+impl DockHint {
+    /// Where the hint is now.
+    fn now(&self) -> Shown {
+        let duration = self.curve.duration.as_secs_f32();
+        if duration <= 0.0 {
+            return self.to;
+        }
+        let progress =
+            (self.elapsed.as_secs_f32() / duration).min(1.0);
+        self.from.lerp(self.to, (self.curve.ease)(progress))
+    }
+
+    /// Travels from where it is to `rect`, or fades where it is
+    /// headed when there is none. Once faded, it grows in afresh.
+    fn head_to(&mut self, rect: Option<Rect>) {
+        let now = self.now();
+        let to = match rect {
+            Some(rect) => Shown { rect, opacity: 1.0 },
+            None => Shown {
+                opacity: 0.0,
+                ..self.to
+            },
+        };
+        if to == self.to {
+            return;
+        }
+        self.from = match rect {
+            Some(rect) if now.opacity <= 0.0 => appearing(rect),
+            _ => now,
+        };
+        self.to = to;
+        self.elapsed = Duration::ZERO;
+        self.still = false;
+    }
+}
+
+/// The hint as it starts to grow in over `rect`.
+fn appearing(rect: Rect) -> Shown {
+    Shown {
+        rect: Rect::from_center_size(
+            rect.center(),
+            rect.size() * APPEAR,
+        ),
+        opacity: 0.0,
+    }
 }
 
 /// The bar of a leaf, and where its tabs are.
@@ -212,6 +309,7 @@ pub(super) fn moved<T: DockTokens>(
     areas: Query<(&DockArea, &ComputedNode, &UiGlobalTransform)>,
     rects: Query<(&ComputedNode, &UiGlobalTransform)>,
     mut nodes: Query<&mut Node>,
+    mut hints: Query<&mut DockHint>,
     mut forced: ResMut<OverrideCursor>,
     mut commands: Commands,
 ) {
@@ -305,22 +403,19 @@ pub(super) fn moved<T: DockTokens>(
             );
 
             *target = next.map(|(next, _)| next);
-            match (*hint, next) {
-                (None, Some((_, rect))) => {
+            let rect = next.map(|(_, rect)| rect);
+            match (*hint, rect) {
+                (None, Some(rect)) => {
                     *hint = Some(spawn_hint(
                         &mut commands,
                         rect,
                         &theme.0,
                     ));
                 }
-                (Some(shown), Some((_, rect))) => {
-                    if let Ok(mut shown) = nodes.get_mut(shown) {
-                        place(&mut shown, rect);
+                (Some(shown), rect) => {
+                    if let Ok(mut shown) = hints.get_mut(shown) {
+                        shown.head_to(rect);
                     }
-                }
-                (Some(shown), None) => {
-                    commands.entity(shown).try_despawn();
-                    *hint = None;
                 }
                 (None, None) => {}
             }
@@ -448,25 +543,67 @@ fn spawn_ghost<T: DockTokens>(
     ghost.id()
 }
 
+/// The hint, growing in over `rect`.
 fn spawn_hint<T: DockTokens>(
     commands: &mut Commands,
     rect: Rect,
     theme: &T,
 ) -> Entity {
+    let from = appearing(rect);
+    let hint = DockHint {
+        from,
+        to: Shown { rect, opacity: 1.0 },
+        elapsed: Duration::ZERO,
+        curve: theme.motion(Motion::Interact),
+        fill: theme.dock_hint(),
+        edge: theme.dock_hint_edge(),
+        still: false,
+    };
     let mut node = Node {
         position_type: PositionType::Absolute,
+        border: UiRect::all(px(theme.dock_border())),
         border_radius: BorderRadius::all(px(theme.radius())),
         ..Node::default()
     };
-    place(&mut node, rect);
+    place(&mut node, from.rect);
     commands
         .spawn((
             node,
-            BackgroundColor(theme.selection()),
+            BackgroundColor(Color::NONE),
+            BorderColor::all(Color::NONE),
+            hint,
             GlobalZIndex(HINT_Z),
             Pickable::IGNORE,
         ))
         .id()
+}
+
+/// Moves each hint along, at once under [`ReducedMotion`].
+pub(super) fn ease_hints(
+    time: Res<Time>,
+    reduced: Res<ReducedMotion>,
+    mut hints: Query<(
+        &mut DockHint,
+        &mut Node,
+        &mut BackgroundColor,
+        &mut BorderColor,
+    )>,
+) {
+    for (mut hint, mut node, mut fill, mut edge) in &mut hints {
+        if hint.still {
+            continue;
+        }
+        hint.elapsed = if reduced.0 {
+            hint.curve.duration
+        } else {
+            hint.elapsed + time.delta()
+        };
+        hint.still = hint.elapsed >= hint.curve.duration;
+        let shown = hint.now();
+        place(&mut node, shown.rect);
+        fill.0 = faded(hint.fill, shown.opacity);
+        *edge = BorderColor::all(faded(hint.edge, shown.opacity));
+    }
 }
 
 /// Puts `node` over `rect`.

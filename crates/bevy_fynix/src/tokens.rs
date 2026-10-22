@@ -2,7 +2,7 @@
 //! A view bounds only the traits its defaults read, so it works under
 //! any theme that can answer for them.
 
-use bevy::color::{Color, Luminance};
+use bevy::color::{Alpha, Color, Luminance};
 pub use fynix::{Curve, Motion, MotionTokens};
 
 /// A text colour by role, so a view can ask for "dim" without knowing
@@ -57,6 +57,19 @@ pub trait SurfaceTokens {
     /// A selected row's tint. The hover surface unless a theme says.
     fn selection(&self) -> Color {
         self.hover()
+    }
+
+    /// The hint over where a dragged tab would land, see through so
+    /// what is under it shows. The selection tint at a third unless
+    /// a theme says.
+    fn dock_hint(&self) -> Color {
+        self.selection().with_alpha(0.35)
+    }
+
+    /// The border around the dock's hint. The selection tint unless
+    /// a theme says.
+    fn dock_hint_edge(&self) -> Color {
+        self.selection()
     }
 
     /// A solid accent surface, such as the active segment. The
