@@ -71,6 +71,8 @@ struct PropArgs {
     blend: Option<Expr>,
     with: Option<Expr>,
     shown: Option<Type>,
+    /// Written as an `Option`, `None` while unset.
+    optional: bool,
 }
 
 impl PropArgs {
@@ -82,6 +84,10 @@ impl PropArgs {
             .filter(|attr| attr.path().is_ident("elem"));
         for attr in attrs {
             attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("optional") {
+                    args.optional = true;
+                    return Ok(());
+                }
                 let value = meta.value()?;
                 if meta.path.is_ident("patch") {
                     args.patch = Some(value.parse()?);
@@ -96,7 +102,7 @@ impl PropArgs {
                 } else {
                     return Err(meta.error(
                         "expected `patch`, `default`, `blend`, \
-                         `with` or `shown`",
+                         `with`, `shown` or `optional`",
                     ));
                 }
                 Ok(())
@@ -115,6 +121,18 @@ struct Prop {
     args: PropArgs,
     patch: Type,
     docs: Vec<syn::Attribute>,
+}
+
+impl Prop {
+    /// The type its slot holds and its `Patch` writes.
+    fn shown(&self) -> Tokens {
+        let value = &self.value;
+        match (&self.args.shown, self.args.optional) {
+            (Some(shown), _) => quote!(#shown),
+            (None, true) => quote!(::core::option::Option<#value>),
+            (None, false) => quote!(#value),
+        }
+    }
 }
 
 /// The last generic argument of a field's type: the `P` of `Prop<P>`
@@ -209,6 +227,17 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
                 "`shown = <type>` needs `with = <fn>` to make it",
             ));
         }
+        if args.optional
+            && (args.default.is_some()
+                || args.with.is_some()
+                || args.shown.is_some())
+        {
+            return Err(Error::new(
+                field.span(),
+                "an `optional` prop takes no `default`, `with` or \
+                 `shown`",
+            ));
+        }
         field.attrs.retain(|attr| !attr.path().is_ident("elem"));
         let docs = field
             .attrs
@@ -273,7 +302,7 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
     });
     let slots = props.iter().map(|prop| {
         let name = &prop.name;
-        let shown = prop.args.shown.as_ref().unwrap_or(&prop.value);
+        let shown = prop.shown();
         quote!(#name: #fynix::Slot<#shown>)
     });
     let aims = props.iter().zip(&bits).map(|(prop, bit)| {
@@ -298,6 +327,15 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
             },
             None => quote!(::core::option::Option::None),
         };
+        if prop.args.optional {
+            return quote! {
+                if dirty & (1u64 << #bit) != 0 {
+                    let value: ::core::option::Option<#value> =
+                        self.#name.get(#world);
+                    shown.#name.aim(value, #tween, tick);
+                }
+            };
+        }
         quote! {
             if dirty & (1u64 << #bit) != 0 {
                 let value: #value = match self.#name.get(#world) {
@@ -312,7 +350,7 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
     let steps = props.iter().map(|prop| {
         let name = &prop.name;
         let patch = &prop.patch;
-        let shown = prop.args.shown.as_ref().unwrap_or(&prop.value);
+        let shown = prop.shown();
         quote! {
             moving |= if <#backend as #fynix::Backend>::ANIMATES {
                 shown.#name.hand_over(tick, |value, motion| {
