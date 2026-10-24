@@ -13,6 +13,7 @@ use bevy::ecs::system::Query;
 use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::picking::Pickable;
 use bevy::ui::{
     AlignItems, BorderRadius, FlexDirection, Overflow, UiRect,
     percent, px,
@@ -71,6 +72,11 @@ pub(super) struct TabRow {
 /// On the "+" button at the end of a bar.
 #[derive(Component, Clone, Copy, Debug)]
 pub(super) struct AddButton;
+
+/// On the dot of a tab that the app lights, a descendant of the
+/// tab's [`DockTab`] node. It is hidden until the app shows it.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct TabBadge;
 
 /// On the close button of a tab.
 #[derive(Component, Clone, Copy, Debug)]
@@ -184,6 +190,7 @@ fn tab<T: DockTokens>(
             parts.push(icon(image).boxed());
         }
         parts.push(label(name).bold(true).wrap(false).boxed());
+        parts.push(badge(cx.theme().small_size()));
         parts.push(close(id));
 
         let padding = cx.theme().tab_padding();
@@ -231,6 +238,30 @@ fn tab<T: DockTokens>(
             },
         );
         node
+    })
+}
+
+/// The dot on a tab for the app to light when what the tab shows
+/// wants attention: a round frame of `size`, unfilled and hidden
+/// until the app gives it both. It keeps its place while hidden, so
+/// the tab does not grow when it shows.
+fn badge<T: DockTokens>(size: f32) -> AnyView<Bevy, T> {
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let dot = size / 2.0;
+        cx.build(
+            frame()
+                .width(px(dot))
+                .height(px(dot))
+                .margin(UiRect::left(px(dot)))
+                .shrink(0.0)
+                .corners(BorderRadius::all(px(dot / 2.0)))
+                .fill(Color::NONE)
+                .seeded((
+                    TabBadge,
+                    Visibility::Hidden,
+                    Pickable::IGNORE,
+                )),
+        )
     })
 }
 
