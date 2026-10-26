@@ -23,7 +23,7 @@ use bevy::ui::{
     ComputedNode, UiGlobalTransform, UiRect, UiScale, percent, px,
 };
 pub use drag::{DockDrag, DropTarget};
-pub use layout::DockArea;
+pub use layout::{DockArea, DockPane};
 pub use registry::{DockRegistry, DockWindowKind};
 pub use tabs::{ActiveTab, DockIcons, DockTab, TabBadge};
 pub use tree::{

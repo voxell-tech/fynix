@@ -48,6 +48,15 @@ pub struct DockArea {
     pub leaf: NodeId,
 }
 
+/// On the node holding a tab's window, the twin of its
+/// [`DockTab`](super::DockTab). It is kept, hidden, while another tab
+/// of its area is shown.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DockPane {
+    pub leaf: NodeId,
+    pub tab: TabId,
+}
+
 /// The layout of `shape`, or an empty node for none.
 pub(super) fn build<T: DockTokens>(
     shape: &Option<Shape>,
@@ -222,7 +231,8 @@ fn content<T: DockTokens>(
                     } else {
                         Display::None
                     }
-                })),
+                }))
+                .tagged(DockPane { leaf, tab }),
         );
         // Tab stays among the fields of the window it is pressed in.
         cx.world.entity_mut(pane).insert(TabGroup::default());
