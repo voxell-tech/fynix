@@ -172,6 +172,8 @@ fn prepare(world: &mut World, node: Entity) {
         .entity_mut(node)
         .insert((
             EditableText::default(),
+            // Bevy types only into a field marked as its text input.
+            bevy::ui_widgets::TextInput,
             TextLayout {
                 linebreak: LineBreak::NoWrap,
                 ..TextLayout::default()
