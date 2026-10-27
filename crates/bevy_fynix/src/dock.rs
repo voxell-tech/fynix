@@ -226,12 +226,13 @@ mod tests {
         all
     }
 
-    /// The text under `node`, sorted.
+    /// The text under `node`, sorted, without the empty.
     fn texts(app: &App, node: Entity) -> Vec<String> {
         let mut texts = subtree(app, node)
             .into_iter()
             .filter_map(|node| app.world().get::<Text>(node))
             .map(|text| text.0.clone())
+            .filter(|text| !text.is_empty())
             .collect::<Vec<_>>();
         texts.sort();
         texts
