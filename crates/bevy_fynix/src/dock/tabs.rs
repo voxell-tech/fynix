@@ -259,7 +259,8 @@ fn badge<T: DockTokens>(size: f32) -> AnyView<Bevy, T> {
             .bold(true)
             .tone(Tone::OnAccent)
             .wrap(false)
-            .tagged(TabBadgeCount);
+            .tagged(TabBadgeCount)
+            .tagged(Pickable::IGNORE);
         cx.build(
             row((count,))
                 .align(AlignItems::Center)
