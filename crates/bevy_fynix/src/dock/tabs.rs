@@ -73,10 +73,15 @@ pub(super) struct TabRow {
 #[derive(Component, Clone, Copy, Debug)]
 pub(super) struct AddButton;
 
-/// On the dot of a tab that the app lights, a descendant of the
+/// On the pill of a tab that the app lights, a descendant of the
 /// tab's [`DockTab`] node. It is hidden until the app shows it.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct TabBadge;
+
+/// On the label inside a [`TabBadge`], whose text the app sets to the
+/// count the badge shows.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct TabBadgeCount;
 
 /// On the close button of a tab.
 #[derive(Component, Clone, Copy, Debug)]
@@ -241,20 +246,29 @@ fn tab<T: DockTokens>(
     })
 }
 
-/// The dot on a tab for the app to light when what the tab shows
-/// wants attention: a round frame of `size`, unfilled and hidden
-/// until the app gives it both. It keeps its place while hidden, so
-/// the tab does not grow when it shows.
+/// The pill on a tab for the app to light when what the tab shows
+/// wants attention, with a count in it: a round-ended frame as high
+/// as the tab's text, as wide as its count, unfilled, with no count
+/// and hidden until the app gives it all three. It keeps its place
+/// while hidden, so the tab does not grow when it shows.
 fn badge<T: DockTokens>(size: f32) -> AnyView<Bevy, T> {
     AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
-        let dot = size / 2.0;
+        let high = size * 1.25;
+        let count = label(String::new())
+            .size(size * 0.8)
+            .bold(true)
+            .tone(Tone::OnAccent)
+            .wrap(false)
+            .tagged(TabBadgeCount);
         cx.build(
-            frame()
-                .width(px(dot))
-                .height(px(dot))
-                .margin(UiRect::left(px(dot)))
+            row((count,))
+                .align(AlignItems::Center)
+                .min_width(px(high))
+                .height(px(high))
+                .padding(UiRect::horizontal(px(high * 0.3)))
+                .margin(UiRect::left(px(size * 0.5)))
                 .shrink(0.0)
-                .corners(BorderRadius::all(px(dot / 2.0)))
+                .corners(BorderRadius::all(px(high / 2.0)))
                 .fill(Color::NONE)
                 .seeded((
                     TabBadge,

@@ -25,7 +25,9 @@ use bevy::ui::{
 pub use drag::{DockDrag, DropTarget};
 pub use layout::{DockArea, DockPane};
 pub use registry::{DockRegistry, DockWindowKind};
-pub use tabs::{ActiveTab, DockIcons, DockTab, TabBadge};
+pub use tabs::{
+    ActiveTab, DockIcons, DockTab, TabBadge, TabBadgeCount,
+};
 pub use tree::{
     DockAreaStyle, DockLeaf, DockNode, DockSplit, DockTabEntry,
     DockTree, Edge, NodeId, Shape, SplitAxis, TabId,
