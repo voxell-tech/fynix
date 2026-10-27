@@ -13,6 +13,7 @@ use bevy::ecs::system::Query;
 use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::picking::Pickable;
 use bevy::ui::{
     AlignItems, BorderRadius, FlexDirection, Overflow, UiRect,
     percent, px,
@@ -71,6 +72,16 @@ pub(super) struct TabRow {
 /// On the "+" button at the end of a bar.
 #[derive(Component, Clone, Copy, Debug)]
 pub(super) struct AddButton;
+
+/// On the pill of a tab that the app lights, a descendant of the
+/// tab's [`DockTab`] node. It is hidden until the app shows it.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct TabBadge;
+
+/// On the label inside a [`TabBadge`], whose text the app sets to the
+/// count the badge shows.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct TabBadgeCount;
 
 /// On the close button of a tab.
 #[derive(Component, Clone, Copy, Debug)]
@@ -184,6 +195,7 @@ fn tab<T: DockTokens>(
             parts.push(icon(image).boxed());
         }
         parts.push(label(name).bold(true).wrap(false).boxed());
+        parts.push(badge(cx.theme().small_size()));
         parts.push(close(id));
 
         let padding = cx.theme().tab_padding();
@@ -231,6 +243,40 @@ fn tab<T: DockTokens>(
             },
         );
         node
+    })
+}
+
+/// The pill on a tab for the app to light when what the tab shows
+/// wants attention, with a count in it: a round-ended frame as high
+/// as the tab's text, as wide as its count, unfilled, with no count
+/// and hidden until the app gives it all three. It keeps its place
+/// while hidden, so the tab does not grow when it shows.
+fn badge<T: DockTokens>(size: f32) -> AnyView<Bevy, T> {
+    AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+        let high = size * 1.25;
+        let count = label(String::new())
+            .size(size * 0.8)
+            .bold(true)
+            .tone(Tone::OnAccent)
+            .wrap(false)
+            .tagged(TabBadgeCount)
+            .tagged(Pickable::IGNORE);
+        cx.build(
+            row((count,))
+                .align(AlignItems::Center)
+                .min_width(px(high))
+                .height(px(high))
+                .padding(UiRect::horizontal(px(high * 0.3)))
+                .margin(UiRect::left(px(size * 0.5)))
+                .shrink(0.0)
+                .corners(BorderRadius::all(px(high / 2.0)))
+                .fill(Color::NONE)
+                .seeded((
+                    TabBadge,
+                    Visibility::Hidden,
+                    Pickable::IGNORE,
+                )),
+        )
     })
 }
 

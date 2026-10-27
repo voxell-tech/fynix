@@ -23,9 +23,11 @@ use bevy::ui::{
     ComputedNode, UiGlobalTransform, UiRect, UiScale, percent, px,
 };
 pub use drag::{DockDrag, DropTarget};
-pub use layout::DockArea;
+pub use layout::{DockArea, DockPane};
 pub use registry::{DockRegistry, DockWindowKind};
-pub use tabs::{ActiveTab, DockIcons, DockTab};
+pub use tabs::{
+    ActiveTab, DockIcons, DockTab, TabBadge, TabBadgeCount,
+};
 pub use tree::{
     DockAreaStyle, DockLeaf, DockNode, DockSplit, DockTabEntry,
     DockTree, Edge, NodeId, Shape, SplitAxis, TabId,
@@ -224,12 +226,13 @@ mod tests {
         all
     }
 
-    /// The text under `node`, sorted.
+    /// The text under `node`, sorted, without the empty.
     fn texts(app: &App, node: Entity) -> Vec<String> {
         let mut texts = subtree(app, node)
             .into_iter()
             .filter_map(|node| app.world().get::<Text>(node))
             .map(|text| text.0.clone())
+            .filter(|text| !text.is_empty())
             .collect::<Vec<_>>();
         texts.sort();
         texts
