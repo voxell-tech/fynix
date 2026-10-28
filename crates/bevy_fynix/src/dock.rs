@@ -122,7 +122,8 @@ pub fn dock<T: DockTokens>() -> AnyView<Bevy, T> {
                     .gap(0.0)
                     .padding(UiRect::all(px(inset)))
                     .width(percent(100.0))
-                    .height(percent(100.0)),
+                    .height(percent(100.0))
+                    .min_height(px(0.0)),
             ),
         )
     });
@@ -130,6 +131,7 @@ pub fn dock<T: DockTokens>() -> AnyView<Bevy, T> {
         .gap(0.0)
         .width(percent(100.0))
         .height(percent(100.0))
+        .min_height(px(0.0))
         .tagged(DockRoot)
         .boxed()
 }
