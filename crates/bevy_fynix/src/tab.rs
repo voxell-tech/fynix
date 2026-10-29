@@ -13,6 +13,8 @@ use bevy::input_focus::tab_navigation::{TabGroup, TabIndex};
 use bevy::input_focus::{FocusCause, FocusedInput, InputFocus};
 use bevy::ui::{Display, Node};
 
+use crate::shortcut::Mods;
+
 /// What a node is to a Tab: whether it takes the focus, and whether
 /// it and what is under it are on screen.
 type Stop<'a> = (
@@ -24,7 +26,8 @@ type Stop<'a> = (
 
 /// Moves the focus on Tab to the next node with a [`TabIndex`], and
 /// on Shift+Tab to the one before, among those on screen under the
-/// nearest [`TabGroup`] around the focus, in tree order.
+/// nearest [`TabGroup`] around the focus, in tree order. Tab held
+/// with any other modifier is left to the commands bound to it.
 pub(crate) fn tab(
     mut event: On<FocusedInput<KeyboardInput>>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
@@ -44,6 +47,10 @@ pub(crate) fn tab(
         || key.state != ButtonState::Pressed
         || key.repeat
     {
+        return;
+    }
+    let mods = keys.as_deref().map_or(Mods::NONE, Mods::held);
+    if mods != Mods::NONE && mods != Mods::SHIFT {
         return;
     }
     let Some(group) = core::iter::once(focused)
@@ -66,10 +73,7 @@ pub(crate) fn tab(
     else {
         return;
     };
-    let back = keys.is_some_and(|keys| {
-        keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
-    });
-    let step = if back { found.len() - 1 } else { 1 };
+    let step = if mods.shift { found.len() - 1 } else { 1 };
     // From the focus even when it has been hidden since it took it,
     // on to the first after it that is on screen.
     let next = (1..found.len())
@@ -146,5 +150,56 @@ mod tests {
 
         tests::key_down(&mut app, KeyCode::Tab, Key::Tab);
         assert_eq!(focused(&app), Some(first));
+    }
+
+    #[test]
+    fn tab_with_a_modifier_is_left_to_its_command() {
+        use bevy::ecs::resource::Resource;
+        use bevy::ecs::world::World;
+
+        use crate::shortcut::{
+            Chord, CommandId, CommandSpec, GLOBAL, Invoke,
+            ShortcutAppExt,
+        };
+
+        #[derive(Resource, Default)]
+        struct Ran(bool);
+
+        let mut app = tests::app();
+        tests::keyboard(&mut app);
+        app.init_resource::<Ran>().add_command(
+            CommandSpec {
+                id: CommandId("next"),
+                label: "Next",
+                scope: GLOBAL,
+                run: |world: &mut World, _: Invoke| {
+                    world.resource_mut::<Ran>().0 = true;
+                },
+                enabled: |_| true,
+                repeat: false,
+            },
+            &[Chord {
+                key: KeyCode::Tab,
+                mods: Mods::ALT,
+            }],
+        );
+        let field = || frame().tagged(TabIndex(0));
+        let root = mount::<Plain>(
+            app.world_mut(),
+            column((field(), field())),
+        );
+        app.update();
+        let first = kids(&app, root)[0];
+        app.world_mut()
+            .resource_mut::<InputFocus>()
+            .set(first, FocusCause::Navigated);
+
+        tests::key_down(&mut app, KeyCode::AltLeft, Key::Alt);
+        tests::key_down(&mut app, KeyCode::Tab, Key::Tab);
+        assert!(app.world().resource::<Ran>().0);
+        assert_eq!(
+            app.world().resource::<InputFocus>().get(),
+            Some(first)
+        );
     }
 }
