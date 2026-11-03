@@ -781,8 +781,14 @@ mod tests {
             let bar = kids(app, area)[0];
             lay(app, bar, Rect::new(x, 0.0, x + 200.0, 20.0));
             let row = kids(app, bar)[0];
-            for (index, tab) in kids(app, row).into_iter().enumerate()
-            {
+            // The row is a scroll area: its thumbs are not tabs.
+            let tabs = kids(app, row)
+                .into_iter()
+                .filter(|&kid| {
+                    app.world().get::<DockTab>(kid).is_some()
+                })
+                .collect::<Vec<_>>();
+            for (index, tab) in tabs.into_iter().enumerate() {
                 let x = x + 62.0 * index as f32;
                 lay(app, tab, Rect::new(x, 0.0, x + 60.0, 20.0));
             }

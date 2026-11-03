@@ -6,6 +6,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::math::{Rect, Vec2};
@@ -88,6 +89,23 @@ struct Bar {
     leaf: NodeId,
     rect: Rect,
     tabs: Vec<Rect>,
+}
+
+/// The rects of the tabs among the children of a tab row. The row is
+/// a scroll area, so it also holds scroll thumbs, which are not tabs
+/// and sit at the origin while hidden.
+fn tab_rects<K>(
+    kids: impl IntoIterator<Item = K>,
+    is_tab: impl Fn(K) -> bool,
+    rect_of: impl Fn(K) -> Option<Rect>,
+) -> Vec<Rect>
+where
+    K: Copy,
+{
+    kids.into_iter()
+        .filter(|&kid| is_tab(kid))
+        .filter_map(rect_of)
+        .collect()
 }
 
 /// What dropping at `cursor` does, and the rect to hint it with.
@@ -211,6 +229,7 @@ pub(super) fn moved<T: DockTokens>(
     theme: Res<Theme<T>>,
     scale: Option<Res<UiScale>>,
     bars: Query<(&TabRow, &ChildOf, &Children)>,
+    tab_nodes: Query<(), With<DockTab>>,
     areas: Query<(&DockArea, &ComputedNode, &UiGlobalTransform)>,
     rects: Query<(&ComputedNode, &UiGlobalTransform)>,
     mut nodes: Query<&mut Node>,
@@ -277,13 +296,17 @@ pub(super) fn moved<T: DockTokens>(
                     Some(Bar {
                         leaf: row.leaf,
                         rect: logical_rect(computed, transform),
-                        tabs: children
-                            .iter()
-                            .filter_map(|&kid| rects.get(kid).ok())
-                            .map(|(computed, transform)| {
-                                logical_rect(computed, transform)
-                            })
-                            .collect(),
+                        tabs: tab_rects(
+                            children.iter().copied(),
+                            |kid| tab_nodes.contains(kid),
+                            |kid| {
+                                let (computed, transform) =
+                                    rects.get(kid).ok()?;
+                                Some(logical_rect(
+                                    computed, transform,
+                                ))
+                            },
+                        ),
                     })
                 })
                 .collect::<Vec<_>>();
@@ -533,6 +556,58 @@ mod tests {
             }
         );
         assert_eq!(hint, rect(92.0, 0.0, 122.0, 20.0));
+    }
+
+    #[test]
+    fn a_non_tab_child_at_the_origin_is_not_a_tab() {
+        // Kid 0 and 1 are hidden scroll thumbs at the origin; 2 and 3
+        // are tabs, the first starting past the left edge.
+        let rects = [
+            rect(0.0, 0.0, 0.0, 0.0),
+            rect(0.0, 0.0, 0.0, 0.0),
+            rect(300.0, 500.0, 360.0, 520.0),
+            rect(362.0, 500.0, 422.0, 520.0),
+        ];
+        let tabs = tab_rects(
+            0..rects.len(),
+            |kid| kid >= 2,
+            |kid| Some(rects[kid]),
+        );
+        assert_eq!(tabs, rects[2..].to_vec());
+
+        let bar = |tabs| Bar {
+            leaf: LEFT,
+            rect: rect(250.0, 500.0, 600.0, 520.0),
+            tabs,
+        };
+        // Far left of the header: the thumbs at the origin would be
+        // nearer than the first tab and send the drop to the end.
+        let cursor = Vec2::new(255.0, 510.0);
+        let (target, _) = over_bar(cursor, &bar(tabs));
+        assert_eq!(
+            target,
+            DropTarget::Tabs {
+                leaf: LEFT,
+                index: 0
+            }
+        );
+        let all = rects.to_vec();
+        let (wrong, _) = over_bar(cursor, &bar(all));
+        assert_ne!(wrong, target);
+    }
+
+    #[test]
+    fn left_of_the_first_tab_drops_at_index_zero() {
+        let (target, _) =
+            target_at(Vec2::new(1.0, 10.0), &bars(), &areas())
+                .unwrap();
+        assert_eq!(
+            target,
+            DropTarget::Tabs {
+                leaf: LEFT,
+                index: 0
+            }
+        );
     }
 
     #[test]
