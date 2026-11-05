@@ -168,9 +168,10 @@ let chunky = style::<MyTheme>()
 button(label("Custom")).rules(chunky.bundle());
 ```
 
-`fill` and `frame` reach the root frame alone, and `tone`, `label` and
-`icon` reach every label and icon in the view. Later steps win, and a
-press shows its hover look unless `pressed` says otherwise. Styles
+`fill` and `frame` reach the root frame alone, `tone` reaches every
+label, rich text and icon in the view, and `label` and `icon` reach
+every label or icon. Later steps win, and a press shows its hover
+look unless `pressed` says otherwise. Styles
 join with `then`, and `with(ghost)` starts from a bundle. Chained
 `.rules(a).rules(b)` also works, but as set rules go the inner `a` wins
 over `b` for resting looks, while for state looks the outer `b` wins.
