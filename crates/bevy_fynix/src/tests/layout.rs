@@ -53,8 +53,13 @@ fn laid_out() -> App {
     .init_resource::<bevy::text::RemSize>()
     .add_plugins(UiPlugin)
     // The text and image systems of the plugin have nothing to read
-    // here, and skip their run.
-    .set_error_handler(bevy::ecs::error::ignore);
+    // here, and skip their run. A panicking system also reaches this
+    // handler, so it raises the panic again to fail the test.
+    .set_error_handler(|mut error, _| {
+        if let Some(panic) = error.take_payload() {
+            std::panic::resume_unwind(panic);
+        }
+    });
     app.world_mut().spawn((
         Camera2d,
         Camera {
