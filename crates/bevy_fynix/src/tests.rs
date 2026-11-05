@@ -20,7 +20,7 @@ mod support;
 
 pub(crate) use support::{
     Plain, app, app_with, hover, key_down, keyboard, kids,
-    pointer_press, press,
+    pointer_press, press, wheel,
 };
 
 use crate::mounted::Mounts;

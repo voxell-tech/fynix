@@ -16,11 +16,13 @@ use bevy::ecs::relationship::RelationshipTarget;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input::mouse::MouseScrollUnit;
+use bevy::input::touch::TouchPhase;
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::input_focus::InputDispatchPlugin;
 use bevy::math::Vec2;
 use bevy::picking::backend::HitData;
-use bevy::picking::events::{Pointer, PointerPress};
+use bevy::picking::events::{Pointer, PointerPress, PointerScroll};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::time::{TimePlugin, TimeUpdateStrategy};
 use bevy::window::{PrimaryWindow, Window};
@@ -231,6 +233,27 @@ pub fn pointer_press(
         button,
         hit,
         count: 1,
+    });
+}
+
+/// Turns the wheel over `on` by `lines` notches, down when negative,
+/// as picking reports it.
+pub fn wheel(app: &mut App, on: Entity, lines: f32) {
+    let location = Location {
+        target: NormalizedRenderTarget::None {
+            width: 800,
+            height: 600,
+        },
+        position: Vec2::ZERO,
+    };
+    app.world_mut().trigger(PointerScroll {
+        entity: on,
+        pointer: Pointer::new(PointerId::Mouse, location),
+        unit: MouseScrollUnit::Line,
+        x: 0.0,
+        y: lines,
+        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        phase: TouchPhase::Moved,
     });
 }
 
