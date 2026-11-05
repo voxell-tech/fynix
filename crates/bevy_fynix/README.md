@@ -10,9 +10,10 @@
 **Bevy Fynix** is the Bevy backend for [`fynix`](https://crates.io/crates/fynix).
 
 Nodes are entities and the world is Bevy's `World`. On top of that,
-it ships elements written against `bevy_ui` (`Label`, `Frame`,
-`Icon`), composites (`row`, `column`, `button`, `foldable`), the
-token traits they read, and the states rules wait on.
+it ships elements written against `bevy_ui` (`Label`, `Rich`,
+`Frame`, `Icon`), composites (`row`, `column`, `button`,
+`foldable`), the token traits they read, and the states rules wait
+on.
 
 ![gallery](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/gallery.webp)
 
