@@ -17,6 +17,7 @@ use bevy::ui::widget::Text;
 mod layout;
 mod structure;
 mod support;
+mod virtual_list;
 
 pub(crate) use support::{
     Plain, app, app_with, hover, key_down, keyboard, kids,
