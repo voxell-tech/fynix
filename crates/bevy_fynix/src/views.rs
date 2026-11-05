@@ -21,6 +21,7 @@ mod slider;
 mod stack;
 mod text_input;
 mod tooltip;
+mod virtual_list;
 
 pub use behavior::{BehaviorExt, OnActivate, Seeded, Tagged, Toned};
 pub use button::{
@@ -62,3 +63,7 @@ pub(crate) use text_input::sync_text_inputs;
 pub use text_input::{TextInput, TextInputProps};
 pub(crate) use tooltip::tick as tick_tooltips;
 pub use tooltip::{Tooltip, TooltipExt, TooltipTiming};
+pub(crate) use virtual_list::plugin as virtual_list_plugin;
+pub use virtual_list::{
+    RowSlot, RowSpan, VirtualList, VirtualListView, virtual_list,
+};

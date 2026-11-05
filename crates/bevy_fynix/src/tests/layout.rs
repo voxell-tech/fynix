@@ -34,7 +34,12 @@ use crate::{
 
 /// An app that lays its nodes out in a 1000 by 1000 window, 10ms to
 /// an update.
-fn laid_out() -> App {
+pub(super) fn laid_out() -> App {
+    laid_out_at(1.0)
+}
+
+/// [`laid_out`] with the window at the scale factor `scale_factor`.
+pub(super) fn laid_out_at(scale_factor: f32) -> App {
     let mut app = app_with(Plain::default());
     app.insert_resource(TimeUpdateStrategy::ManualDuration(
         Duration::from_millis(10),
@@ -66,7 +71,7 @@ fn laid_out() -> App {
             computed: ComputedCameraValues {
                 target_info: Some(RenderTargetInfo {
                     physical_size: UVec2::new(1000, 1000),
-                    scale_factor: 1.0,
+                    scale_factor,
                 }),
                 ..Default::default()
             },
@@ -96,7 +101,7 @@ fn size(app: &App, node: Entity) -> (f32, f32) {
     )
 }
 
-fn height(app: &App, node: Entity) -> f32 {
+pub(super) fn height(app: &App, node: Entity) -> f32 {
     size(app, node).1
 }
 
@@ -186,7 +191,7 @@ fn list(
     (root, children(app, root)[1])
 }
 
-fn settle(app: &mut App, frames: usize) {
+pub(super) fn settle(app: &mut App, frames: usize) {
     for _ in 0..frames {
         app.update();
     }
@@ -201,19 +206,32 @@ fn in_flow(app: &App, container: Entity) -> Vec<Entity> {
         .collect()
 }
 
-/// How far down `node` ends from the top of `container`, as laid
+/// How far down `node` starts from the top of `container`, as laid
 /// out.
-fn bottom_of(app: &App, container: Entity, node: Entity) -> f32 {
+pub(super) fn top_of(
+    app: &App,
+    container: Entity,
+    node: Entity,
+) -> f32 {
     let top = |node: Entity| {
+        let computed = app
+            .world()
+            .get::<ComputedNode>(node)
+            .expect("a placed node");
         let at = app
             .world()
             .get::<UiGlobalTransform>(node)
-            .expect("a placed node")
-            .translation
-            .y;
-        at - height(app, node) / 2.0
+            .expect("a placed node");
+        (at.translation.y - computed.size().y / 2.0)
+            * computed.inverse_scale_factor()
     };
-    top(node) + height(app, node) - top(container)
+    top(node) - top(container)
+}
+
+/// How far down `node` ends from the top of `container`, as laid
+/// out.
+fn bottom_of(app: &App, container: Entity, node: Entity) -> f32 {
+    top_of(app, container, node) + height(app, node)
 }
 
 /// Asserts that no in-flow child of `container` ends below it: a
