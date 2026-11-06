@@ -14,13 +14,16 @@ use bevy::ecs::query::{Changed, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, ResMut};
 use bevy::ecs::world::World;
-use bevy::ui::{ComputedNode, Node, ScrollPosition, Val, px};
+use bevy::math::Vec2;
+use bevy::ui::{
+    ComputedNode, Node, ScrollPosition, UiGlobalTransform, Val, px,
+};
 
 use super::layout::{height, laid_out, laid_out_at, settle, top_of};
 use crate::tests::{Plain, wheel};
 use crate::views::{
     FrameProps, RowSlot, RowSpan, VirtualList, column, frame,
-    virtual_list,
+    row as hrow, virtual_list,
 };
 use crate::{
     AnyView, Bevy, Prop, ViewExt, derived, every_frame, mount,
@@ -204,6 +207,13 @@ fn reveal_range(
 
 fn scroll(app: &App, area: Entity) -> f32 {
     app.world().get::<ScrollPosition>(area).expect("a scroll").y
+}
+
+/// How far the area scrolls each way.
+fn overflow(app: &App, area: Entity) -> Vec2 {
+    crate::scroll::overflow(
+        app.world().get::<ComputedNode>(area).unwrap(),
+    )
 }
 
 fn scroll_by(app: &mut App, area: Entity, by: f32) {
@@ -1015,10 +1025,7 @@ fn a_wheel_flung_to_the_end_follows_the_rows_arriving() {
         assert!(
             frames <= 60,
             "following again within 60 frames, {} short of the end",
-            crate::scroll::overflow(
-                app.world().get::<ComputedNode>(area).unwrap()
-            )
-            .y - scroll(&app, area)
+            overflow(&app, area).y - scroll(&app, area)
         );
         app.world_mut().resource_mut::<Count>().0 += 1;
         app.update();
@@ -1346,4 +1353,256 @@ fn a_slot_refilled_at_its_own_index_shows_the_new_row() {
         .collect::<Vec<_>>();
     shown.sort();
     assert_eq!(shown, [(0, 0), (1, 2)]);
+}
+
+#[derive(Resource)]
+struct Sideways(bool);
+
+/// A cell that stays put as the row's sideways content moves.
+#[derive(Component)]
+struct Pinned;
+
+/// The width of each row's sideways content.
+#[derive(Resource)]
+struct Wide(Vec<f32>);
+
+/// A list [`Across`] wide, 300 px at first, whose rows are a pinned
+/// cell 40 px wide and a sideways cell of content [`Wide`], 100 px
+/// but for row 7 at 900 and row 9 at 500, scrolling sideways while
+/// [`Sideways`] holds.
+fn sideways_list(app: &mut App) -> Entity {
+    let mut wide = vec![100.0; 10_000];
+    (wide[7], wide[9]) = (900.0, 500.0);
+    app.insert_resource(Wide(wide));
+    app.insert_resource(Count(10_000));
+    app.insert_resource(Across(300.0));
+    app.insert_resource(Sideways(true));
+    let row = |slot: RowSlot| {
+        let pinned = AnyView::new(|cx| {
+            let pinned =
+                cx.build(frame().width(px(40.0)).height(px(20.0)));
+            cx.world.entity_mut(pinned).insert(Pinned);
+            pinned
+        });
+        let index = slot.index();
+        let content = frame()
+            .width(
+                derived(move |world| {
+                    px(world.resource::<Wide>().0[index.get(world)])
+                })
+                .when(every_frame()),
+            )
+            .height(px(20.0));
+        let content = AnyView::new(move |cx| {
+            let node = cx.build(content);
+            cx.effect(
+                node,
+                slot.index().into(),
+                |world, node, &index| {
+                    world.entity_mut(node).insert(Shows(index));
+                },
+            );
+            node
+        });
+        hrow((pinned, slot.sideways(content))).boxed()
+    };
+    mount::<Plain>(
+        app.world_mut(),
+        column((virtual_list(
+            resource::<Count, _>(|count| count.0),
+            ESTIMATE,
+            row,
+        )
+        .sideways(resource::<Sideways, _>(|on| on.0)),))
+        .width(resource::<Across, _>(|across| px(across.0)))
+        .height(px(VIEW)),
+    );
+    settle(app, SETTLED);
+    the_list(app)
+}
+
+fn left(app: &App, node: Entity) -> f32 {
+    let computed = app.world().get::<ComputedNode>(node).unwrap();
+    let at = app.world().get::<UiGlobalTransform>(node).unwrap();
+    (at.translation.x - computed.size().x / 2.0)
+        * computed.inverse_scale_factor()
+}
+
+fn right(app: &App, node: Entity) -> f32 {
+    let computed = app.world().get::<ComputedNode>(node).unwrap();
+    left(app, node)
+        + computed.size().x * computed.inverse_scale_factor()
+}
+
+/// The content node of the row `index`.
+fn shows(app: &mut App, index: usize) -> Entity {
+    built(app)
+        .into_iter()
+        .find(|&(shown, ..)| shown == index)
+        .map(|(_, node, _)| node)
+        .expect("a built row")
+}
+
+/// The sideways cell of a row's content node: the node two above it,
+/// past the one that moves.
+fn cell_of(app: &App, content: Entity) -> Entity {
+    let moved = app.world().get::<ChildOf>(content).unwrap().parent();
+    app.world().get::<ChildOf>(moved).unwrap().parent()
+}
+
+fn scroll_x(app: &mut App, area: Entity, by: f32) {
+    app.world_mut().get_mut::<ScrollPosition>(area).unwrap().x += by;
+    settle(app, SETTLED);
+}
+
+fn reveal_x(app: &mut App, area: Entity, x: Range<f32>) {
+    list_mut(app, area).scroll_x_into_view(x);
+    settle(app, SETTLED);
+}
+
+fn x(app: &App, area: Entity) -> f32 {
+    app.world().get::<ScrollPosition>(area).unwrap().x
+}
+
+#[test]
+fn sideways_rows_share_one_offset_and_the_widest_sets_its_end() {
+    let mut app = laid_out();
+    let area = sideways_list(&mut app);
+    let pinned = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<Entity, With<Pinned>>()
+            .iter(app.world())
+            .map(|pinned| left(app, pinned))
+            .collect::<Vec<_>>()
+    };
+    let before = pinned(&mut app);
+    let (narrow, long) = (shows(&mut app, 3), shows(&mut app, 7));
+    let (narrow_at, long_at) = (left(&app, narrow), left(&app, long));
+    let cell = cell_of(&app, long);
+
+    scroll_x(&mut app, area, 50.0);
+    assert_eq!(left(&app, narrow), narrow_at - 50.0);
+    assert_eq!(left(&app, long), long_at - 50.0);
+    assert_eq!(pinned(&mut app), before, "the pinned cells stay put");
+
+    scroll_x(&mut app, area, 10_000.0);
+    assert_eq!(right(&app, long), right(&app, cell), "the end shows");
+    let by = long_at - left(&app, long);
+    assert_eq!(left(&app, narrow), narrow_at - by);
+    let ends = |app: &App| (x(app, area), overflow(app, area).x);
+    assert_eq!(ends(&app), (by, by), "the bar spans the end");
+
+    scroll_to(&mut app, area, 5_000);
+    settle(&mut app, SETTLED);
+    assert_eq!(
+        ends(&app),
+        (by, by),
+        "a wide row out of sight keeps the range"
+    );
+
+    app.world_mut().resource_mut::<Wide>().0.remove(7);
+    list_mut(&mut app, area).splice(7, 1, 0);
+    count(&mut app, 9_999);
+    settle(&mut app, SETTLED);
+    let room = right(&app, cell) - left(&app, cell);
+    let next = 500.0 - room;
+    assert_eq!(ends(&app), (next, next), "the next widest sets it");
+
+    app.insert_resource(Across(400.0));
+    settle(&mut app, SETTLED);
+    assert_eq!(
+        ends(&app),
+        (0.0, 0.0),
+        "a width change forgets the rows out of sight"
+    );
+    scroll_to(&mut app, area, 0);
+    settle(&mut app, SETTLED);
+    assert_eq!(
+        ends(&app),
+        (0.0, next - 100.0),
+        "until they show again"
+    );
+
+    count(&mut app, 8);
+    settle(&mut app, SETTLED);
+    assert_eq!(ends(&app), (0.0, 0.0), "the rows left fit");
+}
+
+#[test]
+fn turning_sideways_off_and_on_keeps_the_rows() {
+    let mut app = laid_out();
+    let area = sideways_list(&mut app);
+    scroll_to(&mut app, area, 3);
+    settle(&mut app, SETTLED);
+    scroll_x(&mut app, area, 10_000.0);
+    let long = shows(&mut app, 7);
+    let cell = cell_of(&app, long);
+    let spans = |app: &App| {
+        (0..20)
+            .map(|index| state(app, area).row_span(index))
+            .collect::<Vec<_>>()
+    };
+    let before = spans(&app);
+
+    app.insert_resource(Sideways(false));
+    settle(&mut app, SETTLED);
+    assert_eq!(state(&app, area).first_visible(), 3);
+    assert_eq!(spans(&app), before);
+    assert_eq!(x(&app, area), 0.0);
+    let moved = app.world().get::<ChildOf>(long).unwrap().parent();
+    assert_eq!(
+        left(&app, moved),
+        left(&app, cell),
+        "back at the start"
+    );
+    assert_eq!(
+        right(&app, moved),
+        right(&app, cell),
+        "the cell's width"
+    );
+    scroll_x(&mut app, area, 10_000.0);
+    assert_eq!(x(&app, area), 0.0, "no sideways scroll");
+
+    app.insert_resource(Sideways(true));
+    settle(&mut app, SETTLED);
+    scroll_x(&mut app, area, 10_000.0);
+    assert_eq!(right(&app, long), right(&app, cell), "the end shows");
+    assert_eq!(state(&app, area).first_visible(), 3);
+}
+
+#[test]
+fn a_sideways_reveal_moves_the_least() {
+    let mut app = laid_out();
+    let area = sideways_list(&mut app);
+    let content = shows(&mut app, 3);
+    let cell = cell_of(&app, content);
+    let room = right(&app, cell) - left(&app, cell);
+
+    reveal_x(&mut app, area, 500.0..600.0);
+    assert_eq!(
+        x(&app, area),
+        600.0 - room,
+        "the right end at the edge"
+    );
+    reveal_x(&mut app, area, 400.0..500.0);
+    assert_eq!(x(&app, area), 600.0 - room, "a span in view stays");
+    reveal_x(&mut app, area, 0.0..100.0);
+    assert_eq!(x(&app, area), 0.0, "the left end at the edge");
+
+    app.world_mut().resource_mut::<Wide>().0[7] = 100.0;
+    reveal_x(&mut app, area, 500.0..600.0);
+    assert_eq!(
+        (x(&app, area), overflow(&app, area).x),
+        (500.0 - room, 500.0 - room),
+        "no further than the widest row left"
+    );
+
+    let mut app = laid_out();
+    let area = list(&mut app, 10_000, uniform);
+    reveal_x(&mut app, area, 500.0..600.0);
+    assert_eq!(
+        x(&app, area),
+        0.0,
+        "a list that does not scroll sideways"
+    );
 }
