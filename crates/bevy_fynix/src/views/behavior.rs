@@ -12,7 +12,7 @@ use bevy::ui_widgets::Activate;
 
 use crate::backend::Seed;
 use crate::tokens::Tone;
-use crate::views::{Icon, Label};
+use crate::views::{Icon, Label, Rich};
 use crate::{Bevy, Cx, View};
 
 /// A handler run with the whole world and the node it fired on.
@@ -41,8 +41,8 @@ pub struct Seeded<V, N> {
     bundle: N,
 }
 
-/// A view built under set rules giving every [`Label`] and [`Icon`]
-/// in it a default tone.
+/// A view built under set rules giving every [`Label`], [`Rich`] and
+/// [`Icon`] in it a default tone.
 pub struct Toned<V> {
     inner: V,
     tone: Tone,
@@ -117,6 +117,7 @@ impl<T: 'static, V: View<Bevy, T>> View<Bevy, T> for Toned<V> {
         cx.scope(|cx| {
             cx.set::<Label>(move |label, _| label.tone(tone));
             cx.set::<Icon>(move |icon, _| icon.tone(tone));
+            cx.set::<Rich>(move |rich, _| rich.tone(tone));
             self.inner.build(cx)
         })
     }
@@ -165,9 +166,9 @@ pub trait BehaviorExt: Sized {
         }
     }
 
-    /// This view, with `tone` the default for every label and icon
-    /// in it. It is not called `tone`, which a label or icon takes
-    /// for its own prop.
+    /// This view, with `tone` the default for every label, rich text
+    /// and icon in it. It is not called `tone`, which each of them
+    /// takes for its own prop.
     fn toned(self, tone: Tone) -> Toned<Self> {
         Toned { inner: self, tone }
     }

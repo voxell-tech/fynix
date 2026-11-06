@@ -5,7 +5,8 @@
 //! rule, a folding section, field rows, text and number fields, a
 //! screen switch and a keyed list that rebuild structure and animate
 //! views in and out, menus (a dropdown, a right-click menu and a
-//! tooltip), and a reduced-motion switch.
+//! tooltip), and a reduced-motion switch. A line of rich text under
+//! the title mixes styles in one text.
 //!
 //! `cargo run -p bevy_fynix --example gallery`
 
@@ -13,6 +14,7 @@ use bevy::DefaultPlugins;
 use bevy::app::{App, Startup};
 use bevy::asset::Handle;
 use bevy::camera::Camera2d;
+use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
@@ -28,10 +30,10 @@ use bevy_fynix::tokens::{
 };
 use bevy_fynix::views::{
     AnimatedField, BehaviorExt, ContextMenuExt, Frame, FrameProps,
-    HasAction, Label, TooltipExt, button, checkbox, column, danger,
-    dropdown, field_row, foldable, frame, ghost, icon_button, label,
-    menu_bar, menu_item, number_field, primary, row, scroll,
-    segmented, text_field, tint,
+    HasAction, Label, LineColor, Span, TooltipExt, button, checkbox,
+    column, danger, dropdown, field_row, foldable, frame, ghost,
+    icon_button, label, menu_bar, menu_item, number_field, primary,
+    rich, row, scroll, segmented, text_field, tint,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,
@@ -125,7 +127,11 @@ fn gallery() -> AnyView<Bevy, Monokai> {
         let panel = cx.theme().panel();
         cx.build(
             scroll((
-                label("Fynix on Bevy").size(20.0),
+                column((
+                    label("Fynix on Bevy").size(20.0),
+                    rich_text(),
+                ))
+                .gap(4.0),
                 section("Bound values", bound_values()),
                 section("Hover, with a transition", hover_list()),
                 section(
@@ -163,6 +169,22 @@ fn section(
     body: impl View<Bevy, Monokai>,
 ) -> impl View<Bevy, Monokai> {
     column((label(title).size(11.0).tone(Tone::Dim), body)).gap(6.0)
+}
+
+/// One text in several styles.
+fn rich_text() -> impl View<Bevy, Monokai> {
+    rich(vec![
+        Span::new("Views in "),
+        Span::new("bold").bold(),
+        Span::new(", "),
+        Span::new("italic").italic(),
+        Span::new(", "),
+        Span::new("underlined").underline(LineColor::Ink),
+        Span::new(" and "),
+        Span::new("green").color(Color::srgb_u8(0xA9, 0xDC, 0x76)),
+        Span::new(" text."),
+    ])
+    .tone(Tone::Dim)
 }
 
 /// Labels bound to the world, and buttons that change it.

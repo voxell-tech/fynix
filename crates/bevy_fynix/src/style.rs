@@ -21,8 +21,9 @@
 //! ask for the token traits of a theme it has not been told.
 //!
 //! Fills and frame rules reach the root frame alone, so a button's
-//! content keeps its own. Tones and element rules reach every
-//! [`Label`] and [`Icon`] in the view, as a set rule does.
+//! content keeps its own. Tones reach every [`Label`], [`Rich`] and
+//! [`Icon`] in the view, and element rules every element of their
+//! kind, as a set rule does.
 //!
 //! Later steps win over earlier ones, in one style and in
 //! [`then`](Style::then), as later set rules do. A state's rules beat
@@ -36,7 +37,7 @@ use bevy::ecs::component::Component;
 
 use crate::state::{Hovered, Pressed, State};
 use crate::tokens::{Motion, MotionTokens, Tone};
-use crate::views::{Frame, Icon, Label};
+use crate::views::{Frame, Icon, Label, Rich};
 use crate::{Bevy, Cx};
 
 type Step<T> = Box<dyn FnOnce(&mut Cx<'_, Bevy, T>) + Send + Sync>;
@@ -101,10 +102,14 @@ impl<T: 'static> Style<T> {
         self.step(|cx| cx.set::<Icon>(rule))
     }
 
-    /// This, with every [`Label`] and [`Icon`] drawn in `tone`.
+    /// This, with every [`Label`], [`Rich`] and [`Icon`] drawn in
+    /// `tone`.
     pub fn tone(self, tone: Tone) -> Self {
         self.label(move |label, _| label.tone(tone))
             .icon(move |icon, _| icon.tone(tone))
+            .step(move |cx| {
+                cx.set::<Rich>(move |rich, _| rich.tone(tone))
+            })
     }
 
     /// This, with what `look` gives a style holding while the root
