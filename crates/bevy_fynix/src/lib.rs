@@ -111,6 +111,7 @@ impl Plugin for CorePlugin {
             shortcut::plugin,
             scroll::plugin,
             views::popup_plugin,
+            views::virtual_list_plugin,
         ))
         .init_resource::<InputFocus>()
         .init_resource::<Unmounted>()
