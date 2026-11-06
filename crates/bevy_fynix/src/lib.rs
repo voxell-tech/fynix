@@ -91,11 +91,17 @@ impl<T: Send + Sync + 'static> Plugin for FynixPlugin<T> {
     }
 }
 
-/// The steps of an update, in order.
+/// The steps of an update, in order. An app that restyles what fynix
+/// builds, such as giving tagged labels a face, runs after
+/// [`FynixSystems::Mount`], so a view built this frame is drawn
+/// restyled in the same frame.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum FynixSystems {
+pub enum FynixSystems {
+    /// Before views are built: timers and what they read.
     Prepare,
+    /// Views are built and patched.
     Mount,
+    /// What is built settles: text inputs and entrances.
     Settle,
 }
 
