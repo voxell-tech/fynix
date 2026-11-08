@@ -1,6 +1,7 @@
 //! A list that builds only the rows near its viewport.
 
 mod heights;
+mod sideways;
 
 use core::ops::{Range, RangeInclusive};
 use std::sync::Arc;
@@ -12,13 +13,14 @@ use bevy::ecs::query::QueryState;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Local, Query};
 use bevy::ecs::world::World;
-use bevy::math::Vec2;
+use bevy::math::{BVec2, Vec2};
 use bevy::ui::{
-    ComputedNode, Display, FlexDirection, Node, Overflow,
-    OverflowAxis, OverflowClipMargin, PositionType, ScrollPosition,
-    Val, percent, px,
+    ComputedNode, Display, FlexDirection, IgnoreScroll, Node,
+    Overflow, OverflowAxis, OverflowClipMargin, PositionType,
+    ScrollPosition, Val, percent, px,
 };
 use heights::Heights;
+use sideways::{Cells, RevealX, Widths};
 
 use crate::prop::{Prop, Signal, each};
 use crate::scroll::{self, ScrollGoal};
@@ -61,6 +63,7 @@ pub struct VirtualListView<R> {
     pub frame: Frame,
     count: Prop<usize>,
     estimate: f32,
+    sideways: Prop<bool>,
     follow: Prop<bool>,
     overscan: f32,
     row: R,
@@ -127,6 +130,7 @@ pub fn virtual_list<R>(
             .grow(1.0),
         count: count.into(),
         estimate,
+        sideways: Prop::Value(false),
         follow: Prop::Value(false),
         overscan: OVERSCAN,
         row,
@@ -202,6 +206,22 @@ where
         ));
         area.get_mut::<Node>().expect("a frame node").flex_basis =
             px(0.0);
+        cx.effect(list, self.sideways, |world, list, &on| {
+            let mut area = world.entity_mut(list);
+            if let Some(mut state) = area.get_mut::<VirtualList>()
+                && state.widths.is_some() != on
+            {
+                state.widths = on.then(Widths::default);
+                state.sideways_switched = true;
+            }
+            if let Some(mut node) = area.get_mut::<Node>() {
+                node.overflow.x = if on {
+                    OverflowAxis::Scroll
+                } else {
+                    OverflowAxis::Clip
+                };
+            }
+        });
         *cx.world.get_mut::<Node>(spacer).expect("a node") = Node {
             position_type: PositionType::Absolute,
             top: px(0.0),
@@ -286,6 +306,15 @@ pub struct VirtualList {
     /// The area's width when its rows were measured.
     across: f32,
     physical_per_logical: f64,
+    /// How far each row overflows sideways, while the list scrolls
+    /// sideways.
+    widths: Option<Widths>,
+    /// The width of the rows' sideways cells, as last laid out.
+    cell_width: Option<f32>,
+    reveal_x: Option<RevealX>,
+    /// Whether sideways scrolling was turned on or off since the
+    /// rows were last placed.
+    sideways_switched: bool,
 }
 
 /// The props the list follows: read each frame into [`VirtualList`].
@@ -382,6 +411,10 @@ impl VirtualList {
             spliced_above: 0.0,
             across: 0.0,
             physical_per_logical: 1.0,
+            widths: None,
+            cell_width: None,
+            reveal_x: None,
+            sideways_switched: false,
         };
         list.place(&mut [], 0.0, 0.0, 0.0);
         list
@@ -483,6 +516,9 @@ impl VirtualList {
             0.0
         };
         self.heights.splice(at, removed, inserted, self.estimate);
+        if let Some(widths) = &mut self.widths {
+            widths.splice(at, removed, inserted);
+        }
         self.count = self.count - removed + inserted;
         for placed in &mut self.slots {
             placed.index = placed
@@ -561,6 +597,9 @@ impl VirtualList {
         if self.across != across {
             self.across = across;
             self.heights.forget();
+            if let Some(widths) = &mut self.widths {
+                widths.forget();
+            }
         }
     }
 
@@ -577,7 +616,7 @@ impl VirtualList {
     /// height, `scroll` where it is, and `end` how far it can scroll.
     fn place(
         &mut self,
-        measured: &mut [(usize, f32)],
+        mut measured: &mut [(usize, f32)],
         view: f32,
         scroll: f32,
         end: f32,
@@ -615,6 +654,11 @@ impl VirtualList {
         {
             from.get_or_insert(RevealFrom::Row(anchor, within));
         }
+        if core::mem::take(&mut self.sideways_switched) {
+            measured = &mut [];
+            self.heights.forget();
+            self.heights.reestimate(self.estimate);
+        }
         for &(index, height) in &*measured {
             self.heights.set(index, height);
         }
@@ -624,6 +668,9 @@ impl VirtualList {
         {
             self.estimate = typical;
             self.heights.reestimate(typical);
+        }
+        if let Some(widths) = &mut self.widths {
+            widths.resize(self.count);
         }
         if self.heights.len() != self.count {
             self.heights.resize(self.count, self.estimate);
@@ -715,8 +762,7 @@ impl VirtualList {
                     .map_or(0.0, |(height, _)| f64::from(height));
                 let from = f64::from(from_top.0).clamp(0.0, height);
                 let to = f64::from(from_top.1).clamp(from, height);
-                let (lo, hi) = (top + from, top + to - view);
-                at.clamp(lo.min(hi), lo.max(hi))
+                reveal(at, (top + from, top + to), view)
             }
         }
     }
@@ -825,20 +871,35 @@ fn read_sources(
 
 fn place_rows(
     mut lists: Query<(
+        Entity,
         &mut VirtualList,
         &ComputedNode,
         &mut ScrollPosition,
         &mut ScrollGoal,
     )>,
     mut nodes: Query<(&ComputedNode, &mut Node)>,
+    mut cells: Cells,
     mut commands: Commands,
 ) {
-    for (mut list, area, mut position, mut goal) in &mut lists {
+    for (entity, mut list, area, mut position, mut goal) in &mut lists
+    {
         let scale = area.inverse_scale_factor();
         if scale > 0.0 {
             list.physical_per_logical = f64::from(scale.recip());
         }
         let view = area.content_box().height() * scale;
+        let (wide, room) = if list.widths.is_some() {
+            sideways::overflows(
+                entity,
+                &list.slots,
+                &cells,
+                &nodes,
+                scale,
+            )
+        } else {
+            (Vec::new(), None)
+        };
+        list.cell_width = room.or(list.cell_width);
         let mut measured = list
             .slots
             .iter()
@@ -850,7 +911,8 @@ fn place_rows(
                 (height > 0.0).then_some((index, height))
             })
             .collect::<Vec<_>>();
-        list.measured_across(area.content_box().width() * scale);
+        let across = area.content_box().width() * scale;
+        list.measured_across(across);
         let end = scroll::overflow(area).y;
         let scroll = list.place(&mut measured, view, position.y, end);
         // A slot let go of is despawned here and not left to `each`,
@@ -877,17 +939,36 @@ fn place_rows(
                 slot.height = height;
             }
         }
+        let width = sideways::place_x(
+            entity,
+            &mut list,
+            &mut position,
+            across,
+            wide,
+            &mut cells,
+            &mut nodes,
+        );
         let height = list.height();
         if let Ok((_, mut spacer)) = nodes.get_mut(list.spacer)
-            && spacer.height != height
+            && (spacer.height != height || spacer.width != width)
         {
             spacer.height = height;
+            spacer.width = width;
         }
     }
 }
 
-/// The node the slots are built under: as wide as the area, and
-/// scrolled with it.
+/// Where a view with `room` to show at `at` moves the least to show
+/// `span`: nowhere while the span is in view, and the least way into
+/// a span longer than the room.
+fn reveal(at: f64, span: (f64, f64), room: f64) -> f64 {
+    let (lo, hi) = (span.0, span.1 - room);
+    at.clamp(lo.min(hi), lo.max(hi))
+}
+
+/// The node the slots are built under: as wide as the area and
+/// scrolled with it, but left where it is by a sideways scroll, which
+/// moves only the rows' sideways cells.
 fn track<T: 'static>() -> AnyView<Bevy, T> {
     AnyView::new(|cx: &mut Cx<'_, Bevy, T>| {
         let node = cx.spawn();
@@ -898,6 +979,9 @@ fn track<T: 'static>() -> AnyView<Bevy, T> {
             right: px(0.0),
             ..Node::default()
         };
+        cx.world
+            .entity_mut(node)
+            .insert(IgnoreScroll(BVec2 { x: true, y: false }));
         node
     })
 }
