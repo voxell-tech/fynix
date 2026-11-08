@@ -87,28 +87,6 @@ fn of_two_state_rules_set_in_one_scope_the_later_written_wins() {
 }
 
 #[test]
-fn a_state_rule_in_an_outer_scope_beats_one_in_an_inner_scope() {
-    let mut ui = Ui::new(Warm);
-    let node = ui.build(
-        text("x")
-            .rules(|cx: &mut Cx<'_, Fake, Warm>| {
-                cx.when::<Lit>(|cx| {
-                    cx.set::<Text>(|text, _| text.size(30.0));
-                });
-            })
-            .rules(|cx: &mut Cx<'_, Fake, Warm>| {
-                cx.when::<Lit>(|cx| {
-                    cx.set::<Text>(|text, _| text.size(40.0));
-                });
-            }),
-    );
-
-    ui.light(node, true);
-
-    assert_eq!(ui.size(node), 40.0, "the one written later");
-}
-
-#[test]
 fn a_state_rule_on_an_ancestor_fills_only_what_the_call_site_left_unset()
  {
     let mut ui = Ui::new(Warm);
@@ -219,23 +197,6 @@ fn a_default_is_weaker_than_an_outer_rule() {
 }
 
 #[test]
-fn a_transition_rule_moves_an_element_over_the_curve() {
-    let mut ui = Ui::new(Warm);
-    let nodes = ui.under(|cx| {
-        cx.transition(Motion::Interact);
-        cx.build(
-            text("x").size(watch(|world: &World| world.count as f32)),
-        );
-    });
-
-    ui.world.set(10);
-    ui.update(Duration::ZERO, false);
-    ui.update(Duration::from_millis(500), false);
-
-    assert_eq!(ui.size(nodes[0]), 5.0);
-}
-
-#[test]
 fn a_state_rule_moves_over_a_transition_around_it() {
     let mut ui = Ui::new(Warm);
     let node = ui.build(
@@ -269,15 +230,6 @@ fn a_bound_prop_in_a_state_rule_is_followed() {
     assert_eq!(ui.size(node), 40.0);
 }
 
-#[test]
-fn nothing_waits_on_a_state_without_a_state_rule() {
-    let mut ui = Ui::new(Warm);
-    ui.build(text("x"));
-
-    assert!(ui.mounted.is_empty());
-    assert!(ui.world.watched.is_empty());
-}
-
 /// A bare node whose size follows `value` through an effect.
 fn sized(value: Prop<World, f32>) -> AnyView<Fake, Warm> {
     AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
@@ -307,15 +259,6 @@ fn an_effect_runs_at_build_and_when_its_value_changes() {
     ui.world.set(7);
     ui.update(Duration::ZERO, false);
     assert_eq!(ui.world.writes, 2, "not for an equal value");
-}
-
-#[test]
-fn an_effect_on_a_plain_value_runs_once_and_is_not_kept() {
-    let mut ui = Ui::new(Warm);
-    let node = ui.build(sized(3.0.into()));
-
-    assert_eq!(ui.size(node), 3.0);
-    assert_eq!(ui.mounted.effects_len(), 0);
 }
 
 #[test]

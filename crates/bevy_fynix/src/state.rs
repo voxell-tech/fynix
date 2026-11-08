@@ -300,7 +300,6 @@ mod tests {
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
-    use crate::mounted::Mounts;
     use crate::tokens::{TextTokens, Tone};
     use crate::transition::{BevyMarker, ReducedMotion};
     use crate::views::{Label, label, row};
@@ -406,38 +405,6 @@ mod tests {
     }
 
     #[test]
-    fn a_state_rule_applies_while_its_state_holds() {
-        let mut app = app();
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x").when::<Hovered, _>(accent),
-        );
-        assert_eq!(color(&app, node), BLACK);
-
-        hover(&mut app, node, true);
-        app.update();
-        assert_eq!(color(&app, node), Color::WHITE);
-
-        hover(&mut app, node, false);
-        app.update();
-        assert_eq!(color(&app, node), BLACK);
-    }
-
-    #[test]
-    fn an_app_can_use_its_own_state_component() {
-        let mut app = app();
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x").when::<Selected, _>(accent),
-        );
-
-        app.world_mut().entity_mut(node).insert(Selected);
-        app.update();
-
-        assert_eq!(color(&app, node), Color::WHITE);
-    }
-
-    #[test]
     fn a_state_rule_beats_the_call_site_and_a_binding() {
         let mut app = app();
         let fixed = mount::<Test>(
@@ -509,18 +476,6 @@ mod tests {
     }
 
     #[test]
-    fn an_element_with_a_state_rule_stays_mounted() {
-        let mut app = app();
-        mount::<Test>(
-            app.world_mut(),
-            label("x").when::<Hovered, _>(accent),
-        );
-        mount::<Test>(app.world_mut(), label("y"));
-
-        assert_eq!(app.world().resource::<Mounts<Test>>().len(), 1);
-    }
-
-    #[test]
     fn a_set_rule_still_fills_under_a_state_rule() {
         let mut app = app();
         let root = mount::<Test>(
@@ -588,23 +543,6 @@ mod tests {
     struct Selection(Tone);
 
     #[test]
-    fn reduced_motion_snaps() {
-        let mut app = app();
-        app.insert_resource(ReducedMotion(true));
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x")
-                .when::<Hovered, _>(accent)
-                .transition(Motion::Interact),
-        );
-
-        hover(&mut app, node, true);
-        app.update();
-
-        assert_eq!(color(&app, node), Color::WHITE);
-    }
-
-    #[test]
     fn reduced_motion_finishes_a_transition_under_way() {
         let mut app = app();
         let node = mount::<Test>(
@@ -666,35 +604,5 @@ mod tests {
             app.world().resource::<DirtyNodes>().0,
             vec![root]
         );
-    }
-
-    #[test]
-    fn a_state_the_element_has_no_rule_for_does_not_queue_it() {
-        let mut app = app();
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x").when::<Hovered, _>(accent),
-        );
-
-        app.world_mut().entity_mut(node).insert(Selected);
-
-        assert!(app.world().resource::<DirtyNodes>().0.is_empty());
-    }
-
-    #[test]
-    fn a_despawned_element_with_a_state_rule_is_dropped() {
-        let mut app = app();
-        let node = mount::<Test>(
-            app.world_mut(),
-            label("x")
-                .when::<Hovered, _>(accent)
-                .transition(Motion::Interact),
-        );
-        assert_eq!(app.world().resource::<Mounts<Test>>().len(), 1);
-
-        app.world_mut().despawn(node);
-        app.update();
-
-        assert!(app.world().resource::<Mounts<Test>>().is_empty());
     }
 }

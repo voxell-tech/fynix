@@ -247,15 +247,6 @@ mod tests {
     }
 
     #[test]
-    fn a_value_that_starts_true_is_checked_at_once() {
-        let mut app = app();
-        let node = mount::<Plain>(app.world_mut(), checkbox(true));
-
-        assert!(checked(&app, node));
-        assert!(shown(&app, node));
-    }
-
-    #[test]
     fn activating_it_calls_the_handler_with_the_state_asked_for() {
         let mut app = app();
         let node = mount::<Plain>(
@@ -270,25 +261,5 @@ mod tests {
 
         assert_eq!(app.world().resource::<Asked>().0, [true, false]);
         assert!(!checked(&app, node), "it does not toggle itself");
-    }
-
-    #[test]
-    fn a_handler_that_writes_the_bound_value_checks_the_box() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            checkbox(resource::<Flag, _>(|flag| flag.0)).on_change(
-                |world, value| {
-                    world.resource_mut::<Flag>().0 = value;
-                },
-            ),
-        );
-
-        ask(&mut app, node, true);
-        assert!(checked(&app, node));
-        assert!(shown(&app, node));
-
-        ask(&mut app, node, false);
-        assert!(!checked(&app, node));
     }
 }

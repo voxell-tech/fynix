@@ -50,8 +50,6 @@ pub struct Plain {
     pub accent: Option<Color>,
     /// The theme's own hairline, or the trait's default.
     pub hairline: Option<Color>,
-    /// The theme's own menu corner radius, or the trait's default.
-    pub menu_radius: Option<f32>,
     /// The colour of [`Tone::Accent`] text, or orange.
     pub accent_tone: Option<Color>,
     /// The colour of [`Tone::OnAccent`] text, or white.
@@ -66,7 +64,6 @@ impl Default for Plain {
             panel: Color::BLACK,
             accent: None,
             hairline: None,
-            menu_radius: None,
             accent_tone: None,
             on_accent: None,
         }
@@ -126,10 +123,6 @@ impl SpacingTokens for Plain {
 
     fn radius(&self) -> f32 {
         self.radius
-    }
-
-    fn menu_radius(&self) -> f32 {
-        self.menu_radius.unwrap_or(self.radius)
     }
 }
 

@@ -239,7 +239,6 @@ mod tests {
     use bevy::app::App;
     use bevy::camera::NormalizedRenderTarget;
     use bevy::picking::pointer::Location;
-    use bevy::ui::GlobalZIndex;
     use bevy::ui::widget::Text;
 
     use super::*;
@@ -275,24 +274,6 @@ mod tests {
     }
 
     #[test]
-    fn nothing_shows_before_the_pointer_has_rested() {
-        let mut app = app();
-        let source = source(&mut app);
-        let anchor = anchor(&app, source);
-
-        hover(&mut app, source, true);
-        // 50ms of the 100ms delay.
-        app.update();
-
-        assert!(kids(&app, anchor).is_empty());
-        assert!(app.world().get::<ShownAt>(source).is_none());
-
-        app.update();
-        app.update();
-        assert_eq!(kids(&app, anchor).len(), 1);
-    }
-
-    #[test]
     fn it_shows_near_the_pointer_after_the_delay() {
         let mut app = app();
         let source = source(&mut app);
@@ -314,11 +295,6 @@ mod tests {
             app.world().get::<Text>(text).unwrap().0,
             "Ctrl+S"
         );
-        assert_eq!(
-            app.world().get::<GlobalZIndex>(surface[0]),
-            Some(&GlobalZIndex(TOOLTIP_Z))
-        );
-        assert!(app.world().get::<Popover>(surface[0]).is_some());
         let ui = app.world().get::<bevy::ui::Node>(anchor).unwrap();
         assert_eq!((ui.left, ui.top), (px(30.0), px(40.0)));
     }

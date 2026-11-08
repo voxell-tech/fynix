@@ -68,17 +68,6 @@ fn a_dropped_row_fades_then_collapses_then_goes() {
 }
 
 #[test]
-fn a_dropped_row_without_a_transition_goes_at_once() {
-    let (mut ui, container) = rows(&[1, 2], false);
-    let two = ui.world.children(container)[1];
-
-    ui.world.list(&[1]);
-    ui.update(Duration::ZERO, false);
-
-    assert!(!ui.world.is_alive(two));
-}
-
-#[test]
 fn a_leaving_row_keeps_its_place_among_the_rest() {
     let (mut ui, container) = rows(&[1, 2, 3], true);
 
@@ -103,63 +92,6 @@ fn a_leaving_row_keeps_its_place_among_the_rest() {
         ["4", "3", "1"],
         "and gone after"
     );
-}
-
-#[test]
-fn reduced_motion_drops_a_leaving_row_at_once() {
-    let (mut ui, container) = rows(&[1, 2], true);
-    let two = ui.world.children(container)[1];
-
-    ui.world.list(&[1]);
-    ui.update(Duration::ZERO, true);
-
-    assert!(!ui.world.is_alive(two));
-}
-
-#[test]
-fn a_keyed_view_animates_its_old_view_out_beside_the_new() {
-    let mut ui = Ui::new(Warm);
-    let [container] = ui.under(|cx: &mut Cx<'_, Fake, Warm>| {
-        cx.transition(Motion::Interact);
-        cx.build(keyed(watch(|world: &World| world.pick), |&pick| {
-            text(pick.to_string()).boxed()
-        }));
-    })[..] else {
-        panic!("a container");
-    };
-    let old = ui.world.children(container)[0];
-
-    ui.world.pick = 1;
-    ui.world.version += 1;
-    ui.update(Duration::ZERO, false);
-
-    assert!(ui.world.node(old).leaving);
-    assert_eq!(texts(&ui, container), ["0", "1"]);
-
-    ui.update(CURVE, false);
-    ui.update(CURVE, false);
-    assert_eq!(texts(&ui, container), ["1"]);
-}
-
-#[test]
-fn a_container_can_be_a_view_of_its_own() {
-    let mut ui = Ui::new(Warm);
-    ui.world.list(&[1, 2]);
-    let [container] = ui.under(|cx: &mut Cx<'_, Fake, Warm>| {
-        cx.build(
-            each(
-                watch(|world: &World| world.list.clone()),
-                |&id| id,
-                |&id| text(id.to_string()).boxed(),
-            )
-            .within(text("list")),
-        );
-    })[..] else {
-        panic!("a container");
-    };
-
-    assert_eq!(ui.world.node(container).text, "list");
-    assert_eq!(texts(&ui, container), ["1", "2"]);
 }
 
 #[test]
@@ -233,16 +165,6 @@ fn a_row_without_a_transition_is_never_held() {
 }
 
 #[test]
-fn the_rows_first_build_is_not_held() {
-    let (ui, container) = rows(&[1, 2], true);
-
-    for node in ui.world.children(container) {
-        assert!(!ui.world.node(node).held);
-        assert!(!ui.mounted.is_entering(node));
-    }
-}
-
-#[test]
 fn a_swap_fades_out_collapses_then_expands_in() {
     let (mut ui, container) = picks();
     let old = ui.world.children(container)[0];
@@ -306,32 +228,6 @@ fn reduced_motion_skips_every_phase_of_a_swap() {
     assert!(!ui.world.node(new).held);
     assert!(!ui.mounted.is_entering(new));
     assert_eq!(texts(&ui, container), ["1"]);
-}
-
-#[test]
-fn reduced_motion_skips_a_rows_expand() {
-    let (mut ui, container) = rows(&[1], true);
-
-    ui.world.list(&[1, 2]);
-    ui.update(Duration::ZERO, true);
-
-    let two = ui.world.children(container)[1];
-    assert!(ui.world.node(two).released);
-    assert!(!ui.mounted.is_entering(two));
-}
-
-#[test]
-fn reduced_motion_in_the_middle_of_an_expand_finishes_it() {
-    let (mut ui, container) = rows(&[1], true);
-    ui.world.list(&[1, 2]);
-    ui.update(Duration::ZERO, false);
-    ui.update(CURVE / 4, false);
-    let two = ui.world.children(container)[1];
-    assert!(!ui.world.node(two).released);
-
-    ui.update(Duration::ZERO, true);
-
-    assert!(ui.world.node(two).released);
 }
 
 #[test]

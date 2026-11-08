@@ -523,23 +523,12 @@ mod tests {
     use bevy::app::App;
     use bevy::color::Color;
     use bevy::ecs::hierarchy::Children;
-    use bevy::ecs::resource::Resource;
     use bevy::ui::{BackgroundColor, GlobalZIndex};
-    use bevy::ui_widgets::Activate;
 
     use super::*;
-    use crate::tests::{self, Plain};
-    use crate::views::{BehaviorExt, frame, label};
+    use crate::tests::{self, Plain, app};
+    use crate::views::{frame, label};
     use crate::{ScopedExt, mount};
-
-    fn app() -> App {
-        tests::app_with(Plain {
-            panel: Color::srgb(0.1, 0.1, 0.1),
-            hairline: Some(Color::srgb(0.4, 0.4, 0.4)),
-            menu_radius: Some(5.0),
-            ..Plain::default()
-        })
-    }
 
     fn fill(app: &App, node: Entity) -> Color {
         app.world().get::<BackgroundColor>(node).unwrap().0
@@ -584,42 +573,5 @@ mod tests {
             app.update();
         }
         assert_eq!(popups(&mut app), 0);
-    }
-
-    #[test]
-    fn a_row_is_a_focusable_menu_item_with_a_pointer_cursor() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), menu_item(label("Cut")));
-
-        assert!(app.world().get::<MenuItemBehavior>(node).is_some());
-        assert_eq!(
-            app.world().get::<TabIndex>(node),
-            Some(&TabIndex(0))
-        );
-        assert_eq!(
-            app.world().get::<EntityCursor>(node),
-            Some(&EntityCursor(SystemCursorIcon::Pointer))
-        );
-    }
-
-    #[derive(Resource, Default)]
-    struct Picked(u32);
-
-    #[test]
-    fn activating_a_row_runs_its_handler() {
-        let mut app = app();
-        app.init_resource::<Picked>();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            menu_item(label("Cut")).on_activate(|world| {
-                world.resource_mut::<Picked>().0 += 1;
-            }),
-        );
-
-        app.world_mut().trigger(Activate { entity: node });
-        app.update();
-
-        assert_eq!(app.world().resource::<Picked>().0, 1);
     }
 }

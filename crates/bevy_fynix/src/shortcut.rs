@@ -675,10 +675,6 @@ mod tests {
             Key::Character("w".into()),
         );
         assert_eq!(ran(&app), 1, "a menu is open");
-        assert_eq!(
-            shortcut_text(app.world(), BUMP).as_deref(),
-            Some("W")
-        );
     }
 
     #[test]

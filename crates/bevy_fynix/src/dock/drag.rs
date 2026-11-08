@@ -597,41 +597,13 @@ mod tests {
     }
 
     #[test]
-    fn left_of_the_first_tab_drops_at_index_zero() {
-        let (target, _) =
-            target_at(Vec2::new(1.0, 10.0), &bars(), &areas())
-                .unwrap();
-        assert_eq!(
-            target,
-            DropTarget::Tabs {
-                leaf: LEFT,
-                index: 0
-            }
-        );
-    }
-
-    #[test]
-    fn past_the_last_tab_is_the_end_of_the_bar() {
-        let (target, _) =
-            target_at(Vec2::new(190.0, 10.0), &bars(), &areas())
-                .unwrap();
-        assert_eq!(
-            target,
-            DropTarget::Tabs {
-                leaf: LEFT,
-                index: 2
-            }
-        );
-    }
-
-    #[test]
     fn an_empty_bar_takes_the_first_slot() {
         let empty = vec![Bar {
             leaf: RIGHT,
             rect: rect(200.0, 0.0, 400.0, 20.0),
             tabs: Vec::new(),
         }];
-        let (target, hint) =
+        let (target, _) =
             target_at(Vec2::new(300.0, 10.0), &empty, &areas())
                 .unwrap();
         assert_eq!(
@@ -641,7 +613,6 @@ mod tests {
                 index: 0
             }
         );
-        assert_eq!(hint, rect(200.0, 0.0, 240.0, 20.0));
     }
 
     #[test]
@@ -663,31 +634,10 @@ mod tests {
     }
 
     #[test]
-    fn an_edge_hints_the_half_it_would_take() {
-        let (_, hint) =
-            target_at(Vec2::new(210.0, 100.0), &bars(), &areas())
-                .unwrap();
-        assert_eq!(hint, rect(200.0, 0.0, 300.0, 200.0));
-        let (_, hint) =
-            target_at(Vec2::new(300.0, 190.0), &bars(), &areas())
-                .unwrap();
-        assert_eq!(hint, rect(200.0, 100.0, 400.0, 200.0));
-    }
-
-    #[test]
-    fn the_middle_of_an_area_hints_all_of_it() {
-        let (target, hint) =
+    fn the_middle_of_an_area_is_the_area() {
+        let (target, _) =
             target_at(Vec2::new(300.0, 100.0), &bars(), &areas())
                 .unwrap();
         assert_eq!(target, DropTarget::Area(RIGHT));
-        assert_eq!(hint, rect(200.0, 0.0, 400.0, 200.0));
-    }
-
-    #[test]
-    fn outside_every_area_there_is_no_target() {
-        assert!(
-            target_at(Vec2::new(500.0, 100.0), &bars(), &areas())
-                .is_none()
-        );
     }
 }

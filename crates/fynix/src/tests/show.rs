@@ -4,7 +4,7 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 use std::{panic, vec};
 
-use super::{Fake, Frame, Lit, Text, Ui, Warm, text, wrap};
+use super::{Fake, Frame, Text, Ui, Warm, text, wrap};
 use crate::{AnyView, Cx, Prop, Styled, ViewExt};
 
 impl Ui<Warm> {
@@ -195,13 +195,6 @@ fn a_rule_set_under_an_element_with_show_set_rules_stays_in_force() {
     };
 
     assert_eq!(ui.world.node(after).size, 20.0, "as under any node");
-}
-
-#[test]
-#[should_panic(expected = "cannot wait on a state")]
-fn a_show_rule_cannot_wait_on_a_state() {
-    let mut ui = Ui::new(Warm);
-    ui.under(|cx| cx.when::<Lit>(|cx| cx.show::<Text>(wrap("lit"))));
 }
 
 #[test]

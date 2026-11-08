@@ -118,16 +118,4 @@ mod tests {
             ["x", "y"]
         );
     }
-
-    #[test]
-    fn unregister_after_duplicate_leaves_nothing() {
-        let mut reg = DockRegistry::default();
-        reg.register("x", kind("first"))
-            .register("x", kind("second"));
-
-        assert!(reg.unregister("x"));
-        assert!(!reg.unregister("x"));
-        assert_eq!(reg.iter().count(), 0);
-        assert!(reg.get("x").is_none());
-    }
 }

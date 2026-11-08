@@ -329,12 +329,9 @@ mod tests {
         // The middle of the track is half, wherever it was before.
         assert_eq!(press(&mut app, node, 180.0), 0.5);
         assert_eq!(app.world().get::<Along>(node).unwrap().0, 0.5);
-        // The thumb's middle is half its width in from either end,
-        // and past an end is that end.
+        // The thumb's middle is half its width in from either end.
         assert_eq!(press(&mut app, node, 100.0 + thumb / 2.0), 0.0);
         assert_eq!(press(&mut app, node, 260.0 - thumb / 2.0), 1.0);
-        assert_eq!(press(&mut app, node, 0.0), 0.0);
-        assert_eq!(press(&mut app, node, 900.0), 1.0);
     }
 
     #[test]

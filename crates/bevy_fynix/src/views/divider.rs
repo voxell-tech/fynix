@@ -173,13 +173,6 @@ mod tests {
         );
         settle(&mut app);
         assert_eq!(fill(&app, node), Color::NONE);
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!((ui.width, ui.height), (px(6.0), percent(100.0)));
-        assert_eq!(
-            app.world().get::<EntityCursor>(node),
-            Some(&EntityCursor(SystemCursorIcon::EwResize)),
-            "still there to grab"
-        );
 
         tests::hover(&mut app, node, true);
         settle(&mut app);

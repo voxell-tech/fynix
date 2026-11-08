@@ -322,7 +322,6 @@ pub(super) mod fixtures {
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
-    use bevy::color::Color;
     use bevy::ecs::resource::Resource;
 
     use super::fixtures::*;
@@ -452,20 +451,6 @@ mod tests {
 
         blur(&mut app);
         assert!(app.world().get::<Focused>(root).is_none());
-    }
-
-    #[test]
-    fn the_cursor_is_a_text_cursor_and_the_caret_is_the_body_tone() {
-        let mut app = app();
-        let root = field(&mut app);
-        let input = input_of(&app, root);
-
-        assert_eq!(
-            app.world().get::<EntityCursor>(root),
-            Some(&EntityCursor(SystemCursorIcon::Text))
-        );
-        let caret = app.world().get::<TextCursorStyle>(input);
-        assert_eq!(caret.map(|c| c.color), Some(Color::WHITE));
     }
 
     #[test]

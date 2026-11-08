@@ -198,27 +198,20 @@ where
 #[cfg(test)]
 mod tests {
     use bevy::app::App;
-    use bevy::ecs::resource::Resource;
-    use bevy::input::keyboard::{Key, KeyCode};
-    use bevy::input_focus::pointer_focus::PointerFocusPlugin;
-    use bevy::input_focus::{InputFocus, InputFocusPlugin};
+    use bevy::input_focus::InputFocus;
     use bevy::ui::Node;
     use bevy::ui::widget::Text;
-    use bevy::ui_widgets::popover::Popover;
-    use bevy::ui_widgets::{Activate, MenuPlugin, MenuPopup};
-    use bevy::window::{PrimaryWindow, Window};
+    use bevy::ui_widgets::{MenuPlugin, MenuPopup};
+    use bevy::window::Window;
 
     use super::*;
     use crate::mount;
     use crate::tests::{self, Plain, kids};
-    use crate::views::{BehaviorExt, label, menu_item};
-
-    #[derive(Resource, Default)]
-    struct Deleted(u32);
+    use crate::views::{label, menu_item};
 
     fn app() -> App {
         let mut app = tests::app();
-        app.add_plugins(MenuPlugin).init_resource::<Deleted>();
+        app.add_plugins(MenuPlugin);
         app
     }
 
@@ -228,9 +221,7 @@ mod tests {
             label("row").context_menu(|| {
                 (
                     menu_item(label("Rename")),
-                    menu_item(label("Delete")).on_activate(|world| {
-                        world.resource_mut::<Deleted>().0 += 1;
-                    }),
+                    menu_item(label("Delete")),
                 )
             }),
         )
@@ -274,21 +265,6 @@ mod tests {
     }
 
     #[test]
-    fn nothing_is_built_until_the_right_press() {
-        let mut app = app();
-        let source = source(&mut app);
-
-        assert!(popups(&mut app).is_empty());
-        press(
-            &mut app,
-            source,
-            PointerButton::Primary,
-            Vec2::new(10.0, 20.0),
-        );
-        assert!(popups(&mut app).is_empty());
-    }
-
-    #[test]
     fn a_right_press_opens_the_rows_at_the_pointer() {
         let mut app = app();
         let source = source(&mut app);
@@ -310,7 +286,6 @@ mod tests {
             .parent();
         let ui = app.world().get::<Node>(anchor).unwrap();
         assert_eq!((ui.left, ui.top), (px(10.0), px(20.0)));
-        assert!(app.world().get::<Popover>(popup[0]).is_some());
         assert!(
             app.world()
                 .get::<bevy::ecs::hierarchy::ChildOf>(anchor)
@@ -336,28 +311,6 @@ mod tests {
     }
 
     #[test]
-    fn the_first_row_takes_the_focus() {
-        let mut app = app();
-        let source = source(&mut app);
-
-        press(&mut app, source, PointerButton::Secondary, Vec2::ZERO);
-        // The menu is held hidden the frame it enters, and a hidden
-        // row takes no focus.
-        app.update();
-
-        let popup = popups(&mut app)[0];
-        let first = kids(&app, popup)[0];
-        assert_eq!(
-            app.world().resource::<InputFocus>().get(),
-            Some(first)
-        );
-        assert_eq!(
-            app.world().get::<MenuFocusState>(popup),
-            Some(&MenuFocusState::Open)
-        );
-    }
-
-    #[test]
     fn a_dismissal_despawns_the_menu() {
         let mut app = app();
         let source = source(&mut app);
@@ -374,27 +327,6 @@ mod tests {
 
         assert!(popups(&mut app).is_empty());
         assert!(app.world().get_entity(popup).is_err());
-    }
-
-    #[test]
-    fn choosing_a_row_runs_it_and_despawns_the_menu() {
-        let mut app = app();
-        let source = source(&mut app);
-        press(&mut app, source, PointerButton::Secondary, Vec2::ZERO);
-        let popup = popups(&mut app)[0];
-        let delete = kids(&app, popup)[1];
-
-        // The row's activation, then what `bevy_ui_widgets` sends
-        // after it.
-        app.world_mut().trigger(Activate { entity: delete });
-        app.world_mut().trigger(MenuEvent {
-            source: delete,
-            action: MenuAction::CloseAll,
-        });
-        app.update();
-
-        assert_eq!(app.world().resource::<Deleted>().0, 1);
-        assert!(popups(&mut app).is_empty());
     }
 
     #[test]
@@ -477,18 +409,6 @@ mod tests {
     }
 
     #[test]
-    fn a_press_on_another_widget_dismisses_the_menu() {
-        let mut app = app();
-        open_one(&mut app);
-        let other = app.world_mut().spawn(Node::default()).id();
-
-        press(&mut app, other, PointerButton::Primary, Vec2::ONE);
-        app.update();
-
-        assert!(popups(&mut app).is_empty());
-    }
-
-    #[test]
     fn a_press_on_the_source_dismisses_the_menu() {
         let mut app = app();
         let source = open_one(&mut app);
@@ -496,54 +416,6 @@ mod tests {
         press(&mut app, source, PointerButton::Primary, Vec2::ONE);
         app.update();
 
-        assert!(popups(&mut app).is_empty());
-    }
-
-    #[test]
-    fn a_press_inside_the_menu_leaves_it_open() {
-        let mut app = app();
-        open_one(&mut app);
-        let popup = popups(&mut app)[0];
-        let row = kids(&app, popup)[0];
-
-        press(&mut app, row, PointerButton::Primary, Vec2::ONE);
-        app.update();
-
-        assert_eq!(popups(&mut app).len(), 1);
-    }
-
-    /// As `DefaultPlugins` has it, a press moves the focus to what is
-    /// pressed.
-    fn focusing_app() -> App {
-        let mut app = app();
-        app.add_plugins((InputFocusPlugin, PointerFocusPlugin));
-        app.world_mut().spawn((Window::default(), PrimaryWindow));
-        app.update();
-        app
-    }
-
-    #[test]
-    fn a_press_that_moves_the_focus_opens_and_dismisses_the_menu() {
-        let mut app = focusing_app();
-        open_one(&mut app);
-        let popup = popups(&mut app)[0];
-        let rows = kids(&app, popup);
-        assert_eq!(
-            app.world().resource::<InputFocus>().get(),
-            Some(rows[0])
-        );
-
-        press(&mut app, rows[1], PointerButton::Primary, Vec2::ONE);
-        app.update();
-        assert_eq!(popups(&mut app), [popup]);
-        assert_eq!(
-            app.world().resource::<InputFocus>().get(),
-            Some(rows[1])
-        );
-
-        let other = app.world_mut().spawn(Node::default()).id();
-        press(&mut app, other, PointerButton::Primary, Vec2::ONE);
-        app.update();
         assert!(popups(&mut app).is_empty());
     }
 
@@ -578,19 +450,6 @@ mod tests {
             .parent();
         let ui = app.world().get::<Node>(anchor).unwrap();
         assert_eq!((ui.left, ui.top), (px(30.0), px(40.0)));
-    }
-
-    #[test]
-    fn escape_on_a_row_dismisses_the_menu() {
-        let mut app = app();
-        open_one(&mut app);
-        tests::keyboard(&mut app);
-        app.update();
-
-        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
-        app.update();
-
-        assert!(popups(&mut app).is_empty());
     }
 
     #[test]

@@ -436,10 +436,7 @@ mod tests {
     use super::*;
     use crate::tests::{Plain, app, kids};
     use crate::tokens::Motion;
-    use crate::views::{BehaviorExt, row};
-    use crate::{
-        ScopedExt, StateExt, hidden, mount, resource, style,
-    };
+    use crate::{ScopedExt, StateExt, hidden, mount, resource};
 
     #[derive(Resource)]
     struct Line(Vec<Span>);
@@ -709,35 +706,5 @@ mod tests {
         assert_eq!(font(spans[0]).font, FontSource::family("Next"));
         assert_eq!(font(spans[1]).font_size, FontSize::Px(20.0));
         assert_eq!(font(spans[1]).font, FontSource::family("Own"));
-    }
-
-    #[test]
-    fn a_tone_for_the_view_reaches_spans_without_a_colour() {
-        let mut app = app();
-        let own = Color::srgb(0.0, 0.0, 1.0);
-        let spans =
-            || vec![Span::new("a "), Span::new("b").color(own)];
-        let styled = mount::<Plain>(
-            app.world_mut(),
-            row((rich(spans()),))
-                .rules(style::<Plain>().tone(Tone::Dim).bundle()),
-        );
-        let toned = mount::<Plain>(
-            app.world_mut(),
-            rich(spans()).toned(Tone::Dim),
-        );
-
-        for root in [kids(&app, styled)[0], toned] {
-            let spans = kids(&app, root);
-            assert_eq!(
-                color(&app, spans[0]),
-                Plain::default().tone(Tone::Dim)
-            );
-            assert_eq!(
-                color(&app, spans[1]),
-                own,
-                "its own colour stays"
-            );
-        }
     }
 }

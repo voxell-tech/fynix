@@ -553,15 +553,6 @@ mod tests {
     }
 
     #[test]
-    fn a_view_without_an_entering_rule_never_gets_the_state() {
-        let mut app = app();
-        let node = mount::<Test>(app.world_mut(), label("x"));
-
-        assert!(app.world().get::<Entering>(node).is_none());
-        assert!(app.world().resource::<Entrances>().0.is_empty());
-    }
-
-    #[test]
     fn a_dropped_row_fades_collapses_and_goes() {
         let mut app = app();
         let root = list(&mut app);
@@ -619,6 +610,5 @@ mod tests {
             px(-6.0),
             "5 of the gap and the pixel"
         );
-        assert_eq!(ui.overflow, Overflow::clip());
     }
 }

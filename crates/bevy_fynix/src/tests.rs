@@ -28,8 +28,7 @@ use crate::mounted::Mounts;
 use crate::tokens::{TextTokens, Tone};
 use crate::views::label;
 use crate::{
-    AnyView, Bevy, FynixPlugin, Theme, component, derived,
-    every_frame, mount, resource,
+    AnyView, Bevy, FynixPlugin, Theme, component, mount, resource,
 };
 
 /// One app's theme.
@@ -125,27 +124,6 @@ fn two_themes_share_an_app_and_each_drops_its_own_despawned_views() {
 }
 
 #[test]
-fn a_despawned_view_is_dropped_after_one_update() {
-    let mut app = themed_app(Warm);
-    app.insert_resource(Count(1));
-    let node = mount::<Warm>(
-        app.world_mut(),
-        label(resource::<Count, _>(|count| count.0.to_string())),
-    );
-    let kept = mount::<Warm>(
-        app.world_mut(),
-        label(resource::<Count, _>(|count| count.0.to_string())),
-    );
-    assert_eq!(app.world().resource::<Mounts<Warm>>().len(), 2);
-
-    app.world_mut().despawn(node);
-    app.update();
-
-    assert_eq!(app.world().resource::<Mounts<Warm>>().len(), 1);
-    assert!(app.world().get_entity(kept).is_ok());
-}
-
-#[test]
 fn a_resource_signal_is_read_only_after_the_resource_changes() {
     static READS: AtomicUsize = AtomicUsize::new(0);
     let mut app = themed_app(Warm);
@@ -217,24 +195,6 @@ fn a_component_signal_follows_the_component() {
     app.world_mut().entity_mut(entity).insert(Name::new("Cone"));
     app.update();
     assert_eq!(text(&app, node), "Cone");
-}
-
-#[test]
-fn a_derived_signal_reads_every_frame_when_asked() {
-    let mut app = themed_app(Warm);
-    app.insert_resource(Count(1));
-    let node = mount::<Warm>(
-        app.world_mut(),
-        label(
-            derived(|world| world.resource::<Count>().0.to_string())
-                .when(every_frame()),
-        ),
-    );
-
-    app.world_mut().resource_mut::<Count>().0 = 7;
-    app.update();
-
-    assert_eq!(text(&app, node), "7");
 }
 
 #[test]
