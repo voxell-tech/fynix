@@ -512,7 +512,7 @@ impl DockTree {
     /// Sets a split's fraction, kept within `(0.05, 0.95)`.
     pub fn set_fraction(&mut self, split: NodeId, fraction: f32) {
         if let Some(DockNode::Split(s)) = self.nodes.get_mut(&split) {
-            s.fraction = fraction.clamp(0.05, 0.95);
+            s.fraction = kept_fraction(fraction);
         }
     }
 
@@ -658,6 +658,11 @@ impl DockTree {
 /// An area id unique to the leaf `split` makes.
 fn fresh_area_id(window_id: &str, leaf_id: NodeId) -> String {
     format!("split.{window_id}.{}", leaf_id.0)
+}
+
+/// `fraction` within the bounds a split's fraction is kept to.
+pub(crate) fn kept_fraction(fraction: f32) -> f32 {
+    fraction.clamp(0.05, 0.95)
 }
 
 #[cfg(test)]

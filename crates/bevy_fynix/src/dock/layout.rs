@@ -18,7 +18,7 @@ use bevy::ui::{
 
 use super::tree::{
     DockAreaStyle, DockNode, DockTree, NodeId, Shape, SplitAxis,
-    TabId,
+    TabId, kept_fraction,
 };
 use super::{DockTokens, logical, logical_rect, tabs};
 use crate::cursor::{EntityCursor, OverrideCursor};
@@ -384,7 +384,7 @@ pub(super) fn drag_handle(
         .get(split.split)
         .and_then(DockNode::as_split)
         .map(|split| split.fraction);
-    if current != Some(fraction.clamp(0.05, 0.95)) {
+    if current != Some(kept_fraction(fraction)) {
         tree.set_fraction(split.split, fraction);
     }
 }

@@ -606,7 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn a_set_rule_on_frame_does_not_reach_the_content() {
+    fn set_rules_reach_the_frame_and_the_label_inside() {
         let mut app = app();
         let root = mount::<Plain>(
             app.world_mut(),

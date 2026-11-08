@@ -334,9 +334,9 @@ where
                 },
             )
             .observe(
-                move |click_: On<PointerClick>,
+                move |click: On<PointerClick>,
                       mut commands: Commands| {
-                    if click_.button != PointerButton::Primary {
+                    if click.button != PointerButton::Primary {
                         return;
                     }
                     commands.queue(move |world: &mut World| {

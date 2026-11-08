@@ -274,13 +274,12 @@ where
                     .grow(1.0)
                     .min_width(px(0.0))
                     .overflow(Overflow::clip());
-                let button = button(
+                let mut button = button(
                     row((words, row((end,)).shrink(0.0)))
                         .grow(1.0)
                         .min_width(px(0.0))
                         .align(AlignItems::Center),
                 );
-                let mut button = button;
                 button.frame = control;
                 cx.build(button)
             });
