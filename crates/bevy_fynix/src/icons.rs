@@ -10,8 +10,10 @@ use bevy::math::Vec2;
 /// Points up.
 pub const CHEVRON: Handle<Image> =
     uuid_handle!("b28faa72-c1d1-4480-8da3-0355bb9498d6");
+/// A diagonal cross.
 pub const CLOSE: Handle<Image> =
     uuid_handle!("edf61d1b-6df3-481f-83f9-d822b98227a5");
+/// An upright plus.
 pub const PLUS: Handle<Image> =
     uuid_handle!("835268fc-7b11-4cae-b6b8-bd5ff48dc14e");
 
