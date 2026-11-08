@@ -93,6 +93,9 @@ pub struct VirtualListView<R> {
 /// `height` does not size it: a parent of that height does. A row
 /// takes the area's width. Give the area no padding or border.
 ///
+/// Inside a scroll or another parent that can shrink, give that
+/// parent `shrink(0.0)`, or the area can shrink to nothing.
+///
 /// # Limits
 ///
 /// - It builds at most 199 rows, cutting the
@@ -137,11 +140,11 @@ impl<R> VirtualListView<R> {
     /// bottom stops it: a scroll up by the user, or a
     /// [`scroll_to`](VirtualList::scroll_to),
     /// [`scroll_into_view`](VirtualList::scroll_into_view) or
-    /// [`scroll_range_into_view`](VirtualList::scroll_range_into_view)
-    /// that lands above the bottom. Rows added or measured never stop
-    /// it. Any frame that leaves the view at the bottom starts it
-    /// again: a move to the bottom, a `scroll_to` that lands there,
-    /// rows removed from under the view, or `on` set while there.
+    /// [`VirtualList::scroll_range_into_view`] that lands above the
+    /// bottom. Rows added or measured never stop it. Any frame that
+    /// leaves the view at the bottom starts it again: a move to the
+    /// bottom, a `scroll_to` that lands there, rows removed from
+    /// under the view, or `on` set while there.
     pub fn follow_bottom(
         mut self,
         on: impl Into<Prop<bool>>,
@@ -547,7 +550,7 @@ impl VirtualList {
 
     /// Whether the view follows the bottom as rows are added, as
     /// [`follow_bottom`](VirtualListView::follow_bottom) describes.
-    pub fn following(&self) -> bool {
+    pub fn is_following(&self) -> bool {
         self.follow && matches!(self.anchor, Anchor::End)
     }
 

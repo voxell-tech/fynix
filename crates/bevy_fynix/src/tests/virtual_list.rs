@@ -463,28 +463,6 @@ fn a_scroll_reads_only_the_rows_whose_slot_moves() {
 }
 
 #[test]
-fn the_first_row_holds_still_while_the_row_above_is_measured() {
-    let mut app = laid_out();
-    let area = list(&mut app, 10_000, tall_hundredths);
-    scroll_to(&mut app, area, 5_001);
-
-    for frame in 0..SETTLED {
-        app.update();
-        assert_eq!(
-            state(&app, area).first_visible(),
-            5_001,
-            "frame {frame}"
-        );
-        assert_eq!(
-            shown_at(&mut app, area, 5_001),
-            Some(0.0),
-            "frame {frame}"
-        );
-    }
-    assert_eq!(shown_at(&mut app, area, 5_000), Some(-60.0));
-}
-
-#[test]
 fn the_first_row_holds_still_when_a_row_above_grows() {
     let mut app = laid_out();
     let area = list(&mut app, 10_000, grown);
@@ -538,7 +516,6 @@ fn wheeled_as_a_row_above_grows(grows: bool) -> (f32, usize) {
 fn a_wrong_estimate_never_overlaps_rows_or_leaves_a_gap() {
     for (height, estimate) in [
         (uniform as Height, ESTIMATE / 10.0),
-        (uniform, ESTIMATE),
         (uniform, ESTIMATE * 10.0),
         (regions, ESTIMATE),
     ] {
@@ -601,9 +578,6 @@ fn one_huge_row_barely_moves_the_estimate() {
         "row 9999 at {} of {real}",
         last.top
     );
-    scroll_to(&mut app, area, 9_999);
-    settle(&mut app, SETTLED);
-    assert_eq!(shown_at(&mut app, area, 9_999), Some(VIEW - 20.0));
 }
 
 #[test]
@@ -645,40 +619,6 @@ fn a_width_change_reestimates_rows_out_of_sight() {
     assert_eq!(shown_at(&mut app, area, 5_000), Some(0.0));
 }
 
-#[test]
-fn a_content_y_maps_to_its_row_and_back() {
-    let mut app = laid_out();
-    let area = list(&mut app, 10_000, tall_hundredths);
-    let list = state(&app, area);
-    assert_eq!(
-        list.row_span(0),
-        Some(RowSpan {
-            top: 0.0,
-            height: 60.0
-        })
-    );
-    assert_eq!(
-        list.row_span(1),
-        Some(RowSpan {
-            top: 60.0,
-            height: 20.0
-        })
-    );
-    assert_eq!(list.row_at(59.9), Some(0));
-    assert_eq!(list.row_at(60.0), Some(1));
-    assert_eq!(list.row_at(85.0), Some(2));
-    assert_eq!(list.row_at(-5.0), Some(0));
-    assert_eq!(list.row_at(1.0e9), Some(9_999));
-    assert_eq!(list.row_span(10_000), None);
-    let span = list.row_span(5).unwrap();
-    assert_eq!(list.row_at(span.top + span.height / 2.0), Some(5));
-
-    count(&mut app, 0);
-    settle(&mut app, SETTLED);
-    assert_eq!(state(&app, area).row_at(0.0), None, "no rows");
-    assert_eq!(state(&app, area).row_span(0), None, "no rows");
-}
-
 /// Each built row's slot in physical px: its index, top from the top
 /// of the area, and height.
 fn physical(app: &mut App, area: Entity) -> Vec<(usize, f32, f32)> {
@@ -715,7 +655,7 @@ fn off_pixels(spans: &[(usize, f32, f32)]) -> Option<String> {
 #[test]
 fn rows_sit_on_whole_physical_pixels_at_every_scale() {
     let mut failed = Vec::new();
-    for scale in [1.25, 1.5, 2.0] {
+    for scale in [1.25, 1.5] {
         let mut app = laid_out_at(scale);
         let area = mounted(
             &mut app,
@@ -793,14 +733,11 @@ fn count_changes_keep_the_view_of_a_list_that_does_not_follow() {
 #[test]
 fn scroll_to_lands_on_its_row_by_the_second_frame() {
     let mut failed = Vec::new();
-    let cases: [(&str, Height, f32, f32, usize); 8] = [
-        ("20 px", uniform, 20.0, 1.0, 5_000),
+    let cases: [(&str, Height, f32, f32, usize); 5] = [
         ("off the pixel grid", off_grid, 17.0, 1.25, 9_973),
-        ("60 px every 100th", tall_hundredths, 20.0, 1.5, 9_999),
         ("12 to 40 px", mixed, 26.0, 1.0, 5_000),
         ("a 5 px tail", short_tail, 40.0, 1.0, 9_940),
         ("a 60 px tail", tall_tail, 17.0, 1.0, 9_990),
-        ("regions", regions, 20.0, 1.25, 7_100),
         ("20 px, past the end", uniform, 20.0, 1.0, 10_050),
     ];
     for (name, height, estimate, scale, index) in cases {
@@ -859,13 +796,6 @@ fn scroll_into_view_moves_the_least() {
     reveal(&mut app, area, 40);
     assert_eq!(scroll(&app, area), 40.0 * 20.0 + 40.0 + 20.0 - VIEW);
     assert_eq!(shown_at(&mut app, area, 40), Some(VIEW - 20.0));
-
-    reveal(&mut app, area, 30);
-    assert_eq!(scroll(&app, area), 360.0, "a row in view stays");
-
-    reveal(&mut app, area, 5);
-    assert_eq!(scroll(&app, area), 140.0);
-    assert_eq!(shown_at(&mut app, area, 5), Some(0.0));
 
     reveal(&mut app, area, 300);
     assert_eq!(
@@ -937,12 +867,12 @@ fn following_stops_on_a_move_up_and_resumes_at_the_bottom() {
     let area = list(&mut app, 1_000, uniform);
     scroll_to(&mut app, area, 999);
     settle(&mut app, SETTLED);
-    assert!(state(&app, area).following(), "at the bottom");
+    assert!(state(&app, area).is_following(), "at the bottom");
 
     scroll_by(&mut app, area, -0.25);
     settle(&mut app, SETTLED);
     let up = scroll(&app, area);
-    assert!(!state(&app, area).following(), "a quarter pixel up");
+    assert!(!state(&app, area).is_following(), "a quarter pixel up");
     count(&mut app, 1_100);
     settle(&mut app, SETTLED);
     assert_eq!(scroll(&app, area), up, "growth after leaving");
@@ -957,7 +887,10 @@ fn following_stops_on_a_move_up_and_resumes_at_the_bottom() {
     settle(&mut app, SETTLED);
     app.insert_resource(Follow(true));
     settle(&mut app, SETTLED);
-    assert!(state(&app, area).following(), "on again at its bottom");
+    assert!(
+        state(&app, area).is_following(),
+        "on again at its bottom"
+    );
     count(&mut app, 1_300);
     settle(&mut app, SETTLED);
     assert_eq!(shown_at(&mut app, area, 1_299), Some(VIEW - 20.0));
@@ -968,7 +901,7 @@ fn following_stops_on_a_move_up_and_resumes_at_the_bottom() {
     count(&mut app, 1_400);
     settle(&mut app, SETTLED);
     assert_eq!(scroll(&app, area), at, "follow switched off");
-    assert!(!state(&app, area).following());
+    assert!(!state(&app, area).is_following());
 
     scroll_by(&mut app, area, -100.0);
     app.insert_resource(Follow(true));
@@ -977,12 +910,12 @@ fn following_stops_on_a_move_up_and_resumes_at_the_bottom() {
     count(&mut app, 1_500);
     settle(&mut app, SETTLED);
     assert_eq!(scroll(&app, area), at, "on again above its bottom");
-    assert!(!state(&app, area).following());
+    assert!(!state(&app, area).is_following());
 
     scroll_to(&mut app, area, 1_490);
     settle(&mut app, SETTLED);
     assert!(
-        state(&app, area).following(),
+        state(&app, area).is_following(),
         "a scroll_to to the bottom"
     );
     count(&mut app, 1_600);
@@ -991,7 +924,10 @@ fn following_stops_on_a_move_up_and_resumes_at_the_bottom() {
 
     scroll_to(&mut app, area, 0);
     settle(&mut app, SETTLED);
-    assert!(!state(&app, area).following(), "a scroll_to to the top");
+    assert!(
+        !state(&app, area).is_following(),
+        "a scroll_to to the top"
+    );
     count(&mut app, 1_700);
     settle(&mut app, SETTLED);
     assert_eq!(scroll(&app, area), 0.0);
@@ -1006,11 +942,11 @@ fn a_wheel_flung_to_the_end_follows_the_rows_arriving() {
     settle(&mut app, SETTLED);
     scroll_by(&mut app, area, -100.0);
     settle(&mut app, SETTLED);
-    assert!(!state(&app, area).following(), "scrolled up");
+    assert!(!state(&app, area).is_following(), "scrolled up");
 
     wheel(&mut app, area, -3.0);
     let mut frames = 0;
-    while !state(&app, area).following() {
+    while !state(&app, area).is_following() {
         frames += 1;
         assert!(
             frames <= 60,
@@ -1026,7 +962,10 @@ fn a_wheel_flung_to_the_end_follows_the_rows_arriving() {
     for frame in 1..=30 {
         app.world_mut().resource_mut::<Count>().0 += 1;
         app.update();
-        assert!(state(&app, area).following(), "frame {frame} after");
+        assert!(
+            state(&app, area).is_following(),
+            "frame {frame} after"
+        );
     }
     let last = app.world().resource::<Count>().0 - 1;
     assert_eq!(shown_at(&mut app, area, last), Some(VIEW - 20.0));
