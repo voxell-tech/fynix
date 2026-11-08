@@ -4,9 +4,10 @@
 //! button's parts, button styles (bundles and a custom one), a scoped
 //! rule, a folding section, field rows, text and number fields, a
 //! screen switch and a keyed list that rebuild structure and animate
-//! views in and out, menus (a dropdown, a right-click menu and a
-//! tooltip), and a reduced-motion switch. A line of rich text under
-//! the title mixes styles in one text.
+//! views in and out, a virtual list of 100,000 rows, menus (a
+//! dropdown, a right-click menu and a tooltip), and a reduced-motion
+//! switch. A line of rich text under the title mixes styles in one
+//! text.
 //!
 //! `cargo run -p bevy_fynix --example gallery`
 
@@ -30,10 +31,11 @@ use bevy_fynix::tokens::{
 };
 use bevy_fynix::views::{
     AnimatedField, BehaviorExt, ContextMenuExt, Frame, FrameProps,
-    HasAction, Label, LineColor, Span, TooltipExt, button, checkbox,
-    column, danger, dropdown, field_row, foldable, frame, ghost,
-    icon_button, label, menu_bar, menu_item, number_field, primary,
-    rich, row, scroll, segmented, text_field, tint,
+    HasAction, Label, LineColor, RowSlot, Span, TooltipExt,
+    VirtualList, button, checkbox, column, danger, dropdown,
+    field_row, foldable, frame, ghost, icon_button, label, menu_bar,
+    menu_item, number_field, primary, rich, row, scroll, segmented,
+    text_field, tint, virtual_list,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, Hovered, Pressed, ReducedMotion,
@@ -64,6 +66,8 @@ fn main() {
         .insert_resource(Title("fynix".into()))
         .insert_resource(Amount(1.0))
         .insert_resource(Copies(1))
+        .insert_resource(ListRows(100_000))
+        .insert_resource(FollowBottom(false))
         .insert_resource(Rows {
             ids: vec![1, 2, 3],
             next: 4,
@@ -149,7 +153,13 @@ fn gallery() -> AnyView<Bevy, Monokai> {
                 section("Field rows", fields()),
                 section("Text and number fields", inputs()),
                 section("Switching", switching()),
-                section("A keyed list", keyed_list()),
+                // A tuple of views holds at most 16, so the two
+                // lists share one.
+                column((
+                    section("A keyed list", keyed_list()),
+                    section("A virtual list", virtual_rows()),
+                ))
+                .gap(18.0),
                 section("Menus", menus()),
                 section("Docking", docking()),
                 section("Motion", motion_switch()),
@@ -515,6 +525,80 @@ fn keyed_list() -> impl View<Bevy, Monokai> {
             },
         )
         .within(column(()).gap(4.0).align(AlignItems::Start)),
+    ))
+    .gap(6.0)
+}
+
+/// How many rows the virtual list has.
+#[derive(Resource)]
+struct ListRows(usize);
+
+/// Whether the virtual list follows its bottom.
+#[derive(Resource)]
+struct FollowBottom(bool);
+
+/// Runs `run` on the gallery's [`VirtualList`].
+fn on_list(world: &mut World, run: impl FnOnce(&mut VirtualList)) {
+    let mut lists = world.query::<&mut VirtualList>();
+    if let Ok(mut list) = lists.single_mut(world) {
+        run(&mut list);
+    }
+}
+
+/// A [`virtual_list`] of 100,000 rows, built only near the view.
+fn virtual_rows() -> impl View<Bevy, Monokai> {
+    column((
+        row((
+            action("Top", |world| {
+                on_list(world, |list| list.scroll_to(0));
+            }),
+            action("Row 50000", |world| {
+                on_list(world, |list| list.scroll_to(50_000));
+            }),
+            action("Bottom", |world| {
+                let last = world.resource::<ListRows>().0;
+                on_list(world, |list| {
+                    list.scroll_to(last.saturating_sub(1));
+                });
+            }),
+            action("Add 1000", |world| {
+                let rows = &mut world.resource_mut::<ListRows>().0;
+                *rows = rows.saturating_add(1_000);
+            }),
+            label("Follow bottom"),
+            checkbox(resource::<FollowBottom, _>(|follow| follow.0))
+                .on_change(|world, on| {
+                    world.resource_mut::<FollowBottom>().0 = on;
+                }),
+        ))
+        .gap(8.0)
+        .align(AlignItems::Center),
+        label(resource::<ListRows, _>(|rows| {
+            format!("{} rows", rows.0)
+        }))
+        .tone(Tone::Dim),
+        column((virtual_list(
+            resource::<ListRows, _>(|rows| rows.0),
+            22.0,
+            |slot: RowSlot| {
+                AnyView::new(move |cx: &mut Build| {
+                    cx.build(
+                        column((label(
+                            slot.index()
+                                .map(|index| format!("Row {index}")),
+                        ),))
+                        .padding(UiRect::axes(px(8.0), px(3.0))),
+                    )
+                })
+            },
+        )
+        .follow_bottom(resource::<FollowBottom, _>(|follow| {
+            follow.0
+        })),))
+        .height(px(220.0))
+        // Without it, the gallery's scroll shrinks the list to
+        // nothing.
+        .shrink(0.0),
     ))
     .gap(6.0)
 }
