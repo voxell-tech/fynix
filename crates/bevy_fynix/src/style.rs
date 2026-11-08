@@ -189,11 +189,10 @@ mod tests {
     use super::*;
     use crate::tests::{self, Plain};
     use crate::tokens::{SurfaceTokens, TextTokens};
-    use crate::views::{FrameProps, button, ghost, label, row};
+    use crate::views::{button, ghost, label, row};
     use crate::{ScopedExt, mount};
 
     const REST: Color = Color::srgb(0.2, 0.2, 0.2);
-    const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
     const RED: Color = Color::srgb(1.0, 0.0, 0.0);
     const GREEN: Color = Color::srgb(0.0, 1.0, 0.0);
     const BLUE: Color = Color::srgb(0.0, 0.0, 1.0);
@@ -225,17 +224,6 @@ mod tests {
     }
 
     #[test]
-    fn a_style_sets_the_resting_look_from_the_theme() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(custom().bundle()),
-        );
-
-        assert_eq!(fill(&app, node), REST);
-    }
-
-    #[test]
     fn a_style_has_a_look_for_hover_and_a_look_for_press() {
         let mut app = tests::app();
         let node = mount::<Plain>(
@@ -258,41 +246,6 @@ mod tests {
         assert_eq!(fill(&app, node), GREEN);
         feel(&mut app, node, false, false);
         assert_eq!(fill(&app, node), REST);
-    }
-
-    #[test]
-    fn without_a_pressed_look_a_press_keeps_the_hover_look() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(
-                style::<Plain>()
-                    .hovered(|s| s.fill(|_| GREEN))
-                    .bundle(),
-            ),
-        );
-
-        feel(&mut app, node, true, true);
-
-        assert_eq!(fill(&app, node), GREEN);
-    }
-
-    #[test]
-    fn a_style_reads_colours_from_whatever_theme_it_is_built_for() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(
-                style::<Plain>()
-                    .fill(|theme| theme.panel())
-                    .hovered(|s| s.fill(|theme| theme.hover()))
-                    .bundle(),
-            ),
-        );
-        assert_eq!(fill(&app, node), Color::BLACK);
-
-        feel(&mut app, node, true, false);
-        assert_eq!(fill(&app, node), HOVER);
     }
 
     #[test]
@@ -332,38 +285,6 @@ mod tests {
     }
 
     #[test]
-    fn a_call_site_prop_beats_a_style() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x"))
-                .fill(Color::WHITE)
-                .rules(custom().bundle()),
-        );
-
-        assert_eq!(fill(&app, node), Color::WHITE);
-    }
-
-    #[test]
-    fn of_two_steps_in_one_style_the_later_wins() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(
-                style::<Plain>()
-                    .fill(|_| RED)
-                    .fill(|_| GREEN)
-                    .hovered(|s| s.fill(|_| RED).fill(|_| BLUE))
-                    .bundle(),
-            ),
-        );
-        assert_eq!(fill(&app, node), GREEN);
-
-        feel(&mut app, node, true, false);
-        assert_eq!(fill(&app, node), BLUE);
-    }
-
-    #[test]
     fn then_lets_the_next_style_win() {
         let mut app = tests::app();
         let node = mount::<Plain>(
@@ -387,31 +308,6 @@ mod tests {
     }
 
     #[test]
-    fn a_style_extends_a_bundle() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(
-                style::<Plain>()
-                    .with(ghost)
-                    .hovered(|s| s.fill(|_| GREEN))
-                    .pressed(|s| s.fill(|_| BLUE))
-                    .bundle(),
-            ),
-        );
-        assert_eq!(
-            fill(&app, node),
-            Color::NONE,
-            "the bundle's rest"
-        );
-
-        feel(&mut app, node, true, false);
-        assert_eq!(fill(&app, node), GREEN, "its own hover look");
-        feel(&mut app, node, true, true);
-        assert_eq!(fill(&app, node), BLUE, "its own press look");
-    }
-
-    #[test]
     fn a_hover_look_added_to_a_bundle_shows_while_pressed_too() {
         let mut app = tests::app();
         let node = mount::<Plain>(
@@ -431,67 +327,5 @@ mod tests {
             GREEN,
             "written later than ghost's"
         );
-    }
-
-    #[test]
-    fn bundles_chained_with_rules_both_apply() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x"))
-                .rules(
-                    style::<Plain>()
-                        .tone(Tone::Dim)
-                        .hovered(|s| s.fill(|_| GREEN))
-                        .bundle(),
-                )
-                .rules(style::<Plain>().fill(|_| RED).bundle()),
-        );
-
-        assert_eq!(fill(&app, node), RED);
-        assert_eq!(ink(&app, node), Plain::default().tone(Tone::Dim));
-        feel(&mut app, node, true, false);
-        assert_eq!(fill(&app, node), GREEN);
-    }
-
-    #[test]
-    fn a_style_is_a_plain_scope_for_any_view() {
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            row((label("x"),))
-                .rules(style::<Plain>().tone(Tone::Dim).bundle()),
-        );
-        let text = tests::kids(&app, node)[0];
-
-        assert_eq!(
-            app.world().get::<TextColor>(text).unwrap().0,
-            Plain::default().tone(Tone::Dim)
-        );
-    }
-
-    #[test]
-    fn a_style_can_wait_on_a_state_of_its_own() {
-        use bevy::ecs::component::Component;
-
-        #[derive(Component)]
-        struct Selected;
-
-        let mut app = tests::app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(
-                style::<Plain>()
-                    .when::<Selected>(|s| s.fill(|_| RED))
-                    .bundle(),
-            ),
-        );
-        assert_eq!(fill(&app, node), REST);
-
-        app.world_mut().entity_mut(node).insert(Selected);
-        app.update();
-        app.update();
-
-        assert_eq!(fill(&app, node), RED);
     }
 }

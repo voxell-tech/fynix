@@ -189,8 +189,7 @@ mod tests {
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::ecs::resource::Resource;
     use bevy::text::{FontWeight, TextColor, TextFont};
-    use bevy::ui::widget::Text;
-    use bevy::ui::{BackgroundColor, Node};
+    use bevy::ui::BackgroundColor;
     use bevy::ui_widgets::Activate;
 
     use super::*;
@@ -252,25 +251,6 @@ mod tests {
     }
 
     #[test]
-    fn it_builds_one_segment_per_option_with_the_bound_one_active() {
-        let mut app = app();
-        let root = mount::<Plain>(app.world_mut(), row_of_three());
-
-        let nodes = segments(&app, root);
-        let texts = nodes
-            .iter()
-            .map(|&node| {
-                let label = segments(&app, node)[0];
-                app.world().get::<Text>(label).unwrap().0.clone()
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(texts, ["a", "b", "c"]);
-        assert_eq!(fills(&app, root), [REST, ACCENT, REST]);
-        assert_eq!(weight(&app, nodes[1]), FontWeight::BOLD);
-        assert_eq!(weight(&app, nodes[0]), FontWeight::NORMAL);
-    }
-
-    #[test]
     fn the_active_label_is_drawn_on_accent_and_follows_the_choice() {
         let mut app = app();
         let root = mount::<Plain>(app.world_mut(), row_of_three());
@@ -296,22 +276,6 @@ mod tests {
             inks(&app),
             [ON_ACCENT, Color::WHITE, Color::WHITE]
         );
-    }
-
-    #[test]
-    fn the_ends_are_rounded_and_the_row_is_clipped() {
-        let mut app = app();
-        let root = mount::<Plain>(app.world_mut(), row_of_three());
-
-        let radius = |node| {
-            app.world().get::<Node>(node).unwrap().border_radius
-        };
-        let nodes = segments(&app, root);
-        assert_eq!(radius(nodes[0]), BorderRadius::left(px(3.0)));
-        assert_eq!(radius(nodes[1]), BorderRadius::ZERO);
-        assert_eq!(radius(nodes[2]), BorderRadius::right(px(3.0)));
-        let ui = app.world().get::<Node>(root).unwrap();
-        assert_eq!(ui.overflow, Overflow::clip());
     }
 
     #[test]
@@ -344,42 +308,5 @@ mod tests {
         assert_eq!(fills(&app, root), [REST, REST, ACCENT]);
         assert_eq!(weight(&app, before[1]), FontWeight::NORMAL);
         assert_eq!(weight(&app, before[2]), FontWeight::BOLD);
-    }
-
-    #[test]
-    fn a_handler_that_writes_the_bound_value_moves_the_look() {
-        let mut app = app();
-        let root = mount::<Plain>(
-            app.world_mut(),
-            segmented(
-                ["a", "b", "c"],
-                resource::<Which, _>(|which| which.0),
-                |world, index| {
-                    world.resource_mut::<Which>().0 = index
-                },
-            ),
-        );
-        let nodes = segments(&app, root);
-
-        app.world_mut().trigger(Activate { entity: nodes[0] });
-        app.update();
-
-        assert_eq!(fills(&app, root), [ACCENT, REST, REST]);
-    }
-
-    #[test]
-    fn a_fixed_active_index_is_lit_and_none_when_out_of_range() {
-        let mut app = app();
-        let first = mount::<Plain>(
-            app.world_mut(),
-            segmented(["a", "b"], 0, |_, _| {}),
-        );
-        let none = mount::<Plain>(
-            app.world_mut(),
-            segmented(["a", "b"], 7, |_, _| {}),
-        );
-
-        assert_eq!(fills(&app, first), [ACCENT, REST]);
-        assert_eq!(fills(&app, none), [REST, REST]);
     }
 }

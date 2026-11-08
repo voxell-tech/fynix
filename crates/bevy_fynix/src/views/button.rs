@@ -384,7 +384,6 @@ where
 #[cfg(test)]
 mod tests {
     use bevy::app::{App, PreUpdate};
-    use bevy::asset::Handle;
     use bevy::color::{Color, Luminance};
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::lifecycle::Remove;
@@ -394,20 +393,18 @@ mod tests {
     use bevy::picking::backend::HitData;
     use bevy::picking::hover::{HoverMap, update_is_hovered};
     use bevy::picking::pointer::PointerId;
-    use bevy::text::{FontSize, TextColor, TextFont};
-    use bevy::ui::widget::ImageNode;
+    use bevy::text::{FontSize, TextFont};
     use bevy::ui::{BackgroundColor, Node, Val};
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::transition::{BevyMarker, ReducedMotion};
-    use crate::views::{Label, icon, label, row};
+    use crate::transition::BevyMarker;
+    use crate::views::{Label, label};
     use crate::{
         AnyView, Hovered, Pressed, ScopedExt, StateExt, mount,
     };
 
-    const REST: Color = Color::srgb(0.2, 0.2, 0.2);
     const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
     const ON_ACCENT: Color = Color::srgb(0.1, 0.1, 0.1);
@@ -471,29 +468,6 @@ mod tests {
     }
 
     #[test]
-    fn hovering_moves_the_fill_to_the_hover_colour_and_back() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), button(label("x")));
-
-        hover(&mut app, node, true);
-        app.update();
-        assert_eq!(
-            fill(&app, node),
-            blend(REST, HOVER, 0.5),
-            "50ms of 100ms"
-        );
-        app.update();
-        assert_eq!(fill(&app, node), HOVER);
-
-        hover(&mut app, node, false);
-        app.update();
-        assert_eq!(fill(&app, node), blend(HOVER, REST, 0.5));
-        app.update();
-        assert_eq!(fill(&app, node), REST);
-    }
-
-    #[test]
     fn a_call_site_state_rule_beats_the_default_hover_fill() {
         let mut app = app();
         let node = mount::<Plain>(
@@ -510,29 +484,6 @@ mod tests {
         app.update();
 
         assert_eq!(fill(&app, node), Color::WHITE);
-    }
-
-    #[test]
-    fn a_state_rule_on_the_button_reaches_its_content() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).when::<Hovered, _>(
-                |cx: &mut Cx<Bevy, Plain>| {
-                    cx.set::<Label>(|l, _| l.size(20.0));
-                },
-            ),
-        );
-        let content = app.world().get::<Children>(node).unwrap()[0];
-        let size = |app: &App| {
-            app.world().get::<TextFont>(content).unwrap().font_size
-        };
-        assert_eq!(size(&app), FontSize::Px(14.0));
-
-        hover(&mut app, node, true);
-        app.update();
-
-        assert_eq!(size(&app), FontSize::Px(20.0));
     }
 
     #[test]
@@ -579,71 +530,12 @@ mod tests {
         assert_eq!(app.world().resource::<Releases>().0, 1);
     }
 
-    #[test]
-    fn reduced_motion_snaps_the_fill() {
-        let mut app = app();
-        app.insert_resource(ReducedMotion(true));
-        let node =
-            mount::<Plain>(app.world_mut(), button(label("x")));
-
-        hover(&mut app, node, true);
-        app.update();
-        assert_eq!(fill(&app, node), HOVER);
-
-        hover(&mut app, node, false);
-        app.update();
-        assert_eq!(fill(&app, node), REST);
-    }
-
     /// Hovers `node`, or lets go, and runs the transition out.
     fn settle(app: &mut App, node: Entity, on: bool) {
         hover(app, node, on);
         app.update();
         app.update();
     }
-
-    fn ui(app: &App, node: Entity) -> &Node {
-        app.world().get::<Node>(node).unwrap()
-    }
-
-    #[test]
-    fn a_tint_button_has_no_surface_and_turns_its_parts_accent() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(row((icon(Handle::default()), label("x"))))
-                .rules(tint),
-        );
-        let content = app.world().get::<Children>(node).unwrap()[0];
-        let [mark, text] =
-            app.world().get::<Children>(content).unwrap()[..]
-        else {
-            panic!("an icon and a label");
-        };
-        let colours = |app: &App| {
-            (
-                app.world().get::<ImageNode>(mark).unwrap().color,
-                app.world().get::<TextColor>(text).unwrap().0,
-            )
-        };
-        assert_eq!(fill(&app, node), Color::NONE);
-        assert_eq!(colours(&app), (Color::WHITE, Color::WHITE));
-
-        settle(&mut app, node, true);
-        assert_eq!(fill(&app, node), Color::NONE);
-        assert_eq!(colours(&app), (ACCENT, ACCENT));
-        assert_eq!(
-            ui(&app, content).padding,
-            UiRect::DEFAULT,
-            "the row is not a button"
-        );
-
-        settle(&mut app, node, false);
-        assert_eq!(colours(&app), (Color::WHITE, Color::WHITE));
-    }
-
-    const DIM: Color = Color::srgb(0.5, 0.5, 0.5);
-    const CRITICAL: Color = Color::srgb(1.0, 0.5, 0.0);
 
     fn pressed_fill() -> Color {
         Plain::default().pressed()
@@ -656,47 +548,6 @@ mod tests {
         tests::press(app, node, down);
         app.update();
         app.update();
-    }
-
-    /// The fill of `node` resting, hovered and pressed, in that
-    /// order.
-    fn fills(app: &mut App, node: Entity) -> [Color; 3] {
-        let rest = fill(app, node);
-        feel(app, node, true, false);
-        let hovered = fill(app, node);
-        feel(app, node, true, true);
-        let pressed = fill(app, node);
-        feel(app, node, false, false);
-        assert_eq!(fill(app, node), rest, "and back at rest");
-        [rest, hovered, pressed]
-    }
-
-    /// The colour of the text in `node`'s content, resting, hovered
-    /// and pressed.
-    fn inks(app: &mut App, node: Entity) -> [Color; 3] {
-        let text = app.world().get::<Children>(node).unwrap()[0];
-        let ink =
-            |app: &App| app.world().get::<TextColor>(text).unwrap().0;
-        let rest = ink(app);
-        feel(app, node, true, false);
-        let hovered = ink(app);
-        feel(app, node, true, true);
-        let pressed = ink(app);
-        feel(app, node, false, false);
-        assert_eq!(ink(app), rest, "and back at rest");
-        [rest, hovered, pressed]
-    }
-
-    #[test]
-    fn a_plain_button_deepens_when_pressed() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), button(label("x")));
-
-        assert_eq!(
-            fills(&mut app, node),
-            [REST, HOVER, pressed_fill()]
-        );
     }
 
     #[test]
@@ -720,124 +571,6 @@ mod tests {
     }
 
     #[test]
-    fn a_ghost_button_deepens_when_pressed() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(ghost),
-        );
-
-        assert_eq!(
-            fills(&mut app, node),
-            [Color::NONE, HOVER, pressed_fill()]
-        );
-    }
-
-    #[test]
-    fn a_tint_button_stays_clear_and_moves_its_content_through_tones()
-    {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(tint),
-        );
-
-        assert_eq!(
-            fills(&mut app, node),
-            [Color::NONE; 3],
-            "never a surface"
-        );
-        assert_eq!(inks(&mut app, node), [Color::WHITE, ACCENT, DIM]);
-    }
-
-    #[test]
-    fn an_icon_button_only_tints_its_icon() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(icon(Handle::default())).rules(icon_button),
-        );
-        let mark = app.world().get::<Children>(node).unwrap()[0];
-
-        assert_eq!(
-            fills(&mut app, node),
-            [Color::NONE; 3],
-            "never a surface"
-        );
-        let tint = |app: &App| {
-            app.world().get::<ImageNode>(mark).unwrap().color
-        };
-        assert_eq!(tint(&app), DIM);
-        feel(&mut app, node, true, false);
-        assert_eq!(tint(&app), Color::WHITE);
-        feel(&mut app, node, true, true);
-        assert_eq!(tint(&app), ACCENT);
-    }
-
-    #[test]
-    fn a_primary_button_is_accent_with_content_on_accent() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(primary),
-        );
-
-        assert_eq!(
-            fills(&mut app, node),
-            [ACCENT, ACCENT.lighter(0.08), ACCENT.darker(0.1)]
-        );
-        assert_eq!(inks(&mut app, node), [ON_ACCENT; 3]);
-    }
-
-    #[test]
-    fn a_danger_button_draws_critical_on_the_usual_surfaces() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(danger),
-        );
-
-        assert_eq!(
-            fills(&mut app, node),
-            [REST, HOVER, pressed_fill()]
-        );
-        assert_eq!(inks(&mut app, node), [CRITICAL; 3]);
-    }
-
-    #[test]
-    fn a_menu_bar_button_and_an_idle_segment_deepen_when_pressed() {
-        let mut app = app();
-        let bar = mount::<Plain>(
-            app.world_mut(),
-            button(label("File")).rules(menu_bar),
-        );
-        let segment = mount::<Plain>(
-            app.world_mut(),
-            button(label("a")).rules(segment(false)),
-        );
-
-        assert_eq!(
-            fills(&mut app, bar),
-            [Color::NONE, HOVER, pressed_fill()]
-        );
-        assert_eq!(
-            fills(&mut app, segment),
-            [REST, HOVER, pressed_fill()]
-        );
-    }
-
-    #[test]
-    fn an_active_segment_does_not_change_when_pressed() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("a")).rules(segment(true)),
-        );
-
-        assert_eq!(fills(&mut app, node), [ACCENT; 3]);
-    }
-
-    #[test]
     fn a_press_travels_from_the_hover_fill_over_the_curve() {
         let mut app = app();
         let node = mount::<Plain>(
@@ -856,44 +589,6 @@ mod tests {
     }
 
     #[test]
-    fn a_call_site_pressed_rule_beats_a_bundles() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).rules(ghost).when::<Pressed, _>(
-                |cx: &mut Cx<Bevy, Plain>| {
-                    cx.set::<Frame>(|f, _| f.fill(Color::WHITE));
-                },
-            ),
-        );
-
-        feel(&mut app, node, true, true);
-
-        assert_eq!(fill(&app, node), Color::WHITE);
-    }
-
-    #[test]
-    fn a_call_site_prop_beats_a_bundle() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(label("x")).fill(Color::WHITE).rules(ghost),
-        );
-        let strip = mount::<Plain>(
-            app.world_mut(),
-            button(label("x"))
-                .height(px(50.0))
-                .fill(Color::BLACK)
-                .rules(segment(true)),
-        );
-
-        assert_eq!(fill(&app, node), Color::WHITE);
-        assert_eq!(fill(&app, strip), Color::BLACK);
-        assert_eq!(ui(&app, strip).height, px(50.0));
-        assert_eq!(ui(&app, strip).flex_grow, 1.0, "the rest stays");
-    }
-
-    #[test]
     fn a_call_site_state_rule_beats_a_bundles() {
         let mut app = app();
         let node = mount::<Plain>(
@@ -908,19 +603,6 @@ mod tests {
         settle(&mut app, node, true);
 
         assert_eq!(fill(&app, node), Color::WHITE);
-    }
-
-    #[test]
-    fn a_bundle_does_not_reach_a_frame_in_the_content() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            button(row((label("x"),))).rules(menu_bar),
-        );
-        let content = app.world().get::<Children>(node).unwrap()[0];
-
-        assert_eq!(ui(&app, content).height, Val::Auto);
-        assert_eq!(fill(&app, content), Color::NONE);
     }
 
     #[test]

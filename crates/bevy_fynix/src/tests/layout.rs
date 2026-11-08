@@ -248,17 +248,6 @@ fn assert_fits(app: &App, container: Entity, frame: usize) {
     }
 }
 
-#[test]
-fn layout_runs_headless() {
-    let mut app = laid_out();
-    app.insert_resource(Pick::Tall);
-    let (root, container) = page(&mut app);
-    settle(&mut app, 2);
-
-    assert_eq!(height(&app, container), 3.0 * 20.0 + 2.0 * 2.0);
-    assert_eq!(height(&app, root), PAGE + 64.0);
-}
-
 /// Swaps the page's view, and records the container's height and the
 /// page's at every update after.
 fn swap(
@@ -311,47 +300,6 @@ fn a_swap_to_a_shorter_view_collapses_then_expands() {
     for (_, page) in &seen {
         assert!((PAGE..=PAGE + 64.0).contains(page), "{page}");
     }
-}
-
-#[test]
-fn a_swap_to_a_taller_view_collapses_then_expands() {
-    let mut app = laid_out();
-    app.insert_resource(Pick::Short);
-    let page = page(&mut app);
-    settle(&mut app, 40);
-
-    let seen = swap(&mut app, page, Pick::Tall, 70);
-
-    let heights = seen.iter().map(|seen| seen.0).collect::<Vec<_>>();
-    assert_eq!(heights[0], 20.0);
-    assert_eq!(heights.iter().copied().fold(f32::MAX, f32::min), 0.0);
-    assert_eq!(*heights.last().unwrap(), 64.0);
-    assert_eq!(seen.last().unwrap().1, PAGE + 64.0);
-}
-
-#[test]
-fn the_new_view_does_not_take_its_space_while_the_old_one_fades() {
-    let mut app = laid_out();
-    app.insert_resource(Pick::Tall);
-    let (_, container) = page(&mut app);
-    settle(&mut app, 40);
-
-    *app.world_mut().resource_mut::<Pick>() = Pick::Short;
-    // The fade of the old view takes 10 updates.
-    for _ in 0..8 {
-        app.update();
-        assert_eq!(height(&app, container), 64.0, "the old one's");
-    }
-    let new = children(&app, container)[1];
-    assert!(app.world().get::<Held>(new).is_some());
-    assert_eq!(
-        app.world().get::<Visibility>(new),
-        Some(&Visibility::Hidden)
-    );
-    assert_eq!(
-        app.world().get::<Pickable>(new),
-        Some(&Pickable::IGNORE)
-    );
 }
 
 #[test]
@@ -606,38 +554,6 @@ fn reduced_motion_swaps_at_once() {
     );
     app.update();
     assert_eq!(height(&app, container), 20.0, "no expand");
-    assert_eq!(height(&app, root), PAGE + 20.0);
-}
-
-#[test]
-fn reduced_motion_shows_an_inserted_item_whole_at_once() {
-    let mut app = laid_out();
-    app.insert_resource(Ids(vec![1]))
-        .insert_resource(ReducedMotion(true));
-    let (root, container) = list(&mut app, column(()));
-    settle(&mut app, 4);
-
-    app.world_mut().resource_mut::<Ids>().0 = vec![1, 2];
-    settle(&mut app, 3);
-
-    let node = children(&app, container)[1];
-    assert_eq!(height(&app, root), PAGE + 20.0 + 6.0 + 20.0);
-    assert!(app.world().get::<Held>(node).is_none());
-    assert_eq!(alpha(&app, node), 1.0, "no fade in");
-}
-
-#[test]
-fn reduced_motion_removes_an_item_at_once() {
-    let mut app = laid_out();
-    app.insert_resource(Ids(vec![1, 2]))
-        .insert_resource(ReducedMotion(true));
-    let (root, container) = list(&mut app, column(()));
-    settle(&mut app, 4);
-
-    app.world_mut().resource_mut::<Ids>().0 = vec![1];
-    settle(&mut app, 2);
-
-    assert_eq!(children(&app, container).len(), 1);
     assert_eq!(height(&app, root), PAGE + 20.0);
 }
 

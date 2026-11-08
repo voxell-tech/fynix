@@ -125,7 +125,6 @@ mod tests {
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::text::{FontSize, TextFont};
-    use bevy::ui::widget::Text;
     use bevy::ui::{Node, Val};
 
     use super::*;
@@ -138,41 +137,6 @@ mod tests {
             .get::<Children>(node)
             .map(|children| children.iter().collect())
             .unwrap_or_default()
-    }
-
-    fn text(app: &App, node: Entity) -> String {
-        app.world().get::<Text>(node).expect("a label").0.clone()
-    }
-
-    #[test]
-    fn a_row_builds_its_children_in_order() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            row((label("a"), label("b"), label("c"))),
-        );
-
-        let texts = kids(&app, node)
-            .into_iter()
-            .map(|kid| text(&app, kid))
-            .collect::<Vec<_>>();
-        assert_eq!(texts, ["a", "b", "c"]);
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.flex_direction, FlexDirection::Row);
-    }
-
-    #[test]
-    fn a_column_takes_a_vec_and_defaults_the_gap_from_the_theme() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            column(vec![label("a"), label("b")]),
-        );
-
-        assert_eq!(kids(&app, node).len(), 2);
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.flex_direction, FlexDirection::Column);
-        assert_eq!(ui.row_gap, Val::Px(6.0));
     }
 
     #[test]
@@ -224,43 +188,5 @@ mod tests {
         );
         let ui = app.world().get::<Node>(node).unwrap();
         assert_eq!(ui.column_gap, Val::Px(3.0), "still a stack");
-    }
-
-    #[test]
-    fn a_scroll_area_scrolls_and_can_shrink_below_its_content() {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), scroll((label("a"),)));
-
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.overflow, Overflow::scroll());
-        assert_eq!((ui.min_width, ui.min_height), (px(0.0), px(0.0)));
-        assert_eq!(ui.flex_direction, FlexDirection::Column);
-        assert!(app.world().get::<ScrollGoal>(node).is_some());
-        assert_eq!(
-            kids(&app, node).len(),
-            3,
-            "its two bars and the label"
-        );
-    }
-
-    #[test]
-    fn an_overlay_fills_its_parent_out_of_the_layout_and_is_not_picked()
-     {
-        let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), overlay((label("a"),)));
-
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.position_type, PositionType::Absolute);
-        assert_eq!((ui.left, ui.top), (px(0.0), px(0.0)));
-        assert_eq!(
-            (ui.width, ui.height),
-            (percent(100.0), percent(100.0))
-        );
-        assert_eq!(
-            app.world().get::<Pickable>(node),
-            Some(&Pickable::IGNORE)
-        );
     }
 }

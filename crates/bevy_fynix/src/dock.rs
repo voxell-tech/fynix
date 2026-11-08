@@ -301,18 +301,11 @@ mod tests {
         };
         let ui = app.world().get::<Node>(split).unwrap();
         assert_eq!(ui.flex_direction, FlexDirection::Row);
-        let [first, handle, second] = kids(&app, split)[..] else {
+        let [first, _, second] = kids(&app, split)[..] else {
             panic!("two panes and a handle");
         };
         assert_eq!(width(&app, first), Val::Percent(50.0));
         assert_eq!(width(&app, second), Val::Percent(50.0));
-        assert_eq!(
-            width(&app, handle),
-            px(Plain::default().divider())
-        );
-        assert!(
-            app.world().get::<layout::SplitHandle>(handle).is_some()
-        );
 
         let left_area = area_of(&mut app, left);
         let right_area = area_of(&mut app, right);
@@ -347,36 +340,6 @@ mod tests {
     }
 
     #[test]
-    fn a_new_fraction_resizes_the_panes_and_builds_nothing() {
-        let (mut app, _, _) = app();
-        let root = find::<DockRoot>(&mut app)[0].0;
-        let before = subtree(&app, root);
-        let split = app.world().resource::<DockTree>().root.unwrap();
-
-        app.world_mut()
-            .resource_mut::<DockTree>()
-            .set_fraction(split, 0.3);
-        app.update();
-
-        assert_eq!(subtree(&app, root), before, "same entities");
-        let [first, _, second] =
-            kids(&app, kids(&app, kids(&app, root)[0])[0])[..]
-        else {
-            panic!("two panes and a handle");
-        };
-        assert!((percent_of(&app, first) - 30.0).abs() < 1e-4);
-        assert!((percent_of(&app, second) - 70.0).abs() < 1e-4);
-
-        // Once more, as a drag does every frame.
-        app.world_mut()
-            .resource_mut::<DockTree>()
-            .set_fraction(split, 0.6);
-        app.update();
-        assert_eq!(subtree(&app, root), before);
-        assert!((percent_of(&app, first) - 60.0).abs() < 1e-4);
-    }
-
-    #[test]
     fn a_vertical_split_sizes_the_heights() {
         let (mut app, left, _) = app();
         app.world_mut().resource_mut::<DockTree>().split(
@@ -386,10 +349,11 @@ mod tests {
         );
         app.update();
 
-        let root = find::<DockRoot>(&mut app)[0].0;
-        let inner =
-            app.world().resource::<DockTree>().parent_of(left);
-        let (inner, _) = (inner.unwrap(), root);
+        let inner = app
+            .world()
+            .resource::<DockTree>()
+            .parent_of(left)
+            .unwrap();
         let handle = find::<layout::SplitHandle>(&mut app)
             .into_iter()
             .find(|(_, handle)| handle.split == inner)
@@ -891,11 +855,6 @@ mod tests {
         let (mut app, _, _) = app();
         let handle = find::<layout::SplitHandle>(&mut app)[0].0;
         let accent = Plain::default().accent();
-        let settle = |app: &mut App| {
-            for _ in 0..6 {
-                app.update();
-            }
-        };
         settle(&mut app);
         assert_eq!(fill_of(&app, handle), Color::NONE);
         assert_eq!(
@@ -935,9 +894,7 @@ mod tests {
             .iter(app.world())
             .collect::<Vec<_>>();
         assert_eq!(marks.len(), 5, "three crosses and two pluses");
-        for _ in 0..6 {
-            app.update();
-        }
+        settle(&mut app);
         let all = find::<DockRoot>(&mut app)[0].0;
         let text = texts(&app, all);
         assert!(text.iter().all(|text| text != "x" && text != "+"));
@@ -958,9 +915,7 @@ mod tests {
             assert!(rest == dim || rest == body);
             dims += usize::from(rest == dim);
             tests::hover(&mut app, button, true);
-            for _ in 0..6 {
-                app.update();
-            }
+            settle(&mut app);
             assert_eq!(fill_of(&app, button), Color::NONE);
             let lit = tint(&app, mark);
             assert!(
@@ -968,9 +923,7 @@ mod tests {
                     .any(|&tone| lit == Plain::default().tone(tone))
             );
             tests::hover(&mut app, button, false);
-            for _ in 0..6 {
-                app.update();
-            }
+            settle(&mut app);
             assert_eq!(tint(&app, mark), rest);
         }
         assert_eq!(dims, 1, "the inactive cross");

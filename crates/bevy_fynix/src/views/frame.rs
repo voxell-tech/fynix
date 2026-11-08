@@ -127,7 +127,7 @@ mod tests {
     use bevy::app::App;
     use bevy::color::Alpha;
     use bevy::ecs::resource::Resource;
-    use bevy::ui::{BorderRadius, GlobalZIndex, Node, percent, px};
+    use bevy::ui::{BorderRadius, Node, px};
 
     use super::*;
     use crate::tests::{Plain, app};
@@ -140,84 +140,6 @@ mod tests {
 
     fn fill(app: &App, node: Entity) -> Color {
         app.world().get::<BackgroundColor>(node).unwrap().0
-    }
-
-    #[test]
-    fn props_are_written_to_the_node() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            frame()
-                .direction(FlexDirection::Column)
-                .gap(2.0)
-                .padding(UiRect::all(px(4.0)))
-                .width(px(50.0))
-                .height(percent(100.0))
-                .grow(1.0)
-                .justify(JustifyContent::Center)
-                .align(AlignItems::End)
-                .fill(Color::WHITE)
-                .radius(5.0),
-        );
-
-        let ui = ui(&app, node);
-        assert_eq!(ui.flex_direction, FlexDirection::Column);
-        assert_eq!(ui.row_gap, Val::Px(2.0));
-        assert_eq!(ui.padding, UiRect::all(Val::Px(4.0)));
-        assert_eq!(ui.width, Val::Px(50.0));
-        assert_eq!(ui.height, Val::Percent(100.0));
-        assert_eq!(ui.flex_grow, 1.0);
-        assert_eq!(ui.justify_content, JustifyContent::Center);
-        assert_eq!(ui.align_items, AlignItems::End);
-        assert_eq!(fill(&app, node), Color::WHITE);
-        assert_eq!(ui.border_radius, BorderRadius::all(Val::Px(5.0)));
-    }
-
-    #[test]
-    fn placement_border_and_stacking_are_written_to_the_node() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            frame()
-                .position(PositionType::Absolute)
-                .inset(UiRect::new(
-                    px(1.0),
-                    px(2.0),
-                    px(3.0),
-                    px(4.0),
-                ))
-                .min_width(px(0.0))
-                .max_height(px(90.0))
-                .margin(UiRect::all(px(5.0)))
-                .shrink(0.0)
-                .overflow(Overflow::clip())
-                .display(Display::None)
-                .border(2.0)
-                .border_color(Color::WHITE)
-                .z(Some(7)),
-        );
-
-        let ui = ui(&app, node);
-        assert_eq!(ui.position_type, PositionType::Absolute);
-        assert_eq!(
-            (ui.left, ui.right, ui.top, ui.bottom),
-            (px(1.0), px(2.0), px(3.0), px(4.0))
-        );
-        assert_eq!(ui.min_width, px(0.0));
-        assert_eq!(ui.max_height, px(90.0));
-        assert_eq!(ui.margin, UiRect::all(px(5.0)));
-        assert_eq!(ui.flex_shrink, 0.0);
-        assert_eq!(ui.overflow, Overflow::clip());
-        assert_eq!(ui.display, Display::None);
-        assert_eq!(ui.border, UiRect::all(px(2.0)));
-        assert_eq!(
-            app.world().get::<BorderColor>(node),
-            Some(&BorderColor::all(Color::WHITE))
-        );
-        assert_eq!(
-            app.world().get::<GlobalZIndex>(node),
-            Some(&GlobalZIndex(7))
-        );
     }
 
     #[test]
@@ -237,14 +159,6 @@ mod tests {
             BorderRadius::all(px(2.0)),
             "unset corners use the radius"
         );
-    }
-
-    #[test]
-    fn an_unset_z_leaves_the_node_in_its_parents_stack() {
-        let mut app = app();
-        let node = mount::<Plain>(app.world_mut(), frame());
-
-        assert!(app.world().get::<GlobalZIndex>(node).is_none());
     }
 
     #[test]

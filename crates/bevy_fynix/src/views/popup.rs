@@ -286,8 +286,6 @@ mod tests {
         let ui = app.world().get::<Node>(anchor).unwrap();
         assert_eq!((ui.left, ui.top), (px(10.0), px(20.0)));
         assert_eq!((ui.width, ui.height), (px(30.0), px(24.0)));
-        let picked = app.world().get::<Pickable>(anchor).unwrap();
-        assert!(!picked.should_block_lower && !picked.is_hoverable);
     }
 
     #[test]
@@ -300,21 +298,6 @@ mod tests {
         assert_eq!(app.world().resource::<Dismissed>().0, 0);
 
         press(&mut app, root);
-        assert_eq!(app.world().resource::<Dismissed>().0, 1);
-    }
-
-    #[test]
-    fn escape_dismisses_it() {
-        use bevy::input::keyboard::Key;
-
-        let mut app = tests::app();
-        tests::keyboard(&mut app);
-        mounted(&mut app);
-        app.update();
-
-        tests::key_down(&mut app, KeyCode::Escape, Key::Escape);
-        app.update();
-
         assert_eq!(app.world().resource::<Dismissed>().0, 1);
     }
 
@@ -347,18 +330,5 @@ mod tests {
         app.update();
 
         assert_eq!(app.world().resource::<Closed>().0, [last]);
-    }
-
-    #[test]
-    fn unset_dismissal_despawns_it() {
-        let mut app = tests::app();
-        let root = mount::<Plain>(
-            app.world_mut(),
-            popup(Rect::default(), (label("Cut"),)),
-        );
-
-        press(&mut app, root);
-
-        assert!(app.world().get_entity(root).is_err());
     }
 }

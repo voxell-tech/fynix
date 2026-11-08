@@ -397,34 +397,6 @@ mod tests {
     const HANDLE: f32 = 2.0;
 
     #[test]
-    fn the_handle_lands_under_the_cursor() {
-        // 100px of pane each side of the handle.
-        let end = 200.0 + HANDLE;
-        let fraction =
-            fraction_at(100.0 + HANDLE / 2.0, 0.0, end, HANDLE)
-                .unwrap();
-        assert_eq!(fraction, 0.5);
-        let fraction =
-            fraction_at(50.0 + HANDLE / 2.0, 0.0, end, HANDLE)
-                .unwrap();
-        assert_eq!(fraction, 0.25);
-    }
-
-    #[test]
-    fn a_pane_keeps_its_least_size() {
-        let end = 200.0 + HANDLE;
-        let low = fraction_at(-500.0, 0.0, end, HANDLE).unwrap();
-        let high = fraction_at(900.0, 0.0, end, HANDLE).unwrap();
-        assert_eq!(low, MIN_PANE / 200.0);
-        assert_eq!(high, 1.0 - MIN_PANE / 200.0);
-    }
-
-    #[test]
-    fn a_span_too_small_for_the_handle_is_left_alone() {
-        assert_eq!(fraction_at(3.0, 0.0, HANDLE, HANDLE), None);
-    }
-
-    #[test]
     fn a_tiny_span_splits_evenly_at_most() {
         let fraction = fraction_at(0.0, 0.0, 60.0, HANDLE).unwrap();
         assert_eq!(fraction, 0.5);

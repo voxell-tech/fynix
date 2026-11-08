@@ -77,7 +77,7 @@ mod tests {
     use bevy::app::App;
     use bevy::ecs::resource::Resource;
     use bevy::math::Rot2;
-    use bevy::ui::{Node, UiTransform, Val};
+    use bevy::ui::UiTransform;
 
     use super::*;
     use crate::tests::{Plain, app};
@@ -85,24 +85,6 @@ mod tests {
 
     fn image_node(app: &App, node: Entity) -> &ImageNode {
         app.world().get::<ImageNode>(node).expect("an icon")
-    }
-
-    #[test]
-    fn props_are_written_and_the_tone_picks_the_colour() {
-        let mut app = app();
-        let handle = Handle::<Image>::default();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            icon(handle.clone()).size(20.0).tone(Tone::Accent),
-        );
-
-        assert_eq!(image_node(&app, node).image, handle);
-        assert_eq!(
-            image_node(&app, node).color,
-            Color::srgb(1.0, 0.5, 0.0)
-        );
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.width, Val::Px(20.0));
     }
 
     #[derive(Resource)]

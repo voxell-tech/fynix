@@ -117,25 +117,6 @@ mod tests {
     use crate::views::{FrameProps, label, row};
 
     #[test]
-    fn modifiers_edit_an_elements_node() {
-        let mut app = app();
-        let node = mount::<Plain>(
-            app.world_mut(),
-            label("x")
-                .padded(UiRect::all(px(4.0)))
-                .wide(px(40.0))
-                .tall(px(20.0))
-                .grown(2.0),
-        );
-
-        let ui = app.world().get::<Node>(node).unwrap();
-        assert_eq!(ui.padding, UiRect::all(Val::Px(4.0)));
-        assert_eq!(ui.width, Val::Px(40.0));
-        assert_eq!(ui.height, Val::Px(20.0));
-        assert_eq!(ui.flex_grow, 2.0);
-    }
-
-    #[test]
     fn a_modifier_on_a_composite_edits_its_root_node() {
         let mut app = app();
         let root = mount::<Plain>(

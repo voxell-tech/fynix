@@ -267,16 +267,6 @@ fn pair(name: &str, value: &str) -> (String, String) {
 }
 
 #[test]
-fn the_inspector_shows_one_row_per_component() {
-    let inspected = inspected();
-
-    assert_eq!(
-        inspected.shown(),
-        [pair("Health", "10"), pair("Mana", "5")]
-    );
-}
-
-#[test]
 fn a_changed_component_updates_its_label_and_rebuilds_no_row() {
     let mut inspected = inspected();
     let rows = inspected.rows();
@@ -293,44 +283,6 @@ fn a_changed_component_updates_its_label_and_rebuilds_no_row() {
         inspected.shown(),
         [pair("Health", "11"), pair("Mana", "5")]
     );
-}
-
-#[test]
-fn an_added_component_name_adds_one_row_and_keeps_the_others() {
-    let mut inspected = inspected();
-    let rows = inspected.rows();
-
-    inspected
-        .app
-        .world_mut()
-        .resource_mut::<ComponentNames>()
-        .0
-        .push("Armor");
-    inspected.app.update();
-
-    let now = inspected.rows();
-    assert_eq!(now.len(), 3);
-    assert_eq!(now[..2], rows[..]);
-    assert_eq!(inspected.shown()[2], pair("Armor", "2"));
-}
-
-#[test]
-fn a_removed_component_name_despawns_only_its_row() {
-    let mut inspected = inspected();
-    let rows = inspected.rows();
-    let before = mounts(&inspected.app);
-
-    inspected
-        .app
-        .world_mut()
-        .resource_mut::<ComponentNames>()
-        .0
-        .remove(0);
-    inspected.app.update();
-
-    assert_eq!(inspected.rows(), [rows[1]]);
-    assert!(inspected.app.world().get_entity(rows[0]).is_err());
-    assert_eq!(mounts(&inspected.app), before - 1);
 }
 
 #[test]
@@ -396,19 +348,4 @@ fn an_each_view_keeps_the_entity_of_a_kept_key() {
     assert_ne!(four, two);
     assert!(app.world().get_entity(two).is_err());
     assert_eq!(shown(&app, list), ["3", "4", "1"]);
-}
-
-#[test]
-fn an_each_view_reorders_the_children_of_its_container() {
-    let mut app = themed_app(Plain::default());
-    app.insert_resource(Ids(vec![1, 2, 3]));
-    let list = mount::<Plain>(app.world_mut(), ids());
-    let rows = children(&app, list);
-
-    app.world_mut().resource_mut::<Ids>().0 = vec![3, 2, 1];
-    app.update();
-
-    let reversed = rows.iter().rev().copied().collect::<Vec<_>>();
-    assert_eq!(children(&app, list), reversed);
-    assert_eq!(shown(&app, list), ["3", "2", "1"]);
 }

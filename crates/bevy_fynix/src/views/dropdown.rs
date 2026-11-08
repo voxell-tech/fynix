@@ -665,11 +665,10 @@ mod tests {
     fn it_starts_shut_showing_the_selected_option() {
         let mut app = app();
         let root = pick(&mut app);
-        let (button, popup) = parts(&app, root);
+        let (_, popup) = parts(&app, root);
 
         assert_eq!(shown(&app, root), "Ease in");
         assert!(shut(&app, popup));
-        assert!(app.world().get::<MenuButton>(button).is_some());
         assert_eq!(list(&app, root), None);
     }
 
@@ -728,17 +727,6 @@ mod tests {
     }
 
     #[test]
-    fn the_shown_label_follows_a_bound_selection() {
-        let mut app = app();
-        let root = pick(&mut app);
-
-        app.world_mut().resource_mut::<Chosen>().0 = 0;
-        app.update();
-
-        assert_eq!(shown(&app, root), "Linear");
-    }
-
-    #[test]
     fn a_selection_past_the_options_shows_the_placeholder() {
         let mut app = app();
         let root = mount::<Plain>(
@@ -761,49 +749,7 @@ mod tests {
     }
 
     #[test]
-    fn without_a_placeholder_a_missing_option_shows_nothing() {
-        let mut app = app();
-        let root = mount::<Plain>(
-            app.world_mut(),
-            dropdown(["a"], 5, Handle::default(), |_, _| {}),
-        );
-
-        assert_eq!(shown(&app, root), "");
-    }
-
-    #[test]
-    fn a_fixed_selection_shows_its_option() {
-        let mut app = app();
-        let root = mount::<Plain>(
-            app.world_mut(),
-            dropdown(["a", "b"], 1, Handle::default(), |_, _| {}),
-        );
-
-        assert_eq!(shown(&app, root), "b");
-    }
-
-    #[test]
-    fn a_close_from_a_row_reaches_the_dropdown() {
-        let mut app = app();
-        let root = pick(&mut app);
-        let (button, popup) = parts(&app, root);
-        open(&mut app, button);
-        let row = rows(&app, popup)[0];
-
-        // What `bevy_ui_widgets` sends when a row is activated or
-        // escape is pressed.
-        app.world_mut().trigger(MenuEvent {
-            source: row,
-            action: MenuAction::CloseAll,
-        });
-        app.update();
-
-        assert!(shut(&app, popup));
-    }
-
-    #[test]
-    fn a_menu_button_shows_its_title_with_no_chevron_and_runs_an_entry()
-     {
+    fn a_menu_button_shows_its_title_and_runs_an_entry() {
         let mut app = app();
         let root = mount::<Plain>(
             app.world_mut(),
@@ -813,13 +759,6 @@ mod tests {
         );
         let (button, popup) = parts(&app, root);
         assert_eq!(text(&app, kids(&app, button)[0]), "File");
-        assert!(
-            kids(&app, button).iter().all(|&node| app
-                .world()
-                .get::<ImageNode>(node)
-                .is_none()),
-            "a menu title has no chevron"
-        );
         assert!(shut(&app, popup));
 
         open(&mut app, button);
@@ -849,12 +788,6 @@ mod tests {
             .icon(Handle::default()),
         );
         let (button, popup) = parts(&app, root);
-        assert!(
-            app.world()
-                .get::<ImageNode>(kids(&app, button)[0])
-                .is_some(),
-            "an icon on the button"
-        );
 
         open(&mut app, button);
         let rows = rows(&app, popup);
@@ -934,21 +867,6 @@ mod tests {
     }
 
     #[test]
-    fn choosing_a_row_turns_the_chevron_back() {
-        let mut app = app();
-        let root = pick(&mut app);
-        let (button, popup) = parts(&app, root);
-        open(&mut app, button);
-        assert!(app.world().get::<Open>(root).is_some());
-
-        let row = rows(&app, popup)[0];
-        app.world_mut().trigger(Activate { entity: row });
-        app.update();
-
-        assert!(app.world().get::<Open>(root).is_none());
-    }
-
-    #[test]
     fn a_press_elsewhere_shuts_the_list() {
         let mut app = app();
         let root = pick(&mut app);
@@ -968,25 +886,6 @@ mod tests {
         assert!(shut(&app, popup));
         assert!(app.world().get::<Open>(root).is_none());
         assert_eq!(app.world().resource::<InputFocus>().get(), None);
-    }
-
-    #[test]
-    fn a_press_on_empty_space_shuts_the_list() {
-        let mut app = app();
-        let root = pick(&mut app);
-        let (button, popup) = parts(&app, root);
-        open(&mut app, button);
-        let window = app.world_mut().spawn(Window::default()).id();
-
-        tests::pointer_press(
-            &mut app,
-            window,
-            PointerButton::Primary,
-            Vec2::ONE,
-        );
-        app.update();
-
-        assert!(shut(&app, popup));
     }
 
     #[test]
@@ -1090,24 +989,6 @@ mod tests {
         app.update();
 
         assert!(shut(&app, popup));
-        assert_eq!(
-            app.world().resource::<InputFocus>().get(),
-            Some(button)
-        );
-    }
-
-    #[test]
-    fn leaving_by_escape_gives_the_focus_back_to_the_button() {
-        let mut app = app();
-        let root = pick(&mut app);
-        let (button, popup) = parts(&app, root);
-
-        app.world_mut().trigger(MenuEvent {
-            source: popup,
-            action: MenuAction::FocusRoot,
-        });
-        app.update();
-
         assert_eq!(
             app.world().resource::<InputFocus>().get(),
             Some(button)

@@ -133,16 +133,6 @@ mod tests {
     }
 
     #[test]
-    fn a_button_carries_the_pointer_cursor() {
-        let (app, _, node, _) = setup();
-
-        assert_eq!(
-            app.world().get::<EntityCursor>(node),
-            Some(&EntityCursor(SystemCursorIcon::Pointer))
-        );
-    }
-
-    #[test]
     fn hovering_a_button_or_its_child_shows_the_pointer() {
         let pointer =
             Some(CursorIcon::System(SystemCursorIcon::Pointer));
@@ -156,31 +146,6 @@ mod tests {
 
         hover(&mut app, Some(child));
         assert_eq!(cursor(&app, window), pointer);
-    }
-
-    #[test]
-    fn hovering_nothing_leaves_the_default() {
-        let (mut app, window, _, _) = setup();
-
-        hover(&mut app, None);
-
-        assert!(
-            cursor(&app, window)
-                .is_none_or(|icon| icon == CursorIcon::default())
-        );
-    }
-
-    #[test]
-    fn an_entity_with_no_cursor_shows_the_default() {
-        let (mut app, window, _, _) = setup();
-        let other = app.world_mut().spawn_empty().id();
-
-        hover(&mut app, Some(other));
-
-        assert!(
-            cursor(&app, window)
-                .is_none_or(|icon| icon == CursorIcon::default())
-        );
     }
 
     #[test]

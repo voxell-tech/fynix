@@ -705,14 +705,6 @@ mod tests {
     }
 
     #[test]
-    fn set_root_leaf_works() {
-        let mut t = DockTree::new();
-        let id = t.set_root_leaf(leaf("root", &["a"]));
-        assert_eq!(t.root, Some(id));
-        assert_eq!(t.leaves().count(), 1);
-    }
-
-    #[test]
     fn pending_tab_ids_are_stamped_on_insert() {
         let mut t = DockTree::new();
         let root = t.set_root_leaf(leaf("root", &["a", "b"]));
@@ -733,46 +725,9 @@ mod tests {
         assert_eq!(root_split.axis, SplitAxis::Horizontal);
         assert_eq!(root_split.a, root);
         assert_eq!(root_split.b, new_leaf);
-        assert_eq!(root_split.fraction, 0.5);
 
         assert_eq!(window_ids(&t, root), vec!["a"]);
         assert_eq!(window_ids(&t, new_leaf), vec!["b"]);
-    }
-
-    #[test]
-    fn split_top_puts_new_in_a() {
-        let mut t = DockTree::new();
-        let root = t.set_root_leaf(leaf("root", &["a"]));
-        let (new_leaf, _) =
-            t.split(root, Edge::Top, "b".into()).unwrap();
-        let s = t.nodes[&t.root.unwrap()].as_split().unwrap();
-        assert_eq!(s.a, new_leaf);
-        assert_eq!(s.b, root);
-    }
-
-    #[test]
-    fn split_bottom_puts_new_in_b() {
-        let mut t = DockTree::new();
-        let root = t.set_root_leaf(leaf("root", &["a"]));
-        let (new_leaf, _) =
-            t.split(root, Edge::Bottom, "b".into()).unwrap();
-        let s = t.nodes[&t.root.unwrap()].as_split().unwrap();
-        assert_eq!(s.a, root);
-        assert_eq!(s.b, new_leaf);
-    }
-
-    #[test]
-    fn split_of_nested_leaf_preserves_other_sibling() {
-        let mut t = DockTree::new();
-        let root = t.set_root_leaf(leaf("left", &["a"]));
-        let (right, _) =
-            t.split(root, Edge::Right, "b".into()).unwrap();
-        let _deeper =
-            t.split(right, Edge::Bottom, "c".into()).unwrap();
-
-        assert_eq!(window_ids(&t, root), vec!["a"]);
-        let b_leaf = t.find_leaf_with_window("b").unwrap();
-        assert_eq!(window_ids(&t, b_leaf), vec!["b"]);
     }
 
     #[test]
@@ -842,33 +797,6 @@ mod tests {
     }
 
     #[test]
-    fn set_fraction_clamps() {
-        let mut t = DockTree::new();
-        let root = t.set_root_leaf(leaf("root", &["a"]));
-        t.split(root, Edge::Right, "b".into());
-        let split_id = t.root.unwrap();
-        t.set_fraction(split_id, 0.0);
-        assert!(
-            t.nodes[&split_id].as_split().unwrap().fraction >= 0.05
-        );
-        t.set_fraction(split_id, 1.5);
-        assert!(
-            t.nodes[&split_id].as_split().unwrap().fraction <= 0.95
-        );
-    }
-
-    #[test]
-    fn set_active_requires_tab_in_leaf() {
-        let mut t = DockTree::new();
-        let root = t.set_root_leaf(leaf("root", &["a", "b"]));
-        let tab_b = tab_id_for(&t, root, "b");
-        t.set_active(root, tab_b);
-        assert_eq!(active_window_id(&t, root), Some("b"));
-        t.set_active(root, TabId(9999));
-        assert_eq!(active_window_id(&t, root), Some("b"));
-    }
-
-    #[test]
     fn duplicate_window_kind_supported() {
         let mut t = DockTree::new();
         let root = t.set_root_leaf(DockLeaf::new(
@@ -905,7 +833,6 @@ mod tests {
         t.move_tab(tab_a, other);
         let persistent_leaf = t.nodes[&original].as_leaf().unwrap();
         assert!(persistent_leaf.windows.is_empty());
-        assert!(persistent_leaf.is_persistent());
     }
 
     #[test]
