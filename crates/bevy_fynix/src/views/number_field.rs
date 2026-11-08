@@ -610,6 +610,10 @@ mod tests {
         type_into(&mut app, input, "1");
         enter(&mut app);
         assert_eq!(count::<u64>(&app), 2);
+
+        type_into(&mut app, input, "70");
+        enter(&mut app);
+        assert_eq!(count::<u64>(&app), 9);
     }
 
     #[test]
