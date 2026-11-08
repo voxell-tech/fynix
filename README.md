@@ -10,7 +10,7 @@
 **Fynix** is a backend agnostic reactive view tree, styled the way
 [Typst](https://typst.app) styles a document with set and show rules.
 
-![showcase](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/showcase_tour.webp)
+https://github.com/user-attachments/assets/0138201f-3217-4d29-9e03-88c31fef3efd
 
 ## Features
 
