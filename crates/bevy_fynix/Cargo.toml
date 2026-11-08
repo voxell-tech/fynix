@@ -28,7 +28,7 @@ default = ["std"]
 std = ["fynix/std"]
 
 [dev-dependencies]
-# Only for the windowed `gallery` example; the library and its tests
+# Only for the windowed examples; the library and its tests
 # build with the features above alone.
 bevy = { workspace = true, features = ["2d", "ui"] }
 

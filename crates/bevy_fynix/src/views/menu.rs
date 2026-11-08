@@ -44,10 +44,11 @@ use crate::tokens::{
     TextTokens, Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
-use crate::views::label::label;
+use crate::views::icon::icon;
 use crate::views::stack::{column, row};
 use crate::{
     AnyView, Bevy, Cx, Hovered, ScopedExt, Styled, View, ViewSeq,
+    icons,
 };
 
 /// Where a menu sits in the window's stack, above the interface.
@@ -227,7 +228,14 @@ where
             cx.under(node, |cx| {
                 cx.build(self.content);
                 cx.build(row(()).grow(1.0));
-                cx.build(label(">").tone(Tone::Dim));
+                // The up-pointing chevron, turned to point right.
+                let size = cx.theme().small_size();
+                cx.build(
+                    icon(icons::CHEVRON)
+                        .size(size)
+                        .rotation(90.0)
+                        .tone(Tone::Dim),
+                );
             });
             let popup = move |_: &()| {
                 let rows = items();
