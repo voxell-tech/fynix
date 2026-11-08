@@ -2,6 +2,7 @@
 
 use bevy::color::Color;
 use bevy::ui::{AlignItems, FlexDirection, UiRect, percent, px};
+use bevy_fynix::icons::PLUS;
 use bevy_fynix::tokens::{
     Motion, SpacingTokens, SurfaceTokens, Tone,
 };
@@ -83,7 +84,7 @@ fn looks() -> impl View<Bevy, Monokai> {
                 label("Tint"),
             )))
             .rules(tint),
-            button(icon(icons::PLUS)).rules(icon_button),
+            button(icon(PLUS)).rules(icon_button),
             button(label("Primary")).rules(primary),
             button(label("Danger")).rules(danger),
             button(label("Custom")).rules(chunky().bundle()),

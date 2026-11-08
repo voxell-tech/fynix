@@ -4,6 +4,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
 use bevy::ecs::world::World;
 use bevy::ui::{UiRect, percent, px};
+use bevy_fynix::icons::CHEVRON;
 use bevy_fynix::prop::Prop;
 use bevy_fynix::tokens::{Motion, Tone};
 use bevy_fynix::views::{
@@ -18,7 +19,7 @@ use bevy_fynix::{
 
 use crate::common::Monokai;
 use crate::timeline::EASINGS;
-use crate::{Easing, FollowLog, Page, Shape, icons};
+use crate::{Easing, FollowLog, Page, Shape};
 
 pub fn inspector() -> AnyView<Bevy, Monokai> {
     scroll((
@@ -129,7 +130,7 @@ fn shape_page() -> impl View<Bevy, Monokai> {
             dropdown(
                 EASINGS,
                 resource::<Easing, _>(|easing| easing.0),
-                icons::CHEVRON,
+                CHEVRON,
                 |world, at| world.resource_mut::<Easing>().0 = at,
             )
             .width(px(140.0)),

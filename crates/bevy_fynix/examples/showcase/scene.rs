@@ -2,6 +2,7 @@
 
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, JustifyContent, UiRect, percent, px};
+use bevy_fynix::icons::PLUS;
 use bevy_fynix::tokens::{Motion, Tone};
 use bevy_fynix::views::{
     Axis, BehaviorExt, ContextMenuExt, FrameProps, Icon, Label,
@@ -35,7 +36,7 @@ pub fn scene() -> AnyView<Bevy, Monokai> {
         divider(Axis::Horizontal),
         row((
             label("Layers").tone(Tone::Dim),
-            tinted_icon(icons::PLUS)
+            tinted_icon(PLUS)
                 .on_activate(commands::run(commands::NEW_LAYER))
                 .tooltip(|| label("New layer")),
         ))

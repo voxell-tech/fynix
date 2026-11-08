@@ -7,16 +7,22 @@ use bevy::ui::{AlignItems, Display, FlexDirection, percent};
 
 use crate::prop::component;
 use crate::tokens::{
-    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
 use crate::views::{
-    BehaviorExt, FrameProps, button, frame, label, row, tint,
+    BehaviorExt, FrameProps, button, frame, icon, row, tint,
 };
-use crate::{Bevy, Cx, ScopedExt, View};
+use crate::{Bevy, Cx, ScopedExt, View, icons};
 
 /// On a [`Foldable`]'s root node while its body is shown.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Open;
+
+/// How far the up-pointing chevron turns while the body is shown, in
+/// degrees, so it points down.
+const OPEN_TURN: f32 = 180.0;
+/// How far it turns while the body is folded, so it points right.
+const SHUT_TURN: f32 = 90.0;
 
 /// A chevron and `header` in a row, over a `body` shown while the
 /// root node holds [`Open`]. The chevron is a [`tint`] button.
@@ -71,12 +77,17 @@ where
             cx.world.entity_mut(root).insert(Open);
         }
         cx.under(root, |cx| {
-            let chevron =
-                button(label(component::<Open, _>(root, |open| {
-                    if open.is_some() { "v" } else { ">" }.to_string()
-                })))
-                .rules(tint)
-                .on_activate(move |world| toggle(world, root));
+            let turn = component::<Open, _>(root, |open| {
+                if open.is_some() { OPEN_TURN } else { SHUT_TURN }
+            });
+            let chevron = button(
+                icon(icons::CHEVRON)
+                    .size(cx.theme().small_size())
+                    .rotation(turn)
+                    .transition(Motion::Interact),
+            )
+            .rules(tint)
+            .on_activate(move |world| toggle(world, root));
             cx.build(
                 row((chevron, self.header)).align(AlignItems::Center),
             );

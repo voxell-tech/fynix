@@ -82,8 +82,8 @@ fn main() {
         ))
         .insert_resource(Theme(Monokai))
         .insert_resource(DockIcons {
-            close: Some(icons::CLOSE),
-            add: Some(icons::PLUS),
+            close: Some(bevy_fynix::icons::CLOSE),
+            add: Some(bevy_fynix::icons::PLUS),
         })
         .insert_resource(Clip {
             playing: true,

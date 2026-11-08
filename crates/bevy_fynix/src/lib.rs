@@ -3,6 +3,7 @@
 pub mod backend;
 pub mod cursor;
 pub mod dock;
+pub mod icons;
 pub mod leave;
 pub mod modifier;
 pub mod mounted;
@@ -114,6 +115,7 @@ impl Plugin for CorePlugin {
             app.add_plugins(CursorPlugin);
         }
         app.add_plugins((
+            icons::plugin,
             shortcut::plugin,
             scroll::plugin,
             views::popup_plugin,

@@ -36,6 +36,8 @@ on.
 - `popup`: a menu surface hung off a point, over a backdrop that
   dismisses it when pressed.
 - `DockPlugin`: split panes with tabbed areas, from a `DockTree`.
+- `icons`: line icons drawn in code, a chevron, a cross and a plus,
+  and `line_icon` to draw more.
 - `style`: builds a look of your own. See [Styling](#styling).
 
 ## Quick Start
