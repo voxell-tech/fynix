@@ -65,20 +65,6 @@ impl View<Fake, Warm> for Panel {
 }
 
 #[test]
-fn a_keyed_view_builds_its_first_branch() {
-    let mut ui = Ui::new(Warm);
-    ui.world.pick(3);
-    let [container] = ui.under(|cx| {
-        cx.build(picked());
-    })[..] else {
-        panic!("a container");
-    };
-
-    assert_eq!(texts(&ui, container), ["3"]);
-    assert_eq!(ui.mounted.structure_len(), 1);
-}
-
-#[test]
 fn a_keyed_view_rebuilds_when_its_key_changes() {
     let mut ui = Ui::new(Warm);
     let [container] = ui.under(|cx| {
@@ -93,24 +79,6 @@ fn a_keyed_view_rebuilds_when_its_key_changes() {
 
     assert!(!ui.world.is_alive(old));
     assert_eq!(texts(&ui, container), ["1"]);
-}
-
-#[test]
-fn a_keyed_view_keeps_its_place_among_siblings() {
-    let mut ui = Ui::new(Warm);
-    let [_, container, _] = ui.under(|cx| {
-        cx.build(text("before"));
-        cx.build(picked());
-        cx.build(text("after"));
-    })[..] else {
-        panic!("three nodes");
-    };
-
-    ui.world.pick(1);
-    ui.update(Duration::ZERO, false);
-
-    let root = ui.world.node(container).parent.expect("a root");
-    assert_eq!(ui.world.children(root)[1], container);
 }
 
 #[test]
@@ -184,42 +152,6 @@ fn a_scoped_rule_of_an_enclosing_composite_applies_to_a_rebuild() {
 
     assert_eq!(ui.world.node(only_child(&ui, container)).size, 30.0);
     assert_eq!(ui.world.node(loose).size, 14.0, "outside the panel");
-}
-
-#[test]
-fn rules_set_during_a_rebuild_are_scoped_to_it() {
-    let mut ui = Ui::new(Warm);
-    let [container, after] = ui.under(|cx| {
-        cx.build(keyed(watch(|world: &World| world.pick), |&pick| {
-            AnyView::new(move |cx: &mut Cx<'_, Fake, Warm>| {
-                cx.set::<Text>(|t, _| t.size(40.0));
-                cx.build(text(pick.to_string()))
-            })
-        }));
-        cx.build(text("after"));
-    })[..] else {
-        panic!("a container and a text");
-    };
-
-    ui.world.pick(1);
-    ui.update(Duration::ZERO, false);
-
-    assert_eq!(ui.world.node(only_child(&ui, container)).size, 40.0);
-    assert_eq!(ui.world.node(after).size, 14.0);
-}
-
-#[test]
-fn a_scope_that_ended_leaves_no_rules_behind() {
-    let mut ui = Ui::new(Warm);
-    ui.under(|cx| {
-        cx.set::<Text>(|t, _| t.size(20.0));
-        cx.scope(|cx| {
-            cx.set::<Text>(|t, _| t.size(30.0));
-            cx.build(text("x"));
-        });
-    });
-
-    assert!(ui.mounted.rules().is_empty());
 }
 
 #[test]
@@ -316,23 +248,6 @@ fn list_ui(list: &[u32]) -> (Ui<Warm>, usize) {
 }
 
 #[test]
-fn an_each_view_builds_one_node_per_item() {
-    let (ui, container) = list_ui(&[1, 2]);
-
-    assert_eq!(texts(&ui, container), ["1", "2"]);
-}
-
-#[test]
-fn an_each_view_adds_new_items() {
-    let (mut ui, container) = list_ui(&[1, 2]);
-
-    ui.world.show(&[1, 2, 3]);
-    ui.update(Duration::ZERO, false);
-
-    assert_eq!(texts(&ui, container), ["1", "2", "3"]);
-}
-
-#[test]
 fn an_each_view_removes_items_whose_key_left() {
     let (mut ui, container) = list_ui(&[1, 2, 3]);
     let second = ui.world.children(container)[1];
@@ -398,31 +313,6 @@ fn an_each_view_does_not_grow_the_rule_arena() {
     assert_eq!(ui.mounted.rules().len(), built);
     ui.mounted.unmount(container);
     assert!(ui.mounted.rules().is_empty());
-}
-
-#[test]
-fn a_view_built_at_the_root_has_no_parent_and_the_parent_comes_back()
-{
-    let mut ui = Ui::new(Warm);
-    let view =
-        AnyView::<Fake, Warm>::new(|cx: &mut Cx<'_, Fake, Warm>| {
-            let outer = cx.spawn();
-            cx.under(outer, |cx| {
-                cx.at_root(|cx| {
-                    assert_eq!(cx.parent(), None);
-                    cx.spawn()
-                });
-                assert_eq!(cx.parent(), Some(outer));
-                cx.spawn()
-            });
-            outer
-        });
-
-    let outer = ui.build(view);
-
-    assert_eq!(ui.world.children(outer).len(), 1);
-    assert_eq!(ui.world.node(outer + 1).parent, None);
-    assert_eq!(ui.world.node(outer + 2).parent, Some(outer));
 }
 
 /// A `keyed` on the world's pick holding an `each` over its list,

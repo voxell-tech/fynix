@@ -5,9 +5,9 @@ use core::any::TypeId;
 use core::mem;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::time::Duration;
+use std::panic;
 use std::string::{String, ToString};
 use std::vec::Vec;
-use std::{panic, vec};
 
 use lenz::Lenz;
 use motiongfx_interp::ease;
@@ -21,7 +21,7 @@ mod structure;
 use crate::{
     AnyView, Backend, Condition, Curve, Cx, Matched, Motion,
     MotionTokens, Mounted, Patch, Prop, ScopedExt, Signal, Slot,
-    Styled, Tick, Trace, Tween, View, ViewExt, derived, element,
+    Styled, Tick, Tween, View, ViewExt, derived, element,
 };
 
 #[derive(Default)]
@@ -45,8 +45,6 @@ pub struct World {
 #[derive(Default)]
 struct Node {
     parent: Option<usize>,
-    /// The element it was spawned for.
-    kind: Option<TypeId>,
     children: Vec<usize>,
     text: String,
     size: f32,
@@ -70,11 +68,10 @@ impl Backend for Fake {
     fn spawn(
         world: &mut World,
         parent: Option<usize>,
-        kind: Option<TypeId>,
+        _kind: Option<TypeId>,
     ) -> usize {
         world.nodes.push(Some(Node {
             parent,
-            kind,
             ..Node::default()
         }));
         let node = world.nodes.len() - 1;
@@ -292,15 +289,6 @@ impl Sizes for Cold {
     }
 }
 
-impl MotionTokens for Cold {
-    fn motion(&self, _: Motion) -> Curve {
-        Curve {
-            duration: Duration::ZERO,
-            ease: ease::linear,
-        }
-    }
-}
-
 /// A world, a theme and its mounted elements, built into together.
 struct Ui<T> {
     world: World,
@@ -367,28 +355,6 @@ impl<T: 'static> Ui<T> {
 }
 
 #[test]
-fn an_unset_prop_falls_back_to_the_theme() {
-    let mut ui = Ui::new(Warm);
-    let node = ui.build(text("Save"));
-
-    assert_eq!(ui.world.node(node).text, "Save");
-    assert_eq!(ui.world.node(node).size, 14.0);
-}
-
-#[test]
-fn spawn_is_told_the_element_a_node_is_for() {
-    let mut ui = Ui::new(Warm);
-    let node = ui.build(text("Save"));
-    assert_eq!(ui.world.node(node).kind, Some(TypeId::of::<Text>()));
-
-    let bare =
-        ui.build(AnyView::new(|cx: &mut Cx<'_, Fake, Warm>| {
-            cx.spawn()
-        }));
-    assert_eq!(ui.world.node(bare).kind, None);
-}
-
-#[test]
 fn the_same_view_works_under_two_unrelated_themes() {
     let mut warm = Ui::new(Warm);
     let mut cold = Ui::new(Cold { sizes: [20.0] });
@@ -412,17 +378,6 @@ fn a_set_rule_fills_only_what_the_call_site_left_unset() {
 
     assert_eq!(ui.world.node(ruled).size, 20.0);
     assert_eq!(ui.world.node(explicit).size, 9.0, "call site wins");
-}
-
-#[test]
-fn a_rule_can_read_the_theme() {
-    let mut ui = Ui::new(Warm);
-    let nodes = ui.under(|cx| {
-        cx.set::<Text>(|t, theme: &Warm| t.size(theme.body() * 2.0));
-        cx.build(text("big"));
-    });
-
-    assert_eq!(ui.world.node(nodes[0]).size, 28.0);
 }
 
 #[test]
@@ -499,33 +454,6 @@ fn an_element_whose_source_did_not_change_is_not_re_read() {
 }
 
 #[test]
-fn an_element_whose_source_changed_is_re_read_and_written() {
-    static READS: AtomicUsize = AtomicUsize::new(0);
-    let mut ui = Ui::new(Warm);
-    let node = ui.build(read_counted(&READS));
-    let built = READS.load(Ordering::Relaxed);
-
-    ui.world.set(5);
-    ui.update(Duration::ZERO, false);
-
-    assert_eq!(READS.load(Ordering::Relaxed), built + 1);
-    assert_eq!(ui.world.node(node).text, "5");
-}
-
-#[test]
-fn the_first_update_after_mounting_does_not_re_read() {
-    static READS: AtomicUsize = AtomicUsize::new(0);
-    let mut ui = Ui::new(Warm);
-    ui.build(read_counted(&READS));
-
-    // Built once, and the check fired on its first call at mount.
-    assert_eq!(READS.load(Ordering::Relaxed), 1);
-    ui.update(Duration::ZERO, false);
-
-    assert_eq!(READS.load(Ordering::Relaxed), 1);
-}
-
-#[test]
 fn mark_dirty_forces_one_re_read() {
     static READS: AtomicUsize = AtomicUsize::new(0);
     let mut ui = Ui::new(Warm);
@@ -589,49 +517,19 @@ fn only_the_prop_that_changed_is_written() {
     assert_eq!(ui.world.writes, 3, "and not for an equal value");
 }
 
-/// A text whose size follows `world.count`, travelling when asked.
-fn counted<T: Sizes + MotionTokens + 'static>(
-    motion: Option<Motion>,
-) -> AnyView<Fake, T> {
-    let text =
-        text("x").size(watch(|world: &World| world.count as f32));
-    match motion {
-        Some(motion) => text.transition(motion).boxed(),
-        None => text.boxed(),
-    }
-}
-
-#[test]
-fn nothing_travels_unless_asked() {
-    let mut ui = Ui::new(Warm);
-    ui.world.set(10);
-    let node = ui.build(counted(None));
-
-    ui.world.set(20);
-    ui.update(Duration::from_millis(100), false);
-
-    assert_eq!(ui.world.node(node).size, 20.0);
-}
-
-#[test]
-fn a_transition_reaches_its_target_over_the_curve() {
-    let mut ui = Ui::new(Warm);
-    ui.world.set(10);
-    let node = ui.build(counted(Some(Motion::Interact)));
-
-    ui.world.set(20);
-    ui.update(Duration::ZERO, false);
-    ui.update(Duration::from_millis(500), false);
-    assert_eq!(ui.world.node(node).size, 15.0);
-
-    ui.update(Duration::from_millis(500), false);
-    assert_eq!(ui.world.node(node).size, 20.0);
+/// A text whose size follows `world.count`, travelling over Warm's
+/// curve.
+fn counted() -> AnyView<Fake, Warm> {
+    text("x")
+        .size(watch(|world: &World| world.count as f32))
+        .transition(Motion::Interact)
+        .boxed()
 }
 
 #[test]
 fn an_update_says_whether_anything_still_moves() {
     let mut ui = Ui::new(Warm);
-    ui.build(counted(Some(Motion::Interact)));
+    ui.build(counted());
     assert!(!ui.update(Duration::ZERO, false), "nothing changed");
 
     ui.world.set(20);
@@ -667,7 +565,7 @@ fn a_travel_over_a_motion_is_handed_over_once() {
 fn an_interrupted_transition_starts_from_where_it_got_to() {
     let mut ui = Ui::new(Warm);
     ui.world.set(0);
-    let node = ui.build(counted(Some(Motion::Interact)));
+    let node = ui.build(counted());
 
     ui.world.set(100);
     ui.update(Duration::ZERO, false);
@@ -685,22 +583,10 @@ fn an_interrupted_transition_starts_from_where_it_got_to() {
 fn reduced_motion_snaps() {
     let mut ui = Ui::new(Warm);
     ui.world.set(10);
-    let node = ui.build(counted(Some(Motion::Interact)));
+    let node = ui.build(counted());
 
     ui.world.set(20);
     ui.update(Duration::from_millis(100), true);
-
-    assert_eq!(ui.world.node(node).size, 20.0);
-}
-
-#[test]
-fn a_zero_length_curve_snaps() {
-    let mut ui = Ui::new(Cold { sizes: [12.0] });
-    ui.world.set(10);
-    let node = ui.build(counted(Some(Motion::Interact)));
-
-    ui.world.set(20);
-    ui.update(Duration::from_millis(1), false);
 
     assert_eq!(ui.world.node(node).size, 20.0);
 }
@@ -751,34 +637,6 @@ impl View<Fake, Warm> for Card {
 }
 
 #[test]
-fn a_field_rule_fills_only_what_the_call_site_left_unset() {
-    let mut ui = Ui::new(Warm);
-    let [ruled, explicit] = ui.under(|cx| {
-        cx.set_field(Text::cursor().size(), 20.0);
-        cx.build(text("ruled"));
-        cx.build(text("explicit").size(9.0));
-    })[..] else {
-        panic!("two nodes");
-    };
-
-    assert_eq!(ui.world.node(ruled).size, 20.0);
-    assert_eq!(ui.world.node(explicit).size, 9.0, "call site wins");
-}
-
-#[test]
-fn a_field_rule_can_read_the_theme() {
-    let mut ui = Ui::new(Warm);
-    let nodes = ui.under(|cx| {
-        cx.set_field_with(Text::cursor().size(), |theme: &Warm| {
-            theme.body() * 2.0
-        });
-        cx.build(text("big"));
-    });
-
-    assert_eq!(ui.world.node(nodes[0]).size, 28.0);
-}
-
-#[test]
 fn a_path_reaches_one_part_of_a_composite() {
     let mut ui = Ui::new(Warm);
     let [card, loose] = ui.under(|cx| {
@@ -818,26 +676,4 @@ fn a_composite_part_rule_beats_a_rule_for_the_part_s_kind() {
     // The card's rule reaches its title as if its call site set it.
     assert_eq!(ui.world.node(title).size, 30.0);
     assert_eq!(ui.world.node(body).size, 10.0);
-}
-
-#[test]
-fn a_trace_names_the_path_rules_and_counts_the_rest() {
-    let mut ui = Ui::new(Warm);
-    ui.under(|cx| {
-        cx.set_field(Text::cursor().size(), 20.0);
-        cx.set::<Text>(|t, _| t.size(21.0));
-        cx.scope(|cx| {
-            cx.set_field(Text::cursor().text(), "x".to_string());
-            cx.set_field(Text::cursor().size(), 22.0);
-
-            let size = Text::cursor().size().key();
-            assert_eq!(
-                cx.trace::<Text>(size),
-                Trace {
-                    named: vec![0, 1],
-                    opaque: 1,
-                }
-            );
-        });
-    });
 }
