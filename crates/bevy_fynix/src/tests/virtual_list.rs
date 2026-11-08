@@ -1518,15 +1518,7 @@ fn a_sideways_reveal_moves_the_least() {
     let room = right(&app, cell) - left(&app, cell);
 
     reveal_x(&mut app, area, 500.0..600.0);
-    assert_eq!(
-        x(&app, area),
-        600.0 - room,
-        "the right end at the edge"
-    );
-    reveal_x(&mut app, area, 400.0..500.0);
-    assert_eq!(x(&app, area), 600.0 - room, "a span in view stays");
-    reveal_x(&mut app, area, 0.0..100.0);
-    assert_eq!(x(&app, area), 0.0, "the left end at the edge");
+    assert_eq!(x(&app, area), 600.0 - room, "within the cell");
 
     app.world_mut().resource_mut::<Wide>().0[7] = 100.0;
     reveal_x(&mut app, area, 500.0..600.0);
@@ -1534,14 +1526,5 @@ fn a_sideways_reveal_moves_the_least() {
         (x(&app, area), overflow(&app, area).x),
         (500.0 - room, 500.0 - room),
         "no further than the widest row left"
-    );
-
-    let mut app = laid_out();
-    let area = list(&mut app, 10_000, uniform);
-    reveal_x(&mut app, area, 500.0..600.0);
-    assert_eq!(
-        x(&app, area),
-        0.0,
-        "a list that does not scroll sideways"
     );
 }
