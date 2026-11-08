@@ -10,7 +10,7 @@
 **Fynix** is a backend agnostic reactive view tree, styled the way
 [Typst](https://typst.app) styles a document with set and show rules.
 
-https://github.com/user-attachments/assets/31153e53-c1f4-4564-8eef-4bce4155101a
+![showcase](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/showcase_tour.webp)
 
 ## Features
 
@@ -53,8 +53,8 @@ mount::<MyTheme>(
 - [`fynix`](crates/fynix): the core crate, with a guide to building a
   UI framework on top of it.
 - [`fynix_macros`](crates/fynix_macros): the `#[element]` macro.
-- [`bevy_fynix`](crates/bevy_fynix): the Bevy backend, with a gallery
-  example and ready-made looks.
+- [`bevy_fynix`](crates/bevy_fynix): the Bevy backend, with a
+  showcase example and ready-made looks.
 
 ## Join the community!
 

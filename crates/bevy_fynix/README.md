@@ -15,7 +15,7 @@ it ships elements written against `bevy_ui` (`Label`, `Rich`,
 `foldable`), the token traits they read, and the states rules wait
 on.
 
-![gallery](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/gallery.webp)
+![showcase](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/showcase.webp)
 
 - `FynixPlugin<T>`: keeps every mounted view in step with the world
   each `Update`, for views built with the theme `T`.
@@ -40,9 +40,9 @@ on.
 
 ## Quick Start
 
-See [`gallery.rs`](examples/gallery.rs) for a whole app, or run
-`cargo run -p bevy_fynix --example gallery` to see every idea in a
-window.
+See [`showcase`](examples/showcase) for a whole app, a small motion
+editor in docked panels, or run
+`cargo run -p bevy_fynix --example showcase` to try it.
 
 ```rust
 use std::time::Duration;
