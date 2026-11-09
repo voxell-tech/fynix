@@ -85,6 +85,7 @@ impl TextTokens for Plain {
             | Tone::Info
             | Tone::Attention
             | Tone::Reference
+            | Tone::Rest
             | Tone::OnSolid => ORANGE,
         }
     }

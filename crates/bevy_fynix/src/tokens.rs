@@ -33,6 +33,9 @@ pub enum Tone {
     Info,
     /// What waits for the user. For marks, as `Success`.
     Attention,
+    /// What is at rest: a neutral mark, grey in every theme. For
+    /// icons, dots and bars, as `Success`.
+    Rest,
     /// Words that name something exactly: a reference, an id, a link.
     /// Reads as text.
     Reference,

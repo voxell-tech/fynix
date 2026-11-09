@@ -325,6 +325,7 @@ mod tests {
                 | Tone::Info
                 | Tone::Attention
                 | Tone::Reference
+                | Tone::Rest
                 | Tone::OnSolid => Color::WHITE,
             }
         }
