@@ -111,10 +111,12 @@ where
             .radius(theme.menu_item_radius())
             // The hover colour, clear, so the fill fades in rather
             // than passing through black.
-            .fill(theme.hover().with_alpha(0.0))
+            .fill(theme.menu_hover().with_alpha(0.0))
     });
     cx.when::<State<Hovered>>(|cx| {
-        cx.set::<Frame>(|frame, theme: &T| frame.fill(theme.hover()));
+        cx.set::<Frame>(|frame, theme: &T| {
+            frame.fill(theme.menu_hover())
+        });
     });
     cx.transition(Motion::Interact);
 }

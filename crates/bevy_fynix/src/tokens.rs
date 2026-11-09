@@ -86,6 +86,12 @@ pub trait SurfaceTokens {
         self.hairline()
     }
 
+    /// A menu row under the pointer, on the menu's own surface. The
+    /// hover surface unless a theme says.
+    fn menu_hover(&self) -> Color {
+        self.hover()
+    }
+
     /// A selected row's tint. The hover surface unless a theme says.
     fn selection(&self) -> Color {
         self.hover()
