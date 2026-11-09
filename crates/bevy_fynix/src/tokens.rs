@@ -21,6 +21,17 @@ pub enum Tone {
     OnAccent,
     /// Destructive actions, and errors.
     Critical,
+    /// What is done: success, finished, approved.
+    Success,
+    /// What was merged into something else.
+    Merged,
+    /// What is in progress or needs care: work under way, something
+    /// pending, a limit near.
+    Warning,
+    /// Information: a note, a tip, a reference.
+    Info,
+    /// What waits for the user.
+    Attention,
 }
 
 pub trait TextTokens {

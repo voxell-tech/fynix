@@ -39,9 +39,14 @@ impl TextTokens for Warm {
         match tone {
             Tone::Body => Color::WHITE,
             Tone::Dim | Tone::Faint => Color::srgb(0.5, 0.5, 0.5),
-            Tone::Accent | Tone::OnAccent | Tone::Critical => {
-                Color::srgb(1.0, 0.5, 0.0)
-            }
+            Tone::Accent
+            | Tone::OnAccent
+            | Tone::Critical
+            | Tone::Success
+            | Tone::Merged
+            | Tone::Warning
+            | Tone::Info
+            | Tone::Attention => Color::srgb(1.0, 0.5, 0.0),
         }
     }
 

@@ -316,9 +316,14 @@ mod tests {
             match tone {
                 Tone::Body => Color::BLACK,
                 Tone::Dim | Tone::Faint => DIM,
-                Tone::Accent | Tone::OnAccent | Tone::Critical => {
-                    Color::WHITE
-                }
+                Tone::Accent
+                | Tone::OnAccent
+                | Tone::Critical
+                | Tone::Success
+                | Tone::Merged
+                | Tone::Warning
+                | Tone::Info
+                | Tone::Attention => Color::WHITE,
             }
         }
 

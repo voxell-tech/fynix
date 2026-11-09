@@ -26,6 +26,11 @@ impl TextTokens for Monokai {
             Tone::Accent => hex(0xFFD866),
             Tone::OnAccent => hex(0x2D2A2E),
             Tone::Critical => hex(0xFF6188),
+            Tone::Success => hex(0xA9DC76),
+            Tone::Merged => hex(0xAB9DF2),
+            Tone::Warning => hex(0xFFD866),
+            Tone::Info => hex(0x78DCE8),
+            Tone::Attention => hex(0xFC9867),
         }
     }
 

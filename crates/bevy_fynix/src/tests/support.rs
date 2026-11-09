@@ -78,7 +78,12 @@ impl TextTokens for Plain {
             Tone::Dim | Tone::Faint => Color::srgb(0.5, 0.5, 0.5),
             Tone::Accent => self.accent_tone.unwrap_or(ORANGE),
             Tone::OnAccent => self.on_accent.unwrap_or(Color::WHITE),
-            Tone::Critical => ORANGE,
+            Tone::Critical
+            | Tone::Success
+            | Tone::Merged
+            | Tone::Warning
+            | Tone::Info
+            | Tone::Attention => ORANGE,
         }
     }
 
