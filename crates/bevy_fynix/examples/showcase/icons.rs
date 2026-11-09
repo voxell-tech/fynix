@@ -14,9 +14,23 @@ pub const REWIND: Handle<Image> =
 pub const LAYER: Handle<Image> =
     uuid_handle!("240cfa1d-1798-4463-aa17-93ba5b752eb3");
 
+pub const FILE: Handle<Image> =
+    uuid_handle!("6d1f0c52-3b8e-4c1a-9a47-0e5b7f2d8c31");
+
 pub fn draw(world: &mut World) {
     let mut images = world.resource_mut::<Assets<Image>>();
-    let icons: [(Handle<Image>, Lines); 4] = [
+    let icons: [(Handle<Image>, Lines); 5] = [
+        (
+            FILE,
+            &[&[
+                (4.0, 2.5),
+                (9.5, 2.5),
+                (12.5, 5.5),
+                (12.5, 13.5),
+                (4.0, 13.5),
+                (4.0, 2.5),
+            ]],
+        ),
         (
             PLAY,
             &[&[(5.0, 3.0), (13.0, 8.0), (5.0, 13.0), (5.0, 3.0)]],

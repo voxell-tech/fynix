@@ -16,12 +16,14 @@ use bevy_fynix::{
     View, ViewExt, style,
 };
 
+use crate::chips::chips;
 use crate::common::Monokai;
 use crate::{Build, icons, section};
 
 pub fn styles() -> AnyView<Bevy, Monokai> {
     scroll((
         section("Text in several styles", rich_text()),
+        section("Text with chips in it", chips()),
         section("Button looks, as rule bundles", looks()),
         section("One state rule across a button's parts", parts()),
         section("Rules in a scope", scoped()),
