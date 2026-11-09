@@ -162,7 +162,9 @@ fn lit<T: DockTokens>(cx: &mut Cx<'_, Bevy, T>) {
     cx.set::<Label>(|label, _| label.tone(Tone::Body));
     cx.set::<Icon>(|icon, _| icon.tone(Tone::Body));
     cx.root(|cx| {
-        cx.set::<Frame>(|frame, theme: &T| frame.fill(theme.fill()));
+        cx.set::<Frame>(|frame, theme: &T| {
+            frame.fill(theme.current())
+        });
     });
 }
 

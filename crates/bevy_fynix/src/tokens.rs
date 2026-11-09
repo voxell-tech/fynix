@@ -59,6 +59,12 @@ pub trait SurfaceTokens {
         self.hover()
     }
 
+    /// What is current, such as the active dock tab. The fill unless
+    /// a theme says.
+    fn current(&self) -> Color {
+        self.fill()
+    }
+
     /// A solid accent surface, such as the active segment. The
     /// selection tint unless a theme says.
     fn accent(&self) -> Color {
