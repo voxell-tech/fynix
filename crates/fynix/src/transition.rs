@@ -77,8 +77,8 @@ impl Spring {
     }
 
     /// Its angular frequency and damping ratio. Without
-    /// `can_overshoot` the ratio is held at 1 or above, so the value
-    /// never passes its target.
+    /// `can_overshoot` the ratio is held at 1 or above, so a value
+    /// from rest never passes its target.
     fn coefficients(self, can_overshoot: bool) -> (f32, f32) {
         let omega = TAU / self.duration.as_secs_f32();
         // Past 1 it would never settle, and at -1 never arrive.
@@ -246,28 +246,20 @@ impl Glide {
     pub(crate) fn value(&self) -> Point {
         match &self.state {
             State::Spring { at, .. } => *at,
-            State::Ease(layers) => {
-                let mut value = self.target;
-                for layer in layers {
-                    let left = layer.left();
-                    for (axis, offset) in
-                        value.iter_mut().zip(layer.offset)
-                    {
-                        *axis += offset * left;
-                    }
-                }
-                value
-            }
+            State::Ease(layers) => eased(self.target, layers),
         }
     }
 
     /// Moves on by `delta` toward `target`. Whether it has arrived,
-    /// in which case it is on the target, at rest.
+    /// in which case it is on the target, at rest. Without
+    /// `can_overshoot`, an axis that would pass its target stops on
+    /// it.
     pub(crate) fn advance(
         &mut self,
         delta: Duration,
         target: Point,
     ) -> bool {
+        let before = self.value();
         let last = core::mem::replace(&mut self.target, target);
         if self.timing.is_instant() {
             self.state = State::at_rest(target, self.timing);
@@ -280,15 +272,16 @@ impl Glide {
                 let t = delta.as_secs_f32();
                 let mut arrived = true;
                 for i in 0..AXES {
-                    let (offset, v) = spring_step(
-                        at[i] - target[i],
-                        speed[i],
-                        t,
-                        omega,
-                        zeta,
-                    );
-                    let resting = offset.abs() <= REST
-                        && v.abs() <= REST * omega;
+                    let start = at[i] - target[i];
+                    let (offset, v) =
+                        spring_step(start, speed[i], t, omega, zeta);
+                    // Even a spring that cannot overshoot from rest
+                    // passes a target close ahead of its speed.
+                    let has_passed =
+                        !self.can_overshoot && offset * start <= 0.0;
+                    let resting = has_passed
+                        || offset.abs() <= REST
+                            && v.abs() <= REST * omega;
                     arrived &= resting;
                     (at[i], speed[i]) = if resting {
                         (target[i], 0.0)
@@ -318,6 +311,20 @@ impl Glide {
                 layers.retain(|layer| {
                     layer.elapsed < layer.curve.duration
                 });
+                if !self.can_overshoot {
+                    let after = eased(target, layers);
+                    for i in 0..AXES {
+                        let start = before[i] - target[i];
+                        if (after[i] - target[i]) * start <= 0.0 {
+                            for layer in layers.iter_mut() {
+                                layer.offset[i] = 0.0;
+                            }
+                        }
+                    }
+                    layers.retain(|layer| {
+                        layer.offset.iter().any(|&o| o != 0.0)
+                    });
+                }
                 layers.is_empty()
             }
             _ => unreachable!("retime keeps the state's kind"),
@@ -335,6 +342,18 @@ impl State {
             Timing::Ease(_) => Self::Ease(Vec::new()),
         }
     }
+}
+
+/// `target` plus what is left of each layer's offset.
+fn eased(target: Point, layers: &[Layer]) -> Point {
+    let mut value = target;
+    for layer in layers {
+        let left = layer.left();
+        for (axis, offset) in value.iter_mut().zip(layer.offset) {
+            *axis += offset * left;
+        }
+    }
+    value
 }
 
 /// How far from its target, and how fast, a damped spring is `t`
@@ -457,14 +476,35 @@ mod tests {
     }
 
     #[test]
-    fn a_spring_that_cannot_overshoot_never_passes_its_target() {
-        let spring = Spring::new(Duration::from_millis(200), 0.8);
-        let mut glide = Glide::new(one(0.0), spring.into(), false);
+    fn a_glide_that_cannot_overshoot_never_passes_its_target() {
+        // A spring keeps its speed and this curve swings past its
+        // end, so either could carry the value past a target just
+        // ahead.
+        let back_out = |t: f32| {
+            let t = t - 1.0;
+            1.0 + 2.70158 * t * t * t + 1.70158 * t * t
+        };
+        let duration = Duration::from_millis(200);
+        let timings = [
+            Timing::from(Spring::new(duration, 0.8)),
+            Timing::from(Curve {
+                duration,
+                ease: back_out,
+            }),
+        ];
         let tick = Duration::from_millis(4);
-        while !glide.advance(tick, one(1.0)) {
-            assert!(glide.value()[0] <= 1.0, "{:?}", glide.value());
+        for timing in timings {
+            let mut glide = Glide::new(one(0.0), timing, false);
+            while glide.value()[0] < 0.25 {
+                glide.advance(tick, one(1.0));
+            }
+            let target = glide.value()[0] + 0.05;
+            while !glide.advance(tick, one(target)) {
+                let value = glide.value()[0];
+                assert!(value <= target, "{timing:?}: {value}");
+            }
+            assert_eq!(glide.value(), one(target), "{timing:?}");
         }
-        assert_eq!(glide.value(), one(1.0));
     }
 
     #[test]
