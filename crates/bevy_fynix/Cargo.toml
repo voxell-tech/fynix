@@ -18,10 +18,12 @@ lenz = { workspace = true }
 
 # bevy
 bevy = { workspace = true, features = [
+    "bevy_clipboard",
     "bevy_picking",
     "bevy_ui_widgets",
     "bevy_window",
 ] }
+parley = { workspace = true }
 
 [features]
 default = ["std"]

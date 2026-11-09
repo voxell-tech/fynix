@@ -120,6 +120,8 @@ impl Plugin for CorePlugin {
             scroll::plugin,
             views::popup_plugin,
             views::virtual_list_plugin,
+            views::atom_plugin,
+            views::rich_field_plugin,
         ))
         .init_resource::<InputFocus>()
         .init_resource::<Unmounted>()
@@ -184,4 +186,19 @@ pub fn mount<T: Send + Sync + 'static>(
         entity.insert(TabGroup::default());
     }
     root
+}
+
+/// Builds `view` as a child of `parent`, for a view added while the
+/// app runs, such as an atom of a text.
+pub(crate) fn mount_under<T: Send + Sync + 'static>(
+    world: &mut World,
+    parent: Entity,
+    view: impl View<Bevy, T>,
+) -> Entity {
+    world.resource_scope::<Mounts<T>, _>(|world, mut mounts| {
+        world.resource_scope::<Theme<T>, _>(|world, theme| {
+            let mut cx = Cx::new(world, &theme.0, &mut mounts.0);
+            cx.under(parent, |cx| view.build(cx))
+        })
+    })
 }
