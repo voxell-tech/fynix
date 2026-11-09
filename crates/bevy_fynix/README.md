@@ -54,8 +54,8 @@ use bevy_fynix::views::{
     FrameProps, Label, button, column, label,
 };
 use bevy_fynix::tokens::{
-    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-    TextTokens, Tone,
+    Motion, MotionTokens, SpacingTokens, SurfaceTokens, Spring,
+    TextTokens, Timing, Tone,
 };
 use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
 
@@ -101,11 +101,8 @@ impl SpacingTokens for MyTheme {
 }
 
 impl MotionTokens for MyTheme {
-    fn motion(&self, _: Motion) -> Curve {
-        Curve {
-            duration: Duration::from_millis(180),
-            ease: |t| t,
-        }
+    fn motion(&self, _: Motion) -> Timing {
+        Spring::new(Duration::from_millis(180), 0.0).into()
     }
 }
 

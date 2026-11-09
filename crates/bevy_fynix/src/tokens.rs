@@ -3,7 +3,7 @@
 //! any theme that can answer for them.
 
 use bevy::color::{Color, Luminance};
-pub use fynix::{Curve, Motion, MotionTokens};
+pub use fynix::{Curve, Motion, MotionTokens, Spring, Timing};
 
 /// A text colour by role, so a view can ask for "dim" without knowing
 /// what dim is in a given theme.

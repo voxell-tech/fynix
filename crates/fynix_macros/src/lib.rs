@@ -68,7 +68,7 @@ impl Parse for ElementArgs {
 struct PropArgs {
     patch: Option<Type>,
     default: Option<Expr>,
-    blend: Option<Expr>,
+    axes: Option<Expr>,
     with: Option<Expr>,
     shown: Option<Type>,
 }
@@ -87,15 +87,15 @@ impl PropArgs {
                     args.patch = Some(value.parse()?);
                 } else if meta.path.is_ident("default") {
                     args.default = Some(value.parse()?);
-                } else if meta.path.is_ident("blend") {
-                    args.blend = Some(value.parse()?);
+                } else if meta.path.is_ident("axes") {
+                    args.axes = Some(value.parse()?);
                 } else if meta.path.is_ident("with") {
                     args.with = Some(value.parse()?);
                 } else if meta.path.is_ident("shown") {
                     args.shown = Some(value.parse()?);
                 } else {
                     return Err(meta.error(
-                        "expected `patch`, `default`, `blend`, \
+                        "expected `patch`, `default`, `axes`, \
                          `with` or `shown`",
                     ));
                 }
@@ -288,12 +288,12 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
                 let value = #fynix::slot::with_theme(#with, value, #theme);
             }
         });
-        let tween = match &prop.args.blend {
-            Some(blend) => quote! {
+        let tween = match &prop.args.axes {
+            Some(axes) => quote! {
                 travel.map(|travel| #fynix::Tween {
-                    curve: travel.curve,
+                    timing: travel.timing,
                     motion: travel.motion,
-                    interp: #blend,
+                    axes: #axes,
                 })
             },
             None => quote!(::core::option::Option::None),

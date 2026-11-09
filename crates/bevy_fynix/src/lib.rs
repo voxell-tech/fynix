@@ -52,7 +52,9 @@ pub use state::{
     hidden, own,
 };
 pub use style::{Style, style};
-pub use transition::{BevyMarker, ReducedMotion};
+pub use transition::{
+    COLOR_AXES, F32_AXES, OPACITY_AXES, ReducedMotion,
+};
 pub use views::TooltipTiming;
 pub use visual::Visual;
 

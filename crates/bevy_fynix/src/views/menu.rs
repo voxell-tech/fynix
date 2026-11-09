@@ -2,7 +2,6 @@
 //! floating widgets built on them share.
 
 use core::marker::PhantomData;
-use core::time::Duration;
 
 use bevy::camera::visibility::InheritedVisibility;
 use bevy::color::Alpha;
@@ -33,15 +32,14 @@ use bevy::ui_widgets::{
     MenuItem as MenuItemBehavior, MenuPopup,
 };
 use bevy::window::SystemCursorIcon;
-use motiongfx_interp::ease;
 
 use crate::cursor::EntityCursor;
 use crate::prop::{Signal, component, each};
 use crate::shortcut::{MENU, Scope};
 use crate::state::State;
 use crate::tokens::{
-    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-    TextTokens, Tone,
+    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    Timing, Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::icon::icon;
@@ -517,10 +515,7 @@ where
         cx.scope(|cx| {
             // Still under the rules of where it was built, whose
             // transition would ease it in from an unset look.
-            cx.transition_over(Curve {
-                duration: Duration::ZERO,
-                ease: ease::linear,
-            });
+            cx.transition_over(Timing::INSTANT);
             cx.build(view)
         })
     })

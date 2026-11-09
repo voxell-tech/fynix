@@ -22,7 +22,7 @@ pub struct Frame {
     pub width: Prop<Val>,
     #[elem(default = theme.gap(), patch = PatchGap)]
     pub gap: Prop<f32>,
-    #[elem(default = Color::NONE, patch = PatchFill, blend = blend_color)]
+    #[elem(default = Color::NONE, patch = PatchFill, axes = COLOR_AXES)]
     pub fill: Prop<Color>,
 }
 ```
@@ -39,7 +39,8 @@ On a field:
   field's `lenz` tag.
 - `default = <expr>`: the value when unset. It may read `theme`.
   Without it, the prop type's `Default`.
-- `blend = <fn>`: how two values blend, so the prop travels under a
+- `axes = <Axes>`: how a value splits into numbers that blend
+  linearly, such as `F32_AXES`, so the prop travels under a
   transition rule. Without it, the prop snaps. Under a backend that
   animates, a travel over a motion goes to the `Patch`'s
   `patch_over` once, with the motion.

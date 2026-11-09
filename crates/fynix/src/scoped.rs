@@ -22,8 +22,8 @@ pub struct When<V, F, C> {
     state: PhantomData<fn() -> C>,
 }
 
-/// A view whose elements travel to new values over the theme's curve
-/// for a motion.
+/// A view whose elements travel to new values over the theme's
+/// timing for a motion.
 pub struct Transition<V> {
     view: V,
     motion: Motion,
@@ -93,7 +93,7 @@ pub trait ScopedExt: Sized {
     }
 
     /// This view, with every element in it travelling to new values
-    /// over the theme's curve for `motion`.
+    /// over the theme's timing for `motion`.
     fn transition(self, motion: Motion) -> Transition<Self> {
         Transition { view: self, motion }
     }

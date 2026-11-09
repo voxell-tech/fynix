@@ -923,7 +923,6 @@ dependencies = [
  "bevy",
  "fynix",
  "lenz",
- "motiongfx_interp",
 ]
 
 [[package]]
@@ -2761,6 +2760,7 @@ dependencies = [
  "fynix_macros",
  "hashbrown 0.17.1",
  "lenz",
+ "libm",
  "motiongfx_interp",
  "typarena",
 ]

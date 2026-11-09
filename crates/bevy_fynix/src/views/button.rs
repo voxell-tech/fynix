@@ -395,11 +395,9 @@ mod tests {
     use bevy::picking::pointer::PointerId;
     use bevy::text::{FontSize, TextFont};
     use bevy::ui::{BackgroundColor, Node, Val};
-    use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
-    use crate::tests::{self, Plain};
-    use crate::transition::BevyMarker;
+    use crate::tests::{self, Plain, mix};
     use crate::views::{Label, label};
     use crate::{
         AnyView, Hovered, Pressed, ScopedExt, StateExt, mount,
@@ -433,10 +431,6 @@ mod tests {
 
     fn fill(app: &App, node: Entity) -> Color {
         app.world().get::<BackgroundColor>(node).unwrap().0
-    }
-
-    fn blend(from: Color, to: Color, t: f32) -> Color {
-        <Color as Interpolation<BevyMarker>>::interp(&from, &to, t)
     }
 
     fn hover(app: &mut App, node: Entity, on: bool) {
@@ -583,7 +577,7 @@ mod tests {
         app.update();
         assert_eq!(
             fill(&app, node),
-            blend(ACCENT.lighter(0.08), ACCENT.darker(0.1), 0.5),
+            mix(ACCENT.lighter(0.08), ACCENT.darker(0.1), 0.5),
             "50ms of 100ms from hovered to pressed"
         );
     }

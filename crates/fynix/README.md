@@ -236,8 +236,13 @@ fn main() {
 }
 ```
 
-Add `.transition(..)` to a view and its changes animate over a curve
-from the theme's `MotionTokens`. `keyed` and `each` rebuild parts of
+Add `.transition(..)` to a view and its changes animate over the
+theme's `MotionTokens`: a `Spring`, or a `Curve` with an ease
+function. A prop animates once its element says how its value splits
+into numbers, with `#[elem(axes = F32_AXES)]` or an `Axes` of its
+own. A change that arrives mid-travel turns the value around without
+a jump: a spring keeps its speed, and a curve is laid over the one
+still running. `keyed` and `each` rebuild parts of
 the tree as the world changes: the old view fades out and its space
 collapses, then the new view's space expands and it fades in.
 `Tick::reduced_motion` skips every step.
@@ -279,9 +284,9 @@ use core::time::Duration;
 // `#[element]` finds these at the root of the crate it is used in,
 // so a framework re-exports them from its own root.
 use fynix::{
-    Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, Travel,
-    View, ViewExt, element, styled,
+    Backend, Condition, Cx, Element, Motion, MotionTokens, Mounted,
+    Patch, Prop, ScopedExt, Slot, Spring, Styled, Tick, Timing,
+    Travel, View, ViewExt, element, styled,
 };
 
 // 1. A backend.
@@ -394,11 +399,8 @@ impl TextTokens for Warm {
 }
 
 impl MotionTokens for Warm {
-    fn motion(&self, _: Motion) -> Curve {
-        Curve {
-            duration: Duration::from_millis(100),
-            ease: |t| t,
-        }
+    fn motion(&self, _: Motion) -> Timing {
+        Spring::new(Duration::from_millis(100), 0.0).into()
     }
 }
 
@@ -461,7 +463,7 @@ From weakest to strongest:
 | State rules on the node itself | `label("x").when::<Hovered, _>(..)` |
 
 Show rules then replace the element, its set rules applied. A theme
-says what the tokens are (colours, sizes, curves), a rule bundle
+says what the tokens are (colours, sizes, motions), a rule bundle
 (`.rules(..)`) says which look a view has, and a state rule says what
 that look does while a state holds. Of several state rules on one node, the one in the outer
 scope wins, and within one scope the one written later. The Bevy
