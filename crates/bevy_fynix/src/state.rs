@@ -326,7 +326,10 @@ mod tests {
                 | Tone::Attention
                 | Tone::Reference
                 | Tone::Rest
-                | Tone::OnSolid => Color::WHITE,
+                | Tone::OnSolid
+                | Tone::SuccessText
+                | Tone::MergedText
+                | Tone::WarningText => Color::WHITE,
             }
         }
 

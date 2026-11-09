@@ -49,7 +49,10 @@ impl TextTokens for Warm {
             | Tone::Attention
             | Tone::Reference
             | Tone::Rest
-            | Tone::OnSolid => Color::srgb(1.0, 0.5, 0.0),
+            | Tone::OnSolid
+            | Tone::SuccessText
+            | Tone::MergedText
+            | Tone::WarningText => Color::srgb(1.0, 0.5, 0.0),
         }
     }
 

@@ -42,6 +42,12 @@ pub enum Tone {
     /// Text and icons drawn on a solid surface of one of the
     /// statuses above.
     OnSolid,
+    /// Words in the hue of `Success`, `Merged` or `Warning`, as
+    /// `Critical` is for refusals: moved until they read, such as on
+    /// a button tinted in that hue.
+    SuccessText,
+    MergedText,
+    WarningText,
 }
 
 pub trait TextTokens {
