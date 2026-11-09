@@ -323,7 +323,8 @@ mod tests {
                 | Tone::Merged
                 | Tone::Warning
                 | Tone::Info
-                | Tone::Attention => Color::WHITE,
+                | Tone::Attention
+                | Tone::OnSolid => Color::WHITE,
             }
         }
 

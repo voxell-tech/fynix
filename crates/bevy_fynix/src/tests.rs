@@ -46,7 +46,8 @@ impl TextTokens for Warm {
             | Tone::Merged
             | Tone::Warning
             | Tone::Info
-            | Tone::Attention => Color::srgb(1.0, 0.5, 0.0),
+            | Tone::Attention
+            | Tone::OnSolid => Color::srgb(1.0, 0.5, 0.0),
         }
     }
 

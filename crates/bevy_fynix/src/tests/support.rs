@@ -83,7 +83,8 @@ impl TextTokens for Plain {
             | Tone::Merged
             | Tone::Warning
             | Tone::Info
-            | Tone::Attention => ORANGE,
+            | Tone::Attention
+            | Tone::OnSolid => ORANGE,
         }
     }
 

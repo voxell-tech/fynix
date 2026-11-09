@@ -32,6 +32,9 @@ pub enum Tone {
     Info,
     /// What waits for the user.
     Attention,
+    /// Text and icons drawn on a solid surface of one of the
+    /// statuses above.
+    OnSolid,
 }
 
 pub trait TextTokens {
