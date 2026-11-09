@@ -21,17 +21,21 @@ pub enum Tone {
     OnAccent,
     /// Destructive actions, and errors.
     Critical,
-    /// What is done: success, finished, approved.
+    /// What is done: success, finished, approved. For icons, dots and
+    /// bars: a theme may draw it where words would not read.
     Success,
-    /// What was merged into something else.
+    /// What was merged into something else. For marks, as `Success`.
     Merged,
     /// What is in progress or needs care: work under way, something
-    /// pending, a limit near.
+    /// pending, a limit near. For marks, as `Success`.
     Warning,
-    /// Information: a note, a tip, a reference.
+    /// Information: a note, a tip. For marks, as `Success`.
     Info,
-    /// What waits for the user.
+    /// What waits for the user. For marks, as `Success`.
     Attention,
+    /// Words that name something exactly: a reference, an id, a link.
+    /// Reads as text.
+    Reference,
     /// Text and icons drawn on a solid surface of one of the
     /// statuses above.
     OnSolid,

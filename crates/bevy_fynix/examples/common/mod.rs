@@ -31,6 +31,7 @@ impl TextTokens for Monokai {
             Tone::Warning => hex(0xFFD866),
             Tone::Info => hex(0x78DCE8),
             Tone::Attention => hex(0xFC9867),
+            Tone::Reference => hex(0x78DCE8),
             Tone::OnSolid => hex(0x2D2A2E),
         }
     }
