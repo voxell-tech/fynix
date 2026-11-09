@@ -19,6 +19,9 @@ motiongfx_interp = { version = "0.5.0", default-features = false }
 
 # bevy
 bevy = { version = "0.20", default-features = false }
+# The version bevy_text lays out with: the caret and the selection are
+# parley's.
+parley = { version = "0.11", default-features = false, features = ["std"] }
 
 # other
 lenz = { version = "0.1.0", default-features = false }

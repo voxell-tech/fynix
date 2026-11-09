@@ -57,7 +57,7 @@ impl FrameProps for TextField {
 
 /// A field's defaults, for its root frame alone: the fill, a hover
 /// fill, and an accent border while focused.
-fn defaults<T>(cx: &mut Cx<'_, Bevy, T>)
+pub(super) fn defaults<T>(cx: &mut Cx<'_, Bevy, T>)
 where
     T: TextTokens
         + SurfaceTokens

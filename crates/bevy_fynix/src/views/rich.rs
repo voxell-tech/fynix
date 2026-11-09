@@ -7,25 +7,31 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::world::{EntityWorldMut, World};
 use bevy::text::{
-    FontSize, FontSource, FontStyle, FontWeight, Strikethrough,
-    StrikethroughColor, TextBackgroundColor, TextColor, TextFont,
-    TextLayout, TextSpan, Underline, UnderlineColor,
+    FontSize, FontSource, FontStyle, FontWeight, InlineBox,
+    Strikethrough, StrikethroughColor, TextBackgroundColor,
+    TextColor, TextFont, TextLayout, TextSpan, Underline,
+    UnderlineColor,
 };
 use bevy::ui::widget::Text;
 use fynix::{Patch, element};
 
+use super::atom::{Atom, AtomBox, AtomHost};
+use super::frame::{Frame, FrameProps};
 use super::label::PatchWrap;
 use crate::patch::{Paint, PatchInk, PatchOpacity, PatchScale};
 use crate::prop::Prop;
 use crate::state::own_when;
-use crate::tokens::{TextTokens, Tone};
+use crate::tokens::{SpacingTokens, TextTokens, Tone};
 use crate::transition::{blend_color, blend_f32};
 use crate::visual::faded;
-use crate::{Bevy, Styled};
+use crate::{Bevy, Cx, Styled, View};
 
 /// Text in more than one style: a [`Text`] with a [`TextSpan`] under
 /// it for each span. A new list of spans rewrites only the spans that
 /// differ.
+///
+/// A span can be an [`Atom`], which takes its place in the line as a
+/// view. Only [`atoms`](Rich::atoms) builds those views.
 #[element(backend = Bevy, theme = TextTokens, prepare = prepare)]
 pub struct Rich {
     /// The font of a span with none of its own. Bevy's default font
@@ -73,12 +79,51 @@ pub fn rich(spans: impl Into<Prop<Vec<Span>>>) -> Rich {
 
 own_when!(Rich);
 
+impl Rich {
+    /// This text in a box that also holds the views of its
+    /// [atoms](Span::atom), so they take their places in the lines.
+    pub fn atoms(self) -> RichAtoms {
+        RichAtoms {
+            frame: Frame::unset(),
+            rich: self,
+        }
+    }
+}
+
+/// A [`Rich`] and the views of its atoms. The box has the text at its
+/// origin, and no padding.
+pub struct RichAtoms {
+    pub frame: Frame,
+    rich: Rich,
+}
+
+impl FrameProps for RichAtoms {
+    fn frame_mut(&mut self) -> &mut Frame {
+        &mut self.frame
+    }
+}
+
+impl<T> View<Bevy, T> for RichAtoms
+where
+    T: TextTokens + SpacingTokens + 'static,
+{
+    fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
+        let body = cx.build(self.frame);
+        let text = cx.under(body, |cx| cx.build(self.rich));
+        cx.world.entity_mut(text).insert(AtomHost(body));
+        body
+    }
+}
+
 /// A run of text in a [`Rich`], and how it differs from the text
-/// around it.
+/// around it, or an [`Atom`] between two runs.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Span {
     pub text: String,
     pub look: Look,
+    /// The atom this span stands for, when it is one. Its text and
+    /// look are not used.
+    pub atom: Option<Atom>,
 }
 
 /// How a [`Span`] is drawn. Each `None` takes what the [`Rich`] says,
@@ -115,6 +160,15 @@ impl Span {
         Self {
             text: text.into(),
             look: Look::default(),
+            atom: None,
+        }
+    }
+
+    /// `atom` in the line, where it takes the space of its view.
+    pub fn atom(atom: Atom) -> Self {
+        Self {
+            atom: Some(atom),
+            ..Self::default()
         }
     }
 
@@ -210,8 +264,20 @@ fn spans_of(world: &World, root: Entity) -> Vec<Entity> {
         .into_iter()
         .flatten()
         .copied()
-        .filter(|&child| world.get::<Drawn>(child).is_some())
+        .filter(|&child| {
+            world.get::<Drawn>(child).is_some()
+                || world.get::<AtomBox>(child).is_some()
+        })
         .collect()
+}
+
+/// Whether `kid` can show `span` as it is, or by rewriting.
+fn fits(world: &World, kid: Entity, span: &Span) -> bool {
+    match (&span.atom, world.get::<AtomBox>(kid)) {
+        (Some(atom), Some(held)) => held.atom == *atom,
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 fn put<C: Component<Mutability = Mutable> + PartialEq>(
@@ -329,9 +395,26 @@ impl Patch<Bevy, Spans> for PatchSpans {
             &spans.0[..]
         };
         let shown = spans_of(world, node);
+        // A kid that cannot show its span goes with every kid after
+        // it, so the kids spawned in their place stay in order.
+        let mut kept = shown.len();
         for (index, span) in spans.iter().enumerate() {
-            if let Some(&kid) = shown.get(index) {
-                let mut kid = world.entity_mut(kid);
+            if index < kept && !fits(world, shown[index], span) {
+                for &kid in &shown[index..kept] {
+                    world.entity_mut(kid).despawn();
+                }
+                kept = index;
+            }
+            if let Some(atom) = &span.atom {
+                if index >= kept {
+                    world.spawn((
+                        InlineBox::default(),
+                        AtomBox::new(atom.clone()),
+                        ChildOf(node),
+                    ));
+                }
+            } else if index < kept {
+                let mut kid = world.entity_mut(shown[index]);
                 if let Some(mut text) = kid.get_mut::<TextSpan>()
                     && text.0 != span.text
                 {
@@ -352,7 +435,7 @@ impl Patch<Bevy, Spans> for PatchSpans {
                 draw(&mut kid, &span.look, &defaults, paint);
             }
         }
-        for &kid in shown.get(spans.len()..).unwrap_or_default() {
+        for &kid in shown.get(spans.len()..kept).unwrap_or_default() {
             world.entity_mut(kid).despawn();
         }
     }
@@ -555,6 +638,36 @@ mod tests {
         set_line(&mut app, words(2));
         assert_eq!(kids(&app, root)[0], first[0]);
         assert_eq!(text(&app, kids(&app, root)[1]), "w1 ");
+    }
+
+    fn chip(key: &str) -> Atom {
+        Atom::new::<Plain>(key, key, || unreachable!("not built"))
+    }
+
+    #[test]
+    fn an_atom_is_an_inline_box_and_a_changed_one_keeps_the_order() {
+        let mut app = app();
+        let spans = |atom| {
+            vec![Span::new("x "), Span::atom(atom), Span::new(" y")]
+        };
+        let root = line(&mut app, spans(chip("a")));
+        let before = kids(&app, root);
+        let is_box = |app: &App, kid| {
+            app.world().get::<InlineBox>(kid).is_some()
+        };
+        assert_eq!(before.len(), 3);
+        assert!(!is_box(&app, before[0]));
+        assert!(is_box(&app, before[1]));
+
+        set_line(&mut app, spans(chip("b")));
+
+        let after = kids(&app, root);
+        assert_eq!(after.len(), 3);
+        assert_eq!(after[0], before[0], "the span before it is kept");
+        assert!(is_box(&app, after[1]));
+        assert_ne!(after[1], before[1], "a new atom, a new box");
+        assert_eq!(text(&app, after[2]), " y");
+        assert!(app.world().get_entity(before[1]).is_err());
     }
 
     #[test]

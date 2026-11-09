@@ -924,6 +924,7 @@ dependencies = [
  "fynix",
  "lenz",
  "motiongfx_interp",
+ "parley",
 ]
 
 [[package]]

@@ -1,5 +1,6 @@
 //! The views this crate ships.
 
+mod atom;
 mod behavior;
 mod button;
 mod checkbox;
@@ -16,6 +17,7 @@ mod menu;
 mod number_field;
 mod popup;
 mod rich;
+mod rich_field;
 mod segmented;
 mod slider;
 mod stack;
@@ -23,6 +25,8 @@ mod text_input;
 mod tooltip;
 mod virtual_list;
 
+pub use atom::Atom;
+pub(crate) use atom::plugin as atom_plugin;
 pub use behavior::{BehaviorExt, OnActivate, Seeded, Tagged, Toned};
 pub use button::{
     Button, TintedIcon, button, danger, ghost, icon_button, menu_bar,
@@ -55,7 +59,14 @@ pub(crate) use menu::{
 pub use number_field::{Number, NumberField, number_field};
 pub(crate) use popup::plugin as popup_plugin;
 pub use popup::{DISMISS, POPUP, Popup, corners, popup};
-pub use rich::{LineColor, Look, Rich, RichProps, Span, Spans, rich};
+pub use rich::{
+    LineColor, Look, Rich, RichAtoms, RichProps, Span, Spans, rich,
+};
+pub(crate) use rich_field::plugin as rich_field_plugin;
+pub use rich_field::{
+    Caret, Enter, Piece, Plain, PlainAtom, RichField, RichFieldView,
+    rich_field,
+};
 pub use segmented::{Segmented, segmented};
 pub use slider::{Slider, slider};
 pub use stack::{Extra, Stack, column, overlay, row, scroll};

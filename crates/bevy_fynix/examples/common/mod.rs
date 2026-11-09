@@ -51,6 +51,12 @@ impl SurfaceTokens for Monokai {
         hex(0x221F22)
     }
 
+    // Not the hover fill, which a field is drawn in under the
+    // pointer.
+    fn selection(&self) -> Color {
+        hex(0x7A6A2E)
+    }
+
     fn accent(&self) -> Color {
         hex(0xFFD866)
     }

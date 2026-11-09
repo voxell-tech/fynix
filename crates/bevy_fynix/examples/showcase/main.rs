@@ -9,6 +9,7 @@
 //!
 //! `cargo run -p bevy_fynix --example showcase`
 
+mod chips;
 mod commands;
 #[path = "../common/mod.rs"]
 mod common;
@@ -106,6 +107,7 @@ fn main() {
             ids: vec![1, 2, 3],
             next: 4,
         })
+        .init_resource::<chips::Typed>()
         .insert_resource(LogRows(100_000))
         .insert_resource(FollowLog(true))
         .init_resource::<timeline::Pose>()
