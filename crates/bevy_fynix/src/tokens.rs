@@ -69,6 +69,17 @@ pub trait SurfaceTokens {
         self.hover()
     }
 
+    /// The edge of a control, such as a slider's groove. The hairline
+    /// unless a theme says.
+    fn edge(&self) -> Color {
+        self.hairline()
+    }
+
+    /// A slider's groove. The fill unless a theme says.
+    fn groove(&self) -> Color {
+        self.fill()
+    }
+
     /// The border around a dock area. The hairline unless a theme
     /// says.
     fn dock_edge(&self) -> Color {
