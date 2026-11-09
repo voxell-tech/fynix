@@ -10,7 +10,7 @@ use crate::layer::{Layer, Live};
 use crate::mounted::{Group, Mounted};
 use crate::prop::Prop;
 use crate::rules::{Condition, RuleKind, ScopeEntry, When};
-use crate::transition::{Curve, Motion, MotionTokens, Travel};
+use crate::transition::{Motion, MotionTokens, Timing, Travel};
 use crate::view::{AnyView, Element, Matched, Styled, View};
 
 /// How many replacements can be built one inside another before a
@@ -531,23 +531,24 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     }
 
     /// Makes every element built from here to the end of the scope
-    /// travel to new values over the theme's curve for `motion`, if
-    /// it says how its values blend.
+    /// travel to new values over the theme's timing for `motion`, if
+    /// it says how its values split into axes.
     pub fn transition(&mut self, motion: Motion)
     where
         T: MotionTokens,
     {
         self.travel_over(Travel {
-            curve: self.theme.motion(motion),
+            timing: self.theme.motion(motion),
             motion: Some(motion),
         });
     }
 
-    /// As [`transition`](Self::transition), over `curve`. Fynix moves
-    /// the values itself, whether the backend animates or not.
-    pub fn transition_over(&mut self, curve: Curve) {
+    /// As [`transition`](Self::transition), over `timing`: a
+    /// [`Spring`](crate::Spring) or a [`Curve`](crate::Curve). Fynix
+    /// moves the values itself, whether the backend animates or not.
+    pub fn transition_over(&mut self, timing: impl Into<Timing>) {
         self.travel_over(Travel {
-            curve,
+            timing: timing.into(),
             motion: None,
         });
     }

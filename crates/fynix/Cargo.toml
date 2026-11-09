@@ -13,6 +13,7 @@ repository.workspace = true
 lenz = { workspace = true }
 fynix_macros = { workspace = true }
 hashbrown = { workspace = true, features = ["default-hasher"] }
+libm = { workspace = true }
 motiongfx_interp = { workspace = true }
 typarena = { workspace = true }
 

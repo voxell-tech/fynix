@@ -296,12 +296,12 @@ mod tests {
     use bevy::ecs::resource::Resource;
     use bevy::text::{FontSize, TextColor, TextFont};
     use bevy::time::{TimePlugin, TimeUpdateStrategy};
-    use fynix::{Curve, Motion, MotionTokens, ScopedExt};
-    use motiongfx_interp::interpolation::Interpolation;
+    use fynix::{Curve, Motion, MotionTokens, ScopedExt, Timing};
 
     use super::*;
+    use crate::tests::mix;
     use crate::tokens::{TextTokens, Tone};
-    use crate::transition::{BevyMarker, ReducedMotion};
+    use crate::transition::ReducedMotion;
     use crate::views::{Label, label, row};
     use crate::{
         AnyView, FynixPlugin, Theme, derived, every_frame, mount,
@@ -331,11 +331,12 @@ mod tests {
     }
 
     impl MotionTokens for Test {
-        fn motion(&self, _: Motion) -> Curve {
+        fn motion(&self, _: Motion) -> Timing {
             Curve {
                 duration: Duration::from_millis(100),
                 ease: |t| t,
             }
+            .into()
         }
     }
 
@@ -358,11 +359,7 @@ mod tests {
 
     /// Halfway from black to white.
     fn halfway() -> Color {
-        blend(&BLACK, &Color::WHITE, 0.5)
-    }
-
-    fn blend(from: &Color, to: &Color, t: f32) -> Color {
-        <Color as Interpolation<BevyMarker>>::interp(from, to, t)
+        mix(BLACK, Color::WHITE, 0.5)
     }
 
     #[derive(Component)]

@@ -19,7 +19,7 @@ use crate::patch::{Paint, PatchInk, PatchOpacity, PatchScale};
 use crate::prop::Prop;
 use crate::state::own_when;
 use crate::tokens::{TextTokens, Tone};
-use crate::transition::{blend_color, blend_f32};
+use crate::transition::{COLOR_AXES, F32_AXES, OPACITY_AXES};
 use crate::visual::faded;
 use crate::{Bevy, Styled};
 
@@ -37,7 +37,7 @@ pub struct Rich {
     #[elem(
         default = theme.body_size(),
         patch = PatchSpanSize,
-        blend = blend_f32
+        axes = F32_AXES
     )]
     pub size: Prop<f32>,
     /// The colour of a span with none of its own, by role. Body when
@@ -46,18 +46,18 @@ pub struct Rich {
         shown = Color,
         with = |tone, theme| theme.tone(tone),
         patch = PatchSpanInk,
-        blend = blend_color
+        axes = COLOR_AXES
     )]
     pub tone: Prop<Tone>,
     /// Whether it breaks onto more lines. It does when unset.
     #[elem(default = true, patch = PatchWrap)]
     pub wrap: Prop<bool>,
     /// How opaque every span is, 1.0 when unset.
-    #[elem(default = 1.0, patch = PatchSpanOpacity, blend = blend_f32)]
+    #[elem(default = 1.0, patch = PatchSpanOpacity, axes = OPACITY_AXES)]
     pub opacity: Prop<f32>,
     /// The factor it is scaled by around its centre after layout,
     /// 1.0 when unset.
-    #[elem(default = 1.0, patch = PatchScale, blend = blend_f32)]
+    #[elem(default = 1.0, patch = PatchScale, axes = F32_AXES)]
     pub scale: Prop<f32>,
     #[elem(patch = PatchSpans)]
     pub spans: Prop<Spans>,

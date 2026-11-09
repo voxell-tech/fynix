@@ -260,10 +260,10 @@ fn a_swap_again_while_expanding_collapses_what_had_grown() {
 
     assert!(ui.world.node(one).leaving);
     assert!(!ui.mounted.is_entering(one));
+    // The growth left and the collapse laid over it cancel out
+    // while both run, then it goes on to nothing.
     ui.update(CURVE / 2, false);
-    assert_eq!(
-        ui.world.node(one).collapsed,
-        Some(0.875),
-        "from where it was, to nothing"
-    );
+    assert_eq!(ui.world.node(one).collapsed, Some(0.75));
+    ui.update(CURVE * 3 / 8, false);
+    assert_eq!(ui.world.node(one).collapsed, Some(0.875));
 }

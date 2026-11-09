@@ -24,6 +24,7 @@ bevy = { version = "0.20", default-features = false }
 lenz = { version = "0.1.0", default-features = false }
 typarena = { version = "0.1.2", features = ["send", "sync"] }
 hashbrown = { version = "0.17", default-features = false }
+libm = "0.2"
 
 [workspace.lints.clippy]
 redundant_type_annotations = "warn"

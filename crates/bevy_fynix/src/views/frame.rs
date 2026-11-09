@@ -14,7 +14,7 @@ use crate::patch::*;
 use crate::prop::Prop;
 use crate::state::own_when;
 use crate::tokens::SpacingTokens;
-use crate::transition::{blend_color, blend_f32};
+use crate::transition::{COLOR_AXES, F32_AXES, OPACITY_AXES};
 use crate::{Bevy, Styled};
 
 /// A bevy_ui [`Node`](bevy::ui::Node) with a fill and a border,
@@ -76,21 +76,21 @@ pub struct Frame {
     pub display: Prop<Display>,
     /// Transparent when unset, for a frame that only wants the
     /// layout.
-    #[elem(default = Color::NONE, patch = PatchFill, blend = blend_color)]
+    #[elem(default = Color::NONE, patch = PatchFill, axes = COLOR_AXES)]
     pub fill: Prop<Color>,
-    #[elem(patch = PatchRadius, blend = blend_f32)]
+    #[elem(patch = PatchRadius, axes = F32_AXES)]
     pub radius: Prop<f32>,
     /// Independent corners, which win over `radius` while set.
     #[elem(default = NO_CORNERS, patch = PatchCorners)]
     pub corners: Prop<BorderRadius>,
     /// The width of a border on every edge. It needs `border_color`
     /// to show.
-    #[elem(patch = PatchBorder, blend = blend_f32)]
+    #[elem(patch = PatchBorder, axes = F32_AXES)]
     pub border: Prop<f32>,
     #[elem(
         default = Color::NONE,
         patch = PatchBorderColor,
-        blend = blend_color
+        axes = COLOR_AXES
     )]
     pub border_color: Prop<Color>,
     /// Where it sits in the window's stack, for a frame that has to
@@ -99,11 +99,11 @@ pub struct Frame {
     #[elem(patch = PatchZ)]
     pub z: Prop<Option<i32>>,
     /// How opaque it is, 1.0 when unset.
-    #[elem(default = 1.0, patch = PatchOpacity, blend = blend_f32)]
+    #[elem(default = 1.0, patch = PatchOpacity, axes = OPACITY_AXES)]
     pub opacity: Prop<f32>,
     /// The factor it is scaled by around its centre after layout,
     /// 1.0 when unset. Its children are scaled with it.
-    #[elem(default = 1.0, patch = PatchScale, blend = blend_f32)]
+    #[elem(default = 1.0, patch = PatchScale, axes = F32_AXES)]
     pub scale: Prop<f32>,
 }
 
@@ -130,7 +130,7 @@ mod tests {
     use bevy::ui::{BorderRadius, Node, px};
 
     use super::*;
-    use crate::tests::{Plain, app};
+    use crate::tests::{Plain, app, mix};
     use crate::tokens::Motion;
     use crate::{ScopedExt, mount};
 
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(ui(&app, node).width, Val::Px(20.0), "at once");
         assert_eq!(
             fill(&app, node),
-            blend_color(&Color::BLACK, &Color::WHITE, 0.5),
+            mix(Color::BLACK, Color::WHITE, 0.5),
             "50ms of 100ms"
         );
     }

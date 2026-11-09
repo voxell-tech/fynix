@@ -31,7 +31,7 @@ use crate::patch::{
 use crate::prop::Prop;
 use crate::state::own_when;
 use crate::tokens::{TextTokens, Tone};
-use crate::transition::{blend_color, blend_f32};
+use crate::transition::{COLOR_AXES, F32_AXES, OPACITY_AXES};
 
 /// A single line of editable text.
 ///
@@ -47,7 +47,7 @@ pub struct TextInput {
     #[elem(
         default = theme.body_size(),
         patch = PatchTextSize,
-        blend = blend_f32
+        axes = F32_AXES
     )]
     pub size: Prop<f32>,
     /// The colour, by role. Body when unset.
@@ -55,15 +55,15 @@ pub struct TextInput {
         shown = Color,
         with = |tone, theme| theme.tone(tone),
         patch = PatchInk,
-        blend = blend_color
+        axes = COLOR_AXES
     )]
     pub tone: Prop<Tone>,
     /// How opaque it is, 1.0 when unset.
-    #[elem(default = 1.0, patch = PatchOpacity, blend = blend_f32)]
+    #[elem(default = 1.0, patch = PatchOpacity, axes = OPACITY_AXES)]
     pub opacity: Prop<f32>,
     /// The factor it is scaled by around its centre after layout,
     /// 1.0 when unset.
-    #[elem(default = 1.0, patch = PatchScale, blend = blend_f32)]
+    #[elem(default = 1.0, patch = PatchScale, axes = F32_AXES)]
     pub scale: Prop<f32>,
 }
 

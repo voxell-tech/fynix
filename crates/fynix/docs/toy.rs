@@ -6,9 +6,9 @@ use core::time::Duration;
 
 // `#[element]` finds these at the root of the crate it is used in.
 pub use fynix::{
-    AnyView, Backend, Condition, Curve, Cx, Element, Motion,
-    MotionTokens, Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick,
-    Travel, View, ViewExt, element, styled,
+    AnyView, Backend, Condition, Cx, Element, Motion, MotionTokens,
+    Mounted, Patch, Prop, ScopedExt, Slot, Spring, Styled, Tick,
+    Timing, Travel, View, ViewExt, element, styled,
 };
 
 #[derive(Default)]
@@ -113,11 +113,8 @@ impl TextTokens for Warm {
 }
 
 impl MotionTokens for Warm {
-    fn motion(&self, _: Motion) -> Curve {
-        Curve {
-            duration: Duration::from_millis(100),
-            ease: |t| t,
-        }
+    fn motion(&self, _: Motion) -> Timing {
+        Spring::new(Duration::from_millis(100), 0.0).into()
     }
 }
 

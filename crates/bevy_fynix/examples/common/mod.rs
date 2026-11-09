@@ -4,8 +4,8 @@ use core::time::Duration;
 
 use bevy::color::Color;
 use bevy_fynix::tokens::{
-    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-    TextTokens, Tone,
+    Motion, MotionTokens, SpacingTokens, Spring, SurfaceTokens,
+    TextTokens, Timing, Tone,
 };
 
 /// The examples' theme. Nothing in the views names it: they ask for
@@ -71,15 +71,13 @@ impl SpacingTokens for Monokai {
 }
 
 impl MotionTokens for Monokai {
-    fn motion(&self, motion: Motion) -> Curve {
+    fn motion(&self, motion: Motion) -> Timing {
         let millis = match motion {
             Motion::Interact => 180,
             Motion::Expand => 280,
         };
-        Curve {
-            duration: Duration::from_millis(millis),
-            // Ease out: quick to answer, gentle to land.
-            ease: |t| 1.0 - (1.0 - t) * (1.0 - t),
-        }
+        // Lands without swinging past, and keeps its speed when a
+        // hover ends halfway.
+        Spring::new(Duration::from_millis(millis), 0.0).into()
     }
 }

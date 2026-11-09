@@ -12,7 +12,6 @@ repository.workspace = true
 [dependencies]
 # fynix
 fynix = { workspace = true }
-motiongfx_interp = { workspace = true }
 # `#[element]` derives `Lenz`, whose output names this crate.
 lenz = { workspace = true }
 

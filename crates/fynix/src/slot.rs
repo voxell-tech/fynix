@@ -12,7 +12,7 @@ pub trait Patch<B: Backend, P> {
     fn patch(world: &mut B::World, node: B::Node, value: &P);
 
     /// How a backend that [animates](Backend::ANIMATES) writes
-    /// `value`: moving to it over the theme's curve for `motion`, or
+    /// `value`: moving to it over the theme's timing for `motion`, or
     /// at once when there is none. At once by default.
     fn patch_over(
         world: &mut B::World,
@@ -59,9 +59,9 @@ impl<P: Clone + PartialEq> Slot<P> {
         self.shown.as_ref()
     }
 
-    /// Heads for `target`: over `tween` from what is written now, or
-    /// at once when there is no tween, nothing written yet, or motion
-    /// is reduced.
+    /// Heads for `target`: over `tween` from what is written now,
+    /// keeping the speed of a travel under way, or at once when there
+    /// is no tween, nothing written yet, or motion is reduced.
     pub fn aim(
         &mut self,
         target: P,
@@ -71,12 +71,19 @@ impl<P: Clone + PartialEq> Slot<P> {
         if self.target.as_ref() == Some(&target) {
             return;
         }
+        let run = self.run.take();
         self.run = match (&self.shown, tween) {
             (Some(shown), Some(tween))
                 if !tick.reduced_motion
-                    && !tween.curve.duration.is_zero() =>
+                    && !tween.timing.is_instant() =>
             {
-                Some(Run::new(shown.clone(), tween))
+                Some(match run {
+                    Some(mut run) => {
+                        run.retarget(tween);
+                        run
+                    }
+                    None => Run::new(shown, tween),
+                })
             }
             _ => None,
         };
