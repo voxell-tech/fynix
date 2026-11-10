@@ -158,7 +158,7 @@ fn logical_rect(
 mod tests {
     use bevy::app::App;
     use bevy::asset::Handle;
-    use bevy::color::Color;
+    use bevy::color::{Alpha, Color};
     use bevy::ecs::entity::Entity;
     use bevy::ecs::hierarchy::ChildOf;
     use bevy::ecs::query::With;
@@ -595,7 +595,8 @@ mod tests {
         assert_eq!(fill(&app, one), Color::srgb(0.2, 0.2, 0.2));
         settle(&mut app);
         assert_eq!(fill(&app, one), Color::srgb(0.2, 0.2, 0.2));
-        assert_eq!(fill(&app, two), Color::NONE);
+        // Clear: the hover colour, waiting to fade in.
+        assert_eq!(fill(&app, two).alpha(), 0.0);
 
         app.world_mut()
             .resource_mut::<DockTree>()
@@ -603,7 +604,7 @@ mod tests {
         settle(&mut app);
 
         assert!(!marked(&app, one) && marked(&app, two));
-        assert_eq!(fill(&app, one), Color::NONE);
+        assert_eq!(fill(&app, one).alpha(), 0.0);
         assert_eq!(fill(&app, two), Color::srgb(0.2, 0.2, 0.2));
     }
 
