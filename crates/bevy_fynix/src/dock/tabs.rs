@@ -2,7 +2,7 @@
 
 use bevy::asset::Handle;
 use bevy::camera::visibility::Visibility;
-use bevy::color::Color;
+use bevy::color::{Alpha, Color};
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -162,7 +162,9 @@ fn lit<T: DockTokens>(cx: &mut Cx<'_, Bevy, T>) {
     cx.set::<Label>(|label, _| label.tone(Tone::Body));
     cx.set::<Icon>(|icon, _| icon.tone(Tone::Body));
     cx.root(|cx| {
-        cx.set::<Frame>(|frame, theme: &T| frame.fill(theme.fill()));
+        cx.set::<Frame>(|frame, theme: &T| {
+            frame.fill(theme.current())
+        });
     });
 }
 
@@ -199,8 +201,11 @@ fn tab<T: DockTokens>(
         parts.push(close(id));
 
         let padding = cx.theme().tab_padding();
+        // The hover colour, clear, so the fill fades in rather than
+        // passing through black.
+        let rest = cx.theme().hover().with_alpha(0.0);
         let tab = button(row(parts).align(AlignItems::Center))
-            .fill(Color::NONE)
+            .fill(rest)
             .padding(UiRect::horizontal(px(padding)))
             .height(percent(100.0))
             .shrink(0.0)

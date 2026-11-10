@@ -21,6 +21,33 @@ pub enum Tone {
     OnAccent,
     /// Destructive actions, and errors.
     Critical,
+    /// What is done: success, finished, approved. For icons, dots and
+    /// bars: a theme may draw it where words would not read.
+    Success,
+    /// What was merged into something else. For marks, as `Success`.
+    Merged,
+    /// What is in progress or needs care: work under way, something
+    /// pending, a limit near. For marks, as `Success`.
+    Warning,
+    /// Information: a note, a tip. For marks, as `Success`.
+    Info,
+    /// What waits for the user. For marks, as `Success`.
+    Attention,
+    /// What is at rest: a neutral mark, grey in every theme. For
+    /// icons, dots and bars, as `Success`.
+    Rest,
+    /// Words that name something exactly: a reference, an id, a link.
+    /// Reads as text.
+    Reference,
+    /// Text and icons drawn on a solid surface of one of the
+    /// statuses above.
+    OnSolid,
+    /// Words in the hue of `Success`, `Merged` or `Warning`, as
+    /// `Critical` is for refusals: moved until they read, such as on
+    /// a button tinted in that hue.
+    SuccessText,
+    MergedText,
+    WarningText,
 }
 
 pub trait TextTokens {
@@ -48,15 +75,38 @@ pub trait SurfaceTokens {
         self.hover()
     }
 
+    /// The edge of a control, such as a slider's groove. The hairline
+    /// unless a theme says.
+    fn edge(&self) -> Color {
+        self.hairline()
+    }
+
+    /// A slider's groove. The fill unless a theme says.
+    fn groove(&self) -> Color {
+        self.fill()
+    }
+
     /// The border around a dock area. The hairline unless a theme
     /// says.
     fn dock_edge(&self) -> Color {
         self.hairline()
     }
 
+    /// A menu row under the pointer, on the menu's own surface. The
+    /// hover surface unless a theme says.
+    fn menu_hover(&self) -> Color {
+        self.hover()
+    }
+
     /// A selected row's tint. The hover surface unless a theme says.
     fn selection(&self) -> Color {
         self.hover()
+    }
+
+    /// What is current, such as the active dock tab. The fill unless
+    /// a theme says.
+    fn current(&self) -> Color {
+        self.fill()
     }
 
     /// A solid accent surface, such as the active segment. The

@@ -174,7 +174,7 @@ where
         let groove = (row / 7.0).round().max(2.0);
         let thumb = ((row * 0.36).round(), (row * 0.64).round());
         let (well, accent, edge) =
-            (theme.fill(), theme.accent(), theme.hairline());
+            (theme.groove(), theme.accent(), theme.edge());
         let (least, most) = self.range;
         // Signed, so a range that falls from left to right fills
         // the same way a press on it reads.

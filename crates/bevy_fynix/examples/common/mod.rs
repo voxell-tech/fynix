@@ -26,6 +26,14 @@ impl TextTokens for Monokai {
             Tone::Accent => hex(0xFFD866),
             Tone::OnAccent => hex(0x2D2A2E),
             Tone::Critical => hex(0xFF6188),
+            Tone::Success | Tone::SuccessText => hex(0xA9DC76),
+            Tone::Merged | Tone::MergedText => hex(0xAB9DF2),
+            Tone::Warning | Tone::WarningText => hex(0xFFD866),
+            Tone::Info => hex(0x78DCE8),
+            Tone::Attention => hex(0xFC9867),
+            Tone::Reference => hex(0x78DCE8),
+            Tone::Rest => hex(0x939293),
+            Tone::OnSolid => hex(0x2D2A2E),
         }
     }
 
