@@ -107,7 +107,7 @@ mod tests {
 
     use super::*;
     use crate::tests::{Plain, app};
-    use crate::tokens::Motion;
+    use crate::tokens::MotionTokens;
     use crate::{Hovered, ScopedExt, mount};
 
     fn scale(app: &App, node: Entity) -> Vec2 {
@@ -125,7 +125,7 @@ mod tests {
             app.world_mut(),
             label("x")
                 .when::<Hovered, _>(grow)
-                .transition(Motion::Interact),
+                .transition(Plain::interact),
         );
 
         app.world_mut().entity_mut(node).insert(Hovered);

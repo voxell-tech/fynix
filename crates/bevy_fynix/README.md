@@ -23,9 +23,10 @@ on.
 - `mount`: builds a view at the root of the UI.
 - `Hovered`, `Pressed`, `Entering`, `Leaving`: states for
   `.when::<S, _>(..)`, and any component of your own works too. A
-  view a `keyed` or `each` builds later keeps `Entering` until its
-  space has expanded, so it fades in last, and a view they drop gets
-  `Leaving`, then collapses. `ReducedMotion` skips all of it.
+  view a `keyed` or `each` with a presence builds later keeps
+  `Entering` until its space has expanded, so it fades in last, and
+  a view they drop gets `Leaving`, then collapses. `ReducedMotion`
+  skips all of it.
 - `ghost`, `tint`, `icon_button`, `primary`, `danger`, `menu_bar`,
   `segment`: button looks, as bundles for `.rules(..)`. Only
   `icon_button` and `tint` never have a surface.
@@ -54,7 +55,7 @@ use bevy_fynix::views::{
     FrameProps, Label, button, column, label,
 };
 use bevy_fynix::tokens::{
-    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
+    Curve, MotionTokens, SpacingTokens, SurfaceTokens,
     TextTokens, Tone,
 };
 use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
@@ -101,9 +102,16 @@ impl SpacingTokens for MyTheme {
 }
 
 impl MotionTokens for MyTheme {
-    fn motion(&self, _: Motion) -> Curve {
+    fn interact(&self) -> Curve {
         Curve {
             duration: Duration::from_millis(180),
+            ease: |t| t,
+        }
+    }
+
+    fn expand(&self) -> Curve {
+        Curve {
+            duration: Duration::from_millis(280),
             ease: |t| t,
         }
     }
@@ -119,7 +127,7 @@ fn setup(world: &mut World) {
                 .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
                     cx.set::<Label>(|l, _| l.tone(Tone::Accent));
                 })
-                .transition(Motion::Interact),
+                .transition(MyTheme::interact),
         ))
         .gap(8.0),
     );
@@ -142,7 +150,10 @@ Three things decide how a view looks, and they stay apart:
 - **State rules** say what a look does while the pointer is on the
   view, while a button is down on it, or while any component of your
   own is on it: `.when::<Hovered, _>(..)`, `.when::<Pressed, _>(..)`.
-  `.transition(Motion::Interact)` makes the change glide.
+  `.transition(T::interact)` makes the change glide over a curve the
+  theme picks. A transition never makes a view grow in or out:
+  only `keyed(..).presence(T::expand)` or `each(..).presence(..)`
+  does.
 
 Buttons ship with their looks as bundles. Each sets a resting, a
 hovered and a pressed look from the theme, and glides between them:
@@ -165,7 +176,7 @@ let chunky = style::<MyTheme>()
     .frame(|f, t| f.radius(t.radius() * 3.0))
     .hovered(|s| s.fill(|t| t.fill()).tone(Tone::Accent))
     .pressed(|s| s.fill(|t| t.pressed()).tone(Tone::Critical))
-    .transition(Motion::Interact);
+    .transition(MyTheme::interact);
 
 button(label("Custom")).rules(chunky.bundle());
 ```

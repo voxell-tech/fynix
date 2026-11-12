@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use crate::backend::Backend;
 use crate::mounted::Tick;
 use crate::rules::When;
-use crate::transition::Travel;
+use crate::transition::Curve;
 use crate::view::{Element, Layered};
 use crate::visual::Visual;
 
@@ -58,8 +58,9 @@ pub(crate) struct Live<B: Backend, E> {
     pub visual_layers: Vec<Layer<B, Visual<B::World>>>,
     /// The [`Visual`] props the call site set.
     pub visual_call: u64,
-    /// How its props travel, if a transition rule reaches it.
-    pub travel: Option<Travel>,
+    /// The curve its props travel over, if a transition rule reaches
+    /// it.
+    pub travel: Option<Curve>,
 }
 
 impl<B: Backend, E> Live<B, E> {

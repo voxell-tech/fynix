@@ -6,7 +6,7 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 
 use super::{Fake, Ui, Warm, World, text, watch};
-use crate::{Cx, Motion, ViewExt, each, keyed};
+use crate::{Cx, ViewExt, each, keyed};
 
 /// Warm's curve, one second long.
 const CURVE: Duration = Duration::from_secs(1);
@@ -18,20 +18,23 @@ impl World {
     }
 }
 
-/// An `each` over `list` whose rows travel over Warm's curve when
-/// `moving`, and its container.
-fn rows(list: &[u32], moving: bool) -> (Ui<Warm>, usize) {
+/// An `each` over `list` whose rows have a transition, and come and
+/// go over Warm's curve when `present`, and its container.
+fn rows(list: &[u32], present: bool) -> (Ui<Warm>, usize) {
     let mut ui = Ui::new(Warm);
     ui.world.list(list);
     let [container] = ui.under(move |cx: &mut Cx<'_, Fake, Warm>| {
-        if moving {
-            cx.transition(Motion::Interact);
-        }
-        cx.build(each(
+        cx.transition(Warm::curve);
+        let rows = each(
             watch(|world: &World| world.list.clone()),
             |&id| id,
             |&id| text(id.to_string()).boxed(),
-        ));
+        );
+        if present {
+            cx.build(rows.presence(Warm::curve));
+        } else {
+            cx.build(rows);
+        }
     })[..] else {
         panic!("a container");
     };
@@ -107,15 +110,18 @@ fn a_leaving_row_despawned_with_its_container_is_forgotten() {
     assert!(!ui.mounted.is_leaving(two));
 }
 
-/// A keyed view of the pick as text, travelling over Warm's curve,
-/// and its container.
+/// A keyed view of the pick as text, swapped over Warm's curve, and
+/// its container.
 fn picks() -> (Ui<Warm>, usize) {
     let mut ui = Ui::new(Warm);
     let [container] = ui.under(|cx: &mut Cx<'_, Fake, Warm>| {
-        cx.transition(Motion::Interact);
-        cx.build(keyed(watch(|world: &World| world.pick), |&pick| {
-            text(pick.to_string()).boxed()
-        }));
+        cx.transition(Warm::curve);
+        cx.build(
+            keyed(watch(|world: &World| world.pick), |&pick| {
+                text(pick.to_string()).boxed()
+            })
+            .presence(Warm::curve),
+        );
     })[..] else {
         panic!("a container");
     };
@@ -153,15 +159,18 @@ fn an_inserted_row_is_held_then_its_space_expands_then_it_is_released()
 }
 
 #[test]
-fn a_row_without_a_transition_is_never_held() {
-    let (mut ui, container) = rows(&[1], false);
-
-    ui.world.list(&[1, 2]);
-    ui.update(Duration::ZERO, false);
+fn rows_without_a_presence_come_and_go_at_once_whatever_their_transition()
+ {
+    let (mut ui, container) = rows(&[1, 2], false);
     let two = ui.world.children(container)[1];
 
-    assert!(!ui.world.node(two).held);
-    assert!(!ui.mounted.is_entering(two));
+    ui.world.list(&[1, 3]);
+    ui.update(Duration::ZERO, false);
+    let three = ui.world.children(container)[1];
+
+    assert!(!ui.world.is_alive(two));
+    assert!(!ui.world.node(three).held);
+    assert!(!ui.mounted.is_entering(three));
 }
 
 #[test]

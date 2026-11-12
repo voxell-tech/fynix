@@ -3,7 +3,7 @@
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, JustifyContent, UiRect, percent, px};
 use bevy_fynix::icons::PLUS;
-use bevy_fynix::tokens::{Motion, Tone};
+use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
     Axis, BehaviorExt, ContextMenuExt, FrameProps, Icon, Label,
     TooltipExt, column, divider, foldable, icon, label, menu_item,
@@ -50,6 +50,7 @@ pub fn scene() -> AnyView<Bevy, Monokai> {
             |id| *id,
             |id| layer(*id).appear::<Monokai>(hidden).boxed(),
         )
+        .presence(Monokai::interact)
         .within(column(()).gap(2.0)),
     ))
     .width(percent(100.0))
@@ -66,7 +67,7 @@ fn lit(view: impl View<Bevy, Monokai>) -> impl View<Bevy, Monokai> {
         cx.set::<Label>(|label, _| label.tone(Tone::Accent));
         cx.set::<Icon>(|icon, _| icon.tone(Tone::Accent));
     })
-    .transition(Motion::Interact)
+    .transition(Monokai::interact)
 }
 
 fn asset(path: &'static str) -> AnyView<Bevy, Monokai> {

@@ -131,7 +131,7 @@ mod tests {
 
     use super::*;
     use crate::tests::{Plain, app};
-    use crate::tokens::Motion;
+    use crate::tokens::MotionTokens;
     use crate::{ScopedExt, mount};
 
     fn ui(app: &App, node: Entity) -> &Node {
@@ -222,7 +222,7 @@ mod tests {
                 .width(crate::resource::<Lit, _>(|lit| {
                     px(if lit.0 { 20.0 } else { 10.0 })
                 }))
-                .transition(Motion::Interact),
+                .transition(Plain::interact),
         );
 
         app.world_mut().resource_mut::<Lit>().0 = true;

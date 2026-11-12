@@ -20,12 +20,13 @@ use bevy::ui::{
     BackgroundColor, ComputedNode, Node, ScrollPosition,
     UiGlobalTransform, UiPlugin, px,
 };
-use fynix::{Motion, ScopedExt};
+use fynix::ScopedExt;
 
 use super::children;
 use crate::leave::{Collapsing, Held};
 use crate::scroll::{ScrollbarStyle, ScrollbarVisibility};
 use crate::tests::{Plain, app_with};
+use crate::tokens::MotionTokens;
 use crate::views::{FrameProps, column, frame, row, scroll};
 use crate::{
     AnyView, Bevy, ReducedMotion, StateExt, View, ViewExt, each,
@@ -126,7 +127,7 @@ fn screen(lines: usize) -> AnyView<Bevy, Plain> {
     column(lines)
         .gap(2.0)
         .appear::<Plain>(hidden)
-        .transition(Motion::Expand)
+        .transition(Plain::expand)
         .boxed()
 }
 
@@ -144,6 +145,7 @@ fn page(app: &mut App) -> (Entity, Entity) {
                     Pick::Short => screen(1),
                 },
             )
+            .presence(Plain::expand)
             .within(column(())),
             frame().height(px(10.0)),
         ))
@@ -164,7 +166,7 @@ fn item(_: &u32) -> AnyView<Bevy, Plain> {
         .height(px(20.0))
         .fill(Color::WHITE)
         .appear::<Plain>(hidden)
-        .transition(Motion::Expand)
+        .transition(Plain::expand)
         .boxed()
 }
 
@@ -183,6 +185,7 @@ fn list(
                 |id| *id,
                 item,
             )
+            .presence(Plain::expand)
             .within(container),
             frame().height(px(10.0)),
         ))
@@ -343,9 +346,10 @@ fn a_view_without_an_entering_rule_is_held_just_the_same() {
                         .map(|_| frame().height(px(20.0)).boxed())
                         .collect::<Vec<_>>(),
                 )
-                .transition(Motion::Expand)
+                .transition(Plain::expand)
                 .boxed()
             })
+            .presence(Plain::expand)
             .within(column(())),
         ))
         .gap(6.0),
@@ -615,10 +619,11 @@ fn a_size_bound_while_held_is_kept_for_the_release() {
                     .width(resource::<Wide, _>(|wide| px(wide.0)))
                     .height(px(20.0))
                     .appear::<Plain>(hidden)
-                    .transition(Motion::Expand)
+                    .transition(Plain::expand)
                     .boxed()
             },
         )
+        .presence(Plain::expand)
         .within(column(())),
     );
     settle(&mut app, 4);
@@ -700,4 +705,34 @@ fn a_scroll_areas_bar_is_its_share_long_and_ends_where_it_does() {
     settle(&mut app, 3);
     assert_eq!(bars(&app, area), []);
     assert_eq!(width(&app, content), 200.0);
+}
+
+#[test]
+fn a_swap_without_a_presence_is_at_once_whatever_the_transition() {
+    let mut app = laid_out();
+    app.insert_resource(Pick::Tall);
+    let container = mount::<Plain>(
+        app.world_mut(),
+        keyed(resource::<Pick, _>(|pick| *pick), |pick| {
+            let wide = if *pick == Pick::Tall { 120.0 } else { 40.0 };
+            frame()
+                .width(px(wide))
+                .height(px(20.0))
+                .appear::<Plain>(hidden)
+                .transition(Plain::interact)
+                .boxed()
+        })
+        .within(row(())),
+    );
+    settle(&mut app, 4);
+    let old = children(&app, container)[0];
+
+    *app.world_mut().resource_mut::<Pick>() = Pick::Short;
+    app.update();
+
+    let now = children(&app, container);
+    assert_eq!(now.len(), 1, "the old one is gone");
+    assert_ne!(now[0], old);
+    assert!(app.world().get::<Held>(now[0]).is_none());
+    assert_eq!(width(&app, container), 40.0);
 }

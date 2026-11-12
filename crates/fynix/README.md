@@ -236,11 +236,22 @@ fn main() {
 }
 ```
 
-Add `.transition(..)` to a view and its changes animate over a curve
-from the theme's `MotionTokens`. `keyed` and `each` rebuild parts of
-the tree as the world changes: the old view fades out and its space
-collapses, then the new view's space expands and it fades in.
-`Tick::reduced_motion` skips every step.
+Add `.transition(pick)` to a view and its changes animate over the
+`Curve` that `pick` takes from the theme: a token like
+`T::interact`, or any `|theme: &Warm| ..`. Fynix names no kinds of
+movement itself. A theme gives whatever curves its views ask for.
+
+`keyed` and `each` rebuild parts of the tree as the world changes.
+They swap at once, whatever the views' transitions, unless given a
+presence, which picks a curve the same way:
+
+```rust,ignore
+keyed(page, build).presence(T::expand)
+```
+
+Then the old view animates out and its space collapses, then the new
+view's space expands and it animates in. `Tick::reduced_motion` skips
+every step.
 
 ## Building a UI Framework
 
@@ -255,9 +266,7 @@ engine. A framework on top of it fills in five things, and
    blocking and the animation of a view's space go there: a dropped
    view is `leave`d, then `collapse`d from 0 to 1, and a new one is
    `hold`ed out of the layout, `collapse`d from 1 to 0 once its size
-   can be measured, then `release`d. A backend that moves values
-   itself sets `ANIMATES`, and is handed each travel over a motion
-   once, through `Patch::patch_over`.
+   can be measured, then `release`d.
 2. **Elements**, as above. For each prop you say how its value is
    written to a node (`Patch`), and optionally its default from the
    theme.
@@ -279,9 +288,8 @@ use core::time::Duration;
 // `#[element]` finds these at the root of the crate it is used in,
 // so a framework re-exports them from its own root.
 use fynix::{
-    Backend, Condition, Curve, Cx, Element, Motion, MotionTokens,
-    Mounted, Patch, Prop, ScopedExt, Slot, Styled, Tick, Travel,
-    View, ViewExt, element, styled,
+    Backend, Condition, Curve, Cx, Element, Mounted, Patch, Prop,
+    ScopedExt, Slot, Styled, Tick, View, ViewExt, element, styled,
 };
 
 // 1. A backend.
@@ -390,15 +398,6 @@ struct Warm;
 impl TextTokens for Warm {
     fn body_size(&self) -> f32 {
         14.0
-    }
-}
-
-impl MotionTokens for Warm {
-    fn motion(&self, _: Motion) -> Curve {
-        Curve {
-            duration: Duration::from_millis(100),
-            ease: |t| t,
-        }
     }
 }
 

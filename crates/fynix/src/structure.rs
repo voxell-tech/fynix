@@ -10,11 +10,24 @@ use crate::cx::Cx;
 use crate::mounted::{Group, Mounted, Structure};
 use crate::prop::Signal;
 use crate::rules::{RuleArena, ScopeEntry};
+use crate::transition::Curve;
 use crate::view::{AnyView, View};
 
 /// How a structural view builds one part of what it holds.
 type BuildFn<B, T, K> =
     dyn Fn(&K) -> AnyView<B, T> + Send + Sync + 'static;
+
+/// Picks from the theme `T` the curve a structural view's parts come
+/// in and leave over.
+type Presence<T> = fn(&T) -> Curve;
+
+/// The curve `presence` picks from `theme`, if there is one.
+fn curve_of<T>(
+    presence: Option<Presence<T>>,
+    theme: &T,
+) -> Option<Curve> {
+    presence.map(|pick| pick(theme))
+}
 
 /// Builds with `group` as the owner of the structural views made,
 /// in a scope of its own, under `container`.
@@ -50,6 +63,7 @@ pub struct Keyed<B: Backend, T, K> {
     key: Signal<B::World, K>,
     build: Box<BuildFn<B, T, K>>,
     within: Option<AnyView<B, T>>,
+    presence: Option<Presence<T>>,
 }
 
 impl<B: Backend, T, K> Keyed<B, T, K> {
@@ -66,6 +80,15 @@ impl<B: Backend, T, K> Keyed<B, T, K> {
     }
 }
 
+impl<B: Backend, T, K> Keyed<B, T, K> {
+    /// This, swapping its views over the curve `pick` takes from the
+    /// theme, such as `T::expand`, instead of at once.
+    pub fn presence(mut self, pick: fn(&T) -> Curve) -> Self {
+        self.presence = Some(pick);
+        self
+    }
+}
+
 /// A view of `build(&key)`, built again when the key signal reports a
 /// change and the key differs from the last one.
 ///
@@ -73,11 +96,10 @@ impl<B: Backend, T, K> Keyed<B, T, K> {
 /// container node, so the view keeps its place among its siblings.
 /// Rules in force where the `keyed` sits are in force in every build.
 ///
-/// A view whose root element has a transition does not pop. The swap
-/// is a sequence: the old view animates out and its space collapses,
-/// then the new view's space expands, then it animates in. See
-/// [`Backend::hold`]. A view without a
-/// transition is dropped and shown at once, and
+/// The swap is at once, whatever the views' transitions, unless
+/// [`Keyed::presence`] picks a curve. Then it is a sequence: the old
+/// view animates out and its space collapses, then the new view's
+/// space expands, then it animates in. See [`Backend::hold`].
 /// [`Tick::reduced_motion`](crate::Tick::reduced_motion) skips every
 /// step.
 pub fn keyed<B, T, K>(
@@ -92,6 +114,7 @@ where
         key,
         build: Box::new(build),
         within: None,
+        presence: None,
     }
 }
 
@@ -120,6 +143,7 @@ where
             Box::new(KeyedEntry {
                 key: self.key,
                 build: self.build,
+                presence: self.presence,
                 last,
                 container,
                 child,
@@ -133,6 +157,7 @@ where
 struct KeyedEntry<B: Backend, T, K> {
     key: Signal<B::World, K>,
     build: Box<BuildFn<B, T, K>>,
+    presence: Option<Presence<T>>,
     last: K,
     container: B::Node,
     child: B::Node,
@@ -159,15 +184,16 @@ where
         if next == self.last {
             return;
         }
+        let curve = curve_of(self.presence, theme);
         let old = self.child;
-        let left = mounted.leave(world, old).then_some(old);
+        let left = mounted.leave(world, old, curve).then_some(old);
         mounted.drop_group(id);
         let mut cx =
             Cx::seeded(world, theme, mounted, &self.capture, id);
         let view = (self.build)(&next);
         self.child = build_in(&mut cx, self.container, id, view);
         drop(cx);
-        mounted.enter(world, self.child, left.as_slice());
+        mounted.enter(world, self.child, left.as_slice(), curve);
         self.last = next;
     }
 
@@ -185,6 +211,7 @@ pub struct Each<B: Backend, T, I, K> {
     key: fn(&I) -> K,
     build: Box<BuildFn<B, T, I>>,
     within: Option<AnyView<B, T>>,
+    presence: Option<Presence<T>>,
 }
 
 impl<B: Backend, T, I, K> Each<B, T, I, K> {
@@ -201,6 +228,16 @@ impl<B: Backend, T, I, K> Each<B, T, I, K> {
     }
 }
 
+impl<B: Backend, T, I, K> Each<B, T, I, K> {
+    /// This, bringing rows in and taking them out over the curve
+    /// `pick` takes from the theme, such as `T::expand`, instead of
+    /// at once.
+    pub fn presence(mut self, pick: fn(&T) -> Curve) -> Self {
+        self.presence = Some(pick);
+        self
+    }
+}
+
 /// One view of `build(&item)` per item, matched by `key` when the
 /// list changes.
 ///
@@ -209,10 +246,11 @@ impl<B: Backend, T, I, K> Each<B, T, I, K> {
 /// stays keeps its node, so its state, focus and transitions survive,
 /// and the container's children are reordered to match the list.
 ///
-/// Rows whose root element has a transition animate. A removed row
-/// animates out and then its space collapses. A new row expands its
-/// space and then animates in, after the rows removed in the same
-/// update are gone. The first build is not animated, and
+/// Rows come and go at once, whatever their transitions, unless
+/// [`Each::presence`] picks a curve. Then a removed row animates out
+/// and its space collapses, and a new row expands its space and then
+/// animates in, after the rows removed in the same update are gone.
+/// The first build is not animated, and
 /// [`Tick::reduced_motion`](crate::Tick::reduced_motion) skips every
 /// step.
 ///
@@ -232,6 +270,7 @@ where
         key,
         build: Box::new(build),
         within: None,
+        presence: None,
     }
 }
 
@@ -276,6 +315,7 @@ where
                 items: self.items,
                 key: self.key,
                 build: self.build,
+                presence: self.presence,
                 container,
                 shown: rows.iter().map(|row| row.node).collect(),
                 rows,
@@ -290,6 +330,7 @@ struct EachEntry<B: Backend, T, I, K> {
     items: Signal<B::World, Vec<I>>,
     key: fn(&I) -> K,
     build: Box<BuildFn<B, T, I>>,
+    presence: Option<Presence<T>>,
     container: B::Node,
     rows: Vec<Row<B, K>>,
     /// The container's children as last ordered: the rows, and the
@@ -340,6 +381,7 @@ where
             return;
         }
         let items = self.items.get(world);
+        let curve = curve_of(self.presence, theme);
         // Rows still animating out keep their place among the rest.
         self.shown.retain(|&node| {
             mounted.is_leaving(node)
@@ -364,7 +406,7 @@ where
             .collect::<Vec<_>>();
         let mut left = Vec::new();
         for row in old.into_iter().flatten() {
-            if mounted.leave(world, row.node) {
+            if mounted.leave(world, row.node, curve) {
                 left.push(row.node);
             }
             mounted.drop_group(row.group);
@@ -395,7 +437,7 @@ where
         }
         drop(cx);
         for node in built {
-            mounted.enter(world, node, &left);
+            mounted.enter(world, node, &left, curve);
         }
 
         let live =

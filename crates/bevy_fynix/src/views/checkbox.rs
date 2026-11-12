@@ -13,9 +13,7 @@ use bevy::window::SystemCursorIcon;
 use crate::cursor::EntityCursor;
 use crate::prop::{Prop, component};
 use crate::state::State;
-use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-};
+use crate::tokens::{MotionTokens, SpacingTokens, SurfaceTokens};
 use crate::views::frame::{Frame, FrameProps, frame};
 use crate::{Bevy, Cx, Hovered, Styled, View};
 
@@ -88,7 +86,7 @@ where
     cx.when::<State<Hovered>>(|cx| {
         cx.set::<Frame>(|frame, theme: &T| frame.fill(theme.hover()));
     });
-    cx.transition(Motion::Interact);
+    cx.transition(T::interact);
 }
 
 fn changed(change: On<ValueChange<bool>>, mut commands: Commands) {

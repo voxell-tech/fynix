@@ -40,8 +40,8 @@ use crate::prop::{Signal, component, each};
 use crate::shortcut::{MENU, Scope};
 use crate::state::State;
 use crate::tokens::{
-    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-    TextTokens, Tone,
+    Curve, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::icon::icon;
@@ -119,7 +119,7 @@ where
             frame.fill(theme.menu_hover())
         });
     });
-    cx.transition(Motion::Interact);
+    cx.transition(T::interact);
 }
 
 impl<C> FrameProps for MenuItem<C> {
@@ -498,7 +498,8 @@ where
 
 /// One view per item of `items`, under an anchor at the point
 /// `source`'s `C` names, which hangs at the root of the window
-/// instead of where it was built. The anchor is returned.
+/// instead of where it was built, coming and going over the curve
+/// `presence` picks, or at once. The anchor is returned.
 pub(crate) fn float<T, C, I, K>(
     cx: &mut Cx<'_, Bevy, T>,
     source: Entity,
@@ -506,6 +507,7 @@ pub(crate) fn float<T, C, I, K>(
     items: Signal<Vec<I>>,
     key: fn(&I) -> K,
     build: impl Fn(&I) -> AnyView<Bevy, T> + Send + Sync + 'static,
+    presence: Option<fn(&T) -> Curve>,
 ) -> Entity
 where
     T: SpacingTokens + Send + Sync + 'static,
@@ -513,13 +515,16 @@ where
     I: 'static,
     K: PartialEq + Clone + Send + Sync + 'static,
 {
-    let view =
-        each(items, key, build).within(anchor::<T, C>(source, at));
+    let mut view = each(items, key, build);
+    if let Some(pick) = presence {
+        view = view.presence(pick);
+    }
+    let view = view.within(anchor::<T, C>(source, at));
     cx.at_root(|cx| {
         cx.scope(|cx| {
             // Still under the rules of where it was built, whose
             // transition would ease it in from an unset look.
-            cx.transition_over(Curve {
+            cx.transition(|_| Curve {
                 duration: Duration::ZERO,
                 ease: ease::linear,
             });

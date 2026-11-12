@@ -19,9 +19,9 @@ mod state;
 mod structure;
 
 use crate::{
-    AnyView, Backend, Condition, Curve, Cx, Matched, Motion,
-    MotionTokens, Mounted, Patch, Prop, ScopedExt, Signal, Slot,
-    Styled, Tick, Tween, View, ViewExt, derived, element,
+    AnyView, Backend, Condition, Curve, Cx, Matched, Mounted, Patch,
+    Prop, ScopedExt, Signal, Styled, Tick, View, ViewExt, derived,
+    element,
 };
 
 #[derive(Default)]
@@ -269,8 +269,9 @@ impl Sizes for Warm {
     }
 }
 
-impl MotionTokens for Warm {
-    fn motion(&self, _: Motion) -> Curve {
+impl Warm {
+    /// The one curve things move over, a second long.
+    fn curve(&self) -> Curve {
         Curve {
             duration: Duration::from_secs(1),
             ease: ease::linear,
@@ -477,7 +478,7 @@ fn a_running_transition_advances_without_a_source_change() {
                 READS.fetch_add(1, Ordering::Relaxed);
                 world.count as f32
             }))
-            .transition(Motion::Interact),
+            .transition(Warm::curve),
     );
 
     ui.world.set(10);
@@ -522,7 +523,7 @@ fn only_the_prop_that_changed_is_written() {
 fn counted() -> AnyView<Fake, Warm> {
     text("x")
         .size(watch(|world: &World| world.count as f32))
-        .transition(Motion::Interact)
+        .transition(Warm::curve)
         .boxed()
 }
 
@@ -536,29 +537,6 @@ fn an_update_says_whether_anything_still_moves() {
     assert!(ui.update(Duration::ZERO, false));
     assert!(ui.update(Duration::from_millis(500), false));
     assert!(!ui.update(Duration::from_millis(500), false), "arrived");
-}
-
-#[test]
-fn a_travel_over_a_motion_is_handed_over_once() {
-    let tween = Tween {
-        curve: Warm.motion(Motion::Expand),
-        motion: Some(Motion::Expand),
-        interp: blend,
-    };
-    let tick = Tick {
-        delta: Duration::from_millis(100),
-        reduced_motion: false,
-    };
-    let mut slot = Slot::default();
-    let mut writes = Vec::new();
-    for target in [0.0, 10.0, 10.0] {
-        slot.aim(target, Some(tween), tick);
-        let moving = slot.hand_over(tick, |value, motion| {
-            writes.push((*value, motion));
-        });
-        assert!(!moving);
-    }
-    assert_eq!(writes, [(0.0, None), (10.0, Some(Motion::Expand))]);
 }
 
 #[test]

@@ -83,7 +83,6 @@ type NodeFn<B> =
 struct Hooks<B: Backend> {
     mark: NodeFn<B>,
     remove: NodeFn<B>,
-    curve: fn(&TypeTable<B::Node>, B::Node) -> Option<Curve>,
 }
 
 /// A dropped view's root, kept while it animates out: first its
@@ -200,7 +199,6 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
             Hooks {
                 mark: mark::<B, T, E>,
                 remove: remove::<B, T, E>,
-                curve: curve::<B, T, E>,
             },
         );
         // Checks often fire on their first call, which the first
@@ -292,25 +290,19 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         }
     }
 
-    /// The curve the element on `node` travels over, if it does.
-    fn curve_of(&self, node: B::Node) -> Option<Curve> {
-        self.hooks
-            .get(&node)
-            .and_then(|hooks| (hooks.curve)(&self.table, node))
-    }
-
-    /// Takes out the view whose root is `node`: animated out when its
-    /// root element travels over a curve, despawned at once
-    /// otherwise. Whether it is animating out.
+    /// Takes out the view whose root is `node`: animated out over
+    /// `curve` when there is one, despawned at once otherwise.
+    /// Whether it is animating out.
     pub(crate) fn leave(
         &mut self,
         world: &mut B::World,
         node: B::Node,
+        curve: Option<Curve>,
     ) -> bool {
         let arriving = self.arriving.remove(&node);
         // A view still held was never seen.
         let seen = arriving.as_ref().is_none_or(|a| a.expanding);
-        let Some(curve) = self.curve_of(node).filter(|_| seen) else {
+        let Some(curve) = curve.filter(|_| seen) else {
             B::despawn(world, node);
             return false;
         };
@@ -340,17 +332,18 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         self.leaving.contains_key(&node)
     }
 
-    /// Brings in the view whose root is `node`, just built: held
-    /// out of the layout until the views in `after`, which left in
-    /// its place, are gone, then its space expands. A view whose root
-    /// element does not travel over a curve is left whole.
+    /// Brings in the view whose root is `node`, just built, over
+    /// `curve`: held out of the layout until the views in `after`,
+    /// which left in its place, are gone, then its space expands.
+    /// Without a curve it is left whole.
     pub(crate) fn enter(
         &mut self,
         world: &mut B::World,
         node: B::Node,
         after: &[B::Node],
+        curve: Option<Curve>,
     ) {
-        let Some(curve) = self.curve_of(node) else {
+        let Some(curve) = curve else {
             return;
         };
         B::hold(world, node);
@@ -598,13 +591,6 @@ fn mark<B: Backend, T: 'static, E: Element<B, T>>(
     if let Some(mount) = table.get_mut::<Mount<B, T, E>>(&node) {
         mount.dirty = true;
     }
-}
-
-fn curve<B: Backend, T: 'static, E: Element<B, T>>(
-    table: &TypeTable<B::Node>,
-    node: B::Node,
-) -> Option<Curve> {
-    Some(table.get::<Mount<B, T, E>>(&node)?.live.travel?.curve)
 }
 
 fn remove<B: Backend, T: 'static, E: Element<B, T>>(

@@ -17,8 +17,7 @@ use crate::cursor::EntityCursor;
 use crate::prop::Prop;
 use crate::state::State;
 use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
-    Tone,
+    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
 };
 use crate::{Bevy, Cx, Focused, Hovered, Styled, View};
 
@@ -82,7 +81,7 @@ where
             frame.border_color(theme.tone(Tone::Accent))
         });
     });
-    cx.transition(Motion::Interact);
+    cx.transition(T::interact);
 }
 
 /// Builds `frame` with `input` in it, as a field's root and its

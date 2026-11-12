@@ -2,12 +2,13 @@
 //! first frame, while it comes in and while it leaves, and the
 //! collapse and expansion of the space it takes.
 //!
-//! A view a `keyed` or `each` builds after its first build comes in
-//! in two steps. It is held out of the layout and out of sight until
-//! its natural size has been measured, then its space expands from
-//! nothing, and only then is it released and animates in from its
-//! [`Entering`] state. A view it drops leaves in two steps too: it
-//! animates out to its [`Leaving`] state, then its space collapses.
+//! A view a `keyed` or `each` with a presence builds after its first
+//! build comes in in two steps. It is held out of the layout and out
+//! of sight until its natural size has been measured, then its space
+//! expands from nothing, and only then is it released and animates in
+//! from its [`Entering`] state. A view it drops leaves in two steps
+//! too: it animates out to its [`Leaving`] state, then its space
+//! collapses.
 
 use bevy::camera::visibility::Visibility;
 use bevy::ecs::component::Component;
@@ -427,10 +428,12 @@ mod tests {
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::text::TextColor;
     use bevy::time::{TimePlugin, TimeUpdateStrategy};
-    use fynix::{Curve, Motion, MotionTokens, ScopedExt};
+    use fynix::{Curve, ScopedExt};
 
     use super::*;
-    use crate::tokens::{SpacingTokens, TextTokens, Tone};
+    use crate::tokens::{
+        MotionTokens, SpacingTokens, TextTokens, Tone,
+    };
     use crate::views::{Label, column, label};
     use crate::{
         Bevy, FynixPlugin, Theme, ViewExt, each, mount, resource,
@@ -467,11 +470,15 @@ mod tests {
     }
 
     impl MotionTokens for Test {
-        fn motion(&self, _: Motion) -> Curve {
+        fn interact(&self) -> Curve {
             Curve {
                 duration: Duration::from_millis(100),
                 ease: |t| t,
             }
+        }
+
+        fn expand(&self) -> Curve {
+            self.interact()
         }
     }
 
@@ -508,7 +515,7 @@ mod tests {
         label(id.to_string())
             .when::<Entering, _>(faded)
             .when::<Leaving, _>(faded)
-            .transition(Motion::Interact)
+            .transition(Test::interact)
             .boxed()
     }
 
@@ -519,7 +526,8 @@ mod tests {
                 resource::<Ids, _>(|ids| ids.0.clone()),
                 |id| *id,
                 row,
-            ),)),
+            )
+            .presence(Test::interact),)),
         )
     }
 
@@ -538,7 +546,7 @@ mod tests {
             app.world_mut(),
             label("x")
                 .when::<Entering, _>(faded)
-                .transition(Motion::Interact),
+                .transition(Test::interact),
         );
         assert_eq!(alpha(&app, node), 0.0, "written entering");
 

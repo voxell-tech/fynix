@@ -42,7 +42,7 @@ mount::<MyTheme>(
             .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
                 cx.set::<Label>(|l, _| l.tone(Tone::Accent));
             })
-            .transition(Motion::Interact),
+            .transition(MyTheme::interact),
     ))
     .gap(8.0),
 );

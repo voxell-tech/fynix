@@ -29,8 +29,8 @@ use bevy::window::{PrimaryWindow, Window};
 
 use crate::state::{Hovered, Pressed};
 use crate::tokens::{
-    Curve, Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-    TextTokens, Tone,
+    Curve, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    Tone,
 };
 use crate::{FynixPlugin, Theme};
 
@@ -137,12 +137,23 @@ impl SpacingTokens for Plain {
     }
 }
 
-impl MotionTokens for Plain {
-    fn motion(&self, _: Motion) -> Curve {
+impl Plain {
+    /// Its one curve, `duration` long.
+    fn curve(&self) -> Curve {
         Curve {
             duration: self.duration,
             ease: |t| t,
         }
+    }
+}
+
+impl MotionTokens for Plain {
+    fn interact(&self) -> Curve {
+        self.curve()
+    }
+
+    fn expand(&self) -> Curve {
+        self.curve()
     }
 }
 

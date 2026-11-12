@@ -12,7 +12,7 @@
 //!     .tone(Tone::Critical)
 //!     .hovered(|s| s.fill(|t| t.hover()))
 //!     .pressed(|s| s.fill(|t| t.pressed()))
-//!     .transition(Motion::Interact);
+//!     .transition(Theme::interact);
 //!
 //! button(label("Delete")).rules(danger.bundle())
 //! ```
@@ -36,7 +36,7 @@ use bevy::color::Color;
 use bevy::ecs::component::Component;
 
 use crate::state::{Hovered, Pressed, State};
-use crate::tokens::{Motion, MotionTokens, Tone};
+use crate::tokens::{Curve, Tone};
 use crate::views::{Frame, Icon, Label, Rich};
 use crate::{Bevy, Cx};
 
@@ -136,12 +136,10 @@ impl<T: 'static> Style<T> {
     }
 
     /// This, with every element in the view travelling to new values
-    /// over the theme's curve for `motion`.
-    pub fn transition(self, motion: Motion) -> Self
-    where
-        T: MotionTokens,
-    {
-        self.step(move |cx| cx.transition(motion))
+    /// over the curve `pick` takes from the theme, such as
+    /// `T::interact`.
+    pub fn transition(self, pick: fn(&T) -> Curve) -> Self {
+        self.step(move |cx| cx.transition(pick))
     }
 
     /// This, running the bundle `bundle`, such as
@@ -188,7 +186,7 @@ mod tests {
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::tokens::{SurfaceTokens, TextTokens};
+    use crate::tokens::{MotionTokens, SurfaceTokens, TextTokens};
     use crate::views::{button, ghost, label, row};
     use crate::{ScopedExt, mount};
 
@@ -220,7 +218,7 @@ mod tests {
             .fill(|theme| theme.fill())
             .hovered(|s| s.fill(|_| GREEN))
             .pressed(|s| s.fill(|_| BLUE).tone(Tone::Accent))
-            .transition(Motion::Interact)
+            .transition(Plain::interact)
     }
 
     #[test]

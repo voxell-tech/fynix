@@ -11,7 +11,7 @@
 //! The looks a button comes in are rule bundles, applied with
 //! `.rules(..)`. Each sets a resting, a hovered and a pressed look
 //! from the theme's tokens, and travels between them over
-//! [`Motion::Interact`]:
+//! [`MotionTokens::interact`]:
 //!
 //! | Bundle | Look |
 //! |---|---|
@@ -37,8 +37,7 @@ use bevy::window::SystemCursorIcon;
 use crate::cursor::EntityCursor;
 use crate::style::{Style, style};
 use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
-    Tone,
+    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
 use crate::views::icon::icon;
@@ -89,7 +88,7 @@ where
         .fill(rest)
         .hovered(|s| s.fill(hover))
         .pressed(|s| s.fill(pressed))
-        .transition(Motion::Interact)
+        .transition(T::interact)
 }
 
 /// A surface that is not there, under the pointer or not.
@@ -180,7 +179,7 @@ where
         .tone(Tone::Dim)
         .hovered(|s| s.fill(clear).tone(Tone::Body))
         .pressed(|s| s.fill(clear).tone(Tone::Accent))
-        .transition(Motion::Interact)
+        .transition(T::interact)
         .apply(cx);
 }
 
