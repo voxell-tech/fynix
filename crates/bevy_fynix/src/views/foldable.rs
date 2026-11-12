@@ -7,7 +7,7 @@ use bevy::ui::{AlignItems, Display, FlexDirection, percent};
 
 use crate::prop::component;
 use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
 use crate::views::{
     BehaviorExt, FrameProps, button, frame, icon, row, tint,
@@ -84,7 +84,7 @@ where
                 icon(icons::CHEVRON)
                     .size(cx.theme().small_size())
                     .rotation(turn)
-                    .transition(Motion::Interact),
+                    .transition(T::interact),
             )
             .rules(tint)
             .on_activate(move |world| toggle(world, root));

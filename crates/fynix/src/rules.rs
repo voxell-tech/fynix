@@ -17,7 +17,7 @@ pub(crate) enum RuleKind {
     Set,
     Show,
     ShowSet(TypeId),
-    Motion,
+    Transition,
 }
 
 /// A state a node can be in, which rules can be made to hold under.
@@ -97,7 +97,7 @@ impl<B: Backend> ScopeEntry<B> {
         match self.kind {
             RuleKind::Show => Some(self.view),
             RuleKind::ShowSet(element) => Some(element),
-            RuleKind::Set | RuleKind::Motion => None,
+            RuleKind::Set | RuleKind::Transition => None,
         }
     }
 }

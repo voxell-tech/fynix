@@ -4,7 +4,7 @@ use bevy::color::Color;
 use bevy::ui::{AlignItems, FlexDirection, UiRect, percent, px};
 use bevy_fynix::icons::PLUS;
 use bevy_fynix::tokens::{
-    Motion, SpacingTokens, SurfaceTokens, Tone,
+    MotionTokens, SpacingTokens, SurfaceTokens, Tone,
 };
 use bevy_fynix::views::{
     Frame, FrameProps, Label, LineColor, Span, button, column,
@@ -72,7 +72,7 @@ fn chunky() -> Style<Monokai> {
                 .frame(|frame, _| frame.scale(0.96))
                 .tone(Tone::Critical)
         })
-        .transition(Motion::Interact)
+        .transition(Monokai::interact)
 }
 
 fn looks() -> impl View<Bevy, Monokai> {
@@ -118,7 +118,7 @@ fn parts() -> impl View<Bevy, Monokai> {
                 });
             });
         })
-        .transition(Motion::Interact),
+        .transition(Monokai::interact),
         label("The key keeps its dim tone").tone(Tone::Faint),
     ))
     .gap(10.0)

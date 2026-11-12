@@ -290,9 +290,8 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
         });
         let tween = match &prop.args.blend {
             Some(blend) => quote! {
-                travel.map(|travel| #fynix::Tween {
-                    curve: travel.curve,
-                    motion: travel.motion,
+                travel.map(|curve| #fynix::Tween {
+                    curve,
                     interp: #blend,
                 })
             },
@@ -314,19 +313,11 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
         let patch = &prop.patch;
         let shown = prop.args.shown.as_ref().unwrap_or(&prop.value);
         quote! {
-            moving |= if <#backend as #fynix::Backend>::ANIMATES {
-                shown.#name.hand_over(tick, |value, motion| {
-                    <#patch as #fynix::Patch<#backend, #shown>>::patch_over(
-                        #world, node, value, motion,
-                    );
-                })
-            } else {
-                shown.#name.step(tick, |value| {
-                    <#patch as #fynix::Patch<#backend, #shown>>::patch(
-                        #world, node, value,
-                    );
-                })
-            };
+            moving |= shown.#name.step(tick, |value| {
+                <#patch as #fynix::Patch<#backend, #shown>>::patch(
+                    #world, node, value,
+                );
+            });
         }
     });
 
@@ -427,7 +418,7 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
                 node: <#backend as #fynix::Backend>::Node,
                 #theme: &__Theme,
                 tick: #fynix::Tick,
-                travel: ::core::option::Option<#fynix::Travel>,
+                travel: ::core::option::Option<#fynix::Curve>,
             ) -> bool {
                 #(#aims)*
                 let mut moving = false;

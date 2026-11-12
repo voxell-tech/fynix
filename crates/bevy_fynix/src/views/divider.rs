@@ -7,9 +7,7 @@ use bevy::ui::{Node, PositionType, Val, ZIndex, percent, px};
 use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
-use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens,
-};
+use crate::tokens::{MotionTokens, SpacingTokens, SurfaceTokens};
 use crate::views::frame::{Frame, FrameProps};
 use crate::{Bevy, Cx, Dragging, Styled, View, style};
 
@@ -121,7 +119,7 @@ where
         .fill(|_| Color::NONE)
         .hovered(|s| s.fill(|theme| theme.accent()))
         .when::<Dragging>(|s| s.fill(|theme| theme.accent()))
-        .transition(Motion::Interact)
+        .transition(T::interact)
         .apply(cx);
 }
 

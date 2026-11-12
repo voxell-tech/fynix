@@ -13,7 +13,7 @@ use crate::backend::Backend;
 use crate::cx::Cx;
 use crate::layer::Live;
 use crate::mounted::Tick;
-use crate::transition::Travel;
+use crate::transition::Curve;
 use crate::visual::{Visual, VisualMut};
 
 /// Something that can be built under a node, with the theme `T`.
@@ -155,9 +155,9 @@ pub trait Element<B: Backend, T>: Layered {
     fn prepare(world: &mut B::World, node: B::Node);
 
     /// Re-reads the props whose bits are in `dirty`, heads each for
-    /// its new value, as `travel` says if it blends, and moves every
-    /// prop still travelling on by `tick`. Returns whether any still
-    /// is.
+    /// its new value, over the curve `travel` if it blends, and moves
+    /// every prop still travelling on by `tick`. Returns whether any
+    /// still is.
     #[allow(clippy::too_many_arguments)]
     fn update(
         &self,
@@ -167,7 +167,7 @@ pub trait Element<B: Backend, T>: Layered {
         node: B::Node,
         theme: &T,
         tick: Tick,
-        travel: Option<Travel>,
+        travel: Option<Curve>,
     ) -> bool;
 
     /// Whether anything it holds can change after the build.

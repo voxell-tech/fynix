@@ -10,7 +10,7 @@ use crate::layer::{Layer, Live};
 use crate::mounted::{Group, Mounted};
 use crate::prop::Prop;
 use crate::rules::{Condition, RuleKind, ScopeEntry, When};
-use crate::transition::{Curve, Motion, MotionTokens, Travel};
+use crate::transition::Curve;
 use crate::view::{AnyView, Element, Matched, Styled, View};
 
 /// How many replacements can be built one inside another before a
@@ -507,23 +507,23 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         layers.into_iter().map(|(_, layer)| layer).collect()
     }
 
-    /// How a transition rule in force has an element resolved now
-    /// travel: the innermost that is not a default, else the
-    /// innermost default.
-    pub(crate) fn travel(&self) -> Option<Travel> {
+    /// The curve a transition rule in force has an element resolved
+    /// now travel over: the innermost that is not a default, else
+    /// the innermost default.
+    pub(crate) fn travel(&self) -> Option<Curve> {
         let innermost = |default: bool| {
             self.entries
                 .iter()
                 .rev()
                 .filter(|entry| {
-                    entry.kind == RuleKind::Motion
+                    entry.kind == RuleKind::Transition
                         && entry.default == default
                         && entry.reaches()
                 })
                 .find_map(|entry| {
                     self.mounted
                         .rules
-                        .get::<Travel>(&entry.key)
+                        .get::<Curve>(&entry.key)
                         .copied()
                 })
         };
@@ -531,32 +531,19 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     }
 
     /// Makes every element built from here to the end of the scope
-    /// travel to new values over the theme's curve for `motion`, if
-    /// it says how its values blend.
-    pub fn transition(&mut self, motion: Motion)
-    where
-        T: MotionTokens,
-    {
-        self.travel_over(Travel {
-            curve: self.theme.motion(motion),
-            motion: Some(motion),
-        });
-    }
-
-    /// As [`transition`](Self::transition), over `curve`. Fynix moves
-    /// the values itself, whether the backend animates or not.
-    pub fn transition_over(&mut self, curve: Curve) {
-        self.travel_over(Travel {
-            curve,
-            motion: None,
-        });
-    }
-
-    fn travel_over(&mut self, travel: Travel) {
-        let key = self.mounted.rules.insert(travel);
+    /// travel to new values over the curve `pick` takes from the
+    /// theme, if it says how its values blend.
+    ///
+    /// ```ignore
+    /// cx.transition(T::interact);
+    /// cx.transition(|theme| theme.motion.popup);
+    /// ```
+    pub fn transition(&mut self, pick: impl FnOnce(&T) -> Curve) {
+        let curve = pick(self.theme);
+        let key = self.mounted.rules.insert(curve);
         self.entry(
-            TypeId::of::<Travel>(),
-            RuleKind::Motion,
+            TypeId::of::<Curve>(),
+            RuleKind::Transition,
             key,
             None,
         );

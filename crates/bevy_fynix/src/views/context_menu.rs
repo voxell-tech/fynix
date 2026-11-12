@@ -163,6 +163,7 @@ where
             }),
             |open| open.serial,
             move |open| menu(open.serial, items()),
+            None,
         );
         source
     }

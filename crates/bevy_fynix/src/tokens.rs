@@ -3,7 +3,16 @@
 //! any theme that can answer for them.
 
 use bevy::color::{Color, Luminance};
-pub use fynix::{Curve, Motion, MotionTokens};
+pub use fynix::Curve;
+
+/// How things move, as curves for a transition or a presence to pick:
+/// `.transition(T::interact)`, `.presence(T::expand)`.
+pub trait MotionTokens {
+    /// Answering the pointer: hover, press.
+    fn interact(&self) -> Curve;
+    /// Something opening or growing.
+    fn expand(&self) -> Curve;
+}
 
 /// A text colour by role, so a view can ask for "dim" without knowing
 /// what dim is in a given theme.

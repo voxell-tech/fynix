@@ -5,9 +5,7 @@ use core::time::Duration;
 use std::string::ToString;
 
 use super::{Fake, Lit, Text, Ui, Warm, World, text, watch};
-use crate::{
-    AnyView, Cx, Motion, Prop, ScopedExt, View, ViewExt, keyed,
-};
+use crate::{AnyView, Cx, Prop, ScopedExt, View, ViewExt, keyed};
 
 impl Ui<Warm> {
     /// Lights `node` or puts it out, reports it as a backend would,
@@ -203,7 +201,7 @@ fn a_state_rule_moves_over_a_transition_around_it() {
         text("x")
             .size(10.0)
             .when_in::<Lit, _>(big)
-            .transition(Motion::Interact),
+            .transition(Warm::curve),
     );
 
     ui.light(node, true);

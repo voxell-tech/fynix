@@ -28,8 +28,7 @@ use crate::modifier::ModifierExt;
 use crate::prop::{Prop, component, each};
 use crate::shortcut::{CommandId, CommandList, shortcut_text};
 use crate::tokens::{
-    Motion, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
-    Tone,
+    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
 };
 use crate::views::foldable::Open;
 use crate::views::frame::{Frame, FrameProps};
@@ -264,7 +263,7 @@ where
             .rotation(component::<Open, _>(root, |open| {
                 if open.is_some() { 0.0 } else { SHUT_TURN }
             }))
-            .transition(Motion::Interact);
+            .transition(T::interact);
         let button = cx.under(root, |cx| {
             let button = cx.scope(|cx| {
                 cx.defaults(|cx| cx.root(control_defaults));

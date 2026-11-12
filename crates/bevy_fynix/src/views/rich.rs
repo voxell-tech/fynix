@@ -518,7 +518,7 @@ mod tests {
 
     use super::*;
     use crate::tests::{Plain, app, kids};
-    use crate::tokens::Motion;
+    use crate::tokens::MotionTokens;
     use crate::{ScopedExt, StateExt, hidden, mount, resource};
 
     #[derive(Resource)]
@@ -710,7 +710,7 @@ mod tests {
                 Span::new("c"),
             ])
             .tone(resource::<Shade, _>(|shade| shade.0))
-            .transition(Motion::Interact),
+            .transition(Plain::interact),
         );
         let spans = kids(&app, root);
         assert_eq!(color(&app, spans[0]), Color::WHITE);

@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 use crate::backend::Backend;
 use crate::cx::Cx;
 use crate::rules::Condition;
-use crate::transition::{Motion, MotionTokens};
+use crate::transition::Curve;
 use crate::view::View;
 
 /// A view built in a scope where `rules` ran first.
@@ -22,11 +22,11 @@ pub struct When<V, F, C> {
     state: PhantomData<fn() -> C>,
 }
 
-/// A view whose elements travel to new values over the theme's curve
-/// for a motion.
-pub struct Transition<V> {
+/// A view whose elements travel to new values over a curve `pick`
+/// takes from the theme.
+pub struct Transition<V, P> {
     view: V,
-    motion: Motion,
+    pick: P,
 }
 
 impl<B, T, V, F> View<B, T> for Rules<V, F>
@@ -60,15 +60,16 @@ where
     }
 }
 
-impl<B, T, V> View<B, T> for Transition<V>
+impl<B, T, V, P> View<B, T> for Transition<V, P>
 where
     B: Backend,
-    T: MotionTokens + 'static,
+    T: 'static,
     V: View<B, T>,
+    P: FnOnce(&T) -> Curve,
 {
     fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
         cx.scope(|cx| {
-            cx.transition(self.motion);
+            cx.transition(self.pick);
             self.view.build(cx)
         })
     }
@@ -93,9 +94,10 @@ pub trait ScopedExt: Sized {
     }
 
     /// This view, with every element in it travelling to new values
-    /// over the theme's curve for `motion`.
-    fn transition(self, motion: Motion) -> Transition<Self> {
-        Transition { view: self, motion }
+    /// over the curve `pick` takes from the theme, such as
+    /// `T::interact`.
+    fn transition<P>(self, pick: P) -> Transition<Self, P> {
+        Transition { view: self, pick }
     }
 }
 

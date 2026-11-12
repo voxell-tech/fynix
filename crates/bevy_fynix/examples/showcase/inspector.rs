@@ -6,7 +6,7 @@ use bevy::ecs::world::World;
 use bevy::ui::{UiRect, percent, px};
 use bevy_fynix::icons::CHEVRON;
 use bevy_fynix::prop::Prop;
-use bevy_fynix::tokens::{Motion, Tone};
+use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
     AnimatedField, BehaviorExt, FrameProps, HasAction, button,
     checkbox, column, dropdown, field_row, label, number_field, row,
@@ -38,6 +38,7 @@ pub fn inspector() -> AnyView<Bevy, Monokai> {
                 _ => scene_page().boxed(),
             },
         )
+        .presence(Monokai::expand)
         .within(column(())),
     ))
     .width(percent(100.0))
@@ -52,7 +53,7 @@ fn page(rows: impl View<Bevy, Monokai>) -> impl View<Bevy, Monokai> {
     column((rows,))
         .gap(6.0)
         .appear::<Monokai>(hidden)
-        .transition(Motion::Expand)
+        .transition(Monokai::expand)
 }
 
 /// A number field for one of the shape's fields.

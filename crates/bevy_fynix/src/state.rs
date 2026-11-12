@@ -171,10 +171,12 @@ pub trait StateExt: Sized {
 
     /// This view, animating in from what `away` sets and out to it
     /// again: `away` holds while it is [`Entering`] and while it is
-    /// [`Leaving`](crate::Leaving). It needs a transition to move.
+    /// [`Leaving`](crate::Leaving). It needs a transition to move,
+    /// and, to leave at all, a `keyed` or `each` with a presence to
+    /// drop it.
     ///
     /// ```ignore
-    /// line(name).appear(hidden).transition(Motion::Expand)
+    /// line(name).appear(hidden).transition(T::expand)
     /// ```
     #[allow(clippy::type_complexity)]
     fn appear<T: 'static>(
@@ -296,11 +298,11 @@ mod tests {
     use bevy::ecs::resource::Resource;
     use bevy::text::{FontSize, TextColor, TextFont};
     use bevy::time::{TimePlugin, TimeUpdateStrategy};
-    use fynix::{Curve, Motion, MotionTokens, ScopedExt};
+    use fynix::{Curve, ScopedExt};
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
-    use crate::tokens::{TextTokens, Tone};
+    use crate::tokens::{MotionTokens, TextTokens, Tone};
     use crate::transition::{BevyMarker, ReducedMotion};
     use crate::views::{Label, label, row};
     use crate::{
@@ -342,11 +344,15 @@ mod tests {
     }
 
     impl MotionTokens for Test {
-        fn motion(&self, _: Motion) -> Curve {
+        fn interact(&self) -> Curve {
             Curve {
                 duration: Duration::from_millis(100),
                 ease: |t| t,
             }
+        }
+
+        fn expand(&self) -> Curve {
+            self.interact()
         }
     }
 
@@ -517,7 +523,7 @@ mod tests {
             app.world_mut(),
             label("x")
                 .when::<Hovered, _>(accent)
-                .transition(Motion::Interact),
+                .transition(Test::interact),
         );
 
         hover(&mut app, node, true);
@@ -541,7 +547,7 @@ mod tests {
                 .tone(resource::<Selection, _>(|selection| {
                     selection.0
                 }))
-                .transition(Motion::Interact),
+                .transition(Test::interact),
         );
 
         app.world_mut().resource_mut::<Selection>().0 = Tone::Accent;
@@ -560,7 +566,7 @@ mod tests {
             app.world_mut(),
             label("x")
                 .when::<Hovered, _>(accent)
-                .transition(Motion::Interact),
+                .transition(Test::interact),
         );
         hover(&mut app, node, true);
         app.update();
