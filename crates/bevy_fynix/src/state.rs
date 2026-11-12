@@ -195,14 +195,9 @@ pub trait StateExt: Sized {
 impl<V> StateExt for V {}
 
 /// Where a view is while out of sight, for [`StateExt::appear`]:
-/// every element in it transparent, and its root scaled down a
-/// little. Scale is only set on the root, as children take their
-/// parent's.
+/// every element in it transparent, at its size.
 pub fn hidden<T: 'static>(cx: &mut Cx<'_, Bevy, T>) {
     cx.set::<crate::Visual>(|visual, _| visual.opacity(0.0));
-    cx.root(|cx| {
-        cx.set::<crate::Visual>(|visual, _| visual.scale(0.9))
-    });
 }
 
 /// A rule an element writes on itself, as the block of a
