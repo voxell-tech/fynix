@@ -19,6 +19,8 @@ mod structure;
 mod support;
 mod virtual_list;
 
+#[cfg(feature = "interact")]
+pub(crate) use support::pointer_click;
 pub(crate) use support::{
     Plain, app, app_with, hover, key_down, keyboard, kids,
     pointer_press, press, wheel,

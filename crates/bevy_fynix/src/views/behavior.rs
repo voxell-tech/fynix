@@ -52,18 +52,27 @@ pub struct Toned<V> {
 fn activated(activate: On<Activate>, mut commands: Commands) {
     let node = activate.event_target();
     commands.queue(move |world: &mut World| {
-        let Some(ActivateHandlers(handlers)) = world
-            .get_entity_mut(node)
-            .ok()
-            .and_then(|mut entity| entity.take::<ActivateHandlers>())
+        // The list is lent out and the component left in place, so a
+        // handler given while these run joins it rather than
+        // observing the node a second time.
+        let Some(handlers) =
+            world.get_entity_mut(node).ok().and_then(|mut entity| {
+                let mut kept =
+                    entity.get_mut::<ActivateHandlers>()?;
+                Some(core::mem::take(&mut kept.0))
+            })
         else {
             return;
         };
         for handler in &handlers {
             handler(world, node);
         }
-        if let Ok(mut entity) = world.get_entity_mut(node) {
-            entity.insert(ActivateHandlers(handlers));
+        if let Ok(mut entity) = world.get_entity_mut(node)
+            && let Some(mut kept) =
+                entity.get_mut::<ActivateHandlers>()
+        {
+            let added = core::mem::replace(&mut kept.0, handlers);
+            kept.0.extend(added);
         }
     });
 }

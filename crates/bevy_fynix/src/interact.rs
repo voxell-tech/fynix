@@ -7,6 +7,7 @@ use accesskit::Role as AccessRole;
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
+use bevy::ui_widgets::{Button, MenuItem};
 use fynix_interact::{Action, Interactive, Role, Semantics};
 
 use crate::Bevy;
@@ -23,6 +24,14 @@ impl Interactive for Bevy {
         node: Entity,
         action: Action<Self>,
     ) {
+        // Bevy only activates a button or a menu item, from a click
+        // or from Enter or Space while it has focus.
+        if let Ok(mut entity) = world.get_entity_mut(node)
+            && !entity.contains::<Button>()
+            && !entity.contains::<MenuItem>()
+        {
+            entity.insert(Button);
+        }
         add_activate(
             world,
             node,
@@ -83,14 +92,16 @@ fn access_role(role: Role) -> AccessRole {
 mod tests {
     use bevy::color::Color;
     use bevy::ecs::resource::Resource;
+    use bevy::math::Vec2;
+    use bevy::picking::pointer::PointerButton;
     use bevy::text::TextColor;
-    use bevy::ui_widgets::Activate;
+    use bevy::ui_widgets::{Activate, ButtonPlugin};
     use fynix::{Cx, ScopedExt, View};
     use fynix_interact::{Hovered as AnyHovered, InteractExt};
 
     use super::*;
     use crate::mount;
-    use crate::tests::{Plain, app};
+    use crate::tests::{Plain, app, pointer_click, pointer_press};
     use crate::tokens::Tone;
     use crate::views::{Label, label};
 
@@ -117,7 +128,7 @@ mod tests {
     #[test]
     fn a_view_written_for_any_interactive_backend_works_on_bevy() {
         let mut app = app();
-        app.init_resource::<Activations>();
+        app.add_plugins(ButtonPlugin).init_resource::<Activations>();
         let node = mount::<Plain>(
             app.world_mut(),
             pressable(
@@ -146,8 +157,54 @@ mod tests {
         app.update();
         assert_ne!(color(&app, node), rest, "restyled while hovered");
 
-        app.world_mut().trigger(Activate { entity: node });
+        // A plain label is activated by a click like a button.
+        pointer_press(
+            &mut app,
+            node,
+            PointerButton::Primary,
+            Vec2::ZERO,
+        );
+        app.update();
+        pointer_click(&mut app, node);
         app.update();
         assert_eq!(app.world().resource::<Activations>().0, 1);
+    }
+
+    #[test]
+    fn an_action_given_while_activating_runs_from_the_next_activation()
+     {
+        let mut app = app();
+        app.init_resource::<Activations>();
+        let node = mount::<Plain>(app.world_mut(), label("x"));
+        let first = |world: &mut World| {
+            world.resource_mut::<Activations>().0 += 1;
+        };
+        <Bevy as Interactive>::on_activate(
+            app.world_mut(),
+            node,
+            Box::new(move |world: &mut World| {
+                first(world);
+                <Bevy as Interactive>::on_activate(
+                    world,
+                    node,
+                    Box::new(|world: &mut World| {
+                        world.resource_mut::<Activations>().0 += 10;
+                    }),
+                );
+            }),
+        );
+        let activate = |app: &mut bevy::app::App| {
+            app.world_mut().trigger(Activate { entity: node });
+            app.update();
+        };
+
+        activate(&mut app);
+        assert_eq!(app.world().resource::<Activations>().0, 1);
+        activate(&mut app);
+        // The first again, giving a third, and the second once.
+        assert_eq!(
+            app.world().resource::<Activations>().0,
+            1 + 1 + 10
+        );
     }
 }
