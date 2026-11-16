@@ -15,8 +15,8 @@ use bevy::image::Image;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
 use bevy::ui::{
-    AlignItems, BorderRadius, FlexDirection, Overflow, UiRect,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent,
+    Overflow, UiRect, percent, px,
 };
 use bevy::ui_widgets::MenuButton;
 use bevy::window::SystemCursorIcon;
@@ -25,7 +25,7 @@ use super::registry::DockRegistry;
 use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
 use super::{DockTokens, popup};
 use crate::cursor::EntityCursor;
-use crate::prop::resource;
+use crate::prop::{keyed, resource};
 use crate::scroll::{
     OwnScrollbar, ScrollbarStyle, ScrollbarVisibility,
 };
@@ -142,10 +142,50 @@ pub(super) fn bar<T: DockTokens>(leaf: NodeId) -> AnyView<Bevy, T> {
                 .overflow(Overflow::scroll_x())
                 .gap(gap)
                 .height(percent(100.0))
+                // Narrower than its tabs before the actions are.
+                .shrink(1.0)
+                .min_width(px(0.0))
                 .align(AlignItems::Center),
         );
+        // The shown window's actions, at the bar's end.
+        let actions = keyed(
+            resource::<DockTree, _>(move |tree| {
+                let leaf = tree.leaf(leaf)?;
+                let active = leaf.active?;
+                leaf.windows
+                    .iter()
+                    .find(|tab| tab.id == active)
+                    .map(|tab| tab.window_id.clone())
+            }),
+            |window| {
+                let window = window.clone();
+                AnyView::new(move |cx: &mut Cx<'_, Bevy, T>| {
+                    let actions =
+                        window.as_ref().and_then(|window| {
+                            cx.world
+                                .get_resource::<DockRegistry<T>>()
+                                .and_then(|registry| {
+                                    registry.get(window)
+                                })
+                                .and_then(|kind| kind.build_actions())
+                        });
+                    match actions {
+                        Some(actions) => cx.build(actions),
+                        None => cx.build(row(())),
+                    }
+                })
+            },
+        )
+        .within(
+            row(())
+                .grow(1.0)
+                .shrink(0.0)
+                .height(percent(100.0))
+                .align(AlignItems::Center)
+                .justify(JustifyContent::End),
+        );
         cx.build(
-            row((tabs, add(leaf)))
+            row((tabs, add(leaf), actions))
                 .gap(0.0)
                 .width(percent(100.0))
                 .height(px(height))
@@ -192,11 +232,15 @@ fn tab<T: DockTokens>(
             |kind| kind.name.clone(),
         );
         let image = kind.and_then(|kind| kind.icon.clone());
+        let subtitle = kind.and_then(|kind| kind.build_subtitle());
         let mut parts = Vec::new();
         if let Some(image) = image {
             parts.push(icon(image).boxed());
         }
         parts.push(label(name).bold(true).wrap(false).boxed());
+        if let Some(subtitle) = subtitle {
+            parts.push(subtitle);
+        }
         parts.push(badge(cx.theme().small_size()));
         parts.push(close(id));
 

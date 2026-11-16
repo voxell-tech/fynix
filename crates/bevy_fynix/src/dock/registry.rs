@@ -10,11 +10,15 @@ use crate::{AnyView, Bevy};
 type Build<T> = Box<dyn Fn() -> AnyView<Bevy, T> + Send + Sync>;
 
 /// A kind of window: its name, an optional icon, and the view of
-/// its content.
+/// its content; optionally a view after the name in its tab, and the
+/// actions its bar shows at its end while the window is the one
+/// shown.
 pub struct DockWindowKind<T> {
     pub name: String,
     pub icon: Option<Handle<Image>>,
     build: Build<T>,
+    subtitle: Option<Build<T>>,
+    actions: Option<Build<T>>,
 }
 
 impl<T> DockWindowKind<T> {
@@ -26,6 +30,8 @@ impl<T> DockWindowKind<T> {
             name: name.into(),
             icon: None,
             build: Box::new(build),
+            subtitle: None,
+            actions: None,
         }
     }
 
@@ -34,9 +40,39 @@ impl<T> DockWindowKind<T> {
         self
     }
 
+    /// Shows `subtitle` after the name in the window's tab: words the
+    /// tab's press reaches too, so any press of its own adds to it.
+    pub fn subtitle(
+        mut self,
+        subtitle: impl Fn() -> AnyView<Bevy, T> + Send + Sync + 'static,
+    ) -> Self {
+        self.subtitle = Some(Box::new(subtitle));
+        self
+    }
+
+    /// Shows `actions` at the end of the bar while the window is the
+    /// tab its area shows.
+    pub fn actions(
+        mut self,
+        actions: impl Fn() -> AnyView<Bevy, T> + Send + Sync + 'static,
+    ) -> Self {
+        self.actions = Some(Box::new(actions));
+        self
+    }
+
     /// A new view of the window's content.
     pub fn build(&self) -> AnyView<Bevy, T> {
         (self.build)()
+    }
+
+    /// A new view of what follows the name in the window's tab.
+    pub fn build_subtitle(&self) -> Option<AnyView<Bevy, T>> {
+        self.subtitle.as_ref().map(|subtitle| subtitle())
+    }
+
+    /// A new view of the actions the bar ends with.
+    pub fn build_actions(&self) -> Option<AnyView<Bevy, T>> {
+        self.actions.as_ref().map(|actions| actions())
     }
 }
 
