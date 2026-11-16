@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 use crate::backend::Backend;
 use crate::cx::Cx;
 use crate::rules::Condition;
-use crate::transition::Curve;
+use crate::transition::Timing;
 use crate::view::View;
 
 /// A view built in a scope where `rules` ran first.
@@ -22,7 +22,7 @@ pub struct When<V, F, C> {
     state: PhantomData<fn() -> C>,
 }
 
-/// A view whose elements travel to new values over a curve `pick`
+/// A view whose elements travel to new values over a timing `pick`
 /// takes from the theme.
 pub struct Transition<V, P> {
     view: V,
@@ -65,7 +65,7 @@ where
     B: Backend,
     T: 'static,
     V: View<B, T>,
-    P: FnOnce(&T) -> Curve,
+    P: FnOnce(&T) -> Timing,
 {
     fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
         cx.scope(|cx| {
@@ -94,7 +94,7 @@ pub trait ScopedExt: Sized {
     }
 
     /// This view, with every element in it travelling to new values
-    /// over the curve `pick` takes from the theme, such as
+    /// over the timing `pick` takes from the theme, such as
     /// `T::interact`.
     fn transition<P>(self, pick: P) -> Transition<Self, P> {
         Transition { view: self, pick }

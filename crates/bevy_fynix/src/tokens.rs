@@ -3,15 +3,15 @@
 //! any theme that can answer for them.
 
 use bevy::color::{Color, Luminance};
-pub use fynix::Curve;
+pub use fynix::{Curve, Spring, Timing};
 
-/// How things move, as curves for a transition or a presence to pick:
-/// `.transition(T::interact)`, `.presence(T::expand)`.
+/// How things move, as timings for a transition or a presence to
+/// pick: `.transition(T::interact)`, `.presence(T::expand)`.
 pub trait MotionTokens {
     /// Answering the pointer: hover, press.
-    fn interact(&self) -> Curve;
+    fn interact(&self) -> Timing;
     /// Something opening or growing.
-    fn expand(&self) -> Curve;
+    fn expand(&self) -> Timing;
 }
 
 /// A text colour by role, so a view can ask for "dim" without knowing

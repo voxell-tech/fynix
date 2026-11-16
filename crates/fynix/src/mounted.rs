@@ -15,7 +15,7 @@ use typarena::type_table::TypeTable;
 use crate::backend::Backend;
 use crate::layer::Live;
 use crate::rules::RuleArena;
-use crate::transition::Curve;
+use crate::transition::{AXES, Glide, Timing};
 use crate::view::Element;
 
 /// A set of structural views built together, dropped together.
@@ -89,33 +89,45 @@ struct Hooks<B: Backend> {
 /// elements travel to their leaving state, then the space it takes
 /// collapses, then it is despawned.
 struct Leaving {
-    curve: Curve,
-    elapsed: Duration,
-    collapsing: bool,
-    /// How much of the space was already gone when the collapse
-    /// began: 0 unless the view left before it was whole.
-    from: f32,
+    timing: Timing,
+    /// How long its elements have been travelling, until the
+    /// timing's duration has passed. `None` once it collapses.
+    fading: Option<Duration>,
+    /// How much of its space is gone, from 0 to 1.
+    collapse: Glide,
 }
 
 /// A built view's root, kept while it comes in: it waits for the
 /// views that left in its place, then its space expands, then it is
 /// released and its elements travel from their entering state.
 struct Arriving<N> {
-    curve: Curve,
-    elapsed: Duration,
+    timing: Timing,
     /// The roots whose leaving it waits for.
     after: Vec<N>,
-    /// Whether a layout has had the chance to run since it was held.
-    settled: bool,
-    expanding: bool,
+    /// Whether a layout has run since it was held, so its size can
+    /// be measured.
+    has_laid_out: bool,
+    /// How much of its space is still held back, from 1 to 0, once
+    /// it has begun to expand.
+    expanding: Option<Glide>,
 }
 
-/// How far `elapsed` is through `duration`, which it is under.
-fn fraction(elapsed: Duration, duration: Duration) -> f32 {
-    if duration.is_zero() {
-        return 1.0;
-    }
-    elapsed.as_secs_f32() / duration.as_secs_f32()
+/// `value` as the first of a glide's numbers.
+fn point(value: f32) -> [f32; AXES] {
+    let mut point = [0.0; AXES];
+    point[0] = value;
+    point
+}
+
+/// Moves a space's collapse on by `delta` toward `target`, its value
+/// kept between 0 and 1. Whether it has arrived.
+fn collapse_toward(
+    collapse: &mut Glide,
+    delta: Duration,
+    target: f32,
+) -> (bool, f32) {
+    let arrived = collapse.advance(delta, point(target));
+    (arrived, collapse.value()[0].clamp(0.0, 1.0))
 }
 
 impl<B: Backend> Clone for Hooks<B> {
@@ -291,39 +303,43 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     }
 
     /// Takes out the view whose root is `node`: animated out over
-    /// `curve` when there is one, despawned at once otherwise.
+    /// `timing` when there is one, despawned at once otherwise.
     /// Whether it is animating out.
     pub(crate) fn leave(
         &mut self,
         world: &mut B::World,
         node: B::Node,
-        curve: Option<Curve>,
+        timing: Option<Timing>,
     ) -> bool {
         let arriving = self.arriving.remove(&node);
         // A view still held was never seen.
-        let seen = arriving.as_ref().is_none_or(|a| a.expanding);
-        let Some(curve) = curve.filter(|_| seen) else {
+        let seen =
+            arriving.as_ref().is_none_or(|a| a.expanding.is_some());
+        let Some(timing) = timing.filter(|_| seen) else {
             B::despawn(world, node);
             return false;
         };
         B::leave(world, node);
         // A view that left while coming in is already invisible, and
-        // gives back the space it had got.
-        let from = arriving.map(|arriving| {
-            1.0 - (arriving.curve.ease)(fraction(
-                arriving.elapsed,
-                arriving.curve.duration,
-            ))
-        });
-        self.leaving.insert(
-            node,
-            Leaving {
-                curve,
-                elapsed: Duration::ZERO,
-                collapsing: from.is_some(),
-                from: from.unwrap_or(0.0),
+        // gives back the space it had got, turning around on the way.
+        let expanding =
+            arriving.and_then(|arriving| arriving.expanding);
+        let leaving = match expanding {
+            Some(mut collapse) => {
+                collapse.retime(timing);
+                Leaving {
+                    timing,
+                    fading: None,
+                    collapse,
+                }
+            }
+            None => Leaving {
+                timing,
+                fading: Some(Duration::ZERO),
+                collapse: Glide::new(point(0.0), timing, false),
             },
-        );
+        };
+        self.leaving.insert(node, leaving);
         true
     }
 
@@ -333,28 +349,27 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     }
 
     /// Brings in the view whose root is `node`, just built, over
-    /// `curve`: held out of the layout until the views in `after`,
+    /// `timing`: held out of the layout until the views in `after`,
     /// which left in its place, are gone, then its space expands.
-    /// Without a curve it is left whole.
+    /// Without a timing it is left whole.
     pub(crate) fn enter(
         &mut self,
         world: &mut B::World,
         node: B::Node,
         after: &[B::Node],
-        curve: Option<Curve>,
+        timing: Option<Timing>,
     ) {
-        let Some(curve) = curve else {
+        let Some(timing) = timing else {
             return;
         };
         B::hold(world, node);
         self.arriving.insert(
             node,
             Arriving {
-                curve,
-                elapsed: Duration::ZERO,
+                timing,
                 after: after.to_vec(),
-                settled: false,
-                expanding: false,
+                has_laid_out: false,
+                expanding: None,
             },
         );
     }
@@ -367,32 +382,29 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     /// Moves every leaving view on by `tick`.
     fn update_leaving(&mut self, world: &mut B::World, tick: Tick) {
         self.leaving.retain(|&node, leaving| {
-            let duration = leaving.curve.duration;
-            leaving.elapsed += tick.delta;
             if tick.reduced_motion {
                 B::despawn(world, node);
                 return false;
             }
-            if !leaving.collapsing {
-                if leaving.elapsed < duration {
+            let mut delta = tick.delta;
+            if let Some(fading) = &mut leaving.fading {
+                *fading += delta;
+                let duration = leaving.timing.duration();
+                if *fading < duration {
                     return true;
                 }
                 // What is left of the tick goes to the collapse.
-                leaving.collapsing = true;
-                leaving.elapsed -= duration;
+                delta = *fading - duration;
+                leaving.fading = None;
                 B::collapse(world, node, 0.0);
             }
-            if leaving.elapsed >= duration {
+            let (arrived, progress) =
+                collapse_toward(&mut leaving.collapse, delta, 1.0);
+            if arrived {
                 B::collapse(world, node, 1.0);
                 B::despawn(world, node);
                 return false;
             }
-            let eased = (leaving.curve.ease)(fraction(
-                leaving.elapsed,
-                duration,
-            ));
-            let progress =
-                leaving.from + (1.0 - leaving.from) * eased;
             B::collapse(world, node, progress);
             true
         });
@@ -406,10 +418,12 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 B::release(world, node);
                 return false;
             }
-            if !arriving.expanding {
-                // The first tick is the one that built it, before any
-                // layout could run.
-                if !core::mem::replace(&mut arriving.settled, true)
+            let Some(collapse) = &mut arriving.expanding else {
+                let has_laid_out = core::mem::replace(
+                    &mut arriving.has_laid_out,
+                    true,
+                );
+                if !has_laid_out
                     || arriving
                         .after
                         .iter()
@@ -417,22 +431,22 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 {
                     return true;
                 }
-                arriving.expanding = true;
+                arriving.expanding = Some(Glide::new(
+                    point(1.0),
+                    arriving.timing,
+                    false,
+                ));
                 B::collapse(world, node, 1.0);
                 return true;
-            }
-            arriving.elapsed += tick.delta;
-            let duration = arriving.curve.duration;
-            if arriving.elapsed >= duration {
+            };
+            let (arrived, progress) =
+                collapse_toward(collapse, tick.delta, 0.0);
+            if arrived {
                 B::collapse(world, node, 0.0);
                 B::release(world, node);
                 return false;
             }
-            let eased = (arriving.curve.ease)(fraction(
-                arriving.elapsed,
-                duration,
-            ));
-            B::collapse(world, node, 1.0 - eased);
+            B::collapse(world, node, progress);
             true
         });
     }

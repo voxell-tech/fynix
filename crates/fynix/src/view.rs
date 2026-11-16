@@ -13,7 +13,7 @@ use crate::backend::Backend;
 use crate::cx::Cx;
 use crate::layer::Live;
 use crate::mounted::Tick;
-use crate::transition::Curve;
+use crate::transition::Timing;
 use crate::visual::{Visual, VisualMut};
 
 /// Something that can be built under a node, with the theme `T`.
@@ -167,7 +167,7 @@ pub trait Element<B: Backend, T>: Layered {
         node: B::Node,
         theme: &T,
         tick: Tick,
-        travel: Option<Curve>,
+        travel: Option<Timing>,
     ) -> bool;
 
     /// Whether anything it holds can change after the build.

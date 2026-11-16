@@ -55,8 +55,8 @@ use bevy_fynix::views::{
     FrameProps, Label, button, column, label,
 };
 use bevy_fynix::tokens::{
-    Curve, MotionTokens, SpacingTokens, SurfaceTokens,
-    TextTokens, Tone,
+    MotionTokens, SpacingTokens, SurfaceTokens, Spring,
+    TextTokens, Timing, Tone,
 };
 use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
 
@@ -102,18 +102,12 @@ impl SpacingTokens for MyTheme {
 }
 
 impl MotionTokens for MyTheme {
-    fn interact(&self) -> Curve {
-        Curve {
-            duration: Duration::from_millis(180),
-            ease: |t| t,
-        }
+    fn interact(&self) -> Timing {
+        Spring::new(Duration::from_millis(180), 0.0).into()
     }
 
-    fn expand(&self) -> Curve {
-        Curve {
-            duration: Duration::from_millis(280),
-            ease: |t| t,
-        }
+    fn expand(&self) -> Timing {
+        Spring::new(Duration::from_millis(280), 0.0).into()
     }
 }
 
@@ -138,7 +132,7 @@ fn setup(world: &mut World) {
 
 Three things decide how a view looks, and they stay apart:
 
-- **Theming** says what the colours, sizes and curves of an app are.
+- **Theming** says what the colours, sizes and motion of an app are.
   A theme implements token traits (`TextTokens`, `SurfaceTokens`,
   `SpacingTokens`, `MotionTokens`). Views and styles ask for a role
   (`Tone::Dim`, `theme.hover()`), never a raw colour, so changing the
@@ -150,7 +144,7 @@ Three things decide how a view looks, and they stay apart:
 - **State rules** say what a look does while the pointer is on the
   view, while a button is down on it, or while any component of your
   own is on it: `.when::<Hovered, _>(..)`, `.when::<Pressed, _>(..)`.
-  `.transition(T::interact)` makes the change glide over a curve the
+  `.transition(T::interact)` makes the change glide over a timing the
   theme picks. A transition never makes a view grow in or out:
   only `keyed(..).presence(T::expand)` or `each(..).presence(..)`
   does.

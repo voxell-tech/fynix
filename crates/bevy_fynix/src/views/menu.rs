@@ -2,7 +2,6 @@
 //! floating widgets built on them share.
 
 use core::marker::PhantomData;
-use core::time::Duration;
 
 use bevy::camera::visibility::InheritedVisibility;
 use bevy::color::Alpha;
@@ -33,14 +32,13 @@ use bevy::ui_widgets::{
     MenuItem as MenuItemBehavior, MenuPopup,
 };
 use bevy::window::SystemCursorIcon;
-use motiongfx_interp::ease;
 
 use crate::cursor::EntityCursor;
 use crate::prop::{Signal, component, each};
 use crate::shortcut::{MENU, Scope};
 use crate::state::State;
 use crate::tokens::{
-    Curve, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
+    MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Timing,
     Tone,
 };
 use crate::views::frame::{Frame, FrameProps};
@@ -507,7 +505,7 @@ pub(crate) fn float<T, C, I, K>(
     items: Signal<Vec<I>>,
     key: fn(&I) -> K,
     build: impl Fn(&I) -> AnyView<Bevy, T> + Send + Sync + 'static,
-    presence: Option<fn(&T) -> Curve>,
+    presence: Option<fn(&T) -> Timing>,
 ) -> Entity
 where
     T: SpacingTokens + Send + Sync + 'static,
@@ -524,10 +522,7 @@ where
         cx.scope(|cx| {
             // Still under the rules of where it was built, whose
             // transition would ease it in from an unset look.
-            cx.transition(|_| Curve {
-                duration: Duration::ZERO,
-                ease: ease::linear,
-            });
+            cx.transition(|_| Timing::INSTANT);
             cx.build(view)
         })
     })

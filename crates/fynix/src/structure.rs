@@ -10,22 +10,22 @@ use crate::cx::Cx;
 use crate::mounted::{Group, Mounted, Structure};
 use crate::prop::Signal;
 use crate::rules::{RuleArena, ScopeEntry};
-use crate::transition::Curve;
+use crate::transition::Timing;
 use crate::view::{AnyView, View};
 
 /// How a structural view builds one part of what it holds.
 type BuildFn<B, T, K> =
     dyn Fn(&K) -> AnyView<B, T> + Send + Sync + 'static;
 
-/// Picks from the theme `T` the curve a structural view's parts come
+/// Picks from the theme `T` the timing a structural view's parts come
 /// in and leave over.
-type Presence<T> = fn(&T) -> Curve;
+type Presence<T> = fn(&T) -> Timing;
 
-/// The curve `presence` picks from `theme`, if there is one.
-fn curve_of<T>(
+/// The timing `presence` picks from `theme`, if there is one.
+fn timing_of<T>(
     presence: Option<Presence<T>>,
     theme: &T,
-) -> Option<Curve> {
+) -> Option<Timing> {
     presence.map(|pick| pick(theme))
 }
 
@@ -81,9 +81,9 @@ impl<B: Backend, T, K> Keyed<B, T, K> {
 }
 
 impl<B: Backend, T, K> Keyed<B, T, K> {
-    /// This, swapping its views over the curve `pick` takes from the
+    /// This, swapping its views over the timing `pick` takes from the
     /// theme, such as `T::expand`, instead of at once.
-    pub fn presence(mut self, pick: fn(&T) -> Curve) -> Self {
+    pub fn presence(mut self, pick: fn(&T) -> Timing) -> Self {
         self.presence = Some(pick);
         self
     }
@@ -97,7 +97,7 @@ impl<B: Backend, T, K> Keyed<B, T, K> {
 /// Rules in force where the `keyed` sits are in force in every build.
 ///
 /// The swap is at once, whatever the views' transitions, unless
-/// [`Keyed::presence`] picks a curve. Then it is a sequence: the old
+/// [`Keyed::presence`] picks a timing. Then it is a sequence: the old
 /// view animates out and its space collapses, then the new view's
 /// space expands, then it animates in. See [`Backend::hold`].
 /// [`Tick::reduced_motion`](crate::Tick::reduced_motion) skips every
@@ -184,16 +184,16 @@ where
         if next == self.last {
             return;
         }
-        let curve = curve_of(self.presence, theme);
+        let timing = timing_of(self.presence, theme);
         let old = self.child;
-        let left = mounted.leave(world, old, curve).then_some(old);
+        let left = mounted.leave(world, old, timing).then_some(old);
         mounted.drop_group(id);
         let mut cx =
             Cx::seeded(world, theme, mounted, &self.capture, id);
         let view = (self.build)(&next);
         self.child = build_in(&mut cx, self.container, id, view);
         drop(cx);
-        mounted.enter(world, self.child, left.as_slice(), curve);
+        mounted.enter(world, self.child, left.as_slice(), timing);
         self.last = next;
     }
 
@@ -229,10 +229,10 @@ impl<B: Backend, T, I, K> Each<B, T, I, K> {
 }
 
 impl<B: Backend, T, I, K> Each<B, T, I, K> {
-    /// This, bringing rows in and taking them out over the curve
+    /// This, bringing rows in and taking them out over the timing
     /// `pick` takes from the theme, such as `T::expand`, instead of
     /// at once.
-    pub fn presence(mut self, pick: fn(&T) -> Curve) -> Self {
+    pub fn presence(mut self, pick: fn(&T) -> Timing) -> Self {
         self.presence = Some(pick);
         self
     }
@@ -247,7 +247,7 @@ impl<B: Backend, T, I, K> Each<B, T, I, K> {
 /// and the container's children are reordered to match the list.
 ///
 /// Rows come and go at once, whatever their transitions, unless
-/// [`Each::presence`] picks a curve. Then a removed row animates out
+/// [`Each::presence`] picks a timing. Then a removed row animates out
 /// and its space collapses, and a new row expands its space and then
 /// animates in, after the rows removed in the same update are gone.
 /// The first build is not animated, and
@@ -381,7 +381,7 @@ where
             return;
         }
         let items = self.items.get(world);
-        let curve = curve_of(self.presence, theme);
+        let timing = timing_of(self.presence, theme);
         // Rows still animating out keep their place among the rest.
         self.shown.retain(|&node| {
             mounted.is_leaving(node)
@@ -406,7 +406,7 @@ where
             .collect::<Vec<_>>();
         let mut left = Vec::new();
         for row in old.into_iter().flatten() {
-            if mounted.leave(world, row.node, curve) {
+            if mounted.leave(world, row.node, timing) {
                 left.push(row.node);
             }
             mounted.drop_group(row.group);
@@ -437,7 +437,7 @@ where
         }
         drop(cx);
         for node in built {
-            mounted.enter(world, node, &left, curve);
+            mounted.enter(world, node, &left, timing);
         }
 
         let live =
