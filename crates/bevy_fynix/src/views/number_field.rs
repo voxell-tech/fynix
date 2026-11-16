@@ -23,7 +23,7 @@ use super::text_input::{
     is_editing, show,
 };
 use crate::cursor::{EntityCursor, OverrideCursor};
-use crate::prop::Prop;
+use crate::prop::Binding;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
@@ -136,18 +136,14 @@ pub struct NumberField<N: Number = f64> {
     number: PhantomData<fn() -> N>,
 }
 
-/// A [`NumberField`] showing `value`, calling `on_change` with the
-/// value dragged or typed.
-pub fn number_field<N: Number>(
-    value: impl Into<Prop<N>>,
-    on_change: impl Fn(&mut World, N) + Send + Sync + 'static,
-) -> NumberField<N> {
+/// A [`NumberField`] showing `value`, and writing the value dragged
+/// or typed.
+pub fn number_field<N: Number>(value: Binding<N>) -> NumberField<N> {
+    let value = value.map(N::to_f64, N::from_f64);
     NumberField {
         frame: Frame::unset(),
-        input: TextInput::unset().number(value.into().map(N::to_f64)),
-        change: NumberChange(Box::new(move |world, value| {
-            on_change(world, N::from_f64(value));
-        })),
+        input: TextInput::unset().number(value.value),
+        change: NumberChange(value.write),
         spec: NumberSpec {
             step: N::STEP,
             precision: N::PRECISION,
@@ -356,7 +352,7 @@ mod tests {
 
     use super::super::field::fixtures::*;
     use super::*;
-    use crate::{mount, resource};
+    use crate::{bind, mount, resource};
 
     #[derive(Resource)]
     struct Level(f64);
@@ -369,13 +365,13 @@ mod tests {
         build: impl FnOnce(NumberField) -> NumberField,
     ) -> Entity {
         app.insert_resource(Level(5.0)).init_resource::<Changes>();
-        let field = number_field(
+        let field = number_field(Binding::new(
             resource::<Level, _>(|level| level.0),
             |world, value| {
                 world.resource_mut::<Level>().0 = value;
                 world.resource_mut::<Changes>().0.push(value);
             },
-        );
+        ));
         mount::<Plain>(app.world_mut(), build(field))
     }
 
@@ -562,10 +558,7 @@ mod tests {
         build: impl FnOnce(NumberField<N>) -> NumberField<N>,
     ) -> Entity {
         app.insert_resource(Count(start));
-        let field = number_field(
-            resource::<Count<N>, _>(|count| count.0),
-            |world, value| world.resource_mut::<Count<N>>().0 = value,
-        );
+        let field = number_field(bind!(Count<N>, 0));
         mount::<Plain>(app.world_mut(), build(field))
     }
 

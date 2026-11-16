@@ -14,7 +14,7 @@ use bevy::window::SystemCursorIcon;
 use super::frame::{Frame, FrameProps};
 use super::text_input::{TextCommit, TextInput, focus, show};
 use crate::cursor::EntityCursor;
-use crate::prop::Prop;
+use crate::prop::Binding;
 use crate::state::State;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
@@ -37,14 +37,13 @@ pub struct TextField {
     commit: TextCommit,
 }
 
-pub fn text_field(
-    value: impl Into<Prop<String>>,
-    on_commit: impl Fn(&mut World, String) + Send + Sync + 'static,
-) -> TextField {
+/// A [`TextField`] showing `value`, and writing the text it is left
+/// with.
+pub fn text_field(value: Binding<String>) -> TextField {
     TextField {
         frame: Frame::unset(),
-        input: TextInput::unset().text(value),
-        commit: TextCommit(Box::new(on_commit)),
+        input: TextInput::unset().text(value.value),
+        commit: TextCommit(value.write),
     }
 }
 
@@ -338,12 +337,12 @@ mod tests {
             .init_resource::<Commits>();
         mount::<Plain>(
             app.world_mut(),
-            text_field(
+            text_field(Binding::new(
                 resource::<Name, _>(|name| name.0.clone()),
                 |world, text| {
                     world.resource_mut::<Commits>().0.push(text);
                 },
-            ),
+            )),
         )
     }
 

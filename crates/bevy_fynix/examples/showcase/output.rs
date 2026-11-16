@@ -10,7 +10,7 @@ use bevy_fynix::views::{
     BehaviorExt, FrameProps, RowSlot, Span, VirtualList, button,
     checkbox, column, label, rich, row, virtual_list,
 };
-use bevy_fynix::{AnyView, Bevy, View, resource};
+use bevy_fynix::{AnyView, Bevy, View, bind, resource};
 
 use crate::common::Monokai;
 use crate::{Build, FollowLog, LogRows, commands, panel};
@@ -33,10 +33,7 @@ pub fn output() -> AnyView<Bevy, Monokai> {
                     .tone(Tone::Dim),
                     column(()).grow(1.0),
                     label("Follow"),
-                    checkbox(resource::<FollowLog, _>(follows))
-                        .on_change(|world, on| {
-                            world.resource_mut::<FollowLog>().0 = on;
-                        }),
+                    checkbox(bind!(FollowLog, 0)),
                 ))
                 .gap(8.0)
                 .align(AlignItems::Center),

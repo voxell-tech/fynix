@@ -48,7 +48,7 @@ use bevy_fynix::views::{
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, FynixSystems, ReducedMotion,
-    ScopedExt, Theme, View, mount, resource,
+    ScopedExt, Theme, View, bind, mount, resource,
 };
 use commands::{
     DELETE, FOLLOW, JUMP, NEW_LAYER, PLAY, REDUCE_MOTION, RENDER,
@@ -315,8 +315,7 @@ fn menu_strip() -> AnyView<Bevy, Monokai> {
                 column(()).grow(1.0),
                 segmented(
                     ["Select", "Move", "Scale"],
-                    resource::<Tool, _>(|tool| tool.0),
-                    |world, at| world.resource_mut::<Tool>().0 = at,
+                    bind!(Tool, 0),
                 )
                 .width(px(220.0)),
                 button(

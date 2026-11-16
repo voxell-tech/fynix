@@ -44,8 +44,8 @@ pub use leave::{Collapsing, Entering, Entrances, Held, Leaving};
 pub use modifier::ModifierExt;
 pub use mounted::Mounts;
 pub use prop::{
-    Derived, Each, Keyed, Prop, Signal, component, derived, each,
-    every_frame, keyed, resource,
+    Binding, Derived, Each, Keyed, Prop, Signal, Write, component,
+    derived, each, every_frame, keyed, resource,
 };
 pub use state::{
     DirtyNodes, Dragging, Focused, Hovered, Pressed, State, StateExt,

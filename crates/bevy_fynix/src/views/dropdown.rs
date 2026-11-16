@@ -25,7 +25,7 @@ use bevy::ui_widgets::{
 };
 
 use crate::modifier::ModifierExt;
-use crate::prop::{Prop, component, each};
+use crate::prop::{Binding, Prop, component, each};
 use crate::shortcut::{CommandId, CommandList, shortcut_text};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
@@ -56,25 +56,22 @@ pub struct Dropdown {
     on_select: Select,
 }
 
-/// A [`Dropdown`] over `options`, showing the one at `selected`,
-/// which may be bound to the world, and ending in a dim `chevron`
-/// icon, drawn pointing up, that points down while the list is shut.
-/// `on_select` runs with the index
-/// of the option chosen; showing it is up to whatever `selected`
-/// reads.
+/// A [`Dropdown`] over `options`, showing the one at `selected` and
+/// ending in a dim `chevron` icon, drawn pointing up, that points
+/// down while the list is shut. Choosing an option writes its index
+/// to `selected`; showing it is up to what `selected` reads.
 pub fn dropdown<S: Into<String>>(
     options: impl IntoIterator<Item = S>,
-    selected: impl Into<Prop<usize>>,
+    selected: Binding<usize>,
     chevron: Handle<Image>,
-    on_select: impl Fn(&mut World, usize) + Send + Sync + 'static,
 ) -> Dropdown {
     Dropdown {
         frame: Frame::unset(),
         options: options.into_iter().map(Into::into).collect(),
-        selected: selected.into(),
+        selected: selected.value,
         placeholder: String::new(),
         chevron,
-        on_select: Box::new(on_select),
+        on_select: selected.write,
     }
 }
 
@@ -588,7 +585,7 @@ mod tests {
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::{mount, resource};
+    use crate::{bind, mount};
 
     /// The index the dropdown was last asked to show.
     #[derive(Resource)]
@@ -605,9 +602,8 @@ mod tests {
             app.world_mut(),
             dropdown(
                 ["Linear", "Ease in", "Ease out"],
-                resource::<Chosen, _>(|chosen| chosen.0),
+                bind!(Chosen, 0),
                 Handle::default(),
-                |world, at| world.resource_mut::<Chosen>().0 = at,
             ),
         )
     }
@@ -729,13 +725,8 @@ mod tests {
         let mut app = app();
         let root = mount::<Plain>(
             app.world_mut(),
-            dropdown(
-                ["a", "b"],
-                resource::<Chosen, _>(|chosen| chosen.0),
-                Handle::default(),
-                |_, _| {},
-            )
-            .placeholder("Pick one"),
+            dropdown(["a", "b"], bind!(Chosen, 0), Handle::default())
+                .placeholder("Pick one"),
         );
         app.world_mut().resource_mut::<Chosen>().0 = 2;
         app.update();

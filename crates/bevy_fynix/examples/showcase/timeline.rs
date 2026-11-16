@@ -15,7 +15,7 @@ use bevy_fynix::views::{
     BehaviorExt, FrameProps, Span, TooltipExt, button, column, frame,
     icon, label, primary, rich, row, slider, tinted_icon,
 };
-use bevy_fynix::{AnyView, Bevy, ScopedExt, View, resource};
+use bevy_fynix::{AnyView, Bevy, Binding, ScopedExt, View, resource};
 
 use crate::common::Monokai;
 use crate::{
@@ -199,14 +199,17 @@ pub fn timeline() -> AnyView<Bevy, Monokai> {
                 .tone(Tone::Faint)
         })
         .collect::<Vec<_>>();
-    let scrub = slider(resource::<Clip, _>(|clip| clip.time))
-        .range(0.0, DURATION)
-        .on_change(|world, time| {
+    // Scrubbing also stops the clip.
+    let scrub = slider(Binding::new(
+        resource::<Clip, _>(|clip| clip.time),
+        |world, time| {
             let mut clip = world.resource_mut::<Clip>();
             clip.time = time;
             clip.playing = false;
-        })
-        .width(percent(100.0));
+        },
+    ))
+    .range(0.0, DURATION)
+    .width(percent(100.0));
     AnyView::new(move |cx: &mut Build| {
         let line = cx.theme().hairline();
         let head = cx.theme().accent();

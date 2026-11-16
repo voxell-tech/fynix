@@ -125,3 +125,62 @@ pub fn component<C: Component, T>(
         },
     )
 }
+
+/// What runs with a value the user asked for, to write it into the
+/// world.
+pub type Write<T> = Box<dyn Fn(&mut World, T) + Send + Sync>;
+
+/// A value a control both shows and writes: what it shows, and what
+/// runs when the user asks for another. See [`bind!`](crate::bind).
+pub struct Binding<T> {
+    pub value: Prop<T>,
+    pub write: Write<T>,
+}
+
+impl<T: 'static> Binding<T> {
+    /// A binding showing `value` and running `write` with what the
+    /// user asks for, for a write that does more than set one field.
+    pub fn new(
+        value: impl Into<Prop<T>>,
+        write: impl Fn(&mut World, T) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            value: value.into(),
+            write: Box::new(write),
+        }
+    }
+
+    /// This, shown as a `U`: `to` turns what it holds into what is
+    /// shown, and `from` turns what the user asks for back.
+    pub fn map<U>(
+        self,
+        to: impl Fn(T) -> U + Send + Sync + 'static,
+        from: impl Fn(U) -> T + Send + Sync + 'static,
+    ) -> Binding<U> {
+        let Self { value, write } = self;
+        Binding {
+            value: value.map(to),
+            write: Box::new(move |world, asked| {
+                write(world, from(asked))
+            }),
+        }
+    }
+}
+
+/// A [`Binding`] to a field of a resource, named once:
+/// `bind!(Shape, radius)`, `bind!(Page, 0)` or `bind!(Shape, at.x)`.
+/// It is re-read when the resource changes, which has to be in the
+/// world.
+#[macro_export]
+macro_rules! bind {
+    ($resource:ty, $($field:tt).+) => {
+        $crate::Binding::new(
+            $crate::resource::<$resource, _>(|source| {
+                ::core::clone::Clone::clone(&source.$($field).+)
+            }),
+            |world, value| {
+                world.resource_mut::<$resource>().$($field).+ = value;
+            },
+        )
+    };
+}
