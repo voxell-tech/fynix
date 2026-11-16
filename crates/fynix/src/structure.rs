@@ -250,7 +250,9 @@ impl<B: Backend, T, I, K> Each<B, T, I, K> {
 /// [`Each::presence`] picks a timing. Then a removed row animates out
 /// and its space collapses, and a new row expands its space and then
 /// animates in, after the rows removed in the same update are gone.
-/// The first build is not animated, and
+/// A row whose item comes back while it animates out turns around
+/// from where it got to, rather than being built again. The first
+/// build is not animated, and
 /// [`Tick::reduced_motion`](crate::Tick::reduced_motion) skips every
 /// step.
 ///
@@ -319,6 +321,7 @@ where
                 container,
                 shown: rows.iter().map(|row| row.node).collect(),
                 rows,
+                leaving: Vec::new(),
                 capture,
             }),
         );
@@ -333,6 +336,9 @@ struct EachEntry<B: Backend, T, I, K> {
     presence: Option<Presence<T>>,
     container: B::Node,
     rows: Vec<Row<B, K>>,
+    /// The rows animating out, kept by key so a row whose item comes
+    /// back is revived rather than built again.
+    leaving: Vec<Row<B, K>>,
     /// The container's children as last ordered: the rows, and the
     /// rows animating out where they were.
     shown: Vec<B::Node>,
@@ -388,28 +394,48 @@ where
                 || self.rows.iter().any(|row| row.node == node)
         });
         let before = self.shown.clone();
+        self.leaving.retain(|row| {
+            let is_leaving = mounted.is_leaving(row.node);
+            if !is_leaving {
+                mounted.drop_group(row.group);
+            }
+            is_leaving
+        });
 
         // Keys may repeat, so each old row is matched at most once.
+        // An item with no row still shown takes back one leaving.
         let mut old = mem::take(&mut self.rows)
             .into_iter()
             .map(Some)
             .collect::<Vec<_>>();
-        let kept = items
-            .iter()
-            .map(|item| {
-                let key = (self.key)(item);
-                let at = old.iter().position(|row| {
-                    row.as_ref().is_some_and(|row| row.key == key)
-                })?;
-                old[at].take()
-            })
-            .collect::<Vec<_>>();
+        let mut kept = Vec::with_capacity(items.len());
+        for item in &items {
+            let key = (self.key)(item);
+            let shown = old.iter().position(|row| {
+                row.as_ref().is_some_and(|row| row.key == key)
+            });
+            let row = match shown {
+                Some(at) => old[at].take(),
+                None => self
+                    .leaving
+                    .iter()
+                    .position(|row| row.key == key)
+                    .map(|at| self.leaving.remove(at))
+                    .inspect(|row| {
+                        mounted.revive(world, row.node);
+                    }),
+            };
+            kept.push(row);
+        }
         let mut left = Vec::new();
         for row in old.into_iter().flatten() {
             if mounted.leave(world, row.node, timing) {
                 left.push(row.node);
+                // Its group lives on in case it is revived.
+                self.leaving.push(row);
+            } else {
+                mounted.drop_group(row.group);
             }
-            mounted.drop_group(row.group);
         }
 
         let mut cx = kept.iter().any(Option::is_none).then(|| {
@@ -459,6 +485,11 @@ where
     }
 
     fn groups(&self, groups: &mut Vec<Group>) {
-        groups.extend(self.rows.iter().map(|row| row.group));
+        groups.extend(
+            self.rows
+                .iter()
+                .chain(&self.leaving)
+                .map(|row| row.group),
+        );
     }
 }

@@ -108,6 +108,10 @@ impl fynix::Backend for Bevy {
         crate::leave::leave(world, node);
     }
 
+    fn revive(world: &mut World, node: Entity) {
+        crate::leave::revive(world, node);
+    }
+
     fn hold(world: &mut World, node: Entity) {
         crate::leave::hold(world, node);
     }

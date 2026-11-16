@@ -112,6 +112,12 @@ impl Backend for Fake {
         }
     }
 
+    fn revive(world: &mut World, node: usize) {
+        if let Some(node) = world.nodes[node].as_mut() {
+            node.leaving = false;
+        }
+    }
+
     fn hold(world: &mut World, node: usize) {
         if let Some(node) = world.nodes[node].as_mut() {
             node.held = true;
