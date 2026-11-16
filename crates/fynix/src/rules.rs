@@ -8,6 +8,8 @@ use lenz::FieldId;
 use typarena::type_pool::{PoolKey, TypePool};
 
 use crate::backend::Backend;
+use crate::cx::Rule;
+use crate::view::Styled;
 
 /// Whether a rule fills what the call site left unset, replaces the
 /// view, does what a set rule does within every element of a kind,
@@ -128,6 +130,18 @@ impl RuleArena {
         let key = self.pool.insert(rule);
         self.counts.insert(key, 1);
         key
+    }
+
+    /// An unset `V` with the set rules at `keys` applied in order,
+    /// against `theme`. A key let go of is skipped.
+    pub(crate) fn apply<V: Styled, T: 'static>(
+        &self,
+        keys: &[PoolKey],
+        theme: &T,
+    ) -> V {
+        keys.iter()
+            .filter_map(|key| self.get::<Rule<V, T>>(key))
+            .fold(V::unset(), |below, rule| rule(below, theme))
     }
 
     pub(crate) fn get<R: 'static>(

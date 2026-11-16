@@ -74,6 +74,19 @@ type UpdateFn<B, T> = fn(
 /// How many elements of one kind are mounted.
 type CountFn<B> = fn(&TypeTable<<B as Backend>::Node>) -> usize;
 
+/// Runs again the rules every mounted element of one kind was
+/// resolved with, against a theme.
+type RestyleFn<B, T> =
+    fn(&mut TypeTable<<B as Backend>::Node>, &RuleArena, &T);
+
+/// Drops the mounted element of one kind on a node, letting go of the
+/// rules it held on to.
+type RemoveFn<B> = fn(
+    &mut TypeTable<<B as Backend>::Node>,
+    &mut RuleArena,
+    <B as Backend>::Node,
+);
+
 /// Acts on the mounted element of one kind on a node, without naming
 /// the kind.
 type NodeFn<B> =
@@ -82,7 +95,7 @@ type NodeFn<B> =
 /// What [`Mounted`] does to a node's element, for the element's kind.
 struct Hooks<B: Backend> {
     mark: NodeFn<B>,
-    remove: NodeFn<B>,
+    remove: RemoveFn<B>,
 }
 
 /// A dropped view's root, kept while it animates out: first its
@@ -139,6 +152,7 @@ pub(crate) type EffectFn<B> = Box<
 pub struct Mounted<B: Backend, T> {
     table: TypeTable<B::Node>,
     updates: Vec<UpdateFn<B, T>>,
+    restyles: Vec<RestyleFn<B, T>>,
     counts: Vec<CountFn<B>>,
     kinds: HashSet<TypeId>,
     hooks: HashMap<B::Node, Hooks<B>>,
@@ -165,6 +179,7 @@ impl<B: Backend, T> Default for Mounted<B, T> {
         Self {
             table: TypeTable::new(),
             updates: Vec::new(),
+            restyles: Vec::new(),
             counts: Vec::new(),
             kinds: HashSet::new(),
             hooks: HashMap::new(),
@@ -192,6 +207,7 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     ) {
         if self.kinds.insert(TypeId::of::<E>()) {
             self.updates.push(update_kind::<B, T, E>);
+            self.restyles.push(restyle_kind::<B, T, E>);
             self.counts.push(|table| table.len::<Mount<B, T, E>>());
         }
         self.hooks.insert(
@@ -201,6 +217,13 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 remove: remove::<B, T, E>,
             },
         );
+        let is_still = !element.is_live()
+            && !live.is_layered()
+            && live.travel.is_none();
+        // The rules it was resolved with live as long as it does.
+        for key in live.rule_keys() {
+            self.rules.retain(key);
+        }
         // Checks often fire on their first call, which the first
         // write already covers.
         element.changed(world);
@@ -221,6 +244,8 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
                 shown,
                 moving: false,
                 dirty: false,
+                restyled: false,
+                is_still,
                 marker: PhantomData,
             },
         );
@@ -273,7 +298,7 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
     /// container it is.
     pub fn unmount(&mut self, node: B::Node) {
         if let Some(hooks) = self.hooks.remove(&node) {
-            (hooks.remove)(&mut self.table, node);
+            (hooks.remove)(&mut self.table, &mut self.rules, node);
         }
         self.readers.remove(&node);
         self.leaving.remove(&node);
@@ -497,6 +522,16 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         slot.structure.groups(dead);
     }
 
+    /// Runs again every rule each mounted element was resolved with,
+    /// against `theme`, and has every prop re-read at the next
+    /// update, for a theme whose values changed. What a view read
+    /// from the theme while it was built stays as it was.
+    pub fn restyle(&mut self, theme: &T) {
+        for restyle in &self.restyles {
+            restyle(&mut self.table, &self.rules, theme);
+        }
+    }
+
     /// Rebuilds what the world's changes call for, in every `keyed`
     /// and `each` view. Views they build are checked from the next
     /// update on.
@@ -567,6 +602,12 @@ struct Mount<B: Backend, T, E: Element<B, T>> {
     /// Whether to re-read at the next update whatever the checks
     /// say.
     dirty: bool,
+    /// Whether its rules ran again for a new theme, so every prop is
+    /// re-read at the next update.
+    restyled: bool,
+    /// Whether nothing it holds can change but the theme, so an
+    /// update passes it by until it is restyled or marked.
+    is_still: bool,
     marker: PhantomData<fn() -> (B, T)>,
 }
 
@@ -595,9 +636,25 @@ fn mark<B: Backend, T: 'static, E: Element<B, T>>(
 
 fn remove<B: Backend, T: 'static, E: Element<B, T>>(
     table: &mut TypeTable<B::Node>,
+    rules: &mut RuleArena,
     node: B::Node,
 ) {
-    table.remove::<Mount<B, T, E>>(&node);
+    if let Some(mount) = table.remove::<Mount<B, T, E>>(&node) {
+        for key in mount.live.rule_keys() {
+            rules.release(key);
+        }
+    }
+}
+
+fn restyle_kind<B: Backend, T: 'static, E: Element<B, T>>(
+    table: &mut TypeTable<B::Node>,
+    rules: &RuleArena,
+    theme: &T,
+) {
+    for (_, mount) in table.iter_mut::<Mount<B, T, E>>() {
+        mount.live.restyle(&mut mount.element, rules, theme);
+        mount.restyled = true;
+    }
 }
 
 impl<B: Backend, T, E: Element<B, T>> Mount<B, T, E> {
@@ -608,8 +665,14 @@ impl<B: Backend, T, E: Element<B, T>> Mount<B, T, E> {
         theme: &T,
         tick: Tick,
     ) {
+        if self.is_still && !self.restyled && !self.dirty {
+            return;
+        }
         let mut dirty = self.element.changed(world)
             | self.live.changed::<T>(world);
+        if core::mem::take(&mut self.restyled) {
+            dirty = u64::MAX;
+        }
         if core::mem::take(&mut self.dirty) {
             // A state changed: only props a state rule sets can
             // differ. Marked for any other reason, every prop is

@@ -4,6 +4,7 @@
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
+use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::world::World;
@@ -125,6 +126,11 @@ pub(crate) fn update<T: Send + Sync + 'static>(world: &mut World) {
             mounts.mark_dirty(node);
         }
         world.resource_scope::<Theme<T>, _>(|world, theme| {
+            // A theme changed in place, or swapped for another,
+            // restyles what was built with the one before.
+            if theme.is_changed() && !theme.is_added() {
+                mounts.0.restyle(&theme.0);
+            }
             mounts.0.update_structure(world, &theme.0);
             // A rebuild despawns nodes whose elements are still
             // mounted.

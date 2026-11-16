@@ -405,7 +405,7 @@ fn a_bound_prop_follows_the_world() {
     ui.world.set(1);
     let bound = ui
         .build(text(watch(|world: &World| world.count.to_string())));
-    let fixed = ui.build(text("fixed"));
+    let fixed = ui.build(text("fixed").size(10.0));
     assert_eq!(ui.world.node(bound).text, "1");
 
     ui.world.set(2);
@@ -654,4 +654,53 @@ fn a_composite_part_rule_beats_a_rule_for_the_part_s_kind() {
     // The card's rule reaches its title as if its call site set it.
     assert_eq!(ui.world.node(title).size, 30.0);
     assert_eq!(ui.world.node(body).size, 10.0);
+}
+
+/// A theme whose body size can be changed.
+struct Scaled(f32);
+
+impl Sizes for Scaled {
+    fn body(&self) -> f32 {
+        self.0
+    }
+}
+
+#[test]
+fn a_new_theme_restyles_what_was_built_with_the_old() {
+    let mut ui = Ui::new(Scaled(14.0));
+    let plain = ui.build(text("plain"));
+    let ruled =
+        ui.build(AnyView::new(|cx: &mut Cx<'_, Fake, Scaled>| {
+            cx.set::<Text>(|text, theme| text.size(theme.0 * 2.0));
+            cx.build(text("ruled"))
+        }));
+    let called = ui.build(text("called").size(9.0));
+    let lit = ui.build(text("lit").when_in::<Lit, _>(
+        |cx: &mut Cx<'_, Fake, Scaled>| {
+            cx.set::<Text>(|text, theme| text.size(theme.0 + 1.0));
+        },
+    ));
+    ui.world.light(lit, true);
+    ui.mounted.mark_dirty(lit);
+    ui.update(Duration::ZERO, false);
+    let sizes = |ui: &Ui<Scaled>| {
+        [plain, ruled, called, lit]
+            .map(|node| ui.world.node(node).size)
+    };
+    assert_eq!(sizes(&ui), [14.0, 28.0, 9.0, 15.0]);
+
+    ui.theme = Scaled(20.0);
+    ui.mounted.restyle(&ui.theme);
+    ui.update(Duration::ZERO, false);
+    assert_eq!(
+        sizes(&ui),
+        [20.0, 40.0, 9.0, 21.0],
+        "the call site wins"
+    );
+
+    // The rules an element held on to go with it.
+    let held = ui.mounted.rules.len();
+    Fake::despawn(&mut ui.world, ruled);
+    ui.unmount_gone();
+    assert!(ui.mounted.rules.len() < held);
 }

@@ -109,8 +109,8 @@ fn a_bound_prop_follows_the_world() {
     assert_eq!(text(&app, fixed), "fixed");
     assert_eq!(
         app.world().resource::<Mounts<Warm>>().len(),
-        1,
-        "only what can change stays mounted"
+        2,
+        "what can change stays mounted, the theme included"
     );
 }
 

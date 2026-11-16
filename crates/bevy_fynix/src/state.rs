@@ -305,11 +305,16 @@ mod tests {
         resource,
     };
 
-    struct Test;
+    /// A theme whose body text is black, or white when `inverted`.
+    #[derive(Default)]
+    struct Test {
+        inverted: bool,
+    }
 
     impl TextTokens for Test {
         fn tone(&self, tone: Tone) -> Color {
             match tone {
+                Tone::Body if self.inverted => Color::WHITE,
                 Tone::Body => Color::BLACK,
                 Tone::Dim | Tone::Faint => DIM,
                 Tone::Accent
@@ -383,7 +388,7 @@ mod tests {
     fn app() -> App {
         let mut app = App::new();
         app.add_plugins((TimePlugin, FynixPlugin::<Test>::default()))
-            .insert_resource(Theme(Test))
+            .insert_resource(Theme(Test::default()))
             .insert_resource(TimeUpdateStrategy::ManualDuration(
                 Duration::from_millis(50),
             ));
@@ -570,6 +575,25 @@ mod tests {
         app.insert_resource(ReducedMotion(true));
         app.update();
 
+        assert_eq!(color(&app, node), Color::WHITE);
+    }
+
+    #[test]
+    fn a_changed_theme_restyles_a_mounted_label_over_its_transition()
+    {
+        let mut app = app();
+        let node = mount::<Test>(
+            app.world_mut(),
+            label("x").transition(Test::interact),
+        );
+        app.update();
+        assert_eq!(color(&app, node), BLACK);
+
+        app.world_mut().resource_mut::<Theme<Test>>().0.inverted =
+            true;
+        app.update();
+        assert_eq!(color(&app, node), halfway());
+        app.update();
         assert_eq!(color(&app, node), Color::WHITE);
     }
 

@@ -63,7 +63,8 @@ fn a_screen_switch_replaces_the_subtree() {
     let [home] = children(&app, switch)[..] else {
         panic!("one screen");
     };
-    assert_eq!(mounts(&app), 2);
+    // Its column and three labels, whose looks come from the theme.
+    assert_eq!(mounts(&app), 4);
 
     set_screen(&mut app, Screen::Settings);
     app.update();
@@ -74,7 +75,7 @@ fn a_screen_switch_replaces_the_subtree() {
     assert_ne!(home, settings);
     assert!(app.world().get_entity(home).is_err(), "old one is gone");
     assert_eq!(text(&app, children(&app, settings)[0]), "settings");
-    assert_eq!(mounts(&app), 1, "the old screen's labels left");
+    assert_eq!(mounts(&app), 3, "the old screen's labels left");
     assert!(app.world().resource::<Unmounted>().0.is_empty());
 }
 
@@ -120,7 +121,7 @@ fn rapid_switches_never_touch_a_despawned_node() {
         panic!("one screen");
     };
     assert_eq!(text(&app, children(&app, home)[0]), "home");
-    assert_eq!(mounts(&app), 2);
+    assert_eq!(mounts(&app), 4);
     assert_eq!(
         app.world().resource::<Mounts<Plain>>().structure_len(),
         1
@@ -307,7 +308,7 @@ fn a_new_selection_rebuilds_the_inspector() {
         panic!("one label");
     };
     assert_eq!(text(&inspected.app, nothing), "nothing selected");
-    assert_eq!(mounts(&inspected.app), 0);
+    assert_eq!(mounts(&inspected.app), 1, "the rows left");
 }
 
 #[derive(Resource)]
