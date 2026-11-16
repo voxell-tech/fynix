@@ -167,10 +167,17 @@ impl<T: 'static> Binding<T> {
     }
 }
 
-/// A [`Binding`] to a field of a resource, named once:
-/// `bind!(Shape, radius)`, `bind!(Page, 0)` or `bind!(Shape, at.x)`.
-/// It is re-read when the resource changes, which has to be in the
-/// world.
+/// A [`Binding`] to a field, named once.
+///
+/// Of a resource: `bind!(Shape, radius)`, `bind!(Page, 0)` or
+/// `bind!(Shape, at.x)`. It is re-read when the resource changes,
+/// which has to be in the world.
+///
+/// Of a component of an entity: `bind!(entity => Health, current)`.
+/// It is re-read when the component changes, or is added or removed.
+/// While the component is absent it reads as the default and drops
+/// writes, as an inspector may for a moment while what it shows goes
+/// away.
 #[macro_export]
 macro_rules! bind {
     ($resource:ty, $($field:tt).+) => {
@@ -183,4 +190,53 @@ macro_rules! bind {
             },
         )
     };
+    ($entity:expr => $component:ty, $($field:tt).+) => {{
+        let entity = $entity;
+        $crate::Binding::new(
+            $crate::component::<$component, _>(entity, |source| {
+                source
+                    .map(|source| {
+                        ::core::clone::Clone::clone(&source.$($field).+)
+                    })
+                    .unwrap_or_default()
+            }),
+            move |world, value| {
+                if let Some(mut source) =
+                    world.get_mut::<$component>(entity)
+                {
+                    source.$($field).+ = value;
+                }
+            },
+        )
+    }};
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::component::Component;
+    use bevy::ecs::world::World;
+
+    use crate::bind;
+
+    #[derive(Component)]
+    struct Health {
+        current: f32,
+    }
+
+    #[test]
+    fn a_component_binding_reads_and_writes_its_field() {
+        let mut world = World::new();
+        let entity = world.spawn(Health { current: 3.0 }).id();
+        let binding = bind!(entity => Health, current);
+        assert_eq!(binding.value.get(&world), Some(3.0));
+
+        (binding.write)(&mut world, 5.0);
+        assert_eq!(world.get::<Health>(entity).unwrap().current, 5.0);
+
+        // Gone, it reads as the default and a write goes nowhere.
+        world.entity_mut(entity).remove::<Health>();
+        assert_eq!(binding.value.get(&world), Some(0.0));
+        (binding.write)(&mut world, 7.0);
+        assert!(world.get::<Health>(entity).is_none());
+    }
 }
