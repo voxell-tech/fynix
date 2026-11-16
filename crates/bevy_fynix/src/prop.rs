@@ -216,8 +216,6 @@ mod tests {
     use bevy::ecs::component::Component;
     use bevy::ecs::world::World;
 
-    use crate::bind;
-
     #[derive(Component)]
     struct Health {
         current: f32,
