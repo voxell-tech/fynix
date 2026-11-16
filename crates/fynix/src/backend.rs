@@ -38,6 +38,13 @@ pub trait Backend: 'static {
     /// should stop taking input.
     fn leave(_world: &mut Self::World, _node: Self::Node) {}
 
+    /// Takes `node` out of its leaving state, as it was before
+    /// [`leave`](Self::leave), for a view brought back while it
+    /// animated out. If its space had begun to collapse, it grows
+    /// back through [`collapse`](Self::collapse) calls down to 0,
+    /// then is [`release`](Self::release)d.
+    fn revive(_world: &mut Self::World, _node: Self::Node) {}
+
     /// Keeps `node`, the root of a view a structural view has just
     /// built, out of the layout and out of sight, with its natural
     /// size measurable once a layout has run, and stops it taking

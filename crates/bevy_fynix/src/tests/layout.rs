@@ -17,7 +17,7 @@ use bevy::math::UVec2;
 use bevy::picking::Pickable;
 use bevy::time::TimeUpdateStrategy;
 use bevy::ui::{
-    BackgroundColor, ComputedNode, Node, ScrollPosition,
+    BackgroundColor, ComputedNode, Node, Overflow, ScrollPosition,
     UiGlobalTransform, UiPlugin, px,
 };
 use fynix::ScopedExt;
@@ -461,6 +461,37 @@ fn an_inserted_item_expands_its_space_before_it_fades_in() {
         }
     }
     assert!(fade[grown + 4].1 > 0.0, "then it fades in");
+}
+
+#[test]
+fn an_item_back_while_its_space_collapses_grows_it_back() {
+    let mut app = laid_out();
+    app.insert_resource(Ids(vec![1, 2, 3]));
+    let (root, container) = list(&mut app, column(()));
+    settle(&mut app, 40);
+    let start = height(&app, root);
+    let two = children(&app, container)[1];
+
+    app.world_mut().resource_mut::<Ids>().0 = vec![1, 3];
+    // Past the fade, and partway through the collapse.
+    let mut frames = 0;
+    while height(&app, root) == start {
+        app.update();
+        frames += 1;
+        assert!(frames < 40, "it never began to collapse");
+    }
+    app.update();
+    assert!(height(&app, root) < start);
+
+    app.world_mut().resource_mut::<Ids>().0 = vec![1, 2, 3];
+    settle(&mut app, 60);
+    assert_eq!(children(&app, container)[1], two, "the same row");
+    assert_eq!(height(&app, root), start);
+    assert_eq!(alpha(&app, two), 1.0);
+    let picked = app.world().get::<Pickable>(two);
+    assert!(picked.is_none_or(|picked| picked.is_hoverable));
+    let ui = app.world().get::<Node>(two).expect("a node");
+    assert_eq!(ui.overflow, Overflow::DEFAULT, "laid out as built");
 }
 
 #[test]

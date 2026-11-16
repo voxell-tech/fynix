@@ -174,6 +174,49 @@ fn rows_without_a_presence_come_and_go_at_once_whatever_their_transition()
 }
 
 #[test]
+fn a_row_back_while_it_fades_out_is_revived() {
+    let (mut ui, container) = rows(&[1, 2], true);
+    let two = ui.world.children(container)[1];
+
+    ui.world.list(&[1]);
+    ui.update(Duration::ZERO, false);
+    ui.update(CURVE / 2, false);
+    assert!(ui.world.node(two).leaving);
+
+    ui.world.list(&[1, 2]);
+    ui.update(Duration::ZERO, false);
+    assert_eq!(ui.world.children(container)[1], two, "not rebuilt");
+    assert!(!ui.world.node(two).leaving);
+    assert!(!ui.mounted.is_leaving(two));
+
+    ui.update(CURVE * 3, false);
+    assert!(ui.world.is_alive(two));
+    assert_eq!(ui.world.node(two).collapsed, None, "never shrank");
+}
+
+#[test]
+fn a_row_back_while_its_space_collapses_grows_it_back() {
+    let (mut ui, container) = rows(&[1, 2], true);
+    let two = ui.world.children(container)[1];
+
+    ui.world.list(&[1]);
+    ui.update(Duration::ZERO, false);
+    ui.update(CURVE, false);
+    ui.update(CURVE / 2, false);
+    assert_eq!(ui.world.node(two).collapsed, Some(0.5));
+
+    ui.world.list(&[1, 2]);
+    ui.update(Duration::ZERO, false);
+    assert_eq!(ui.world.children(container)[1], two, "not rebuilt");
+    assert_eq!(ui.world.node(two).collapsed, Some(0.5), "no jump");
+    assert!(ui.mounted.is_entering(two));
+
+    ui.update(CURVE * 2, false);
+    assert!(ui.world.is_alive(two));
+    assert!(ui.world.node(two).released, "whole again");
+}
+
+#[test]
 fn a_swap_fades_out_collapses_then_expands_in() {
     let (mut ui, container) = picks();
     let old = ui.world.children(container)[0];

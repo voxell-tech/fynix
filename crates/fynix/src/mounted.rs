@@ -343,6 +343,36 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         true
     }
 
+    /// Brings back `node`, the root of a view still animating out,
+    /// from where its leave got to: its elements travel back from
+    /// their leaving state, and its space, if it had begun to
+    /// collapse, turns around and grows again. Whether it was
+    /// leaving.
+    pub(crate) fn revive(
+        &mut self,
+        world: &mut B::World,
+        node: B::Node,
+    ) -> bool {
+        let Some(leaving) = self.leaving.remove(&node) else {
+            return false;
+        };
+        B::revive(world, node);
+        if leaving.fading.is_none() {
+            let mut expanding = leaving.collapse;
+            expanding.retime(leaving.timing);
+            self.arriving.insert(
+                node,
+                Arriving {
+                    timing: leaving.timing,
+                    after: Vec::new(),
+                    has_laid_out: true,
+                    expanding: Some(expanding),
+                },
+            );
+        }
+        true
+    }
+
     /// Whether `node` is the root of a view still animating out.
     pub fn is_leaving(&self, node: B::Node) -> bool {
         self.leaving.contains_key(&node)

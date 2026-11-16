@@ -63,14 +63,66 @@ pub(crate) fn settle_entrances(world: &mut World) {
     }
 }
 
+/// On a node in [`Leaving`]: what it was before, put back if it is
+/// revived.
+#[derive(Component, Debug)]
+struct Left {
+    before: Before,
+    /// What the nodes under it had for a pointer, to give back.
+    unpicked: Vec<(Entity, Option<Pickable>)>,
+}
+
 /// Puts `node` in [`Leaving`], and stops it and every node under it
 /// from being picked.
 pub(crate) fn leave(world: &mut World, node: Entity) {
     let Ok(mut entity) = world.get_entity_mut(node) else {
         return;
     };
+    let visibility =
+        entity.get::<Visibility>().copied().unwrap_or_default();
+    let before =
+        entity.get::<Node>().map(|ui| Before::of(ui, visibility));
     entity.insert(Leaving);
-    ignore_pointer(world, node);
+    let unpicked = ignore_pointer(world, node);
+    if let Some(before) = before {
+        world.entity_mut(node).insert(Left { before, unpicked });
+    }
+}
+
+/// Takes `node` out of [`Leaving`] and lets it be picked again. A
+/// node whose space has begun to collapse keeps what it took space
+/// with for [`release`] to put back.
+pub(crate) fn revive(world: &mut World, node: Entity) {
+    let Ok(mut entity) = world.get_entity_mut(node) else {
+        return;
+    };
+    entity.remove::<Leaving>();
+    let Some(left) = entity.take::<Left>() else {
+        return;
+    };
+    if entity.contains::<Collapsing>() {
+        entity.insert(Left {
+            before: left.before,
+            unpicked: Vec::new(),
+        });
+    }
+    give_back(world, left.unpicked);
+}
+
+/// Gives each node back what it had for a pointer.
+fn give_back(
+    world: &mut World,
+    unpicked: Vec<(Entity, Option<Pickable>)>,
+) {
+    for (node, pickable) in unpicked {
+        let Ok(mut entity) = world.get_entity_mut(node) else {
+            continue;
+        };
+        match pickable {
+            Some(pickable) => entity.insert(pickable),
+            None => entity.remove::<Pickable>(),
+        };
+    }
 }
 
 /// Stops `node` and every node under it from being picked, and gives
@@ -400,6 +452,12 @@ pub(crate) fn release(world: &mut World, node: Entity) {
     };
     entity.remove::<Collapsing>();
     entity.remove::<Entering>();
+    // A revived node grew back from a collapse.
+    if let Some(left) = entity.take::<Left>()
+        && let Some(mut ui) = entity.get_mut::<Node>()
+    {
+        left.before.put(&mut ui);
+    }
     let Some(held) = entity.take::<Held>() else {
         return;
     };
@@ -408,15 +466,7 @@ pub(crate) fn release(world: &mut World, node: Entity) {
         before.put(&mut ui);
     }
     entity.insert(before.visibility);
-    for (node, pickable) in held.unpicked {
-        let Ok(mut entity) = world.get_entity_mut(node) else {
-            continue;
-        };
-        match pickable {
-            Some(pickable) => entity.insert(pickable),
-            None => entity.remove::<Pickable>(),
-        };
-    }
+    give_back(world, held.unpicked);
 }
 
 #[cfg(test)]
