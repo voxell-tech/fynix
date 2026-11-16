@@ -17,6 +17,7 @@ use bevy::window::SystemCursorIcon;
 use crate::cursor::EntityCursor;
 use crate::prop::{Prop, component};
 use crate::tokens::{SpacingTokens, SurfaceTokens};
+use crate::transition::ChangeTiming;
 use crate::views::frame::{Frame, FrameProps, frame};
 use crate::{Bevy, Cx, Styled, View};
 
@@ -93,10 +94,12 @@ fn along(x: f32, left: f32, wide: f32, thumb: f32) -> f32 {
 }
 
 /// Asks the slider `node` for the value under a pointer at `x`, in
-/// the window's logical pixels.
+/// the window's logical pixels. What follows a value being dragged
+/// keeps up with it.
 fn slide_to(
     node: Entity,
     x: f32,
+    is_drag: bool,
     tracks: &Query<(&Slides, &ComputedNode, &UiGlobalTransform)>,
     commands: &mut Commands,
 ) {
@@ -117,6 +120,9 @@ fn slide_to(
         else {
             return;
         };
+        if is_drag {
+            ChangeTiming::snap(world);
+        }
         handler(world, value);
         if let Some(mut slides) = world.get_mut::<Slides>(node) {
             slides.on_change = Some(handler);
@@ -134,7 +140,7 @@ fn pressed(
     }
     press.propagate(false);
     let x = press.pointer.position.x;
-    slide_to(press.event_target(), x, &tracks, &mut commands);
+    slide_to(press.event_target(), x, false, &tracks, &mut commands);
 }
 
 fn dragged(
@@ -147,7 +153,7 @@ fn dragged(
     }
     drag.propagate(false);
     let x = drag.pointer.position.x;
-    slide_to(drag.event_target(), x, &tracks, &mut commands);
+    slide_to(drag.event_target(), x, true, &tracks, &mut commands);
 }
 
 /// A slider's defaults, for its root frame alone.

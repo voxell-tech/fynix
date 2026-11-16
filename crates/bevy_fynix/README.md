@@ -147,7 +147,9 @@ Three things decide how a view looks, and they stay apart:
   `.transition(T::interact)` makes the change glide over a timing the
   theme picks. A transition never makes a view grow in or out:
   only `keyed(..).presence(T::expand)` or `each(..).presence(..)`
-  does.
+  does. A handler that sets `ChangeTiming` moves the changes it
+  makes another way: a drag puts them in place at once, so what
+  follows the value keeps up with the pointer.
 
 Buttons ship with their looks as bundles. Each sets a resting, a
 hovered and a pressed look from the theme, and glides between them:

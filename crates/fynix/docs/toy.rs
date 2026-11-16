@@ -141,7 +141,11 @@ impl<T: 'static> Ui<T> {
             );
             build(&mut cx)
         };
-        self.mounted.update_structure(&mut self.world, &self.theme);
+        self.mounted.update_structure(
+            &mut self.world,
+            &self.theme,
+            Tick::default(),
+        );
         self.frame();
         built
     }
@@ -150,7 +154,7 @@ impl<T: 'static> Ui<T> {
     pub fn frame(&mut self) {
         let tick = Tick {
             delta: Duration::from_millis(16),
-            reduced_motion: false,
+            ..Tick::default()
         };
         self.mounted.update_elements(
             &mut self.world,

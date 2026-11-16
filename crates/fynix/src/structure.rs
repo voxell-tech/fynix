@@ -7,7 +7,7 @@ use core::mem;
 
 use crate::backend::Backend;
 use crate::cx::Cx;
-use crate::mounted::{Group, Mounted, Structure};
+use crate::mounted::{Group, Mounted, Structure, Tick};
 use crate::prop::Signal;
 use crate::rules::{RuleArena, ScopeEntry};
 use crate::transition::Timing;
@@ -21,12 +21,16 @@ type BuildFn<B, T, K> =
 /// in and leave over.
 type Presence<T> = fn(&T) -> Timing;
 
-/// The timing `presence` picks from `theme`, if there is one.
+/// The timing `presence` picks from `theme`, or the one `tick` puts
+/// in its place, if there is one that takes any time.
 fn timing_of<T>(
     presence: Option<Presence<T>>,
     theme: &T,
+    tick: Tick,
 ) -> Option<Timing> {
-    presence.map(|pick| pick(theme))
+    presence
+        .map(|pick| tick.timing.unwrap_or_else(|| pick(theme)))
+        .filter(|timing| !timing.is_instant())
 }
 
 /// Builds with `group` as the owner of the structural views made,
@@ -175,6 +179,7 @@ where
         id: Group,
         world: &mut B::World,
         theme: &T,
+        tick: Tick,
         mounted: &mut Mounted<B, T>,
     ) {
         if !self.key.changed(world) {
@@ -184,7 +189,7 @@ where
         if next == self.last {
             return;
         }
-        let timing = timing_of(self.presence, theme);
+        let timing = timing_of(self.presence, theme, tick);
         let old = self.child;
         let left = mounted.leave(world, old, timing).then_some(old);
         mounted.drop_group(id);
@@ -375,13 +380,14 @@ where
         id: Group,
         world: &mut B::World,
         theme: &T,
+        tick: Tick,
         mounted: &mut Mounted<B, T>,
     ) {
         if !self.items.changed(world) {
             return;
         }
         let items = self.items.get(world);
-        let timing = timing_of(self.presence, theme);
+        let timing = timing_of(self.presence, theme, tick);
         // Rows still animating out keep their place among the rest.
         self.shown.retain(|&node| {
             mounted.is_leaving(node)

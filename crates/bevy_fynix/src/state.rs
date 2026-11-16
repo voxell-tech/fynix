@@ -298,7 +298,7 @@ mod tests {
     use super::*;
     use crate::tests::mix;
     use crate::tokens::{MotionTokens, TextTokens, Tone};
-    use crate::transition::ReducedMotion;
+    use crate::transition::{ChangeTiming, ReducedMotion};
     use crate::views::{Label, label, row};
     use crate::{
         AnyView, FynixPlugin, Theme, derived, every_frame, mount,
@@ -568,6 +568,25 @@ mod tests {
         app.update();
 
         assert_eq!(color(&app, node), Color::WHITE);
+    }
+
+    #[test]
+    fn a_change_timing_moves_the_changes_of_one_update_alone() {
+        let mut app = app();
+        let node = mount::<Test>(
+            app.world_mut(),
+            label("x")
+                .when::<Hovered, _>(accent)
+                .transition(Test::interact),
+        );
+        hover(&mut app, node, true);
+        ChangeTiming::snap(app.world_mut());
+        app.update();
+        assert_eq!(color(&app, node), Color::WHITE);
+
+        hover(&mut app, node, false);
+        app.update();
+        assert_eq!(color(&app, node), halfway());
     }
 
     #[test]

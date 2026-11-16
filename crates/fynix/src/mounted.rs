@@ -32,6 +32,7 @@ pub(crate) trait Structure<B: Backend, T>:
         id: Group,
         world: &mut B::World,
         theme: &T,
+        tick: Tick,
         mounted: &mut Mounted<B, T>,
     );
 
@@ -60,6 +61,12 @@ pub struct Tick {
     /// a view coming in or leaving, its fade and the growing or
     /// shrinking of its space, is skipped.
     pub reduced_motion: bool,
+    /// How the changes this update sees travel, in place of the
+    /// transitions and presences that would move them, as the cause
+    /// of a change decides: a drag puts a value in place at once
+    /// with [`Timing::INSTANT`]. A change with no transition or
+    /// presence still moves at once.
+    pub timing: Option<Timing>,
 }
 
 /// Brings every mounted element of one kind up to date: whether any
@@ -518,6 +525,7 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
         &mut self,
         world: &mut B::World,
         theme: &T,
+        tick: Tick,
     ) {
         let ids = self.slots.keys().copied().collect::<Vec<_>>();
         for id in ids {
@@ -525,7 +533,7 @@ impl<B: Backend, T: 'static> Mounted<B, T> {
             let Some(mut slot) = self.slots.remove(&id) else {
                 continue;
             };
-            slot.structure.update(id, world, theme, self);
+            slot.structure.update(id, world, theme, tick, self);
             self.slots.insert(id, slot);
         }
     }

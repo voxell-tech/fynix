@@ -6,7 +6,7 @@ use std::string::{String, ToString};
 use std::vec::Vec;
 
 use super::{Fake, Ui, Warm, World, text, watch};
-use crate::{Cx, ViewExt, each, keyed};
+use crate::{Cx, Tick, Timing, ViewExt, each, keyed};
 
 /// Warm's curve, one second long.
 const CURVE: Duration = Duration::from_secs(1);
@@ -171,6 +171,22 @@ fn rows_without_a_presence_come_and_go_at_once_whatever_their_transition()
     assert!(!ui.world.is_alive(two));
     assert!(!ui.world.node(three).held);
     assert!(!ui.mounted.is_entering(three));
+}
+
+#[test]
+fn a_change_put_in_place_at_once_skips_the_presence() {
+    let (mut ui, container) = rows(&[1, 2], true);
+    let two = ui.world.children(container)[1];
+
+    ui.world.list(&[1, 3]);
+    ui.tick(Tick {
+        timing: Some(Timing::INSTANT),
+        ..Tick::default()
+    });
+    let three = ui.world.children(container)[1];
+
+    assert!(!ui.world.is_alive(two));
+    assert!(!ui.world.node(three).held);
 }
 
 #[test]
