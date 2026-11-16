@@ -6,9 +6,8 @@ fynix is a reactive UI framework.
   only behind the `std` feature and in tests.
 - `crates/bevy_fynix` is the Bevy backend and its views.
 - `crates/fynix_macros` holds the macros.
-- `crates/fynix_interact` names what a backend offers for the pointer,
-  focus and accessibility, for views written for any backend. It is
-  `no_std` with `alloc`.
+- `crates/fynix_interact` holds interactions and accessibility for
+  views written for any backend. It is `no_std` with `alloc`.
 - `crates/bevy_fynix/examples/` has `showcase` and `dock`. Run one with
   `cargo run -p bevy_fynix --example showcase`.
 

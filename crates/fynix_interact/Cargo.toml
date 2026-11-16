@@ -1,6 +1,6 @@
 [package]
 name = "fynix_interact"
-description = "Hover, press, focus, activation and accessibility for fynix views on any backend."
+description = "Interactions and accessibility for fynix."
 keywords = ["fynix", "ui", "accessibility", "interaction", "agnostic"]
 categories = ["no-std", "gui", "accessibility"]
 readme = "./README.md"

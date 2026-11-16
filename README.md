@@ -53,8 +53,8 @@ mount::<MyTheme>(
 - [`fynix`](crates/fynix): the core crate, with a guide to building a
   UI framework on top of it.
 - [`fynix_macros`](crates/fynix_macros): the `#[element]` macro.
-- [`fynix_interact`](crates/fynix_interact): hover, press, focus,
-  activation and accessibility for views written for any backend.
+- [`fynix_interact`](crates/fynix_interact): interactions and
+  accessibility for views written for any backend.
 - [`bevy_fynix`](crates/bevy_fynix): the Bevy backend, with a
   showcase example and ready-made looks.
 

@@ -1,7 +1,7 @@
 # Fynix Interact
 
-Hover, press, focus, activation and accessibility for
-[fynix](../fynix) views, on any backend that has them.
+Interactions and accessibility for [fynix](../fynix) views, on any
+backend.
 
 Fynix's core knows nothing of a pointer or a screen reader. This crate
 names what a backend can offer for them in one trait, `Interactive`, so
