@@ -58,6 +58,10 @@ impl<P: Clone + PartialEq> Slot<P> {
         if self.target.as_ref() == Some(&target) {
             return;
         }
+        let tween = tween.map(|tween| Tween {
+            timing: tick.timing.unwrap_or(tween.timing),
+            ..tween
+        });
         let run = self.run.take();
         self.run = match (&self.shown, tween) {
             (Some(shown), Some(tween))

@@ -27,6 +27,7 @@ use crate::prop::Prop;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
+use crate::transition::ChangeTiming;
 use crate::{Bevy, Cx, Styled, View};
 
 /// How far a press must move sideways before it drags rather than
@@ -315,6 +316,8 @@ where
                     }
                     let dx = drag.distance.x;
                     commands.queue(move |world: &mut World| {
+                        // What follows the value keeps up with it.
+                        ChangeTiming::snap(world);
                         scrub(world, root, input, dx);
                     });
                 },

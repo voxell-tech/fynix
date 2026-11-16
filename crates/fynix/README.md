@@ -424,9 +424,9 @@ fn main() {
 
     let tick = Tick {
         delta: Duration::from_millis(16),
-        reduced_motion: false,
+        ..Tick::default()
     };
-    mounted.update_structure(&mut world, &Warm);
+    mounted.update_structure(&mut world, &Warm, tick);
     mounted.update_elements(&mut world, &Warm, tick);
     assert_eq!(world.nodes[node].text, "Save");
     assert_eq!(world.nodes[node].size, 14.0);

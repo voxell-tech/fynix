@@ -338,17 +338,27 @@ impl<T: 'static> Ui<T> {
         delta: Duration,
         reduced_motion: bool,
     ) -> bool {
+        self.tick(Tick {
+            delta,
+            reduced_motion,
+            timing: None,
+        })
+    }
+
+    /// As [`update`](Self::update), with all of `tick`.
+    fn tick(&mut self, tick: Tick) -> bool {
         self.unmount_gone();
         self.mounted.run_effects(&mut self.world);
-        self.mounted.update_structure(&mut self.world, &self.theme);
+        self.mounted.update_structure(
+            &mut self.world,
+            &self.theme,
+            tick,
+        );
         self.unmount_gone();
         self.mounted.update_elements(
             &mut self.world,
             &self.theme,
-            Tick {
-                delta,
-                reduced_motion,
-            },
+            tick,
         )
     }
 
@@ -572,6 +582,31 @@ fn an_interrupted_curve_carries_on_from_where_it_got_to() {
     assert_eq!(ui.world.node(node).size, 50.0, "the two cancel");
     ui.update(Duration::from_millis(250), false);
     assert_eq!(ui.world.node(node).size, 25.0);
+}
+
+#[test]
+fn a_change_put_in_place_at_once_stops_a_travel_under_way() {
+    let mut ui = Ui::new(Warm);
+    ui.world.set(0);
+    let node = ui.build(counted(Warm::curve));
+
+    ui.world.set(100);
+    ui.update(Duration::ZERO, false);
+    ui.update(Duration::from_millis(500), false);
+    assert_eq!(ui.world.node(node).size, 50.0);
+
+    ui.world.set(80);
+    let moving = ui.tick(Tick {
+        timing: Some(Timing::INSTANT),
+        ..Tick::default()
+    });
+    assert_eq!(ui.world.node(node).size, 80.0);
+    assert!(!moving);
+
+    // The next change travels over the transition again.
+    ui.world.set(0);
+    ui.update(Duration::from_millis(500), false);
+    assert_eq!(ui.world.node(node).size, 40.0);
 }
 
 #[test]

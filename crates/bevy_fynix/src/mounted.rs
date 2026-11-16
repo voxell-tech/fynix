@@ -11,7 +11,7 @@ use bevy::time::Time;
 
 use crate::backend::Unmounted;
 use crate::state::DirtyNodes;
-use crate::transition::ReducedMotion;
+use crate::transition::{ChangeTiming, ReducedMotion};
 use crate::{Bevy, Theme};
 
 /// Every mounted element built with the theme `T`.
@@ -112,6 +112,9 @@ pub(crate) fn update<T: Send + Sync + 'static>(world: &mut World) {
         reduced_motion: world
             .get_resource::<ReducedMotion>()
             .is_some_and(|reduced| reduced.0),
+        timing: world
+            .get_resource::<ChangeTiming>()
+            .and_then(|timing| timing.0),
     };
     world.resource_scope::<Mounts<T>, _>(|world, mut mounts| {
         drain_unmounted(world, &mut mounts);
@@ -125,7 +128,7 @@ pub(crate) fn update<T: Send + Sync + 'static>(world: &mut World) {
             mounts.mark_dirty(node);
         }
         world.resource_scope::<Theme<T>, _>(|world, theme| {
-            mounts.0.update_structure(world, &theme.0);
+            mounts.0.update_structure(world, &theme.0, tick);
             // A rebuild despawns nodes whose elements are still
             // mounted.
             drain_unmounted(world, &mut mounts);

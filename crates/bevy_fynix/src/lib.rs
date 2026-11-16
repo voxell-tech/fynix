@@ -53,7 +53,7 @@ pub use state::{
 };
 pub use style::{Style, style};
 pub use transition::{
-    COLOR_AXES, F32_AXES, OPACITY_AXES, ReducedMotion,
+    COLOR_AXES, ChangeTiming, F32_AXES, OPACITY_AXES, ReducedMotion,
 };
 pub use views::TooltipTiming;
 pub use visual::Visual;
@@ -130,6 +130,7 @@ impl Plugin for CorePlugin {
         .init_resource::<DirtyNodes>()
         .init_resource::<mounted::Receivers>()
         .init_resource::<ReducedMotion>()
+        .init_resource::<ChangeTiming>()
         .init_resource::<Entrances>()
         .init_resource::<TooltipTiming>()
         .add_observer(backend::queue_unmounted)
@@ -153,7 +154,11 @@ impl Plugin for CorePlugin {
         )
         .add_systems(
             Update,
-            (views::sync_text_inputs, leave::settle_entrances)
+            (
+                transition::clear_change_timing,
+                views::sync_text_inputs,
+                leave::settle_entrances,
+            )
                 .chain()
                 .in_set(FynixSystems::Settle),
         )
