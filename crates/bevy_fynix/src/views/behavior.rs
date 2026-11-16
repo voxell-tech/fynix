@@ -16,7 +16,8 @@ use crate::views::{Icon, Label, Rich};
 use crate::{Bevy, Cx, View};
 
 /// A handler run with the whole world and the node it fired on.
-type Handler = Box<dyn Fn(&mut World, Entity) + Send + Sync>;
+pub(crate) type Handler =
+    Box<dyn Fn(&mut World, Entity) + Send + Sync>;
 
 /// The handlers of a node's [`OnActivate`] wrappers, in build order.
 #[derive(Component)]
@@ -67,18 +68,28 @@ fn activated(activate: On<Activate>, mut commands: Commands) {
     });
 }
 
+/// Runs `handler` too whenever `node` is activated, after the
+/// handlers it was given before.
+pub(crate) fn add_activate(
+    world: &mut World,
+    node: Entity,
+    handler: Handler,
+) {
+    let mut entity = world.entity_mut(node);
+    match entity.get_mut::<ActivateHandlers>() {
+        Some(mut existing) => existing.0.push(handler),
+        None => {
+            entity
+                .insert(ActivateHandlers(vec![handler]))
+                .observe(activated);
+        }
+    }
+}
+
 impl<T, V: View<Bevy, T>> View<Bevy, T> for OnActivate<V> {
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
         let node = self.inner.build(cx);
-        let mut entity = cx.world.entity_mut(node);
-        match entity.get_mut::<ActivateHandlers>() {
-            Some(mut existing) => existing.0.push(self.handler),
-            None => {
-                entity
-                    .insert(ActivateHandlers(vec![self.handler]))
-                    .observe(activated);
-            }
-        }
+        add_activate(cx.world, node, self.handler);
         node
     }
 }

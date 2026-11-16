@@ -920,8 +920,10 @@ dependencies = [
 name = "bevy_fynix"
 version = "0.0.4"
 dependencies = [
+ "accesskit",
  "bevy",
  "fynix",
+ "fynix_interact",
  "lenz",
  "motiongfx_interp",
  "parley",
@@ -2764,6 +2766,13 @@ dependencies = [
  "lenz",
  "motiongfx_interp",
  "typarena",
+]
+
+[[package]]
+name = "fynix_interact"
+version = "0.0.4"
+dependencies = [
+ "fynix",
 ]
 
 [[package]]

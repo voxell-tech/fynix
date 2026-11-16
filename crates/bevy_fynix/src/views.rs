@@ -1,7 +1,7 @@
 //! The views this crate ships.
 
 mod atom;
-mod behavior;
+pub(crate) mod behavior;
 mod button;
 mod checkbox;
 mod context_menu;

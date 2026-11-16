@@ -4,6 +4,8 @@ pub mod backend;
 pub mod cursor;
 pub mod dock;
 pub mod icons;
+#[cfg(feature = "interact")]
+mod interact;
 pub mod leave;
 pub mod modifier;
 pub mod mounted;
