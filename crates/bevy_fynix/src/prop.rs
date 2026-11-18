@@ -1,6 +1,6 @@
 //! The core's props, bound to Bevy's world.
 
-use bevy::ecs::change_detection::Tick;
+use bevy::ecs::change_detection::{DetectChangesMut, Tick};
 use bevy::ecs::component::{Component, Mutable};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
@@ -183,10 +183,12 @@ where
             P::get(source).cloned().unwrap_or_default()
         }),
         |world, value| {
+            let mut source = world.resource_mut::<P::Source>();
             if let Some(field) =
-                P::get_mut(&mut world.resource_mut::<P::Source>())
+                P::get_mut(source.bypass_change_detection())
             {
                 *field = value;
+                source.set_changed();
             }
         },
     )
@@ -215,9 +217,11 @@ where
         move |world, value| {
             if let Some(mut source) =
                 world.get_mut::<P::Source>(entity)
-                && let Some(field) = P::get_mut(&mut source)
+                && let Some(field) =
+                    P::get_mut(source.bypass_change_detection())
             {
                 *field = value;
+                source.set_changed();
             }
         },
     )
@@ -252,5 +256,39 @@ mod tests {
         assert_eq!(binding.value.get(&world), Some(0.0));
         (binding.write)(&mut world, 7.0);
         assert!(world.get::<Health>(entity).is_none());
+    }
+
+    #[derive(Component, Lenz)]
+    struct Shield {
+        held: Option<f32>,
+    }
+
+    #[test]
+    fn a_dropped_write_leaves_the_source_unchanged() {
+        let mut world = World::new();
+        let entity = world.spawn(Shield { held: None }).id();
+        let binding = bind_component(entity, Shield::cursor().held());
+        let changed = |world: &World| {
+            world
+                .entity(entity)
+                .get_change_ticks::<Shield>()
+                .unwrap()
+                .changed
+        };
+        world.increment_change_tick();
+        let before = changed(&world);
+
+        (binding.write)(&mut world, 2.0);
+        assert_eq!(changed(&world), before);
+
+        world.get_mut::<Shield>(entity).unwrap().held = Some(1.0);
+        world.increment_change_tick();
+        let before = changed(&world);
+        (binding.write)(&mut world, 2.0);
+        assert_ne!(changed(&world), before);
+        assert_eq!(
+            world.get::<Shield>(entity).unwrap().held,
+            Some(2.0)
+        );
     }
 }
