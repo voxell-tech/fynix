@@ -22,7 +22,10 @@ use bevy::ui::{
 };
 use bevy::window::{PrimaryWindow, Window};
 use parley::editing::Cursor;
-use parley::{BoundingBox, Brush, Layout};
+use parley::{
+    BoundingBox, Brush, Layout, PositionedInlineBox,
+    PositionedLayoutItem,
+};
 
 use super::RichField;
 use crate::Focused;
@@ -63,13 +66,28 @@ pub(super) fn spawn_caret(world: &mut World, body: Entity) -> Entity {
 
 /// The box of `cursor`, as high as the text beside it: the line is
 /// taller where an atom is, and the caret stays the height of its
-/// text.
+/// text. `markers` are the indices of the atoms' markers, in order.
 pub(super) fn caret_box<B: Brush>(
     cursor: &Cursor,
     layout: &Layout<B>,
     width: f32,
+    markers: impl IntoIterator<Item = usize>,
 ) -> BoundingBox {
     let mut area = cursor.geometry(layout, width);
+    // With nothing before it on its line, the caret is put by the
+    // cluster after it, which for an atom is its marker, after its
+    // box. It goes before the box.
+    let [before, _] = cursor.logical_clusters(layout);
+    let atom = markers
+        .into_iter()
+        .position(|marker| marker == cursor.index());
+    if let Some(atom) = atom
+        && before.is_none_or(|before| before.is_end_of_line())
+        && let Some(x) = inline_boxes(layout).nth(atom).map(|b| b.x)
+    {
+        area.x1 = f64::from(x) + area.width();
+        area.x0 = f64::from(x);
+    }
     let middle = ((area.y0 + area.y1) / 2.0) as f32;
     let line = layout.lines().find(|line| {
         let line = line.metrics();
@@ -84,6 +102,18 @@ pub(super) fn caret_box<B: Brush>(
         area.y1 = f64::from(line.baseline + run.descent);
     }
     area
+}
+
+/// The inline boxes of `layout`, in order.
+fn inline_boxes<B: Brush>(
+    layout: &Layout<B>,
+) -> impl Iterator<Item = PositionedInlineBox> + '_ {
+    layout.lines().flat_map(|line| {
+        line.items().filter_map(|item| match item {
+            PositionedLayoutItem::InlineBox(placed) => Some(placed),
+            PositionedLayoutItem::GlyphRun(_) => None,
+        })
+    })
 }
 
 fn rect_of(bounds: BoundingBox) -> Rect {
@@ -162,6 +192,7 @@ pub(super) fn paint(
                         &selection.focus(),
                         layout,
                         width,
+                        field.content.markers(),
                     )));
                 }
             } else {
@@ -277,8 +308,12 @@ pub(super) fn ime_window(
     if field.is_stale(layout) {
         return;
     }
-    let area =
-        caret_box(&field.selection(layout).focus(), layout, 1.0);
+    let area = caret_box(
+        &field.selection(layout).focus(),
+        layout,
+        1.0,
+        field.content.markers(),
+    );
     let local = Vec2::new(area.x0 as f32, area.y1 as f32)
         + node.content_box().min;
     let position = transform.affine().transform_point2(local)
