@@ -228,10 +228,6 @@ fn scrub(world: &mut World, root: Entity, input: Entity, dx: f32) {
     if let Some(mut scrub) = world.get_mut::<Scrub>(root) {
         scrub.last = value;
     }
-    if let Some(mut entry) = world.get_mut::<Entry>(input) {
-        entry.number = Some(value);
-    }
-    show(world, input);
     call::<NumberChange>(world, input, |change, world| {
         (change.0)(world, value);
     });
@@ -414,6 +410,22 @@ mod tests {
         drag(&mut app, root, 4.0);
 
         assert_eq!(level(&app), 19.0);
+    }
+
+    #[test]
+    fn a_dropped_write_leaves_the_bound_value_shown() {
+        let mut app = app();
+        let field =
+            number_field(Binding::new(5.0, |_, _| {})).step(1.0);
+        let root = mount::<Plain>(app.world_mut(), field);
+        let input = input_of(&app, root);
+
+        drag(&mut app, root, 10.0);
+        assert_eq!(shown(&app, input), "5");
+
+        type_into(&mut app, input, "7");
+        enter(&mut app);
+        assert_eq!(shown(&app, input), "5");
     }
 
     #[test]

@@ -339,10 +339,6 @@ fn commit(world: &mut World, node: Entity, always: bool) {
             let parsed = typed.trim().parse::<f64>().ok();
             if let Some(value) = parsed.filter(|v| v.is_finite()) {
                 let value = spec.clamp(value);
-                if let Some(mut entry) = world.get_mut::<Entry>(node)
-                {
-                    entry.number = Some(value);
-                }
                 call::<NumberChange>(world, node, |change, world| {
                     (change.0)(world, value);
                 });
