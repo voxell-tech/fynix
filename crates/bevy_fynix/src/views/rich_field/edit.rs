@@ -732,6 +732,14 @@ mod tests {
     }
 
     #[test]
+    fn the_caret_is_read_in_the_text_without_atoms() {
+        let mut field = field();
+        caret_at(&mut field, 6);
+
+        assert_eq!(field.caret(), Some(3));
+    }
+
+    #[test]
     fn delete_before_an_atom_removes_it_whole() {
         let mut field = field();
         caret_at(&mut field, 2);
