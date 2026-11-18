@@ -10,36 +10,21 @@
 **Bevy Fynix** is the Bevy backend for [`fynix`](https://crates.io/crates/fynix).
 
 Nodes are entities and the world is Bevy's `World`. On top of that,
-it ships elements written against `bevy_ui` (`Label`, `Rich`,
-`Frame`, `Icon`), composites (`row`, `column`, `button`,
-`foldable`), the token traits they read, and the states rules wait
-on.
+it ships views written against `bevy_ui`, the token traits they read,
+and the states their rules wait on.
 
 ![showcase](https://raw.githubusercontent.com/voxell-tech/fynix/main/assets/showcase.webp)
 
-- `FynixPlugin<T>`: keeps every mounted view in step with the world
-  each `Update`, for views built with the theme `T`.
-- `Theme<T>`: the theme, as a resource the app inserts.
-- `mount`: builds a view at the root of the UI.
-- `Hovered`, `Pressed`, `Entering`, `Leaving`: states for
-  `.when::<S, _>(..)`, and any component of your own works too. A
-  view a `keyed` or `each` with a presence builds later keeps
-  `Entering` until its space has expanded, so it fades in last, and
-  a view they drop gets `Leaving`, then collapses. `ReducedMotion`
-  skips all of it.
-- `ghost`, `tint`, `icon_button`, `primary`, `danger`, `menu_bar`,
-  `segment`: button looks, as bundles for `.rules(..)`. Only
-  `icon_button` and `tint` never have a surface.
-- `tinted_icon`: a button of one icon in the `tint` look, for an
-  action beside content, such as a plus that adds to a list.
-- `revealed`: a divider look that draws only while hovered or
-  `Dragging`.
-- `popup`: a menu surface hung off a point, over a backdrop that
-  dismisses it when pressed.
-- `DockPlugin`: split panes with tabbed areas, from a `DockTree`.
-- `icons`: line icons drawn in code, a chevron, a cross and a plus,
-  and `line_icon` to draw more.
-- `style`: builds a look of your own. See [Styling](#styling).
+An app inserts its theme as a `Theme<T>` resource, adds
+`FynixPlugin<T>`, and calls `mount` to build a view at the root of
+the UI. From then on the plugin keeps every mounted view in step with
+the world, and a system that reads what the views built runs after
+`FynixSystems::Mount`.
+
+A state is a component on a node, so `.when::<S, _>(..)` waits on any
+component, `Hovered` as much as one of your own. A view that a
+`keyed` or `each` with a presence builds or drops is `Entering` or
+`Leaving` while it animates, and `ReducedMotion` skips the animation.
 
 ## Quick Start
 
@@ -139,10 +124,9 @@ fn setup(world: &mut World) {
 Three things decide how a view looks, and they stay apart:
 
 - **Theming** says what the colours, sizes and curves of an app are.
-  A theme implements token traits (`TextTokens`, `SurfaceTokens`,
-  `SpacingTokens`, `MotionTokens`). Views and styles ask for a role
-  (`Tone::Dim`, `theme.hover()`), never a raw colour, so changing the
-  theme restyles everything.
+  A theme implements the token traits its views read. Views and
+  styles ask for a role (`Tone::Dim`, `theme.hover()`), never a raw
+  colour, so changing the theme restyles everything.
 - **Styling** says which looks a view comes in: ghost, icon, primary.
   A look is a rule bundle, applied with `.rules(..)`. It is made of
   set rules, which restyle every `Frame`, `Label` or `Icon` built
