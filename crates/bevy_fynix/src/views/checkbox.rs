@@ -11,45 +11,28 @@ use bevy::ui_widgets::{Checkbox as CheckboxBehavior, ValueChange};
 use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
-use crate::prop::{Prop, component};
+use crate::prop::{Binding, Prop, Write, component};
 use crate::state::State;
 use crate::tokens::{MotionTokens, SpacingTokens, SurfaceTokens};
 use crate::views::frame::{Frame, FrameProps, frame};
 use crate::{Bevy, Cx, Hovered, Styled, View};
 
-/// A handler run with the world and the state the box was asked to
-/// take.
-type Change = Box<dyn Fn(&mut World, bool) + Send + Sync>;
-
 /// A [`Frame`] on [`bevy::ui_widgets::Checkbox`], with a mark in it
 /// shown while the node holds [`Checked`].
 pub struct Checkbox {
     pub frame: Frame,
-    pub checked: Prop<bool>,
-    on_change: Change,
+    checked: Prop<bool>,
+    on_change: Write<bool>,
 }
 
 /// A [`Checkbox`] showing `checked`. It never toggles itself: a
-/// click or key press calls the handler of
-/// [`on_change`](Checkbox::on_change) with the state asked for, and
-/// a bound `checked` follows what that writes to the world.
-pub fn checkbox(checked: impl Into<Prop<bool>>) -> Checkbox {
+/// click or key press writes the state asked for, and a bound
+/// `checked` follows what that writes to the world.
+pub fn checkbox(checked: Binding<bool>) -> Checkbox {
     Checkbox {
         frame: Frame::unset(),
-        checked: checked.into(),
-        on_change: Box::new(|_, _| {}),
-    }
-}
-
-impl Checkbox {
-    /// This, calling `handler` with the state asked for when it is
-    /// activated.
-    pub fn on_change(
-        mut self,
-        handler: impl Fn(&mut World, bool) + Send + Sync + 'static,
-    ) -> Self {
-        self.on_change = Box::new(handler);
-        self
+        checked: checked.value,
+        on_change: checked.write,
     }
 }
 
@@ -61,7 +44,7 @@ impl FrameProps for Checkbox {
 
 /// On a [`Checkbox`]'s node: what runs when it is activated.
 #[derive(Component)]
-struct ChangeHandler(Change);
+struct ChangeHandler(Write<bool>);
 
 /// The length of a side of the box.
 fn side<T: SpacingTokens>(theme: &T) -> f32 {
@@ -174,15 +157,16 @@ mod tests {
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::resource::Resource;
     use bevy::ui::Node;
+    use lenz::Lenz;
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::{mount, resource};
+    use crate::{bind_resource, mount};
 
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
 
     /// The state the app says the box is in.
-    #[derive(Resource)]
+    #[derive(Resource, Lenz)]
     struct Flag(bool);
 
     /// The states the box asked for, in order.
@@ -228,7 +212,7 @@ mod tests {
         let mut app = app();
         let node = mount::<Plain>(
             app.world_mut(),
-            checkbox(resource::<Flag, _>(|flag| flag.0)),
+            checkbox(bind_resource(Flag::cursor()._0())),
         );
         assert!(!checked(&app, node));
         assert!(!shown(&app, node));
@@ -249,9 +233,9 @@ mod tests {
         let mut app = app();
         let node = mount::<Plain>(
             app.world_mut(),
-            checkbox(false).on_change(|world, value| {
+            checkbox(Binding::new(false, |world, value| {
                 world.resource_mut::<Asked>().0.push(value);
-            }),
+            })),
         );
 
         ask(&mut app, node, true);

@@ -23,7 +23,7 @@ use super::text_input::{
     is_editing, show,
 };
 use crate::cursor::{EntityCursor, OverrideCursor};
-use crate::prop::Prop;
+use crate::prop::Binding;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
@@ -136,18 +136,14 @@ pub struct NumberField<N: Number = f64> {
     number: PhantomData<fn() -> N>,
 }
 
-/// A [`NumberField`] showing `value`, calling `on_change` with the
-/// value dragged or typed.
-pub fn number_field<N: Number>(
-    value: impl Into<Prop<N>>,
-    on_change: impl Fn(&mut World, N) + Send + Sync + 'static,
-) -> NumberField<N> {
+/// A [`NumberField`] showing `value`, and writing the value dragged
+/// or typed.
+pub fn number_field<N: Number>(value: Binding<N>) -> NumberField<N> {
+    let value = value.map(N::to_f64, N::from_f64);
     NumberField {
         frame: Frame::unset(),
-        input: TextInput::unset().number(value.into().map(N::to_f64)),
-        change: NumberChange(Box::new(move |world, value| {
-            on_change(world, N::from_f64(value));
-        })),
+        input: TextInput::unset().number(value.value),
+        change: NumberChange(value.write),
         spec: NumberSpec {
             step: N::STEP,
             precision: N::PRECISION,
@@ -232,10 +228,6 @@ fn scrub(world: &mut World, root: Entity, input: Entity, dx: f32) {
     if let Some(mut scrub) = world.get_mut::<Scrub>(root) {
         scrub.last = value;
     }
-    if let Some(mut entry) = world.get_mut::<Entry>(input) {
-        entry.number = Some(value);
-    }
-    show(world, input);
     call::<NumberChange>(world, input, |change, world| {
         (change.0)(world, value);
     });
@@ -353,10 +345,11 @@ where
 mod tests {
     use bevy::app::App;
     use bevy::ecs::resource::Resource;
+    use lenz::Lenz;
 
     use super::super::field::fixtures::*;
     use super::*;
-    use crate::{mount, resource};
+    use crate::{bind_resource, mount, resource};
 
     #[derive(Resource)]
     struct Level(f64);
@@ -369,13 +362,13 @@ mod tests {
         build: impl FnOnce(NumberField) -> NumberField,
     ) -> Entity {
         app.insert_resource(Level(5.0)).init_resource::<Changes>();
-        let field = number_field(
+        let field = number_field(Binding::new(
             resource::<Level, _>(|level| level.0),
             |world, value| {
                 world.resource_mut::<Level>().0 = value;
                 world.resource_mut::<Changes>().0.push(value);
             },
-        );
+        ));
         mount::<Plain>(app.world_mut(), build(field))
     }
 
@@ -417,6 +410,22 @@ mod tests {
         drag(&mut app, root, 4.0);
 
         assert_eq!(level(&app), 19.0);
+    }
+
+    #[test]
+    fn a_dropped_write_leaves_the_bound_value_shown() {
+        let mut app = app();
+        let field =
+            number_field(Binding::new(5.0, |_, _| {})).step(1.0);
+        let root = mount::<Plain>(app.world_mut(), field);
+        let input = input_of(&app, root);
+
+        drag(&mut app, root, 10.0);
+        assert_eq!(shown(&app, input), "5");
+
+        type_into(&mut app, input, "7");
+        enter(&mut app);
+        assert_eq!(shown(&app, input), "5");
     }
 
     #[test]
@@ -552,20 +561,18 @@ mod tests {
         assert_eq!(level(&app), 1.2345);
     }
 
-    #[derive(Resource)]
+    #[derive(Resource, Lenz)]
     struct Count<N>(N);
 
     /// A field of `start` that writes what it is handed back.
-    fn typed_field<N: Number>(
+    fn typed_field<N: Number + Default>(
         app: &mut App,
         start: N,
         build: impl FnOnce(NumberField<N>) -> NumberField<N>,
     ) -> Entity {
         app.insert_resource(Count(start));
-        let field = number_field(
-            resource::<Count<N>, _>(|count| count.0),
-            |world, value| world.resource_mut::<Count<N>>().0 = value,
-        );
+        let field =
+            number_field(bind_resource(Count::<N>::cursor()._0()));
         mount::<Plain>(app.world_mut(), build(field))
     }
 

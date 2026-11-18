@@ -3346,18 +3346,18 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lenz"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d39620e63e0706238c6b3bda299f35b8623aa78f7532237e5a03261c559e7de8"
+checksum = "7491135568e41a0f51a6d28ce73ca13d4ce0212ccdc7b7ab89b2114b58ac3a5c"
 dependencies = [
  "lenz_macros",
 ]
 
 [[package]]
 name = "lenz_macros"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f340cc60e9d668935b2449c4d4e638532ae52b45da187948b74f71fd880b816"
+checksum = "c818b9813b671cd0dbc3cbff8464c8261be5e66a08052a5d3714f182856d669c"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

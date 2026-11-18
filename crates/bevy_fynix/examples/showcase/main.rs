@@ -48,13 +48,14 @@ use bevy_fynix::views::{
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, FynixSystems, ReducedMotion,
-    ScopedExt, Theme, View, mount, resource,
+    ScopedExt, Theme, View, bind_resource, mount, resource,
 };
 use commands::{
     DELETE, FOLLOW, JUMP, NEW_LAYER, PLAY, REDUCE_MOTION, RENDER,
     REVERSE, REWIND,
 };
 use common::Monokai;
+use lenz::Lenz;
 
 /// What a view is built with, in this app.
 type Build<'a> = Cx<'a, Bevy, Monokai>;
@@ -131,7 +132,7 @@ struct Clip {
 }
 
 /// The one object in the scene, as the inspector edits it.
-#[derive(Resource)]
+#[derive(Resource, Lenz)]
 struct Shape {
     name: String,
     x: f32,
@@ -145,15 +146,15 @@ struct Shape {
 }
 
 /// Which of [`timeline::EASINGS`] the clip moves by.
-#[derive(Resource)]
+#[derive(Resource, Lenz)]
 struct Easing(usize);
 
 /// The tool picked in the menu bar.
-#[derive(Resource)]
+#[derive(Resource, Lenz)]
 struct Tool(usize);
 
 /// The inspector's page.
-#[derive(Resource)]
+#[derive(Resource, Lenz)]
 struct Page(usize);
 
 /// The ids of the scene's layers, top first, and the next id.
@@ -168,7 +169,7 @@ struct Layers {
 struct LogRows(usize);
 
 /// Whether the log follows its bottom.
-#[derive(Resource)]
+#[derive(Resource, Lenz)]
 struct FollowLog(bool);
 
 fn setup(world: &mut World) {
@@ -315,8 +316,7 @@ fn menu_strip() -> AnyView<Bevy, Monokai> {
                 column(()).grow(1.0),
                 segmented(
                     ["Select", "Move", "Scale"],
-                    resource::<Tool, _>(|tool| tool.0),
-                    |world, at| world.resource_mut::<Tool>().0 = at,
+                    bind_resource(Tool::cursor()._0()),
                 )
                 .width(px(220.0)),
                 button(

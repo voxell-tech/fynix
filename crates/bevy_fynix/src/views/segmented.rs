@@ -6,7 +6,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::world::World;
 use bevy::ui::{BorderRadius, Overflow, Val, percent, px};
 
-use crate::prop::Prop;
+use crate::prop::{Binding, Prop, Write};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
 };
@@ -15,32 +15,28 @@ use crate::views::frame::{Frame, FrameProps};
 use crate::views::{BehaviorExt, Icon, Label, button, label};
 use crate::{Bevy, Cx, ScopedExt, StateExt, Styled, View};
 
-/// A handler run with the world and the index of the segment picked.
-type Select = Box<dyn Fn(&mut World, usize) + Send + Sync>;
-
 /// A [`Frame`] holding one button per option, the one at the index
 /// `active` names filled with the theme's accent.
 pub struct Segmented {
     pub frame: Frame,
     pub options: Vec<String>,
-    pub active: Prop<usize>,
-    on_select: Select,
+    active: Prop<usize>,
+    on_select: Write<usize>,
 }
 
-/// A [`Segmented`] row of `options`. Activating a segment calls
-/// `on_select` with its index. `active` is not changed by the row
-/// itself, so a bound one follows whatever `on_select` writes to the
-/// world, and the segments are restyled in place.
+/// A [`Segmented`] row of `options`. Activating a segment writes its
+/// index to `active`. The row does not change `active` itself, so a
+/// bound one follows what is written to the world, and the segments
+/// are restyled in place.
 pub fn segmented<S: Into<String>>(
     options: impl IntoIterator<Item = S>,
-    active: impl Into<Prop<usize>>,
-    on_select: impl Fn(&mut World, usize) + Send + Sync + 'static,
+    active: Binding<usize>,
 ) -> Segmented {
     Segmented {
         frame: Frame::unset(),
         options: options.into_iter().map(Into::into).collect(),
-        active: active.into(),
-        on_select: Box::new(on_select),
+        active: active.value,
+        on_select: active.write,
     }
 }
 
@@ -54,7 +50,7 @@ impl FrameProps for Segmented {
 /// picked.
 #[derive(Component)]
 struct Segments {
-    on_select: Select,
+    on_select: Write<usize>,
 }
 
 /// On the segment its row's active index names.
@@ -222,10 +218,12 @@ mod tests {
     fn row_of_three() -> Segmented {
         segmented(
             ["a", "b", "c"],
-            resource::<Which, _>(|which| which.0),
-            |world, index| {
-                world.resource_mut::<Picked>().0.push(index);
-            },
+            Binding::new(
+                resource::<Which, _>(|which| which.0),
+                |world, index| {
+                    world.resource_mut::<Picked>().0.push(index);
+                },
+            ),
         )
     }
 

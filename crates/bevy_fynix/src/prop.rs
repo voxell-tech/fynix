@@ -1,10 +1,11 @@
 //! The core's props, bound to Bevy's world.
 
-use bevy::ecs::change_detection::Tick;
-use bevy::ecs::component::Component;
+use bevy::ecs::change_detection::{DetectChangesMut, Tick};
+use bevy::ecs::component::{Component, Mutable};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::world::World;
+use fynix::lenz::{Cursor, FieldPath};
 
 /// A prop of a view built into [`Bevy`](crate::Bevy).
 pub type Prop<T> = fynix::Prop<World, T>;
@@ -124,4 +125,170 @@ pub fn component<C: Component, T>(
             seen.fires(world, tick)
         },
     )
+}
+
+/// What runs with a value the user asked for, to write it into the
+/// world.
+pub type Write<T> = Box<dyn Fn(&mut World, T) + Send + Sync>;
+
+/// A value a control both shows and writes: what it shows, and what
+/// runs when the user asks for another. See [`bind_resource`].
+pub struct Binding<T> {
+    pub value: Prop<T>,
+    pub write: Write<T>,
+}
+
+impl<T: 'static> Binding<T> {
+    /// A binding showing `value` and running `write` with what the
+    /// user asks for, for a write that does more than set one field.
+    pub fn new(
+        value: impl Into<Prop<T>>,
+        write: impl Fn(&mut World, T) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            value: value.into(),
+            write: Box::new(write),
+        }
+    }
+
+    /// This, shown as a `U`: `to` turns what it holds into what is
+    /// shown, and `from` turns what the user asks for back.
+    pub fn map<U>(
+        self,
+        to: impl Fn(T) -> U + Send + Sync + 'static,
+        from: impl Fn(U) -> T + Send + Sync + 'static,
+    ) -> Binding<U> {
+        let Self { value, write } = self;
+        Binding {
+            value: value.map(to),
+            write: Box::new(move |world, asked| {
+                write(world, from(asked))
+            }),
+        }
+    }
+}
+
+/// A [`Binding`] to the field `path` walks to in a resource, as in
+/// `bind_resource(Shape::cursor().radius())`. It is re-read when the
+/// resource changes, which has to be in the world. Through an absent
+/// `Option` it reads as the default and drops writes.
+pub fn bind_resource<P>(_path: Cursor<P>) -> Binding<P::Target>
+where
+    P: FieldPath,
+    P::Source: Resource + Component<Mutability = Mutable>,
+    P::Target: Clone + Default + Send + Sync,
+{
+    Binding::new(
+        resource(|source: &P::Source| {
+            P::get(source).cloned().unwrap_or_default()
+        }),
+        |world, value| {
+            let mut source = world.resource_mut::<P::Source>();
+            if let Some(field) =
+                P::get_mut(source.bypass_change_detection())
+            {
+                *field = value;
+                source.set_changed();
+            }
+        },
+    )
+}
+
+/// A [`Binding`] to the field `path` walks to in a component of
+/// `entity`, as in `bind_component(entity,
+/// Health::cursor().current())`. It is re-read when the component
+/// changes, or is added or removed. While the component or an
+/// `Option` on the way is absent, it reads as the default and drops
+/// writes, as an inspector may for a moment while what it shows goes
+/// away.
+pub fn bind_component<P>(
+    entity: Entity,
+    _path: Cursor<P>,
+) -> Binding<P::Target>
+where
+    P: FieldPath,
+    P::Source: Component<Mutability = Mutable>,
+    P::Target: Clone + Default + Send + Sync,
+{
+    Binding::new(
+        component(entity, |source: Option<&P::Source>| {
+            source.and_then(P::get).cloned().unwrap_or_default()
+        }),
+        move |world, value| {
+            if let Some(mut source) =
+                world.get_mut::<P::Source>(entity)
+                && let Some(field) =
+                    P::get_mut(source.bypass_change_detection())
+            {
+                *field = value;
+                source.set_changed();
+            }
+        },
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::component::Component;
+    use bevy::ecs::world::World;
+    use lenz::Lenz;
+
+    use super::bind_component;
+
+    #[derive(Component, Lenz)]
+    struct Health {
+        current: f32,
+    }
+
+    #[test]
+    fn a_component_binding_reads_and_writes_its_field() {
+        let mut world = World::new();
+        let entity = world.spawn(Health { current: 3.0 }).id();
+        let binding =
+            bind_component(entity, Health::cursor().current());
+        assert_eq!(binding.value.get(&world), Some(3.0));
+
+        (binding.write)(&mut world, 5.0);
+        assert_eq!(world.get::<Health>(entity).unwrap().current, 5.0);
+
+        // Gone, it reads as the default and a write goes nowhere.
+        world.entity_mut(entity).remove::<Health>();
+        assert_eq!(binding.value.get(&world), Some(0.0));
+        (binding.write)(&mut world, 7.0);
+        assert!(world.get::<Health>(entity).is_none());
+    }
+
+    #[derive(Component, Lenz)]
+    struct Shield {
+        held: Option<f32>,
+    }
+
+    #[test]
+    fn a_dropped_write_leaves_the_source_unchanged() {
+        let mut world = World::new();
+        let entity = world.spawn(Shield { held: None }).id();
+        let binding = bind_component(entity, Shield::cursor().held());
+        let changed = |world: &World| {
+            world
+                .entity(entity)
+                .get_change_ticks::<Shield>()
+                .unwrap()
+                .changed
+        };
+        world.increment_change_tick();
+        let before = changed(&world);
+
+        (binding.write)(&mut world, 2.0);
+        assert_eq!(changed(&world), before);
+
+        world.get_mut::<Shield>(entity).unwrap().held = Some(1.0);
+        world.increment_change_tick();
+        let before = changed(&world);
+        (binding.write)(&mut world, 2.0);
+        assert_ne!(changed(&world), before);
+        assert_eq!(
+            world.get::<Shield>(entity).unwrap().held,
+            Some(2.0)
+        );
+    }
 }

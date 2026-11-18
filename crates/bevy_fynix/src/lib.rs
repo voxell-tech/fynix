@@ -44,7 +44,8 @@ pub use leave::{Collapsing, Entering, Entrances, Held, Leaving};
 pub use modifier::ModifierExt;
 pub use mounted::Mounts;
 pub use prop::{
-    Derived, Each, Keyed, Prop, Signal, component, derived, each,
+    Binding, Derived, Each, Keyed, Prop, Signal, Write,
+    bind_component, bind_resource, component, derived, each,
     every_frame, keyed, resource,
 };
 pub use state::{
@@ -52,7 +53,9 @@ pub use state::{
     hidden, own,
 };
 pub use style::{Style, style};
-pub use transition::{BevyMarker, ReducedMotion};
+pub use transition::{
+    BevyMarker, ReducedMotion, ReducedMotionCursor,
+};
 pub use views::TooltipTiming;
 pub use visual::Visual;
 

@@ -5,7 +5,6 @@ use bevy::ecs::query::With;
 use bevy::ecs::world::World;
 use bevy::ui::{UiRect, percent, px};
 use bevy_fynix::icons::CHEVRON;
-use bevy_fynix::prop::Prop;
 use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
     AnimatedField, BehaviorExt, FrameProps, HasAction, button,
@@ -13,20 +12,23 @@ use bevy_fynix::views::{
     scroll, segmented, slider, text_field,
 };
 use bevy_fynix::{
-    AnyView, Bevy, ReducedMotion, ScopedExt, StateExt, View, ViewExt,
-    hidden, keyed, resource,
+    AnyView, Bevy, Binding, ReducedMotion, ReducedMotionCursor,
+    ScopedExt, StateExt, View, ViewExt, bind_resource, hidden, keyed,
+    resource,
 };
 
 use crate::common::Monokai;
 use crate::timeline::EASINGS;
-use crate::{Easing, FollowLog, Page, Shape};
+use crate::{
+    Easing, EasingCursor, FollowLog, FollowLogCursor, Page,
+    PageCursor, Shape, ShapeCursor,
+};
 
 pub fn inspector() -> AnyView<Bevy, Monokai> {
     scroll((
         segmented(
             ["Shape", "Scene"],
-            resource::<Page, _>(|page| page.0),
-            |world, at| world.resource_mut::<Page>().0 = at,
+            bind_resource(Page::cursor()._0()),
         ),
         // Each page is built when it is shown. The last one fades
         // out and closes its space, then the next opens and fades
@@ -58,15 +60,10 @@ fn page(rows: impl View<Bevy, Monokai>) -> impl View<Bevy, Monokai> {
 
 /// A number field for one of the shape's fields.
 fn number(
-    read: fn(&Shape) -> f32,
-    write: fn(&mut Shape, f32),
+    value: Binding<f32>,
     most: f32,
 ) -> impl View<Bevy, Monokai> {
-    number_field(resource::<Shape, _>(read), move |world, value| {
-        write(&mut world.resource_mut::<Shape>(), value)
-    })
-    .range(0.0, most)
-    .width(px(90.0))
+    number_field(value).range(0.0, most).width(px(90.0))
 }
 
 /// The shape's fields. The ones the clip moves turn accent while they
@@ -75,64 +72,46 @@ fn shape_page() -> impl View<Bevy, Monokai> {
     page(column((
         field_row(
             label("name"),
-            text_field(
-                resource::<Shape, _>(|shape| shape.name.clone()),
-                |world, name| {
-                    world.resource_mut::<Shape>().name = name
-                },
-            )
-            .width(px(140.0)),
+            text_field(bind_resource(Shape::cursor().name()))
+                .width(px(140.0)),
         ),
         field_row(
             label("x").animatable::<Monokai>("x"),
-            number(|s| s.x, |s, x| s.x = x, 600.0),
+            number(bind_resource(Shape::cursor().x()), 600.0),
         ),
-        field_row(label("y"), number(|s| s.y, |s, y| s.y = y, 400.0)),
+        field_row(
+            label("y"),
+            number(bind_resource(Shape::cursor().y()), 400.0),
+        ),
         field_row(
             label("size"),
-            number(|s| s.size, |s, size| s.size = size, 240.0),
+            number(bind_resource(Shape::cursor().size()), 240.0),
         ),
         field_row(
             label("travel").animatable::<Monokai>("travel"),
-            number(
-                |s| s.travel,
-                |s, travel| s.travel = travel,
-                600.0,
-            ),
+            number(bind_resource(Shape::cursor().travel()), 600.0),
         ),
         field_row(
             label("radius"),
-            slider(resource::<Shape, _>(|shape| shape.radius))
+            slider(bind_resource(Shape::cursor().radius()))
                 .range(0.0, 60.0)
-                .on_change(|world, radius| {
-                    world.resource_mut::<Shape>().radius = radius;
-                })
                 .width(px(140.0)),
         ),
         field_row(
             label("opacity"),
-            slider(resource::<Shape, _>(|shape| shape.opacity))
-                .on_change(|world, opacity| {
-                    world.resource_mut::<Shape>().opacity = opacity;
-                })
+            slider(bind_resource(Shape::cursor().opacity()))
                 .width(px(140.0)),
         ),
         field_row(
             label("visible"),
-            toggle(
-                resource::<Shape, _>(|shape| shape.visible),
-                |world, on| {
-                    world.resource_mut::<Shape>().visible = on
-                },
-            ),
+            toggle(bind_resource(Shape::cursor().visible())),
         ),
         field_row(
             label("easing"),
             dropdown(
                 EASINGS,
-                resource::<Easing, _>(|easing| easing.0),
+                bind_resource(Easing::cursor()._0()),
                 CHEVRON,
-                |world, at| world.resource_mut::<Easing>().0 = at,
             )
             .width(px(140.0)),
         ),
@@ -147,19 +126,11 @@ fn scene_page() -> impl View<Bevy, Monokai> {
     page(column((
         field_row(
             label("reduced motion"),
-            toggle(
-                resource::<ReducedMotion, _>(|reduced| reduced.0),
-                |world, on| {
-                    world.resource_mut::<ReducedMotion>().0 = on
-                },
-            ),
+            toggle(bind_resource(ReducedMotion::cursor()._0())),
         ),
         field_row(
             label("follow the log"),
-            toggle(
-                resource::<FollowLog, _>(|follow| follow.0),
-                |world, on| world.resource_mut::<FollowLog>().0 = on,
-            ),
+            toggle(bind_resource(FollowLog::cursor()._0())),
         ),
         field_row(
             label("a long field name, kept on one line"),
@@ -168,13 +139,10 @@ fn scene_page() -> impl View<Bevy, Monokai> {
     )))
 }
 
-/// A checkbox that writes with `write`, in a row of its own so the
-/// field row does not stretch it.
-fn toggle(
-    checked: impl Into<Prop<bool>>,
-    write: fn(&mut World, bool),
-) -> impl View<Bevy, Monokai> {
-    row((checkbox(checked).on_change(write),))
+/// A checkbox in a row of its own, so the field row does not stretch
+/// it.
+fn toggle(checked: Binding<bool>) -> impl View<Bevy, Monokai> {
+    row((checkbox(checked),))
 }
 
 fn toggle_keyframes(world: &mut World) {

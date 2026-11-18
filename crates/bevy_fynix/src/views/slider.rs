@@ -15,36 +15,31 @@ use bevy::ui::{
 use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
-use crate::prop::{Prop, component};
+use crate::prop::{Binding, Prop, Write, component};
 use crate::tokens::{SpacingTokens, SurfaceTokens};
 use crate::views::frame::{Frame, FrameProps, frame};
 use crate::{Bevy, Cx, Styled, View};
-
-/// A handler run with the world and the value the slider was asked
-/// to take.
-type Change = Box<dyn Fn(&mut World, f32) + Send + Sync>;
 
 /// A [`Frame`] that is a track, with a groove along it filled as far
 /// as a thumb that stands at the value.
 pub struct Slider {
     pub frame: Frame,
-    pub value: Prop<f32>,
+    value: Prop<f32>,
     range: (f32, f32),
-    on_change: Change,
+    on_change: Write<f32>,
 }
 
 /// A [`Slider`] showing `value`, from 0 to 1 unless
 /// [`range`](Slider::range) says otherwise. It never moves itself: a
-/// press on the track or a drag along it calls the handler of
-/// [`on_change`](Slider::on_change) with the value under the
+/// press on the track or a drag along it writes the value under the
 /// pointer, and a bound `value` follows what that writes to the
 /// world. The thumb is under the pointer for as long as it is held.
-pub fn slider(value: impl Into<Prop<f32>>) -> Slider {
+pub fn slider(value: Binding<f32>) -> Slider {
     Slider {
         frame: Frame::unset(),
-        value: value.into(),
+        value: value.value,
         range: (0.0, 1.0),
-        on_change: Box::new(|_, _| {}),
+        on_change: value.write,
     }
 }
 
@@ -52,16 +47,6 @@ impl Slider {
     /// This, from `least` at the left end to `most` at the right.
     pub fn range(mut self, least: f32, most: f32) -> Self {
         self.range = (least, most);
-        self
-    }
-
-    /// This, calling `handler` with the value asked for when the
-    /// pointer is pressed on it or dragged along it.
-    pub fn on_change(
-        mut self,
-        handler: impl Fn(&mut World, f32) + Send + Sync + 'static,
-    ) -> Self {
-        self.on_change = Box::new(handler);
         self
     }
 }
@@ -78,7 +63,7 @@ impl FrameProps for Slider {
 struct Slides {
     range: (f32, f32),
     thumb: f32,
-    on_change: Option<Change>,
+    on_change: Option<Write<f32>>,
 }
 
 /// On a [`Slider`]'s node: how far along its value is, from 0 to 1.
@@ -279,23 +264,21 @@ mod tests {
     use bevy::app::App;
     use bevy::ecs::resource::Resource;
     use bevy::math::Vec2;
+    use lenz::Lenz;
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::{mount, resource};
+    use crate::{bind_resource, mount};
 
-    #[derive(Resource)]
+    #[derive(Resource, Lenz)]
     struct Level(f32);
 
     /// A slider bound to [`Level`], laid out 160 wide from 100.
     fn mounted(app: &mut App, range: (f32, f32)) -> Entity {
         let node = mount::<Plain>(
             app.world_mut(),
-            slider(resource::<Level, _>(|level| level.0))
-                .range(range.0, range.1)
-                .on_change(|world, value| {
-                    world.resource_mut::<Level>().0 = value;
-                }),
+            slider(bind_resource(Level::cursor()._0()))
+                .range(range.0, range.1),
         );
         app.world_mut().entity_mut(node).insert((
             ComputedNode {
