@@ -102,6 +102,11 @@ impl Content {
         &self.atoms
     }
 
+    /// The index of each atom's marker, in order.
+    pub fn markers(&self) -> impl Iterator<Item = usize> + '_ {
+        self.atoms.iter().map(|(at, _)| *at)
+    }
+
     /// Replaces `range` with `text`. Atoms inside it are gone.
     pub fn splice(&mut self, range: Range<usize>, text: &str) {
         self.put(range, text, None);

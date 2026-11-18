@@ -543,6 +543,7 @@ mod tests {
     };
 
     use super::super::content::Piece;
+    use super::super::paint::caret_box;
     use super::*;
     use crate::tests::Plain as Theme;
 
@@ -838,6 +839,29 @@ mod tests {
             [Piece::Text("ab".into())],
         );
         assert!(shorter.is_stale(&layout));
+    }
+
+    #[test]
+    fn the_caret_before_an_atom_is_before_its_box_at_the_start_too() {
+        let first = RichField::new(
+            Entity::PLACEHOLDER,
+            [Piece::Atom(chip("a")), Piece::Text("cd".into())],
+        );
+        for (field, marker) in [(first, 0), (field(), 2)] {
+            let layout = layout_of(&field);
+            let x = |at| {
+                let cursor = Cursor::from_byte_index(
+                    &layout,
+                    at,
+                    Affinity::Downstream,
+                );
+                let markers = field.content.markers();
+                caret_box(&cursor, &layout, 1.0, markers).x0 as f32
+            };
+            let after = marker + MARKER.len_utf8();
+
+            assert!((x(after) - x(marker) - CHIP).abs() < 0.01);
+        }
     }
 
     #[test]
