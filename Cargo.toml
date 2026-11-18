@@ -31,7 +31,3 @@ hashbrown = { version = "0.17", default-features = false }
 [workspace.lints.clippy]
 redundant_type_annotations = "warn"
 
-# Until lenz 0.1.2 is published.
-[patch.crates-io]
-lenz = { git = "https://github.com/nixonyh/lenz", rev = "7efa8710a636629bc85a1f4250795ebae8383616" }
-lenz_macros = { git = "https://github.com/nixonyh/lenz", rev = "7efa8710a636629bc85a1f4250795ebae8383616" }

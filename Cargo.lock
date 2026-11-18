@@ -3347,7 +3347,8 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 [[package]]
 name = "lenz"
 version = "0.1.2"
-source = "git+https://github.com/nixonyh/lenz?rev=7efa8710a636629bc85a1f4250795ebae8383616#7efa8710a636629bc85a1f4250795ebae8383616"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7491135568e41a0f51a6d28ce73ca13d4ce0212ccdc7b7ab89b2114b58ac3a5c"
 dependencies = [
  "lenz_macros",
 ]
@@ -3355,7 +3356,8 @@ dependencies = [
 [[package]]
 name = "lenz_macros"
 version = "0.1.2"
-source = "git+https://github.com/nixonyh/lenz?rev=7efa8710a636629bc85a1f4250795ebae8383616#7efa8710a636629bc85a1f4250795ebae8383616"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c818b9813b671cd0dbc3cbff8464c8261be5e66a08052a5d3714f182856d669c"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
