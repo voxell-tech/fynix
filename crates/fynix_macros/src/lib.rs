@@ -154,14 +154,11 @@ fn fynix() -> Tokens {
     }
 }
 
-/// The path to the `lenz` crate: the using crate's own, or the one
-/// `fynix` re-exports.
+/// The path to the `lenz` crate: through `fynix`, or straight to it
+/// from `fynix` itself.
 fn lenz(fynix: &Tokens) -> Tokens {
-    match crate_name("lenz") {
-        Ok(FoundCrate::Name(name)) => {
-            let name = Ident::new(&name, Span::call_site());
-            quote!(::#name)
-        }
+    match crate_name("fynix") {
+        Ok(FoundCrate::Itself) => quote!(::lenz),
         _ => quote!(#fynix::lenz),
     }
 }
@@ -368,6 +365,7 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
 
     Ok(quote! {
         #[derive(#lenz::Lenz)]
+        #[lenz(crate = #lenz)]
         #item
 
         #[allow(dead_code)]

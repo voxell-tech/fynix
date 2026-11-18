@@ -582,13 +582,14 @@ mod tests {
     use bevy::ui::{Node, UiTransform};
     use bevy::ui_widgets::{Activate, MenuPlugin, MenuPopup};
     use bevy::window::{PrimaryWindow, Window};
+    use lenz::Lenz;
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::{bind, mount};
+    use crate::{bind_resource, mount};
 
     /// The index the dropdown was last asked to show.
-    #[derive(Resource)]
+    #[derive(Resource, Lenz)]
     struct Chosen(usize);
 
     fn app() -> App {
@@ -602,7 +603,7 @@ mod tests {
             app.world_mut(),
             dropdown(
                 ["Linear", "Ease in", "Ease out"],
-                bind!(Chosen, 0),
+                bind_resource(Chosen::cursor()._0()),
                 Handle::default(),
             ),
         )
@@ -725,8 +726,12 @@ mod tests {
         let mut app = app();
         let root = mount::<Plain>(
             app.world_mut(),
-            dropdown(["a", "b"], bind!(Chosen, 0), Handle::default())
-                .placeholder("Pick one"),
+            dropdown(
+                ["a", "b"],
+                bind_resource(Chosen::cursor()._0()),
+                Handle::default(),
+            )
+            .placeholder("Pick one"),
         );
         app.world_mut().resource_mut::<Chosen>().0 = 2;
         app.update();

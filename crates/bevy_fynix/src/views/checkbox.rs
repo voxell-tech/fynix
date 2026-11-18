@@ -157,15 +157,16 @@ mod tests {
     use bevy::ecs::hierarchy::Children;
     use bevy::ecs::resource::Resource;
     use bevy::ui::Node;
+    use lenz::Lenz;
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::{bind, mount};
+    use crate::{bind_resource, mount};
 
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);
 
     /// The state the app says the box is in.
-    #[derive(Resource)]
+    #[derive(Resource, Lenz)]
     struct Flag(bool);
 
     /// The states the box asked for, in order.
@@ -209,8 +210,10 @@ mod tests {
     #[test]
     fn a_bound_value_decides_whether_it_is_checked_and_marked() {
         let mut app = app();
-        let node =
-            mount::<Plain>(app.world_mut(), checkbox(bind!(Flag, 0)));
+        let node = mount::<Plain>(
+            app.world_mut(),
+            checkbox(bind_resource(Flag::cursor()._0())),
+        );
         assert!(!checked(&app, node));
         assert!(!shown(&app, node));
 

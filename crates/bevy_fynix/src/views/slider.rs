@@ -264,19 +264,21 @@ mod tests {
     use bevy::app::App;
     use bevy::ecs::resource::Resource;
     use bevy::math::Vec2;
+    use lenz::Lenz;
 
     use super::*;
     use crate::tests::{self, Plain};
-    use crate::{bind, mount};
+    use crate::{bind_resource, mount};
 
-    #[derive(Resource)]
+    #[derive(Resource, Lenz)]
     struct Level(f32);
 
     /// A slider bound to [`Level`], laid out 160 wide from 100.
     fn mounted(app: &mut App, range: (f32, f32)) -> Entity {
         let node = mount::<Plain>(
             app.world_mut(),
-            slider(bind!(Level, 0)).range(range.0, range.1),
+            slider(bind_resource(Level::cursor()._0()))
+                .range(range.0, range.1),
         );
         app.world_mut().entity_mut(node).insert((
             ComputedNode {

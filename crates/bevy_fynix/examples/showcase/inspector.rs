@@ -12,17 +12,24 @@ use bevy_fynix::views::{
     scroll, segmented, slider, text_field,
 };
 use bevy_fynix::{
-    AnyView, Bevy, Binding, ReducedMotion, ScopedExt, StateExt, View,
-    ViewExt, bind, hidden, keyed, resource,
+    AnyView, Bevy, Binding, ReducedMotion, ReducedMotionCursor,
+    ScopedExt, StateExt, View, ViewExt, bind_resource, hidden, keyed,
+    resource,
 };
 
 use crate::common::Monokai;
 use crate::timeline::EASINGS;
-use crate::{Easing, FollowLog, Page, Shape};
+use crate::{
+    Easing, EasingCursor, FollowLog, FollowLogCursor, Page,
+    PageCursor, Shape, ShapeCursor,
+};
 
 pub fn inspector() -> AnyView<Bevy, Monokai> {
     scroll((
-        segmented(["Shape", "Scene"], bind!(Page, 0)),
+        segmented(
+            ["Shape", "Scene"],
+            bind_resource(Page::cursor()._0()),
+        ),
         // Each page is built when it is shown. The last one fades
         // out and closes its space, then the next opens and fades
         // in.
@@ -65,33 +72,48 @@ fn shape_page() -> impl View<Bevy, Monokai> {
     page(column((
         field_row(
             label("name"),
-            text_field(bind!(Shape, name)).width(px(140.0)),
+            text_field(bind_resource(Shape::cursor().name()))
+                .width(px(140.0)),
         ),
         field_row(
             label("x").animatable::<Monokai>("x"),
-            number(bind!(Shape, x), 600.0),
+            number(bind_resource(Shape::cursor().x()), 600.0),
         ),
-        field_row(label("y"), number(bind!(Shape, y), 400.0)),
-        field_row(label("size"), number(bind!(Shape, size), 240.0)),
+        field_row(
+            label("y"),
+            number(bind_resource(Shape::cursor().y()), 400.0),
+        ),
+        field_row(
+            label("size"),
+            number(bind_resource(Shape::cursor().size()), 240.0),
+        ),
         field_row(
             label("travel").animatable::<Monokai>("travel"),
-            number(bind!(Shape, travel), 600.0),
+            number(bind_resource(Shape::cursor().travel()), 600.0),
         ),
         field_row(
             label("radius"),
-            slider(bind!(Shape, radius))
+            slider(bind_resource(Shape::cursor().radius()))
                 .range(0.0, 60.0)
                 .width(px(140.0)),
         ),
         field_row(
             label("opacity"),
-            slider(bind!(Shape, opacity)).width(px(140.0)),
+            slider(bind_resource(Shape::cursor().opacity()))
+                .width(px(140.0)),
         ),
-        field_row(label("visible"), toggle(bind!(Shape, visible))),
+        field_row(
+            label("visible"),
+            toggle(bind_resource(Shape::cursor().visible())),
+        ),
         field_row(
             label("easing"),
-            dropdown(EASINGS, bind!(Easing, 0), CHEVRON)
-                .width(px(140.0)),
+            dropdown(
+                EASINGS,
+                bind_resource(Easing::cursor()._0()),
+                CHEVRON,
+            )
+            .width(px(140.0)),
         ),
         // A row of its own, so the column does not stretch it.
         row((button(label("Toggle keyframes"))
@@ -104,11 +126,11 @@ fn scene_page() -> impl View<Bevy, Monokai> {
     page(column((
         field_row(
             label("reduced motion"),
-            toggle(bind!(ReducedMotion, 0)),
+            toggle(bind_resource(ReducedMotion::cursor()._0())),
         ),
         field_row(
             label("follow the log"),
-            toggle(bind!(FollowLog, 0)),
+            toggle(bind_resource(FollowLog::cursor()._0())),
         ),
         field_row(
             label("a long field name, kept on one line"),

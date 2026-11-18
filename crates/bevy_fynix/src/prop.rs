@@ -1,10 +1,11 @@
 //! The core's props, bound to Bevy's world.
 
 use bevy::ecs::change_detection::Tick;
-use bevy::ecs::component::Component;
+use bevy::ecs::component::{Component, Mutable};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::world::World;
+use fynix::lenz::{Cursor, FieldPath};
 
 /// A prop of a view built into [`Bevy`](crate::Bevy).
 pub type Prop<T> = fynix::Prop<World, T>;
@@ -131,7 +132,7 @@ pub fn component<C: Component, T>(
 pub type Write<T> = Box<dyn Fn(&mut World, T) + Send + Sync>;
 
 /// A value a control both shows and writes: what it shows, and what
-/// runs when the user asks for another. See [`bind!`](crate::bind).
+/// runs when the user asks for another. See [`bind_resource`].
 pub struct Binding<T> {
     pub value: Prop<T>,
     pub write: Write<T>,
@@ -167,56 +168,70 @@ impl<T: 'static> Binding<T> {
     }
 }
 
-/// A [`Binding`] to a field, named once.
-///
-/// Of a resource: `bind!(Shape, radius)`, `bind!(Page, 0)` or
-/// `bind!(Shape, at.x)`. It is re-read when the resource changes,
-/// which has to be in the world.
-///
-/// Of a component of an entity: `bind!(entity => Health, current)`.
-/// It is re-read when the component changes, or is added or removed.
-/// While the component is absent it reads as the default and drops
+/// A [`Binding`] to the field `path` walks to in a resource, as in
+/// `bind_resource(Shape::cursor().radius())`. It is re-read when the
+/// resource changes, which has to be in the world. Through an absent
+/// `Option` it reads as the default and drops writes.
+pub fn bind_resource<P>(_path: Cursor<P>) -> Binding<P::Target>
+where
+    P: FieldPath,
+    P::Source: Resource + Component<Mutability = Mutable>,
+    P::Target: Clone + Default + Send + Sync,
+{
+    Binding::new(
+        resource(|source: &P::Source| {
+            P::get(source).cloned().unwrap_or_default()
+        }),
+        |world, value| {
+            if let Some(field) =
+                P::get_mut(&mut world.resource_mut::<P::Source>())
+            {
+                *field = value;
+            }
+        },
+    )
+}
+
+/// A [`Binding`] to the field `path` walks to in a component of
+/// `entity`, as in `bind_component(entity,
+/// Health::cursor().current())`. It is re-read when the component
+/// changes, or is added or removed. While the component or an
+/// `Option` on the way is absent, it reads as the default and drops
 /// writes, as an inspector may for a moment while what it shows goes
 /// away.
-#[macro_export]
-macro_rules! bind {
-    ($resource:ty, $($field:tt).+) => {
-        $crate::Binding::new(
-            $crate::resource::<$resource, _>(|source| {
-                ::core::clone::Clone::clone(&source.$($field).+)
-            }),
-            |world, value| {
-                world.resource_mut::<$resource>().$($field).+ = value;
-            },
-        )
-    };
-    ($entity:expr => $component:ty, $($field:tt).+) => {{
-        let entity = $entity;
-        $crate::Binding::new(
-            $crate::component::<$component, _>(entity, |source| {
-                source
-                    .map(|source| {
-                        ::core::clone::Clone::clone(&source.$($field).+)
-                    })
-                    .unwrap_or_default()
-            }),
-            move |world, value| {
-                if let Some(mut source) =
-                    world.get_mut::<$component>(entity)
-                {
-                    source.$($field).+ = value;
-                }
-            },
-        )
-    }};
+pub fn bind_component<P>(
+    entity: Entity,
+    _path: Cursor<P>,
+) -> Binding<P::Target>
+where
+    P: FieldPath,
+    P::Source: Component<Mutability = Mutable>,
+    P::Target: Clone + Default + Send + Sync,
+{
+    Binding::new(
+        component(entity, |source: Option<&P::Source>| {
+            source.and_then(P::get).cloned().unwrap_or_default()
+        }),
+        move |world, value| {
+            if let Some(mut source) =
+                world.get_mut::<P::Source>(entity)
+                && let Some(field) = P::get_mut(&mut source)
+            {
+                *field = value;
+            }
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use bevy::ecs::component::Component;
     use bevy::ecs::world::World;
+    use lenz::Lenz;
 
-    #[derive(Component)]
+    use super::bind_component;
+
+    #[derive(Component, Lenz)]
     struct Health {
         current: f32,
     }
@@ -225,7 +240,8 @@ mod tests {
     fn a_component_binding_reads_and_writes_its_field() {
         let mut world = World::new();
         let entity = world.spawn(Health { current: 3.0 }).id();
-        let binding = bind!(entity => Health, current);
+        let binding =
+            bind_component(entity, Health::cursor().current());
         assert_eq!(binding.value.get(&world), Some(3.0));
 
         (binding.write)(&mut world, 5.0);

@@ -349,10 +349,11 @@ where
 mod tests {
     use bevy::app::App;
     use bevy::ecs::resource::Resource;
+    use lenz::Lenz;
 
     use super::super::field::fixtures::*;
     use super::*;
-    use crate::{bind, mount, resource};
+    use crate::{bind_resource, mount, resource};
 
     #[derive(Resource)]
     struct Level(f64);
@@ -548,17 +549,18 @@ mod tests {
         assert_eq!(level(&app), 1.2345);
     }
 
-    #[derive(Resource)]
+    #[derive(Resource, Lenz)]
     struct Count<N>(N);
 
     /// A field of `start` that writes what it is handed back.
-    fn typed_field<N: Number>(
+    fn typed_field<N: Number + Default>(
         app: &mut App,
         start: N,
         build: impl FnOnce(NumberField<N>) -> NumberField<N>,
     ) -> Entity {
         app.insert_resource(Count(start));
-        let field = number_field(bind!(Count<N>, 0));
+        let field =
+            number_field(bind_resource(Count::<N>::cursor()._0()));
         mount::<Plain>(app.world_mut(), build(field))
     }
 

@@ -2,6 +2,7 @@
 
 use bevy::color::{Color, Mix, Oklaba};
 use bevy::ecs::resource::Resource;
+use fynix::lenz::Lenz;
 use motiongfx_interp::interpolation::Interpolation;
 
 /// Marks the interpolations this crate adds for Bevy's types, which
@@ -26,5 +27,6 @@ pub fn blend_f32(from: &f32, to: &f32, t: f32) -> f32 {
 }
 
 /// When set, every transition finishes at once.
-#[derive(Resource, Default, Clone, Copy, Debug)]
+#[derive(Resource, Lenz, Default, Clone, Copy, Debug)]
+#[lenz(crate = fynix::lenz)]
 pub struct ReducedMotion(pub bool);
