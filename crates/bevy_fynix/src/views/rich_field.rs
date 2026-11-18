@@ -26,6 +26,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::ecs::world::World;
 use bevy::input::InputSystems;
+use bevy::input::keyboard::Key;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::math::Rect;
 use bevy::text::{ComputedTextBlock, TextLayoutInfo};
@@ -131,6 +132,8 @@ pub struct RichField {
     /// The first line of the view, once it holds more lines than it
     /// shows.
     first: usize,
+    /// The keys the field leaves to what it is in.
+    passed: Vec<Key>,
 }
 
 impl RichField {
@@ -156,6 +159,7 @@ impl RichField {
             active: Duration::ZERO,
             seen: None,
             first: 0,
+            passed: Vec::new(),
         }
     }
 
@@ -221,6 +225,26 @@ impl RichField {
     /// happens for the side of an atom the field has none of.
     pub fn set_caret(&mut self, caret: Caret) {
         self.pending.push(Edit::SetCaret(caret));
+    }
+
+    /// The byte of [`Plain::text`] the caret is at, while nothing is
+    /// selected and no input method is composing.
+    pub fn caret(&self) -> Option<usize> {
+        let collapsed =
+            self.at.is_some() || self.selection.is_collapsed();
+        if !collapsed || self.preedit.is_some() {
+            return None;
+        }
+        Some(self.content.plain(0..self.caret_index()).text.len())
+    }
+
+    /// Leaves `keys` to what the field is in, in place of what they
+    /// do in it, as a list over it takes the arrows while it is open.
+    /// It replaces the keys passed before. An input method keeps
+    /// every key while it composes, since Enter and the arrows pick
+    /// among its candidates.
+    pub fn pass_keys(&mut self, keys: impl IntoIterator<Item = Key>) {
+        self.passed = keys.into_iter().collect();
     }
 
     /// Whether there is nothing to show but a placeholder.

@@ -44,7 +44,9 @@ pub(super) fn key(
         key.propagate(false);
         return;
     }
-    if !key.input.state.is_pressed() {
+    if !key.input.state.is_pressed()
+        || field.passed.contains(&key.input.logical_key)
+    {
         return;
     }
     let held = modifiers(|pressed| keys.pressed(pressed));
