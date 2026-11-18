@@ -32,7 +32,9 @@ pub use rules::{Condition, RuleArena};
 pub use scoped::{Rules, ScopedExt, Transition, When};
 pub use slot::{Patch, Slot};
 pub use structure::{Each, Keyed, each, keyed};
-pub use transition::{Curve, Tween};
+pub use transition::{
+    AXES, Axes, Curve, F32_AXES, OPACITY_AXES, Spring, Timing, Tween,
+};
 pub use view::{
     AnyView, Element, Layered, Matched, Settable, Styled, View,
     ViewExt, ViewSeq,

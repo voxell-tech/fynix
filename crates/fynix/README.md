@@ -237,13 +237,20 @@ fn main() {
 ```
 
 Add `.transition(pick)` to a view and its changes animate over the
-`Curve` that `pick` takes from the theme: a token like
-`T::interact`, or any `|theme: &Warm| ..`. Fynix names no kinds of
-movement itself. A theme gives whatever curves its views ask for.
+`Timing` that `pick` takes from the theme: a token like
+`T::interact`, or any `|theme: &Warm| ..`. A timing is a `Spring`, or
+a `Curve` with an ease function. Fynix names no kinds of movement
+itself. A theme gives whatever timings its views ask for.
+
+A prop animates once its element says how its value splits into
+numbers, with `#[elem(axes = F32_AXES)]` or an `Axes` of its own. A
+change that arrives mid-travel turns the value around without a jump:
+a spring keeps its speed, and a curve is laid over the one still
+running.
 
 `keyed` and `each` rebuild parts of the tree as the world changes.
 They swap at once, whatever the views' transitions, unless given a
-presence, which picks a curve the same way:
+presence, which picks a timing the same way:
 
 ```rust,ignore
 keyed(page, build).presence(T::expand)
@@ -288,8 +295,8 @@ use core::time::Duration;
 // `#[element]` finds these at the root of the crate it is used in,
 // so a framework re-exports them from its own root.
 use fynix::{
-    Backend, Condition, Curve, Cx, Element, Mounted, Patch, Prop,
-    ScopedExt, Slot, Styled, Tick, View, ViewExt, element, styled,
+    Backend, Condition, Cx, Element, Mounted, Patch, Prop, ScopedExt,
+    Slot, Styled, Tick, Timing, View, ViewExt, element, styled,
 };
 
 // 1. A backend.
@@ -460,7 +467,7 @@ From weakest to strongest:
 | State rules on the node itself | `label("x").when::<Hovered, _>(..)` |
 
 Show rules then replace the element, its set rules applied. A theme
-says what the tokens are (colours, sizes, curves), a rule bundle
+says what the tokens are (colours, sizes, motions), a rule bundle
 (`.rules(..)`) says which look a view has, and a state rule says what
 that look does while a state holds. Of several state rules on one node, the one in the outer
 scope wins, and within one scope the one written later. The Bevy

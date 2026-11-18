@@ -36,7 +36,7 @@ use bevy::color::Color;
 use bevy::ecs::component::Component;
 
 use crate::state::{Hovered, Pressed, State};
-use crate::tokens::{Curve, Tone};
+use crate::tokens::{Timing, Tone};
 use crate::views::{Frame, Icon, Label, Rich};
 use crate::{Bevy, Cx};
 
@@ -136,9 +136,9 @@ impl<T: 'static> Style<T> {
     }
 
     /// This, with every element in the view travelling to new values
-    /// over the curve `pick` takes from the theme, such as
+    /// over the timing `pick` takes from the theme, such as
     /// `T::interact`.
-    pub fn transition(self, pick: fn(&T) -> Curve) -> Self {
+    pub fn transition(self, pick: fn(&T) -> Timing) -> Self {
         self.step(move |cx| cx.transition(pick))
     }
 

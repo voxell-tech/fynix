@@ -20,7 +20,7 @@ mod support;
 mod virtual_list;
 
 pub(crate) use support::{
-    Plain, app, app_with, hover, key_down, keyboard, kids,
+    Plain, app, app_with, hover, key_down, keyboard, kids, mix,
     pointer_press, press, wheel,
 };
 

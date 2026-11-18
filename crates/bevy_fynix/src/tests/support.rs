@@ -30,8 +30,9 @@ use bevy::window::{PrimaryWindow, Window};
 use crate::state::{Hovered, Pressed};
 use crate::tokens::{
     Curve, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
-    Tone,
+    Timing, Tone,
 };
+use crate::transition::COLOR_AXES;
 use crate::{FynixPlugin, Theme};
 
 const ORANGE: Color = Color::srgb(1.0, 0.5, 0.0);
@@ -139,22 +140,35 @@ impl SpacingTokens for Plain {
 
 impl Plain {
     /// Its one curve, `duration` long.
-    fn curve(&self) -> Curve {
+    fn curve(&self) -> Timing {
         Curve {
             duration: self.duration,
             ease: |t| t,
         }
+        .into()
     }
 }
 
 impl MotionTokens for Plain {
-    fn interact(&self) -> Curve {
+    fn interact(&self) -> Timing {
         self.curve()
     }
 
-    fn expand(&self) -> Curve {
+    fn expand(&self) -> Timing {
         self.curve()
     }
+}
+
+/// `t` of the way from `from` to `to` in Oklab, worked out as a
+/// travel over a linear curve does.
+pub fn mix(from: Color, to: Color, t: f32) -> Color {
+    let (from, to) =
+        ((COLOR_AXES.split)(&from), (COLOR_AXES.split)(&to));
+    let mut mixed = to;
+    for (axis, from) in mixed.iter_mut().zip(from) {
+        *axis += (from - *axis) * (1.0 - t);
+    }
+    (COLOR_AXES.join)(mixed)
 }
 
 /// A headless app under the default [`Plain`].

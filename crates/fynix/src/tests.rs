@@ -11,7 +11,6 @@ use std::vec::Vec;
 
 use lenz::Lenz;
 use motiongfx_interp::ease;
-use motiongfx_interp::interpolation::Interpolation;
 
 mod leave;
 mod show;
@@ -19,9 +18,9 @@ mod state;
 mod structure;
 
 use crate::{
-    AnyView, Backend, Condition, Curve, Cx, Matched, Mounted, Patch,
-    Prop, ScopedExt, Signal, Styled, Tick, View, ViewExt, derived,
-    element,
+    AnyView, Backend, Condition, Curve, Cx, F32_AXES, Matched,
+    Mounted, Patch, Prop, ScopedExt, Signal, Spring, Styled, Tick,
+    Timing, View, ViewExt, derived, element,
 };
 
 #[derive(Default)]
@@ -181,7 +180,7 @@ pub struct Text {
     #[elem(patch = WriteText)]
     text: Prop<World, String>,
     /// The theme's body size when unset.
-    #[elem(default = theme.body(), patch = WriteSize, blend = blend)]
+    #[elem(default = theme.body(), patch = WriteSize, axes = F32_AXES)]
     size: Prop<World, f32>,
 }
 
@@ -218,10 +217,6 @@ fn wrap(
 pub struct Frame {
     #[elem(patch = WriteSize)]
     size: Prop<World, f32>,
-}
-
-fn blend(from: &f32, to: &f32, t: f32) -> f32 {
-    <f32 as Interpolation<()>>::interp(from, to, t)
 }
 
 /// How the fake backend writes a text's text.
@@ -271,11 +266,28 @@ impl Sizes for Warm {
 
 impl Warm {
     /// The one curve things move over, a second long.
-    fn curve(&self) -> Curve {
+    fn curve(&self) -> Timing {
         Curve {
             duration: Duration::from_secs(1),
             ease: ease::linear,
         }
+        .into()
+    }
+}
+
+/// A theme whose motions are springs.
+struct Springy;
+
+impl Sizes for Springy {
+    fn body(&self) -> f32 {
+        14.0
+    }
+}
+
+impl Springy {
+    /// A spring that settles in about a fifth of a second.
+    fn spring(&self) -> Timing {
+        Spring::new(Duration::from_millis(200), 0.0).into()
     }
 }
 
@@ -518,19 +530,21 @@ fn only_the_prop_that_changed_is_written() {
     assert_eq!(ui.world.writes, 3, "and not for an equal value");
 }
 
-/// A text whose size follows `world.count`, travelling over Warm's
-/// curve.
-fn counted() -> AnyView<Fake, Warm> {
+/// A text whose size follows `world.count`, travelling over the
+/// timing `pick` takes from the theme.
+fn counted<T: Sizes + 'static>(
+    pick: fn(&T) -> Timing,
+) -> AnyView<Fake, T> {
     text("x")
         .size(watch(|world: &World| world.count as f32))
-        .transition(Warm::curve)
+        .transition(pick)
         .boxed()
 }
 
 #[test]
 fn an_update_says_whether_anything_still_moves() {
     let mut ui = Ui::new(Warm);
-    ui.build(counted());
+    ui.build(counted(Warm::curve));
     assert!(!ui.update(Duration::ZERO, false), "nothing changed");
 
     ui.world.set(20);
@@ -540,28 +554,56 @@ fn an_update_says_whether_anything_still_moves() {
 }
 
 #[test]
-fn an_interrupted_transition_starts_from_where_it_got_to() {
+fn an_interrupted_curve_carries_on_from_where_it_got_to() {
     let mut ui = Ui::new(Warm);
     ui.world.set(0);
-    let node = ui.build(counted());
+    let node = ui.build(counted(Warm::curve));
 
     ui.world.set(100);
     ui.update(Duration::ZERO, false);
     ui.update(Duration::from_millis(500), false);
     assert_eq!(ui.world.node(node).size, 50.0);
 
-    // Heads back to 0 from 50, not from 100.
+    // Not from 100, and laid over the rise rather than restarting.
     ui.world.set(0);
     ui.update(Duration::ZERO, false);
+    assert_eq!(ui.world.node(node).size, 50.0);
     ui.update(Duration::from_millis(500), false);
+    assert_eq!(ui.world.node(node).size, 50.0, "the two cancel");
+    ui.update(Duration::from_millis(250), false);
     assert_eq!(ui.world.node(node).size, 25.0);
+}
+
+#[test]
+fn an_interrupted_spring_keeps_its_speed_as_it_turns() {
+    let mut ui = Ui::new(Springy);
+    ui.world.set(0);
+    let node = ui.build(counted(Springy::spring));
+    let step = Duration::from_millis(8);
+
+    ui.world.set(100);
+    ui.update(Duration::ZERO, false);
+    for _ in 0..6 {
+        ui.update(step, false);
+    }
+    let cut = ui.world.node(node).size;
+    assert!(cut > 0.0 && cut < 100.0, "{cut}");
+
+    ui.world.set(0);
+    ui.update(Duration::ZERO, false);
+    ui.update(step, false);
+    let after = ui.world.node(node).size;
+    assert!(after > cut, "still rising: {cut} then {after}");
+
+    while ui.update(step, false) {}
+    assert_eq!(ui.world.node(node).size, 0.0);
 }
 
 #[test]
 fn reduced_motion_snaps() {
     let mut ui = Ui::new(Warm);
     ui.world.set(10);
-    let node = ui.build(counted());
+    let node = ui.build(counted(Warm::curve));
 
     ui.world.set(20);
     ui.update(Duration::from_millis(100), true);

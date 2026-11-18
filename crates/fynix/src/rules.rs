@@ -11,7 +11,7 @@ use crate::backend::Backend;
 
 /// Whether a rule fills what the call site left unset, replaces the
 /// view, does what a set rule does within every element of a kind,
-/// or names the curve values travel over.
+/// or names the timing values travel over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RuleKind {
     Set,

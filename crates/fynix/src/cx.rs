@@ -10,7 +10,7 @@ use crate::layer::{Layer, Live};
 use crate::mounted::{Group, Mounted};
 use crate::prop::Prop;
 use crate::rules::{Condition, RuleKind, ScopeEntry, When};
-use crate::transition::Curve;
+use crate::transition::Timing;
 use crate::view::{AnyView, Element, Matched, Styled, View};
 
 /// How many replacements can be built one inside another before a
@@ -507,10 +507,10 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         layers.into_iter().map(|(_, layer)| layer).collect()
     }
 
-    /// The curve a transition rule in force has an element resolved
+    /// The timing a transition rule in force has an element resolved
     /// now travel over: the innermost that is not a default, else
     /// the innermost default.
-    pub(crate) fn travel(&self) -> Option<Curve> {
+    pub(crate) fn travel(&self) -> Option<Timing> {
         let innermost = |default: bool| {
             self.entries
                 .iter()
@@ -523,7 +523,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
                 .find_map(|entry| {
                     self.mounted
                         .rules
-                        .get::<Curve>(&entry.key)
+                        .get::<Timing>(&entry.key)
                         .copied()
                 })
         };
@@ -531,18 +531,18 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     }
 
     /// Makes every element built from here to the end of the scope
-    /// travel to new values over the curve `pick` takes from the
-    /// theme, if it says how its values blend.
+    /// travel to new values over the timing `pick` takes from the
+    /// theme, if it says how its values split into axes.
     ///
     /// ```ignore
     /// cx.transition(T::interact);
     /// cx.transition(|theme| theme.motion.popup);
     /// ```
-    pub fn transition(&mut self, pick: impl FnOnce(&T) -> Curve) {
-        let curve = pick(self.theme);
-        let key = self.mounted.rules.insert(curve);
+    pub fn transition(&mut self, pick: impl FnOnce(&T) -> Timing) {
+        let timing = pick(self.theme);
+        let key = self.mounted.rules.insert(timing);
         self.entry(
-            TypeId::of::<Curve>(),
+            TypeId::of::<Timing>(),
             RuleKind::Transition,
             key,
             None,

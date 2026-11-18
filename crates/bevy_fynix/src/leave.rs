@@ -428,7 +428,7 @@ mod tests {
     use bevy::ecs::relationship::RelationshipTarget;
     use bevy::text::TextColor;
     use bevy::time::{TimePlugin, TimeUpdateStrategy};
-    use fynix::{Curve, ScopedExt};
+    use fynix::{Curve, ScopedExt, Timing};
 
     use super::*;
     use crate::tokens::{
@@ -470,14 +470,15 @@ mod tests {
     }
 
     impl MotionTokens for Test {
-        fn interact(&self) -> Curve {
+        fn interact(&self) -> Timing {
             Curve {
                 duration: Duration::from_millis(100),
                 ease: |t| t,
             }
+            .into()
         }
 
-        fn expand(&self) -> Curve {
+        fn expand(&self) -> Timing {
             self.interact()
         }
     }
