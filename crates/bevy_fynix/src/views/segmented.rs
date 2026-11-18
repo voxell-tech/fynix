@@ -20,7 +20,7 @@ use crate::{Bevy, Cx, ScopedExt, StateExt, Styled, View};
 pub struct Segmented {
     pub frame: Frame,
     pub options: Vec<String>,
-    pub active: Prop<usize>,
+    active: Prop<usize>,
     on_select: Write<usize>,
 }
 

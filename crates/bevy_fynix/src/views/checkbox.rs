@@ -21,7 +21,7 @@ use crate::{Bevy, Cx, Hovered, Styled, View};
 /// shown while the node holds [`Checked`].
 pub struct Checkbox {
     pub frame: Frame,
-    pub checked: Prop<bool>,
+    checked: Prop<bool>,
     on_change: Write<bool>,
 }
 

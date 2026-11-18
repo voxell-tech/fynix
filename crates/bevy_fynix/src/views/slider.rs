@@ -24,7 +24,7 @@ use crate::{Bevy, Cx, Styled, View};
 /// as a thumb that stands at the value.
 pub struct Slider {
     pub frame: Frame,
-    pub value: Prop<f32>,
+    value: Prop<f32>,
     range: (f32, f32),
     on_change: Write<f32>,
 }
