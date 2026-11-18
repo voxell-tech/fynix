@@ -433,15 +433,10 @@ fn main() {
 
 ## Views
 
-A view is a struct that owns its props. There are three kinds:
-
-- **Elements** are one node each, written by the backend: `Label`,
-  `Frame`, `Icon`.
-- **Composites** are built out of other views: `row`, `column`,
-  `button`, `foldable`. Their parts are ordinary views, so ordinary
-  rules reach them.
-- **Wrappers** add something to any view: `.when(..)`,
-  `.transition(..)`, `.rules(..)`, `.on_activate(..)`.
+A view is a struct that owns its props. An element is one node,
+written by the backend. A composite is built out of other views, and
+its parts are ordinary views, so ordinary rules reach them. A wrapper
+adds something to any view, such as a state rule or a transition.
 
 `keyed` and `each` build and drop parts of the tree as the world
 changes, and keep every view whose key stays.
