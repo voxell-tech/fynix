@@ -240,7 +240,9 @@ impl RichField {
 
     /// Leaves `keys` to what the field is in, in place of what they
     /// do in it, as a list over it takes the arrows while it is open.
-    /// It replaces the keys passed before.
+    /// It replaces the keys passed before. An input method keeps
+    /// every key while it composes, since Enter and the arrows pick
+    /// among its candidates.
     pub fn pass_keys(&mut self, keys: impl IntoIterator<Item = Key>) {
         self.passed = keys.into_iter().collect();
     }
