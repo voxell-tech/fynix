@@ -8,9 +8,9 @@ use bevy::a11y::AccessibilityNode;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use bevy::ui_widgets::{Button, MenuItem};
-use fynix_interact::{Action, Interactive, Role, Semantics};
 
 use crate::Bevy;
+use crate::interact::{Action, Interactive, Role, Semantics};
 use crate::state::{Focused, Hovered, Pressed, State};
 use crate::views::behavior::add_activate;
 
@@ -97,9 +97,9 @@ mod tests {
     use bevy::text::TextColor;
     use bevy::ui_widgets::{Activate, ButtonPlugin};
     use fynix::{Cx, ScopedExt, View};
-    use fynix_interact::{Hovered as AnyHovered, InteractExt};
 
     use super::*;
+    use crate::interact::{Hovered as AnyHovered, InteractExt};
     use crate::mount;
     use crate::tests::{Plain, app, pointer_click, pointer_press};
     use crate::tokens::Tone;

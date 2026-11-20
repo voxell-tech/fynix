@@ -5,6 +5,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::world::World;
 use bevy::ui::{UiRect, percent, px};
 use bevy_fynix::icons::CHEVRON;
+use bevy_fynix::interact::InteractExt;
 use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
     AnimatedField, FrameProps, HasAction, button, checkbox, column,
@@ -16,7 +17,6 @@ use bevy_fynix::{
     ScopedExt, StateExt, View, ViewExt, bind_resource, hidden, keyed,
     resource,
 };
-use fynix_interact::InteractExt;
 
 use crate::common::Monokai;
 use crate::timeline::EASINGS;

@@ -4,8 +4,8 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, Display, FlexDirection, percent};
-use fynix_interact::InteractExt;
 
+use crate::interact::InteractExt;
 use crate::prop::component;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
@@ -86,9 +86,7 @@ where
                     .transition(T::interact),
             )
             .rules(tint)
-            .on_activate(move |world: &mut World| {
-                toggle(world, root)
-            });
+            .on_activate(move |world| toggle(world, root));
             cx.build(
                 row((chevron, self.header)).align(AlignItems::Center),
             );

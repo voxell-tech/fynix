@@ -45,7 +45,7 @@ use bevy_fynix::tokens::{
     TextTokens, Tone,
 };
 use bevy_fynix::{Bevy, Cx, ScopedExt, mount};
-use fynix_interact::Hovered;
+use bevy_fynix::interact::Hovered;
 
 struct MyTheme;
 

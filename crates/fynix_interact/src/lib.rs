@@ -5,6 +5,7 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::string::String;
+use core::marker::PhantomData;
 
 use fynix::{Backend, Condition, Cx, View};
 
@@ -115,9 +116,10 @@ impl<B: Interactive> Condition<B> for Focused {
 }
 
 /// A view whose root node runs an action when activated.
-pub struct OnActivate<V, F> {
+pub struct OnActivate<V, F, W> {
     view: V,
     action: F,
+    world: PhantomData<fn(&mut W)>,
 }
 
 /// A view whose root node says what it is to assistive technology.
@@ -126,7 +128,7 @@ pub struct Described<V> {
     semantics: Semantics,
 }
 
-impl<B, T, V, F> View<B, T> for OnActivate<V, F>
+impl<B, T, V, F> View<B, T> for OnActivate<V, F, B::World>
 where
     B: Interactive,
     V: View<B, T>,
@@ -154,10 +156,16 @@ where
 /// What any view can be made to answer and say with.
 pub trait InteractExt: Sized {
     /// This view, running `action` with the world when its root node
-    /// is activated. A closure names the world's type, as in
-    /// `|world: &mut World| ..`.
-    fn on_activate<F>(self, action: F) -> OnActivate<Self, F> {
-        OnActivate { view: self, action }
+    /// is activated.
+    fn on_activate<W, F>(self, action: F) -> OnActivate<Self, F, W>
+    where
+        F: Fn(&mut W) + Send + Sync + 'static,
+    {
+        OnActivate {
+            view: self,
+            action,
+            world: PhantomData,
+        }
     }
 
     /// This view, its root node said to assistive technology to be a

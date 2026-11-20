@@ -38,6 +38,7 @@ use bevy_fynix::dock::{
     DockAreaStyle, DockIcons, DockLeaf, DockPlugin, DockRegistry,
     DockTree, DockWindowKind, Edge, dock,
 };
+use bevy_fynix::interact::InteractExt;
 use bevy_fynix::shortcut::{
     CommandId, Invoke, run_command, shortcut_text,
 };
@@ -55,7 +56,6 @@ use commands::{
     REVERSE, REWIND,
 };
 use common::Monokai;
-use fynix_interact::InteractExt;
 use lenz::Lenz;
 
 /// What a view is built with, in this app.

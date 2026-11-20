@@ -3,6 +3,7 @@
 use bevy::color::Color;
 use bevy::ui::{AlignItems, FlexDirection, UiRect, percent, px};
 use bevy_fynix::icons::PLUS;
+use bevy_fynix::interact::{Hovered, Pressed};
 use bevy_fynix::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, Tone,
 };
@@ -14,7 +15,6 @@ use bevy_fynix::views::{
 use bevy_fynix::{
     AnyView, Bevy, ScopedExt, Style, View, ViewExt, style,
 };
-use fynix_interact::{Hovered, Pressed};
 
 use crate::chips::chips;
 use crate::common::Monokai;

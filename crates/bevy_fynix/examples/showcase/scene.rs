@@ -3,6 +3,7 @@
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, JustifyContent, UiRect, percent, px};
 use bevy_fynix::icons::PLUS;
+use bevy_fynix::interact::{Hovered, InteractExt};
 use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
     Axis, ContextMenuExt, FrameProps, Icon, Label, TooltipExt,
@@ -13,7 +14,6 @@ use bevy_fynix::{
     AnyView, Bevy, ScopedExt, StateExt, View, ViewExt, each, hidden,
     resource,
 };
-use fynix_interact::{Hovered, InteractExt};
 
 use crate::common::Monokai;
 use crate::{Build, Layers, commands, icons};
@@ -90,24 +90,19 @@ fn layer(id: u32) -> impl View<Bevy, Monokai> {
     .padding(UiRect::vertical(px(2.0))))
     .context_menu(move || {
         (
-            menu_item(label("Duplicate")).on_activate(
-                move |world: &mut World| duplicate(world, id),
-            ),
+            menu_item(label("Duplicate"))
+                .on_activate(move |world| duplicate(world, id)),
             submenu(label("Move"), move || {
                 (
-                    menu_item(label("To the top")).on_activate(
-                        move |world: &mut World| to(world, id, 0),
-                    ),
+                    menu_item(label("To the top"))
+                        .on_activate(move |world| to(world, id, 0)),
                     menu_item(label("To the bottom")).on_activate(
-                        move |world: &mut World| {
-                            to(world, id, usize::MAX)
-                        },
+                        move |world| to(world, id, usize::MAX),
                     ),
                 )
             }),
-            menu_item(label("Delete")).on_activate(
-                move |world: &mut World| delete(world, id),
-            ),
+            menu_item(label("Delete"))
+                .on_activate(move |world| delete(world, id)),
         )
     })
 }

@@ -8,13 +8,13 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, UiRect, px};
+use bevy_fynix::interact::InteractExt;
 use bevy_fynix::tokens::{SpacingTokens, SurfaceTokens, Tone};
 use bevy_fynix::views::{
     Atom, BehaviorExt, FrameProps, Piece, RichField, Span, button,
     column, icon, label, rich, rich_field, row,
 };
 use bevy_fynix::{AnyView, Bevy, View, resource};
-use fynix_interact::InteractExt;
 
 use crate::common::Monokai;
 use crate::{Build, icons};

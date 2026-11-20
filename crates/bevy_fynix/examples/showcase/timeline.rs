@@ -10,13 +10,13 @@ use bevy::ui::{
     AlignItems, Display, JustifyContent, Overflow, PositionType,
     UiRect, Val, percent, px,
 };
+use bevy_fynix::interact::InteractExt;
 use bevy_fynix::tokens::{SurfaceTokens, TextTokens, Tone};
 use bevy_fynix::views::{
     FrameProps, Span, TooltipExt, button, column, frame, icon, label,
     primary, rich, row, slider, tinted_icon,
 };
 use bevy_fynix::{AnyView, Bevy, Binding, ScopedExt, View, resource};
-use fynix_interact::InteractExt;
 
 use crate::common::Monokai;
 use crate::{

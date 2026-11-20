@@ -4,7 +4,7 @@ pub mod backend;
 pub mod cursor;
 pub mod dock;
 pub mod icons;
-mod interact;
+mod interactive;
 pub mod leave;
 pub mod modifier;
 pub mod mounted;
@@ -41,6 +41,7 @@ pub use fynix::{
     AnyView, Cx, Element, Layered, Matched, ScopedExt, Styled, View,
     ViewExt, ViewSeq,
 };
+pub use fynix_interact as interact;
 pub use leave::{Collapsing, Entering, Entrances, Held, Leaving};
 pub use modifier::ModifierExt;
 pub use mounted::Mounts;

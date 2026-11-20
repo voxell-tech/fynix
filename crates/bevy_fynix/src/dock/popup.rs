@@ -9,10 +9,10 @@ use bevy::ui::AlignItems;
 use bevy::ui_widgets::popover::{
     PopoverAlign, PopoverPlacement, PopoverSide,
 };
-use fynix_interact::InteractExt;
 
 use super::tree::{DockTree, NodeId};
 use super::{DockRegistry, DockTokens};
+use crate::interact::InteractExt;
 use crate::tokens::Tone;
 use crate::views::{FrameProps, icon, label, menu_item, row, shut};
 use crate::{AnyView, Bevy, ViewExt};
@@ -65,9 +65,7 @@ pub(super) fn rows<T: DockTokens>(
         // keeps it open.
         return vec![
             menu_item(label("Nothing left to add").tone(Tone::Dim))
-                .on_activate(move |world: &mut World| {
-                    shut(world, root)
-                })
+                .on_activate(move |world| shut(world, root))
                 .boxed(),
         ];
     }

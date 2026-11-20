@@ -20,12 +20,12 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::MenuButton;
 use bevy::window::SystemCursorIcon;
-use fynix_interact::InteractExt;
 
 use super::registry::DockRegistry;
 use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
 use super::{DockTokens, popup};
 use crate::cursor::EntityCursor;
+use crate::interact::InteractExt;
 use crate::prop::resource;
 use crate::scroll::{
     OwnScrollbar, ScrollbarStyle, ScrollbarVisibility,
