@@ -1,20 +1,18 @@
 //! The caret and the selection of a rich field, drawn as nodes over
 //! its text, and where the input method puts its candidates.
 
-use bevy::camera::visibility::Visibility;
+use bevy::camera::visibility::{InheritedVisibility, Visibility};
 use bevy::color::{Alpha, Color};
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
-use bevy::ecs::query::{Has, With};
+use bevy::ecs::query::{Has, With, Without};
 use bevy::ecs::system::{Commands, Local, Query, Res};
 use bevy::ecs::world::World;
 use bevy::input_focus::InputFocus;
 use bevy::math::{Rect, Vec2};
 use bevy::picking::Pickable;
-use bevy::text::{
-    ComputedTextBlock, FontSize, TextFont, TextLayoutInfo,
-};
+use bevy::text::{FontSize, TextFont, TextLayoutInfo};
 use bevy::time::{Real, Time};
 use bevy::ui::{
     BackgroundColor, ComputedNode, ComputedUiRenderTargetInfo, Node,
@@ -30,6 +28,7 @@ use parley::{
 use super::RichField;
 use crate::Focused;
 use crate::views::atom::AtomBox;
+use crate::views::overlay::{DrawnLayout, put, set_shown};
 
 /// The caret is on for this long and off for as long.
 const BLINK: f32 = 0.5;
@@ -48,8 +47,13 @@ const FRONT: i32 = 1;
 
 fn overlay(z: i32, parent: Entity) -> impl bevy::ecs::bundle::Bundle {
     (
+        // Put somewhere, for the first move to be from there.
         Node {
             position_type: PositionType::Absolute,
+            left: px(0.0),
+            top: px(0.0),
+            width: px(0.0),
+            height: px(0.0),
             ..Node::default()
         },
         BackgroundColor(Color::NONE),
@@ -62,6 +66,21 @@ fn overlay(z: i32, parent: Entity) -> impl bevy::ecs::bundle::Bundle {
 
 pub(super) fn spawn_caret(world: &mut World, body: Entity) -> Entity {
     world.spawn(overlay(FRONT, body)).id()
+}
+
+/// How many shapes a field has ready when it is built. A shape made
+/// while painting is drawn from the next frame, so the shapes a field
+/// shows at first, such as a quote's bars, are made with it.
+const READY: usize = 8;
+
+/// The shapes a field over `body` has ready when it is built.
+pub(super) fn spawn_shapes(
+    world: &mut World,
+    body: Entity,
+) -> Vec<Entity> {
+    (0..READY)
+        .map(|_| world.spawn(overlay(BEHIND, body)).id())
+        .collect()
 }
 
 /// The box of `cursor`, as high as the text beside it: the line is
@@ -125,49 +144,40 @@ fn rect_of(bounds: BoundingBox) -> Rect {
     )
 }
 
-/// Puts `node` over `rect`, in logical pixels.
-fn place(node: &mut Node, rect: Rect) {
-    let (left, top) = (px(rect.min.x), px(rect.min.y));
-    let (width, height) = (px(rect.width()), px(rect.height()));
-    if node.left != left
-        || node.top != top
-        || node.width != width
-        || node.height != height
-    {
-        node.left = left;
-        node.top = top;
-        node.width = width;
-        node.height = height;
-    }
-}
+/// What painting a caret or a shape reads and writes of its node.
+type Shape = (
+    &'static mut Node,
+    &'static mut Visibility,
+    &'static mut InheritedVisibility,
+    &'static mut BackgroundColor,
+    &'static mut ZIndex,
+    &'static mut ComputedNode,
+    &'static mut UiGlobalTransform,
+);
 
 pub(super) fn paint(
     mut fields: Query<(&mut RichField, Has<Focused>)>,
     texts: Query<(
-        &ComputedTextBlock,
+        &DrawnLayout,
         &TextLayoutInfo,
         &ComputedNode,
         &TextFont,
         &ChildOf,
+        &InheritedVisibility,
     )>,
-    mut nodes: Query<(
-        &mut Node,
-        &mut Visibility,
-        &mut BackgroundColor,
-        &mut ZIndex,
-    )>,
+    mut nodes: Query<Shape, Without<DrawnLayout>>,
     chips: Query<&AtomBox>,
     time: Option<Res<Time<Real>>>,
     mut commands: Commands,
 ) {
     for (mut field, focused) in &mut fields {
         let field = field.bypass_change_detection();
-        let Ok((block, info, text, font, parent)) =
+        let Ok((block, info, text, font, parent, text_seen)) =
             texts.get(field.text)
         else {
             continue;
         };
-        let layout = block.buffer();
+        let layout = &block.0;
         if field.is_stale(layout) {
             continue;
         }
@@ -188,17 +198,36 @@ pub(super) fn paint(
                         .as_secs_f32()
                 });
                 if since % (2.0 * BLINK) < BLINK {
-                    caret = Some(rect_of(caret_box(
+                    let mut rect = rect_of(caret_box(
                         &selection.focus(),
                         layout,
                         width,
                         field.content.markers(),
-                    )));
+                    ));
+                    // After spaces at the end of a line, the caret is
+                    // put past the text's box: it stays at its edge.
+                    let room =
+                        (text.size().x - rect.width()).max(0.0);
+                    let x = rect.min.x.clamp(0.0, room);
+                    rect = Rect::new(
+                        x,
+                        rect.min.y,
+                        x + rect.width(),
+                        rect.max.y,
+                    );
+                    caret = Some(rect);
                 }
             } else {
                 let fill = field.selection_color;
+                // A line selected to its end reaches as far as the
+                // layout could, past the text's box, which clips only
+                // what it scrolls.
+                let wide = text.size().x;
                 selection.geometry_with(layout, |bounds, _| {
-                    shapes.push((rect_of(bounds), fill, BEHIND));
+                    let mut rect = rect_of(bounds);
+                    rect.min.x = rect.min.x.clamp(0.0, wide);
+                    rect.max.x = rect.max.x.clamp(rect.min.x, wide);
+                    shapes.push((rect, fill, BEHIND));
                 });
                 let range = selection.text_range();
                 let veil = fill.with_alpha(VEIL);
@@ -221,50 +250,67 @@ pub(super) fn paint(
             field.selected.push(entity);
         }
         for (index, &entity) in field.selected.iter().enumerate() {
-            let Ok((mut node, mut visibility, mut fill, mut z)) =
-                nodes.get_mut(entity)
+            let Ok((
+                mut node,
+                mut visibility,
+                mut seen,
+                mut fill,
+                mut z,
+                mut computed,
+                mut transform,
+            )) = nodes.get_mut(entity)
             else {
                 continue;
             };
-            match shapes.get(index) {
-                Some(&(rect, color, front)) => {
-                    place(
-                        &mut node,
-                        Rect {
-                            min: rect.min * scale,
-                            max: rect.max * scale,
-                        },
-                    );
-                    fill.set_if_neq(BackgroundColor(color));
-                    z.set_if_neq(ZIndex(front));
-                    visibility.set_if_neq(Visibility::Inherited);
-                }
-                None => {
-                    visibility.set_if_neq(Visibility::Hidden);
-                }
+            let shape = shapes.get(index);
+            if let Some(&(rect, color, front)) = shape {
+                put(
+                    &mut node,
+                    &mut computed,
+                    &mut transform,
+                    Rect {
+                        min: rect.min * scale,
+                        max: rect.max * scale,
+                    },
+                );
+                fill.set_if_neq(BackgroundColor(color));
+                z.set_if_neq(ZIndex(front));
             }
+            set_shown(
+                &mut visibility,
+                &mut seen,
+                shape.is_some(),
+                *text_seen,
+            );
         }
-        if let Ok((mut node, mut visibility, mut fill, _)) =
-            nodes.get_mut(field.caret)
+        if let Ok((
+            mut node,
+            mut visibility,
+            mut seen,
+            mut fill,
+            _,
+            mut computed,
+            mut transform,
+        )) = nodes.get_mut(field.caret)
         {
-            match caret {
-                Some(rect) => {
-                    place(
-                        &mut node,
-                        Rect {
-                            min: rect.min * scale,
-                            max: rect.max * scale,
-                        },
-                    );
-                    fill.set_if_neq(BackgroundColor(
-                        field.caret_color,
-                    ));
-                    visibility.set_if_neq(Visibility::Inherited);
-                }
-                None => {
-                    visibility.set_if_neq(Visibility::Hidden);
-                }
+            if let Some(rect) = caret {
+                put(
+                    &mut node,
+                    &mut computed,
+                    &mut transform,
+                    Rect {
+                        min: rect.min * scale,
+                        max: rect.max * scale,
+                    },
+                );
+                fill.set_if_neq(BackgroundColor(field.caret_color));
             }
+            set_shown(
+                &mut visibility,
+                &mut seen,
+                caret.is_some(),
+                *text_seen,
+            );
         }
     }
 }
@@ -275,7 +321,7 @@ pub(super) fn ime_window(
     fields: Query<&RichField>,
     focus: Res<InputFocus>,
     texts: Query<(
-        &ComputedTextBlock,
+        &DrawnLayout,
         &ComputedNode,
         &UiGlobalTransform,
         &ComputedUiRenderTargetInfo,
@@ -304,7 +350,7 @@ pub(super) fn ime_window(
     else {
         return;
     };
-    let layout = block.buffer();
+    let layout = &block.0;
     if field.is_stale(layout) {
         return;
     }

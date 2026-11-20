@@ -14,7 +14,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::QueryFilter;
 use bevy::ecs::system::Query;
-use bevy::math::Vec2;
+use bevy::math::{Rect, Vec2};
 use bevy::text::{
     ComputedTextBlock, LineBreak, TextBrush, TextLayout,
 };
@@ -75,6 +75,39 @@ pub(crate) fn line_tops<B: Brush>(layout: &Layout<B>) -> Vec<f32> {
     tops
 }
 
+/// Puts `node` over `rect`, in logical pixels from where its
+/// position starts. It has no node under it.
+pub(crate) fn put(
+    node: &mut Node,
+    computed: &mut ComputedNode,
+    transform: &mut UiGlobalTransform,
+    rect: Rect,
+) {
+    let (left, top) = (px(rect.min.x), px(rect.min.y));
+    let (width, height) = (px(rect.width()), px(rect.height()));
+    if node.left == left
+        && node.top == top
+        && node.width == width
+        && node.height == height
+    {
+        return;
+    }
+    if let (Val::Px(x), Val::Px(y)) = (node.left, node.top) {
+        let scale = computed.inverse_scale_factor.recip();
+        let size = rect.size() * scale;
+        // The center moves with the corner, and by half the growth.
+        let by = (rect.min - Vec2::new(x, y)) * scale
+            + (size - computed.size) / 2.0;
+        shift(transform, by);
+        computed.size = size;
+        computed.unrounded_size = size;
+    }
+    node.left = left;
+    node.top = top;
+    node.width = width;
+    node.height = height;
+}
+
 /// Puts the corner of `node` at `at`, in logical pixels from where
 /// its position starts, keeping its size. It gives how far the frame
 /// draws it from where it was, in physical pixels of the window, for
@@ -111,6 +144,27 @@ fn shift(transform: &mut UiGlobalTransform, by: Vec2) {
     let mut affine = transform.affine();
     affine.translation += affine.matrix2 * by;
     *transform = affine.into();
+}
+
+/// Moves what the frame draws of each node under `kids`, and of the
+/// nodes under them, by `by`, physical pixels of the window.
+pub(crate) fn shift_under<F: QueryFilter>(
+    kids: &Children,
+    by: Vec2,
+    under: &mut Query<(&mut UiGlobalTransform, Option<&Children>), F>,
+) {
+    let mut stack = kids.iter().copied().collect::<Vec<_>>();
+    while let Some(kid) = stack.pop() {
+        let Ok((mut transform, children)) = under.get_mut(kid) else {
+            continue;
+        };
+        let mut affine = transform.affine();
+        affine.translation += by;
+        *transform = affine.into();
+        if let Some(children) = children {
+            stack.extend(children.iter().copied());
+        }
+    }
 }
 
 /// Shows `node` or hides it, under a parent seen as `parent` is. Bevy
