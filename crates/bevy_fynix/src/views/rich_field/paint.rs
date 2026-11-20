@@ -28,7 +28,7 @@ use parley::{
 };
 
 use super::RichField;
-use crate::Focused;
+use crate::state::Focused;
 use crate::views::atom::AtomBox;
 
 /// The caret is on for this long and off for as long.

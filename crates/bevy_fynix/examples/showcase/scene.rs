@@ -5,14 +5,15 @@ use bevy::ui::{AlignItems, JustifyContent, UiRect, percent, px};
 use bevy_fynix::icons::PLUS;
 use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
-    Axis, BehaviorExt, ContextMenuExt, FrameProps, Icon, Label,
-    TooltipExt, column, divider, foldable, icon, label, menu_item,
-    row, scroll, submenu, tinted_icon,
+    Axis, ContextMenuExt, FrameProps, Icon, Label, TooltipExt,
+    column, divider, foldable, icon, label, menu_item, row, scroll,
+    submenu, tinted_icon,
 };
 use bevy_fynix::{
-    AnyView, Bevy, Hovered, ScopedExt, StateExt, View, ViewExt, each,
-    hidden, resource,
+    AnyView, Bevy, ScopedExt, StateExt, View, ViewExt, each, hidden,
+    resource,
 };
+use fynix_interact::{Hovered, InteractExt};
 
 use crate::common::Monokai;
 use crate::{Build, Layers, commands, icons};
@@ -63,7 +64,7 @@ pub fn scene() -> AnyView<Bevy, Monokai> {
 /// A row that lights its label and icon under the pointer, over the
 /// theme's curve.
 fn lit(view: impl View<Bevy, Monokai>) -> impl View<Bevy, Monokai> {
-    view.when::<Hovered, _>(|cx: &mut Build| {
+    view.when_in::<Hovered, _>(|cx: &mut Build| {
         cx.set::<Label>(|label, _| label.tone(Tone::Accent));
         cx.set::<Icon>(|icon, _| icon.tone(Tone::Accent));
     })
@@ -89,19 +90,24 @@ fn layer(id: u32) -> impl View<Bevy, Monokai> {
     .padding(UiRect::vertical(px(2.0))))
     .context_menu(move || {
         (
-            menu_item(label("Duplicate"))
-                .on_activate(move |world| duplicate(world, id)),
+            menu_item(label("Duplicate")).on_activate(
+                move |world: &mut World| duplicate(world, id),
+            ),
             submenu(label("Move"), move || {
                 (
-                    menu_item(label("To the top"))
-                        .on_activate(move |world| to(world, id, 0)),
+                    menu_item(label("To the top")).on_activate(
+                        move |world: &mut World| to(world, id, 0),
+                    ),
                     menu_item(label("To the bottom")).on_activate(
-                        move |world| to(world, id, usize::MAX),
+                        move |world: &mut World| {
+                            to(world, id, usize::MAX)
+                        },
                     ),
                 )
             }),
-            menu_item(label("Delete"))
-                .on_activate(move |world| delete(world, id)),
+            menu_item(label("Delete")).on_activate(
+                move |world: &mut World| delete(world, id),
+            ),
         )
     })
 }

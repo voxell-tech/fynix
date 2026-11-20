@@ -14,6 +14,7 @@ use bevy_fynix::views::{
     column, icon, label, rich, rich_field, row,
 };
 use bevy_fynix::{AnyView, Bevy, View, resource};
+use fynix_interact::InteractExt;
 
 use crate::common::Monokai;
 use crate::{Build, icons};

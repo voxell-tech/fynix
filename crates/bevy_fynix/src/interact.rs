@@ -118,7 +118,7 @@ mod tests {
     ) -> impl View<B, T> {
         view.when_in::<AnyHovered, _>(hover)
             .described(Role::Button, "Save")
-            .on_activate::<B>(action)
+            .on_activate(action)
     }
 
     fn color(app: &bevy::app::App, node: Entity) -> Color {

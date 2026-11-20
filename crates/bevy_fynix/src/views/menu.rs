@@ -38,7 +38,7 @@ use motiongfx_interp::ease;
 use crate::cursor::EntityCursor;
 use crate::prop::{Signal, component, each};
 use crate::shortcut::{MENU, Scope};
-use crate::state::State;
+use crate::state::{Hovered, State};
 use crate::tokens::{
     Curve, MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
     Tone,
@@ -47,8 +47,7 @@ use crate::views::frame::{Frame, FrameProps};
 use crate::views::icon::icon;
 use crate::views::stack::{column, row};
 use crate::{
-    AnyView, Bevy, Cx, Hovered, ScopedExt, Styled, View, ViewSeq,
-    icons,
+    AnyView, Bevy, Cx, ScopedExt, Styled, View, ViewSeq, icons,
 };
 
 /// Where a menu sits in the window's stack, above the interface.

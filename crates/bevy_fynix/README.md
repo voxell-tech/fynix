@@ -21,8 +21,9 @@ the UI. From then on the plugin keeps every mounted view in step with
 the world, and a system that reads what the views built runs after
 `FynixSystems::Mount`.
 
-A state is a component on a node, so `.when::<S, _>(..)` waits on any
-component, `Hovered` as much as one of your own. A view that a
+The pointer and focus states are `fynix_interact`'s, waited on with
+`.when_in::<Hovered, _>(..)`, and a component of your own is a state
+too: `.when::<S, _>(..)`. A view that a
 `keyed` or `each` with a presence builds or drops is `Entering` or
 `Leaving` while it animates, and `ReducedMotion` skips the animation.
 
@@ -43,7 +44,8 @@ use bevy_fynix::tokens::{
     Curve, MotionTokens, SpacingTokens, SurfaceTokens,
     TextTokens, Tone,
 };
-use bevy_fynix::{Bevy, Cx, Hovered, ScopedExt, StateExt, mount};
+use bevy_fynix::{Bevy, Cx, ScopedExt, mount};
+use fynix_interact::Hovered;
 
 struct MyTheme;
 
@@ -109,7 +111,7 @@ fn setup(world: &mut World) {
             label("Settings").size(20.0),
             button(label("Save"))
                 // Every label in the button turns accent on hover.
-                .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
+                .when_in::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
                     cx.set::<Label>(|l, _| l.tone(Tone::Accent));
                 })
                 .transition(MyTheme::interact),
@@ -133,7 +135,8 @@ Three things decide how a view looks, and they stay apart:
   under it, with `cx.root(..)` keeping a rule to the view's root.
 - **State rules** say what a look does while the pointer is on the
   view, while a button is down on it, or while any component of your
-  own is on it: `.when::<Hovered, _>(..)`, `.when::<Pressed, _>(..)`.
+  own is on it: `.when_in::<Hovered, _>(..)`,
+  `.when_in::<Pressed, _>(..)`, `.when::<S, _>(..)`.
   `.transition(T::interact)` makes the change glide over a curve the
   theme picks. A transition never makes a view grow in or out:
   only `keyed(..).presence(T::expand)` or `each(..).presence(..)`

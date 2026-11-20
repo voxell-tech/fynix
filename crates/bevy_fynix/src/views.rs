@@ -27,7 +27,7 @@ mod virtual_list;
 
 pub use atom::Atom;
 pub(crate) use atom::plugin as atom_plugin;
-pub use behavior::{BehaviorExt, OnActivate, Seeded, Tagged, Toned};
+pub use behavior::{BehaviorExt, Seeded, Tagged, Toned};
 pub use button::{
     Button, TintedIcon, button, danger, ghost, icon_button, menu_bar,
     primary, segment, tint, tint_to, tinted_icon,

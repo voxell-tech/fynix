@@ -115,9 +115,9 @@ impl<B: Interactive> Condition<B> for Focused {
 }
 
 /// A view whose root node runs an action when activated.
-pub struct OnActivate<V, B: Backend> {
+pub struct OnActivate<V, F> {
     view: V,
-    action: Action<B>,
+    action: F,
 }
 
 /// A view whose root node says what it is to assistive technology.
@@ -126,14 +126,15 @@ pub struct Described<V> {
     semantics: Semantics,
 }
 
-impl<B, T, V> View<B, T> for OnActivate<V, B>
+impl<B, T, V, F> View<B, T> for OnActivate<V, F>
 where
     B: Interactive,
     V: View<B, T>,
+    F: Fn(&mut B::World) + Send + Sync + 'static,
 {
     fn build(self, cx: &mut Cx<'_, B, T>) -> B::Node {
         let node = self.view.build(cx);
-        B::on_activate(cx.world, node, self.action);
+        B::on_activate(cx.world, node, Box::new(self.action));
         node
     }
 }
@@ -152,17 +153,11 @@ where
 
 /// What any view can be made to answer and say with.
 pub trait InteractExt: Sized {
-    /// This view, running `action` when its root node is activated.
-    /// The backend is named, as in `.on_activate::<B>(..)`, so the
-    /// action knows its world.
-    fn on_activate<B: Interactive>(
-        self,
-        action: impl Fn(&mut B::World) + Send + Sync + 'static,
-    ) -> OnActivate<Self, B> {
-        OnActivate {
-            view: self,
-            action: Box::new(action),
-        }
+    /// This view, running `action` with the world when its root node
+    /// is activated. A closure names the world's type, as in
+    /// `|world: &mut World| ..`.
+    fn on_activate<F>(self, action: F) -> OnActivate<Self, F> {
+        OnActivate { view: self, action }
     }
 
     /// This view, its root node said to assistive technology to be a

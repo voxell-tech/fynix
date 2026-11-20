@@ -15,11 +15,11 @@ use super::frame::{Frame, FrameProps};
 use super::text_input::{TextCommit, TextInput, focus, show};
 use crate::cursor::EntityCursor;
 use crate::prop::Binding;
-use crate::state::State;
+use crate::state::{Focused, Hovered, State};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,
 };
-use crate::{Bevy, Cx, Focused, Hovered, Styled, View};
+use crate::{Bevy, Cx, Styled, View};
 
 /// How many glyphs wide a text field is, when its frame has no
 /// width.

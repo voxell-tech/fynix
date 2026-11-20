@@ -4,7 +4,6 @@ pub mod backend;
 pub mod cursor;
 pub mod dock;
 pub mod icons;
-#[cfg(feature = "interact")]
 mod interact;
 pub mod leave;
 pub mod modifier;
@@ -50,10 +49,7 @@ pub use prop::{
     bind_component, bind_resource, component, derived, each,
     every_frame, keyed, resource,
 };
-pub use state::{
-    DirtyNodes, Dragging, Focused, Hovered, Pressed, State, StateExt,
-    hidden, own,
-};
+pub use state::{DirtyNodes, Dragging, State, StateExt, hidden, own};
 pub use style::{Style, style};
 pub use transition::{
     BevyMarker, ReducedMotion, ReducedMotionCursor,

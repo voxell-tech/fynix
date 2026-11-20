@@ -5,6 +5,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::world::World;
 use bevy::ui::{BorderRadius, Overflow, Val, percent, px};
+use fynix_interact::InteractExt;
 
 use crate::prop::{Binding, Prop, Write};
 use crate::tokens::{
@@ -133,7 +134,7 @@ where
                         .corners(corners(index, count, radius))
                         .rules(segment(false))
                         .when::<Active, _>(lit)
-                        .on_activate(move |world| {
+                        .on_activate(move |world: &mut World| {
                             select(world, root, index);
                         });
                     // Active from the start, so it is drawn so at

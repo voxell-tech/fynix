@@ -23,6 +23,7 @@ use bevy::ui_widgets::popover::PopoverPlacement;
 use bevy::ui_widgets::{
     MenuAction, MenuButton, MenuEvent, MenuFocusState,
 };
+use fynix_interact::InteractExt;
 
 use crate::modifier::ModifierExt;
 use crate::prop::{Binding, Prop, component, each};
@@ -35,8 +36,7 @@ use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{FocusOn, menu_item, menu_popup, slot};
 use crate::views::popup::corners;
 use crate::views::{
-    BehaviorExt, button, frame, icon, label, menu_bar, row,
-    tinted_icon,
+    button, frame, icon, label, menu_bar, row, tinted_icon,
 };
 use crate::{
     AnyView, Bevy, Cx, ScopedExt, Styled, View, ViewExt as _,
@@ -247,7 +247,7 @@ where
                 .enumerate()
                 .map(|(at, text)| {
                     menu_item(label(text).wrap(false))
-                        .on_activate(move |world| {
+                        .on_activate(move |world: &mut World| {
                             choose(world, root, at);
                         })
                         .boxed()
@@ -473,7 +473,7 @@ where
                         let at = chosen;
                         chosen += 1;
                         menu_item(label(text).wrap(false))
-                            .on_activate(move |world| {
+                            .on_activate(move |world: &mut World| {
                                 choose(world, root, at);
                             })
                             .boxed()
@@ -491,7 +491,7 @@ where
                             .grow(1.0)
                             .align(AlignItems::Center),
                         )
-                        .on_activate(move |world| {
+                        .on_activate(move |world: &mut World| {
                             choose(world, root, at);
                         })
                         .boxed()

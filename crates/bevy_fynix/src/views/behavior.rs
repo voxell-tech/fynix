@@ -19,15 +19,9 @@ use crate::{Bevy, Cx, View};
 pub(crate) type Handler =
     Box<dyn Fn(&mut World, Entity) + Send + Sync>;
 
-/// The handlers of a node's [`OnActivate`] wrappers, in build order.
+/// The handlers a node runs on [`Activate`], in the order given.
 #[derive(Component)]
 struct ActivateHandlers(Vec<Handler>);
-
-/// A view whose root node runs a handler on [`Activate`].
-pub struct OnActivate<V> {
-    inner: V,
-    handler: Handler,
-}
 
 /// A view whose root node carries a component.
 pub struct Tagged<V, C> {
@@ -95,14 +89,6 @@ pub(crate) fn add_activate(
     }
 }
 
-impl<T, V: View<Bevy, T>> View<Bevy, T> for OnActivate<V> {
-    fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
-        let node = self.inner.build(cx);
-        add_activate(cx.world, node, self.handler);
-        node
-    }
-}
-
 impl<T, V: View<Bevy, T>, C: Component> View<Bevy, T>
     for Tagged<V, C>
 {
@@ -145,26 +131,6 @@ impl<T: 'static, V: View<Bevy, T>> View<Bevy, T> for Toned<V> {
 
 /// The behaviour modifiers any view takes.
 pub trait BehaviorExt: Sized {
-    /// This view, running `handler` when its root node is activated.
-    fn on_activate(
-        self,
-        handler: impl Fn(&mut World) + Send + Sync + 'static,
-    ) -> OnActivate<Self> {
-        self.on_activate_with(move |world, _| handler(world))
-    }
-
-    /// As [`on_activate`](Self::on_activate), with the root node
-    /// handed to `handler` too.
-    fn on_activate_with(
-        self,
-        handler: impl Fn(&mut World, Entity) + Send + Sync + 'static,
-    ) -> OnActivate<Self> {
-        OnActivate {
-            inner: self,
-            handler: Box::new(handler),
-        }
-    }
-
     /// This view, with `component` on its root node.
     fn tagged<C: Component>(self, component: C) -> Tagged<Self, C> {
         Tagged {

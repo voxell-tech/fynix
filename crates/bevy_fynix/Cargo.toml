@@ -13,8 +13,8 @@ repository.workspace = true
 # fynix
 fynix = { workspace = true }
 motiongfx_interp = { workspace = true }
-fynix_interact = { workspace = true, optional = true }
-accesskit = { workspace = true, optional = true }
+fynix_interact = { workspace = true }
+accesskit = { workspace = true }
 
 # bevy
 bevy = { workspace = true, features = [
@@ -26,10 +26,8 @@ bevy = { workspace = true, features = [
 parley = { workspace = true }
 
 [features]
-default = ["std", "interact"]
+default = ["std"]
 std = ["fynix/std"]
-# `fynix_interact::Interactive` for `Bevy`.
-interact = ["dep:fynix_interact", "dep:accesskit"]
 
 [dev-dependencies]
 lenz = { workspace = true }

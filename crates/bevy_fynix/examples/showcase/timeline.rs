@@ -12,10 +12,11 @@ use bevy::ui::{
 };
 use bevy_fynix::tokens::{SurfaceTokens, TextTokens, Tone};
 use bevy_fynix::views::{
-    BehaviorExt, FrameProps, Span, TooltipExt, button, column, frame,
-    icon, label, primary, rich, row, slider, tinted_icon,
+    FrameProps, Span, TooltipExt, button, column, frame, icon, label,
+    primary, rich, row, slider, tinted_icon,
 };
 use bevy_fynix::{AnyView, Bevy, Binding, ScopedExt, View, resource};
+use fynix_interact::InteractExt;
 
 use crate::common::Monokai;
 use crate::{

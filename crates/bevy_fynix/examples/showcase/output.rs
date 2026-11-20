@@ -4,13 +4,15 @@
 use bevy::color::Color;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::system::{Local, Query, Res};
+use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, ComputedNode, UiRect, px};
 use bevy_fynix::tokens::{TextTokens, Tone};
 use bevy_fynix::views::{
-    BehaviorExt, FrameProps, RowSlot, Span, VirtualList, button,
-    checkbox, column, label, rich, row, virtual_list,
+    FrameProps, RowSlot, Span, VirtualList, button, checkbox, column,
+    label, rich, row, virtual_list,
 };
 use bevy_fynix::{AnyView, Bevy, View, bind_resource, resource};
+use fynix_interact::InteractExt;
 
 use crate::common::Monokai;
 use crate::{
@@ -88,7 +90,9 @@ fn action(
 ) -> impl View<Bevy, Monokai> {
     button(label(text))
         .padding(UiRect::axes(px(10.0), px(4.0)))
-        .on_activate(move |world| commands::on_log(world, run))
+        .on_activate(move |world: &mut World| {
+            commands::on_log(world, run)
+        })
 }
 
 /// The row a slot shows: when the frame played, which it was and how

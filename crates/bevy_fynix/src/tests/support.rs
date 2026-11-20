@@ -22,9 +22,9 @@ use bevy::input::{ButtonState, InputPlugin};
 use bevy::input_focus::InputDispatchPlugin;
 use bevy::math::Vec2;
 use bevy::picking::backend::HitData;
-#[cfg(feature = "interact")]
-use bevy::picking::events::PointerClick;
-use bevy::picking::events::{Pointer, PointerPress, PointerScroll};
+use bevy::picking::events::{
+    Pointer, PointerClick, PointerPress, PointerScroll,
+};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::time::{TimePlugin, TimeUpdateStrategy};
 use bevy::window::{PrimaryWindow, Window};
@@ -255,7 +255,6 @@ pub fn pointer_press(
 
 /// Sends the event picking sends for a primary-button click on `on`,
 /// which bubbles up from it as a real one does.
-#[cfg(feature = "interact")]
 pub fn pointer_click(app: &mut App, on: Entity) {
     let location = Location {
         target: NormalizedRenderTarget::None {

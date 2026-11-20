@@ -12,9 +12,9 @@ use bevy_fynix::views::{
     row, scroll, tint,
 };
 use bevy_fynix::{
-    AnyView, Bevy, Hovered, Pressed, ScopedExt, StateExt, Style,
-    View, ViewExt, style,
+    AnyView, Bevy, ScopedExt, Style, View, ViewExt, style,
 };
+use fynix_interact::{Hovered, Pressed};
 
 use crate::chips::chips;
 use crate::common::Monokai;
@@ -108,10 +108,10 @@ fn parts() -> impl View<Bevy, Monokai> {
                 .gap(12.0),
         )
         .padding(UiRect::axes(px(10.0), px(4.0)))
-        .when::<Hovered, _>(|cx: &mut Build| {
+        .when_in::<Hovered, _>(|cx: &mut Build| {
             cx.set::<Label>(|label, _| label.tone(Tone::Accent));
         })
-        .when::<Pressed, _>(|cx: &mut Build| {
+        .when_in::<Pressed, _>(|cx: &mut Build| {
             cx.root(|cx| {
                 cx.set::<Frame>(|frame, theme| {
                     frame.fill(theme.panel())

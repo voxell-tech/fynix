@@ -450,9 +450,9 @@ From weakest to strongest:
 | View default | a theme token |
 | Composite defaults | `cx.defaults(..)` |
 | Set rules, outer then inner | `cx.set::<Label>(\|l, _\| l.size(12.0))` |
-| State rules from ancestors | `row(..).when::<Hovered, _>(..)` |
+| State rules from ancestors | `row(..).when_in::<Hovered, _>(..)` |
 | Call site | `label("x").size(20.0)` |
-| State rules on the node itself | `label("x").when::<Hovered, _>(..)` |
+| State rules on the node itself | `label("x").when_in::<Hovered, _>(..)` |
 
 Show rules then replace the element, its set rules applied. A theme
 says what the tokens are (colours, sizes, curves), a rule bundle

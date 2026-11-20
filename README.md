@@ -39,7 +39,7 @@ mount::<MyTheme>(
     column((
         label("Settings").size(20.0),
         button(label("Save"))
-            .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
+            .when_in::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
                 cx.set::<Label>(|l, _| l.tone(Tone::Accent));
             })
             .transition(MyTheme::interact),

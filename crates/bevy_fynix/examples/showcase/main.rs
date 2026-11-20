@@ -43,8 +43,8 @@ use bevy_fynix::shortcut::{
 };
 use bevy_fynix::tokens::{SurfaceTokens, Tone};
 use bevy_fynix::views::{
-    BehaviorExt, FrameProps, Label, MenuEntry, MenuTitle, TooltipExt,
-    button, column, label, menu_button, primary, row, segmented,
+    FrameProps, Label, MenuEntry, MenuTitle, TooltipExt, button,
+    column, label, menu_button, primary, row, segmented,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, FynixSystems, ReducedMotion,
@@ -55,6 +55,7 @@ use commands::{
     REVERSE, REWIND,
 };
 use common::Monokai;
+use fynix_interact::InteractExt;
 use lenz::Lenz;
 
 /// What a view is built with, in this app.

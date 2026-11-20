@@ -7,15 +7,16 @@ use bevy::ui::{UiRect, percent, px};
 use bevy_fynix::icons::CHEVRON;
 use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
-    AnimatedField, BehaviorExt, FrameProps, HasAction, button,
-    checkbox, column, dropdown, field_row, label, number_field, row,
-    scroll, segmented, slider, text_field,
+    AnimatedField, FrameProps, HasAction, button, checkbox, column,
+    dropdown, field_row, label, number_field, row, scroll, segmented,
+    slider, text_field,
 };
 use bevy_fynix::{
     AnyView, Bevy, Binding, ReducedMotion, ReducedMotionCursor,
     ScopedExt, StateExt, View, ViewExt, bind_resource, hidden, keyed,
     resource,
 };
+use fynix_interact::InteractExt;
 
 use crate::common::Monokai;
 use crate::timeline::EASINGS;
