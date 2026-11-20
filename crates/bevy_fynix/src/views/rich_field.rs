@@ -85,8 +85,8 @@ pub enum Enter {
     Submit,
 }
 
-/// How high a line of text is, in its font size, as Bevy lays it out
-/// unless told otherwise.
+/// How high a line of text is, in its font size, before it is
+/// rounded to a whole pixel, as [`rich`] lays it out.
 const LINE_HEIGHT: f32 = 1.2;
 
 type Handler = Box<dyn Fn(&mut World, Vec<Piece>) + Send + Sync>;
@@ -392,7 +392,8 @@ where
                 // grows.
                 cx.root(|cx| {
                     cx.set::<Frame>(|frame, theme: &T| {
-                        let line = theme.body_size() * LINE_HEIGHT;
+                        let line =
+                            (theme.body_size() * LINE_HEIGHT).round();
                         let above = ((theme.row() - line - 2.0)
                             / 2.0)
                             .max(0.0);
