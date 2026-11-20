@@ -11,9 +11,9 @@ use bevy::ecs::world::{EntityWorldMut, World};
 use bevy::platform::collections::HashMap;
 use bevy::text::{
     Font, FontSize, FontSource, FontStyle, FontWeight, InlineBox,
-    Strikethrough, StrikethroughColor, TextBackgroundColor,
-    TextColor, TextFont, TextLayout, TextSpan, Underline,
-    UnderlineColor,
+    LineHeight, Strikethrough, StrikethroughColor,
+    TextBackgroundColor, TextColor, TextFont, TextLayout, TextSpan,
+    Underline, UnderlineColor,
 };
 use bevy::ui::widget::Text;
 use fynix::{Patch, element};
@@ -351,6 +351,18 @@ impl ItalicFaces {
     }
 }
 
+/// How high a line of text `size` big is, in logical pixels: Bevy's
+/// own height for it, to a whole pixel. Lines a fraction of a pixel
+/// high round to rows one pixel apart, so a view of a few of them
+/// would change height by a pixel as it scrolled.
+pub(crate) fn whole_line(size: f32) -> f32 {
+    (size * 1.2).round()
+}
+
+fn line_height(size: f32) -> LineHeight {
+    LineHeight::Px(whole_line(size))
+}
+
 fn draw(
     entity: &mut EntityWorldMut,
     look: &Look,
@@ -365,13 +377,18 @@ fn draw(
         Some(faces) => faces.face(font, style),
         None => font,
     };
+    let size = look.size.unwrap_or(defaults.size);
+    // Text too small to read, such as one hidden, keeps the line as
+    // high as the text about it: the layout gives text beside it, a
+    // line break among it, its line height, and a line of breaks
+    // alone would have none.
+    let line = if size < 1.0 { defaults.size } else { size };
+    put(entity, line_height(line));
     put(
         entity,
         TextFont {
             font,
-            font_size: FontSize::Px(
-                look.size.unwrap_or(defaults.size),
-            ),
+            font_size: FontSize::Px(size),
             weight: look.weight.unwrap_or(FontWeight::NORMAL),
             style,
             ..TextFont::default()
@@ -506,6 +523,7 @@ fn set_defaults(
         font.font = defaults.font;
         font.font_size = FontSize::Px(defaults.size);
     }
+    put(&mut world.entity_mut(root), line_height(defaults.size));
     redraw(world, root);
 }
 
