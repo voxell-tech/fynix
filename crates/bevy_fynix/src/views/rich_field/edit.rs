@@ -153,7 +153,7 @@ impl RichField {
                     .filter(|marker| **marker < focus)
                     .count();
                 self.at = Some(focus - shift * MARKER.len_utf8());
-                self.version += 1;
+                self.changed();
                 return true;
             }
             Edit::SetCaret(caret) => {
@@ -308,7 +308,7 @@ impl RichField {
             }
         };
         self.at = Some(caret);
-        self.version += 1;
+        self.changed();
         true
     }
 }
@@ -873,5 +873,35 @@ mod tests {
         assert_eq!(caret(&field), field.content.len());
         edit(&mut field, Edit::Move(Motion::Right, false));
         assert_eq!(caret(&field), field.content.len());
+    }
+
+    #[test]
+    fn backspace_and_the_arrows_take_hidden_text_one_character_at_a_time()
+     {
+        // `a **b**`, its stars hidden until the caret comes to them.
+        let mut field = RichField::new(
+            Entity::PLACEHOLDER,
+            [Piece::Text("a **b**".into())],
+        );
+        field.marking = Some(std::sync::Arc::new(|text: &str| {
+            let end = text.len();
+            [2..4, end - 2..end]
+                .into_iter()
+                .map(|range| super::super::Mark {
+                    range,
+                    kind: super::super::MarkKind::Hidden {
+                        shown_in: 2..end,
+                    },
+                })
+                .collect()
+        }));
+        field.focused = true;
+        caret_at(&mut field, 7);
+
+        edit(&mut field, Edit::Erase(Erase::Back));
+        assert_eq!(text(&field), "a **b*");
+        caret_at(&mut field, 2);
+        edit(&mut field, Edit::Move(Motion::Right, false));
+        assert_eq!(caret(&field), 3);
     }
 }

@@ -381,9 +381,9 @@ fn draw(
         None => font,
     };
     let size = look.size.unwrap_or(defaults.size);
-    // Text too small to read, such as one hidden, keeps the line as
-    // high as the text about it: the layout gives text beside it, a
-    // line break among it, its line height, and a line of breaks
+    // Text too small to read, such as a hidden mark, keeps the line
+    // as high as the text about it: the layout gives text beside it,
+    // a line break among it, its line height, and a line of breaks
     // alone would have none.
     let line = if size < 1.0 { defaults.size } else { size };
     put(entity, line_height(line));
