@@ -9,25 +9,27 @@ use core::fmt;
 use std::sync::Arc;
 
 use bevy::app::{App, PostUpdate, Update};
-use bevy::camera::visibility::Visibility;
+use bevy::camera::visibility::{InheritedVisibility, Visibility};
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::lifecycle::Remove;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{Has, With, Without};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query};
 use bevy::ecs::world::World;
 use bevy::math::{Rect, Vec2};
-use bevy::text::{
-    ComputedTextBlock, InlineBox, InlineBoxKind, TextLayoutInfo,
-};
+use bevy::platform::collections::{HashMap, HashSet};
+use bevy::text::{InlineBox, InlineBoxKind, TextLayoutInfo};
 use bevy::ui::widget::text_system;
-use bevy::ui::{ComputedNode, Node, PositionType, px};
+use bevy::ui::{
+    ComputedNode, Node, PositionType, UiGlobalTransform, px,
+};
 use parley::{Brush, Layout};
 
+use crate::views::overlay;
 use crate::{AnyView, Bevy, FynixSystems, mount_under};
 
 type Spawn = dyn Fn(&mut World, Entity) -> Entity + Send + Sync;
@@ -58,8 +60,12 @@ impl Atom {
             spawn: Arc::new(move |world, host| {
                 let slot = world
                     .spawn((
+                        // Put somewhere, for the first move to be
+                        // from there.
                         Node {
                             position_type: PositionType::Absolute,
+                            left: px(0.0),
+                            top: px(0.0),
                             ..Node::default()
                         },
                         // Until it has a place in the line.
@@ -118,6 +124,8 @@ pub(crate) struct AtomBox {
     slot: Option<Entity>,
     /// Where the view is, in the pixels of the text layout.
     pub chip: Rect,
+    /// Whether the view has shown, once its line had room for it.
+    shown: bool,
 }
 
 impl AtomBox {
@@ -126,31 +134,63 @@ impl AtomBox {
             atom,
             slot: None,
             chip: Rect::default(),
+            shown: false,
         }
     }
 }
 
-/// How far the line holding the layout-space point `y` reaches under
-/// its baseline.
-fn below_baseline<B: Brush>(layout: &Layout<B>, y: f32) -> f32 {
+/// The room the line of `layout` whose baseline is at `baseline`
+/// takes, as where it starts and how high it is, in the layout's
+/// pixels.
+///
+/// A box as high as its view makes its line that high, and sits on
+/// the baseline, which can be above the bottom of the line. The view
+/// goes in the middle of the room instead, so a line of views never
+/// reaches into the next.
+fn room<B: Brush>(
+    layout: &Layout<B>,
+    baseline: f32,
+) -> Option<(f32, f32)> {
+    let tops = overlay::line_tops(layout);
     layout
         .lines()
-        .map(|line| *line.metrics())
-        .find(|line| {
-            line.block_min_coord <= y && y < line.block_max_coord
+        .zip(tops)
+        .min_by(|(a, _), (b, _)| {
+            let off = |line: &parley::Line<'_, B>| {
+                (line.metrics().baseline - baseline).abs()
+            };
+            off(a).total_cmp(&off(b))
         })
-        .map_or(0.0, |line| line.block_max_coord - line.baseline)
+        .map(|(line, top)| (top, line.metrics().line_height))
 }
 
 /// The node an atom's view is built under.
 #[derive(Component)]
 struct Slot;
 
+/// What placing a slot reads and writes of it.
+type Placed = (
+    &'static ComputedNode,
+    &'static mut Node,
+    &'static mut Visibility,
+    &'static mut InheritedVisibility,
+    &'static mut UiGlobalTransform,
+    Option<&'static Children>,
+);
+
 pub(crate) fn plugin(app: &mut App) {
     app.add_observer(release)
         .add_systems(Update, build.in_set(FynixSystems::Settle))
-        .add_systems(PostUpdate, place.after(text_system));
+        .add_systems(
+            PostUpdate,
+            (overlay::keep_drawn, place).chain().after(text_system),
+        );
 }
+
+/// On a text whose atoms have all had room in its lines: it has been
+/// shown whole.
+#[derive(Component)]
+struct Settled;
 
 /// Builds the view of each atom that has a host to be in.
 fn build(
@@ -196,13 +236,11 @@ fn release(
 }
 
 /// Gives each box the size of its view and a gap on both sides, and
-/// each view the place of its box. A box sized now is laid out in the
-/// next frame.
+/// each view the place of its box, in the middle of its line's room.
 ///
-/// A line puts the bottom of a box on its baseline, so the text would
-/// sit on the bottom of its view. The view hangs below the box
-/// instead, down to the bottom of the line, which makes the line as
-/// high as the view and the text about as high as its middle.
+/// A box sized now is laid out in the next frame. A text shown for
+/// the first time is hidden until its lines have room for all its
+/// atoms, so it never shows without them and then moves.
 fn place(
     mut boxes: Query<(
         Entity,
@@ -213,23 +251,90 @@ fn place(
     texts: Query<(
         &TextLayoutInfo,
         &ComputedNode,
-        &ComputedTextBlock,
+        &overlay::DrawnLayout,
+        &ChildOf,
+        Has<Settled>,
     )>,
-    mut slots: Query<
-        (&ComputedNode, &mut Node, &mut Visibility),
-        With<Slot>,
-    >,
+    mut slots: Query<Placed, With<Slot>>,
+    // The texts, and the nodes of the views under the slots.
+    mut under: Query<overlay::Under, Without<Slot>>,
+    mut commands: Commands,
 ) {
-    for (entity, mut held, mut inline, parent) in &mut boxes {
+    // Each box sized as its view, and the texts laid out without the
+    // room one of them needs.
+    let mut waiting = HashSet::<Entity>::new();
+    for (_, held, mut inline, parent) in &mut boxes {
+        let size = held
+            .slot
+            .and_then(|slot| slots.get(slot).ok())
+            .map_or(Vec2::ZERO, |(measured, ..)| {
+                measured.size() * measured.inverse_scale_factor()
+            });
+        let resized = size.x > 0.0
+            && size.y > 0.0
+            && inline.set_if_neq(InlineBox {
+                kind: InlineBoxKind::InFlow,
+                size: Vec2::new(size.x + 2.0 * GAP, size.y),
+            });
+        if resized || held.slot.is_none() {
+            waiting.insert(parent.parent());
+        }
+    }
+    // Whether each text with atoms is seen: one never shown whole
+    // waits for its atoms' room.
+    let mut shown = HashMap::<Entity, bool>::new();
+    for (_, _, _, parent) in &boxes {
+        let text = parent.parent();
+        if shown.contains_key(&text) {
+            continue;
+        }
+        let Ok((_, node, _, body, settled)) = texts.get(text) else {
+            continue;
+        };
+        // Laid out nowhere, as in a tab not shown, its atoms have no
+        // size to make room for yet.
+        if node.size().x <= 0.0 {
+            continue;
+        }
+        let whole = !waiting.contains(&text);
+        let body_seen = under
+            .get(body.parent())
+            .is_ok_and(|(_, seen, ..)| seen.get());
+        if let Ok((_, mut seen, ..)) = under.get_mut(text) {
+            if !settled {
+                seen.set_if_neq(if body_seen && whole {
+                    InheritedVisibility::VISIBLE
+                } else {
+                    InheritedVisibility::HIDDEN
+                });
+            }
+            shown.insert(text, seen.get());
+        }
+        if whole && !settled {
+            commands.entity(text).insert(Settled);
+        }
+    }
+    for (entity, mut held, _, parent) in &mut boxes {
         let Some(slot) = held.slot else {
             continue;
         };
-        let Ok((layout, text, block)) = texts.get(parent.parent())
+        let Ok((layout, text, block, ..)) =
+            texts.get(parent.parent())
         else {
             continue;
         };
-        let Ok((measured, mut node, mut visibility)) =
-            slots.get_mut(slot)
+        let text_seen = match shown.get(&parent.parent()) {
+            Some(true) => InheritedVisibility::VISIBLE,
+            _ => InheritedVisibility::HIDDEN,
+        };
+        let Ok((
+            measured,
+            mut node,
+            mut visibility,
+            mut seen,
+            mut transform,
+            kids,
+        )) = slots.get_mut(slot)
         else {
             continue;
         };
@@ -240,37 +345,50 @@ fn place(
             .iter()
             .find(|(placed, ..)| *placed == entity)
             .map(|(_, _, rect)| *rect);
-        let below = placed.map_or(0.0, |rect| {
-            below_baseline(block.buffer(), rect.center().y)
-        }) * scale;
-        if size.x > 0.0 && size.y > 0.0 {
-            inline.set_if_neq(InlineBox {
-                kind: InlineBoxKind::InFlow,
-                size: Vec2::new(
-                    size.x + 2.0 * GAP,
-                    (size.y - below).max(f32::EPSILON),
-                ),
-            });
-        }
+        // Whether the text was laid out with the room the view needs.
+        let fits = !waiting.contains(&parent.parent());
         let Some(rect) = placed else {
             continue;
         };
         let gap = GAP / scale;
+        let high = size.y / scale;
+        let top = room(&block.0, rect.max.y)
+            .map_or(rect.min.y, |(top, line_height)| {
+                top + (line_height - high) / 2.0
+            });
         let chip = Rect::new(
             rect.min.x + gap,
-            rect.min.y,
+            top,
             rect.max.x - gap,
-            rect.max.y + below / scale,
+            top + high,
         );
         if held.chip != chip {
             held.chip = chip;
         }
-        let origin = chip.min * scale;
-        let (left, top) = (px(origin.x), px(origin.y));
-        if node.left != left || node.top != top {
-            node.left = left;
-            node.top = top;
+        let moved = overlay::put_corner(
+            &mut node,
+            measured,
+            &mut transform,
+            chip.min * scale,
+        );
+        // A new view shows once the line has room for it, and stays.
+        held.shown |= fits;
+        let was = *seen;
+        overlay::set_shown(
+            &mut visibility,
+            &mut seen,
+            held.shown,
+            text_seen,
+        );
+        if let Some(kids) = kids
+            && (moved.is_some() || was != *seen)
+        {
+            overlay::follow(
+                kids,
+                moved.unwrap_or(Vec2::ZERO),
+                seen.get(),
+                &mut under,
+            );
         }
-        visibility.set_if_neq(Visibility::Inherited);
     }
 }

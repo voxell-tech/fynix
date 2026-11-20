@@ -21,6 +21,7 @@ use fynix::{Patch, element};
 use super::atom::{Atom, AtomBox, AtomHost};
 use super::frame::{Frame, FrameProps};
 use super::label::PatchWrap;
+use super::overlay::DrawnLayout;
 use crate::patch::{Paint, PatchInk, PatchOpacity, PatchScale};
 use crate::prop::Prop;
 use crate::state::own_when;
@@ -113,7 +114,9 @@ where
     fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
         let body = cx.build(self.frame);
         let text = cx.under(body, |cx| cx.build(self.rich));
-        cx.world.entity_mut(text).insert(AtomHost(body));
+        cx.world
+            .entity_mut(text)
+            .insert((AtomHost(body), DrawnLayout::default()));
         body
     }
 }
