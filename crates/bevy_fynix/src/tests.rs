@@ -15,6 +15,7 @@ use bevy::time::TimePlugin;
 use bevy::ui::widget::Text;
 
 mod layout;
+mod rich_field;
 mod structure;
 mod support;
 mod virtual_list;

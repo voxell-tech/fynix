@@ -123,16 +123,30 @@ pub(super) fn press(
         return;
     }
     let scale = ui_scale.map_or(1.0, |scale| scale.0);
-    if let Some(at) =
-        point(&nodes, field.text, press.pointer.position, scale)
-    {
+    // A press counts with the ones before it only near where they
+    // were: picking counts quick presses anywhere.
+    let position = press.pointer.position;
+    let taps = match field.last_press {
+        Some((last, taps))
+            if press.count > 1 && last.distance(position) <= SLOP =>
+        {
+            taps + 1
+        }
+        _ => 1,
+    };
+    field.last_press = Some((position, taps));
+    if let Some(at) = point(&nodes, field.text, position, scale) {
         field.pending.push(Edit::Press {
             at,
-            taps: usize::from(press.count),
+            taps,
             extend: keys.pressed(Key::Shift),
         });
     }
 }
+
+/// How far, in logical pixels, a press can be from the one before it
+/// to count as the next of a double or triple press.
+const SLOP: f32 = 4.0;
 
 pub(super) fn drag(
     mut drag: On<PointerDrag>,

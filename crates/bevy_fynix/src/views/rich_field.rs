@@ -28,11 +28,12 @@ use bevy::ecs::world::World;
 use bevy::input::InputSystems;
 use bevy::input::keyboard::Key;
 use bevy::input_focus::tab_navigation::TabIndex;
-use bevy::math::Rect;
-use bevy::text::{ComputedTextBlock, TextLayoutInfo};
+use bevy::math::{Rect, Vec2};
+use bevy::text::TextLayoutInfo;
 use bevy::time::{Real, Time};
-use bevy::ui::widget::text_system;
-use bevy::ui::{Overflow, PositionType, UiRect, Val, px};
+use bevy::ui::{
+    FlexDirection, Node, Overflow, PositionType, UiRect, Val, px,
+};
 use bevy::window::SystemCursorIcon;
 use content::Content;
 pub use content::{Caret, Piece, Plain, PlainAtom};
@@ -45,6 +46,7 @@ use super::atom::{Atom, AtomBox};
 use super::field::defaults;
 use super::frame::{Frame, FrameProps, frame};
 use super::label::label;
+use super::overlay::{DrawnLayout, keep_drawn};
 use super::rich::{Span, rich};
 use super::text_input::call;
 use crate::cursor::EntityCursor;
@@ -57,21 +59,22 @@ use crate::{Bevy, Cx, Styled, View};
 
 pub(crate) fn plugin(app: &mut App) {
     app.add_systems(PreUpdate, input::ime.after(InputSystems))
+        // Edits are made on the layout of the last frame, before
+        // views are patched, so what is typed is laid out and drawn
+        // in the frame it is typed.
         .add_systems(
             Update,
-            notify.in_set(crate::FynixSystems::Settle),
+            (
+                apply.in_set(crate::FynixSystems::Prepare),
+                (notify, scroll::cap)
+                    .in_set(crate::FynixSystems::Settle),
+            ),
         )
         .add_systems(
             PostUpdate,
-            (
-                apply,
-                scroll::cap,
-                scroll::reveal,
-                paint::paint,
-                paint::ime_window,
-            )
+            (scroll::reveal, paint::paint, paint::ime_window)
                 .chain()
-                .after(text_system),
+                .after(keep_drawn),
         );
 }
 
@@ -129,9 +132,9 @@ pub struct RichField {
     active: Duration,
     /// Where the caret was when the view last scrolled to show it.
     seen: Option<Seen>,
-    /// The first line of the view, once it holds more lines than it
-    /// shows.
-    first: usize,
+    /// Where the pointer last pressed in the window, and how many
+    /// presses in a row it was.
+    last_press: Option<(Vec2, usize)>,
     /// The keys the field leaves to what it is in.
     passed: Vec<Key>,
 }
@@ -158,7 +161,7 @@ impl RichField {
             selection_color: Color::NONE,
             active: Duration::ZERO,
             seen: None,
-            first: 0,
+            last_press: None,
             passed: Vec::new(),
         }
     }
@@ -192,8 +195,8 @@ impl RichField {
         pieces: impl IntoIterator<Item = Piece>,
     ) {
         self.content = Content::new(pieces);
-        self.version += 1;
         self.at = Some(self.content.len());
+        self.version += 1;
         self.pending.clear();
         self.paste = None;
         self.preedit = None;
@@ -328,10 +331,11 @@ impl RichFieldView {
         self
     }
 
-    /// How many lines it shows before it scrolls, keeping the caret
-    /// in view. It grows without end when unset. A line is as high as
-    /// it is laid out, so the field is as tall as the lines in view
-    /// are, and a tall atom makes it taller while it is in view.
+    /// How many lines of its text it is high at most, before it
+    /// scrolls to keep the caret's line in view. It grows without end
+    /// when unset. A line with an atom taller than the text is
+    /// taller, so the field holds fewer of those, and its height
+    /// never changes with the lines in view.
     pub fn max_lines(mut self, lines: usize) -> Self {
         self.max_lines = Some(lines.max(1));
         self
@@ -418,10 +422,16 @@ where
             });
             let body = cx.under(root, |cx| {
                 cx.build(
+                    // A column, so the text is as wide as the box
+                    // and Bevy breaks its lines at that width only.
                     rich(spans)
                         .atoms()
+                        .direction(FlexDirection::Column)
                         .grow(1.0)
                         .min_width(px(0.0))
+                        // Not clipped across, so a bar drawn left of
+                        // the text, as a quote's, shows in the
+                        // padding.
                         .overflow(Overflow::scroll_y()),
                 )
             });
@@ -431,6 +441,12 @@ where
                 .get::<Children>(body)
                 .and_then(|kids| kids.first().copied())
                 .expect("the text of the field");
+            // As high as its lines, which the box scrolls over, not
+            // shrunk to the box: a press below it would be held to
+            // the line there.
+            if let Some(mut node) = cx.world.get_mut::<Node>(text) {
+                node.flex_shrink = 0.0;
+            }
             let blank = component::<RichField, _>(root, |field| {
                 field.is_some_and(RichField::is_blank)
             })
@@ -454,11 +470,13 @@ where
                 });
             });
             let caret = paint::spawn_caret(cx.world, body);
+            let shapes = paint::spawn_shapes(cx.world, body);
 
             let mut entity = cx.world.entity_mut(root);
             if let Some(mut field) = entity.get_mut::<RichField>() {
                 field.text = text;
                 field.caret = caret;
+                field.selected = shapes;
                 field.notified = field.version;
             }
             entity.insert((
@@ -516,7 +534,7 @@ fn notify(
 /// frame, when the layout shows it.
 fn apply(
     mut fields: Query<&mut RichField>,
-    texts: Query<(&ComputedTextBlock, &TextLayoutInfo)>,
+    texts: Query<(&DrawnLayout, &TextLayoutInfo)>,
     chips: Query<&AtomBox>,
     mut clipboard: Option<ResMut<Clipboard>>,
     time: Option<Res<Time<Real>>>,
@@ -543,7 +561,7 @@ fn apply(
         let Ok((block, info)) = texts.get(field.text) else {
             continue;
         };
-        let layout = block.buffer();
+        let layout = &block.0;
         if field.is_stale(layout) {
             continue;
         }

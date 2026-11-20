@@ -17,7 +17,7 @@ mod menu;
 mod number_field;
 mod overlay;
 mod popup;
-mod rich;
+pub(crate) mod rich;
 mod rich_field;
 mod segmented;
 mod slider;
