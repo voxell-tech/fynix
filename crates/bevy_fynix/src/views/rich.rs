@@ -1,13 +1,16 @@
 use std::sync::Arc;
 
+use bevy::asset::{AssetId, Handle};
 use bevy::color::Color;
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::component::{Component, Mutable};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::ecs::resource::Resource;
 use bevy::ecs::world::{EntityWorldMut, World};
+use bevy::platform::collections::HashMap;
 use bevy::text::{
-    FontSize, FontSource, FontStyle, FontWeight, InlineBox,
+    Font, FontSize, FontSource, FontStyle, FontWeight, InlineBox,
     Strikethrough, StrikethroughColor, TextBackgroundColor,
     TextColor, TextFont, TextLayout, TextSpan, Underline,
     UnderlineColor,
@@ -319,6 +322,35 @@ fn mark<C: Component + Default>(
     }
 }
 
+/// The italic face of each font whose italic is a file of its own,
+/// such as Inter's. Bevy draws only the faces a font's file holds and
+/// slants none, so text in a font missing here is drawn upright
+/// however italic it is asked to be.
+#[derive(Resource, Default)]
+pub struct ItalicFaces(pub HashMap<AssetId<Font>, Handle<Font>>);
+
+impl ItalicFaces {
+    /// The face of `font` to draw in `style`: its italic, when it is
+    /// asked for and there is one.
+    pub fn face(
+        &self,
+        font: FontSource,
+        style: FontStyle,
+    ) -> FontSource {
+        match &font {
+            FontSource::Handle(upright)
+                if style == FontStyle::Italic =>
+            {
+                self.0
+                    .get(&upright.id())
+                    .cloned()
+                    .map_or(font, FontSource::Handle)
+            }
+            _ => font,
+        }
+    }
+}
+
 fn draw(
     entity: &mut EntityWorldMut,
     look: &Look,
@@ -326,18 +358,22 @@ fn draw(
     paint: Paint,
 ) {
     let fade = |color| faded(color, paint.opacity);
+    let font =
+        look.font.clone().unwrap_or_else(|| defaults.font.clone());
+    let style = look.style.unwrap_or_default();
+    let font = match entity.world().get_resource::<ItalicFaces>() {
+        Some(faces) => faces.face(font, style),
+        None => font,
+    };
     put(
         entity,
         TextFont {
-            font: look
-                .font
-                .clone()
-                .unwrap_or_else(|| defaults.font.clone()),
+            font,
             font_size: FontSize::Px(
                 look.size.unwrap_or(defaults.size),
             ),
             weight: look.weight.unwrap_or(FontWeight::NORMAL),
-            style: look.style.unwrap_or_default(),
+            style,
             ..TextFont::default()
         },
     );
