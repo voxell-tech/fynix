@@ -30,8 +30,9 @@ std = ["fynix/std"]
 [dev-dependencies]
 lenz = { workspace = true }
 # Only for the windowed examples; the library and its tests
-# build with the features above alone.
-bevy = { workspace = true, features = ["2d", "ui"] }
+# build with the features above alone. `system_clipboard` copies and
+# pastes with the system's clipboard, not one of the app's own.
+bevy = { workspace = true, features = ["2d", "ui", "system_clipboard"] }
 
 [lints]
 workspace = true

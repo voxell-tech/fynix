@@ -31,3 +31,8 @@ hashbrown = { version = "0.17", default-features = false }
 [workspace.lints.clippy]
 redundant_type_annotations = "warn"
 
+
+# Dependencies such as Bevy are built optimized in a debug build, or an
+# example is too slow to judge.
+[profile.dev.package."*"]
+opt-level = 3
