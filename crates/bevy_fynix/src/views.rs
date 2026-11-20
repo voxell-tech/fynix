@@ -15,6 +15,7 @@ mod icon;
 mod label;
 mod menu;
 mod number_field;
+mod overlay;
 mod popup;
 mod rich;
 mod rich_field;
