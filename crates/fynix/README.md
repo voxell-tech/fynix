@@ -119,6 +119,12 @@ fn main() {
 }
 ```
 
+A theme whose values change while views are mounted is passed to
+`Mounted::restyle`, which runs again every rule and theme default the
+mounted elements were built with. What a view read from the theme in
+its own body while it was built stays as it was, so a value that has to
+follow the theme belongs in a default or a rule.
+
 ### Set rules
 
 A set rule restyles every view of one kind built after it, like

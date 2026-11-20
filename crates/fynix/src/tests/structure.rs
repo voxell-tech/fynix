@@ -9,7 +9,8 @@ use super::{
     Fake, Frame, Text, TextCursor, Ui, Warm, World, text, watch, wrap,
 };
 use crate::{
-    AnyView, Cx, Each, Keyed, Styled, View, ViewExt, each, keyed,
+    AnyView, Backend, Cx, Each, Keyed, Styled, View, ViewExt, each,
+    keyed,
 };
 
 impl World {
@@ -174,7 +175,10 @@ fn rebuilding_a_keyed_view_does_not_grow_the_rule_arena() {
         panic!("a container");
     };
     let built = ui.mounted.rules().len();
-    assert_eq!(built, 1, "only the rule outside is kept");
+    assert_eq!(
+        built, 4,
+        "the rule outside, and the three more the text holds on to",
+    );
 
     for pick in 1..=100 {
         ui.world.pick(pick);
@@ -185,7 +189,8 @@ fn rebuilding_a_keyed_view_does_not_grow_the_rule_arena() {
     assert_eq!(texts(&ui, container), ["shown"]);
     assert_eq!(texts(&ui, shown), ["100"]);
 
-    ui.mounted.unmount(container);
+    Fake::despawn(&mut ui.world, container);
+    ui.unmount_gone();
     assert!(ui.mounted.rules().is_empty(), "released with its view");
     assert_eq!(ui.mounted.structure_len(), 0);
 }
@@ -311,7 +316,8 @@ fn an_each_view_does_not_grow_the_rule_arena() {
     }
 
     assert_eq!(ui.mounted.rules().len(), built);
-    ui.mounted.unmount(container);
+    Fake::despawn(&mut ui.world, container);
+    ui.unmount_gone();
     assert!(ui.mounted.rules().is_empty());
 }
 

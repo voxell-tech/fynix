@@ -163,6 +163,18 @@ fn lenz(fynix: &Tokens) -> Tokens {
     }
 }
 
+/// Whether `tokens` name `theme`, as a default read from the theme
+/// does.
+fn names_theme(tokens: Tokens) -> bool {
+    tokens.into_iter().any(|tree| match tree {
+        proc_macro2::TokenTree::Ident(ident) => ident == "theme",
+        proc_macro2::TokenTree::Group(group) => {
+            names_theme(group.stream())
+        }
+        _ => false,
+    })
+}
+
 /// `SomeName` as `some_name`.
 fn snake(name: &Ident) -> String {
     let mut snake = String::new();
@@ -272,6 +284,21 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
         let name = &prop.name;
         let shown = prop.args.shown.as_ref().unwrap_or(&prop.value);
         quote!(#name: #fynix::Slot<#shown>)
+    });
+    // A prop reads the theme through `with` whatever its value, and
+    // through its default while unset.
+    let reads_theme = props.iter().filter_map(|prop| {
+        let name = &prop.name;
+        let by_default = prop
+            .args
+            .default
+            .as_ref()
+            .is_some_and(|default| names_theme(quote!(#default)));
+        if prop.args.with.is_some() {
+            Some(quote!(true))
+        } else {
+            by_default.then(|| quote!(self.#name.is_unset()))
+        }
     });
     let aims = props.iter().zip(&bits).map(|(prop, bit)| {
         let name = &prop.name;
@@ -426,6 +453,10 @@ fn expand(args: ElementArgs, mut item: ItemStruct) -> Result<Tokens> {
 
             fn is_live(&self) -> bool {
                 false #(|| self.#names.is_bound())*
+            }
+
+            fn reads_theme(&self) -> bool {
+                false #(|| #reads_theme)*
             }
 
             fn changed(

@@ -59,7 +59,10 @@ pub use transition::{
 pub use views::TooltipTiming;
 pub use visual::Visual;
 
-/// The theme views are built with, as a resource.
+/// The theme views are built with, as a resource. Changing it, or
+/// inserting another, runs again the rules and theme defaults every
+/// mounted view was built with, and what changes travels over its
+/// transition.
 #[derive(Resource)]
 pub struct Theme<T>(pub T);
 

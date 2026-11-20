@@ -4,6 +4,7 @@ use core::any::TypeId;
 
 use hashbrown::HashMap;
 use lenz::{Cursor, FieldId, FieldPath};
+use typarena::type_pool::PoolKey;
 
 use crate::backend::Backend;
 use crate::layer::{Layer, Live};
@@ -18,7 +19,7 @@ use crate::view::{AnyView, Element, Matched, Styled, View};
 const MAX_SHOW_DEPTH: usize = 64;
 
 /// One rule restyling a `V`, with the theme in hand.
-type Rule<V, T> = Box<dyn Fn(V, &T) -> V + Send + Sync>;
+pub(crate) type Rule<V, T> = Box<dyn Fn(V, &T) -> V + Send + Sync>;
 
 /// One rule replacing an `E`, or handing back one it does not take,
 /// with the theme in hand.
@@ -441,24 +442,23 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
         self.entries.push(entry);
     }
 
-    /// The rules for a `V` that hold whatever the state, of `kind`,
-    /// defaults first, then outermost first.
-    fn rules<V: Styled>(
-        &self,
-        kind: RuleKind,
-    ) -> impl Iterator<Item = &Rule<V, T>> {
+    /// The keys of the set rules for a `V` that hold whatever the
+    /// state, defaults first, then outermost first: the order
+    /// [`resolve`](Self::resolve) applies them in.
+    pub(crate) fn rule_keys<V: Styled>(&self) -> Vec<PoolKey> {
         let matching = move |default: bool| {
             self.entries.iter().filter(move |entry| {
-                entry.kind == kind
+                entry.kind == RuleKind::Set
                     && entry.view == TypeId::of::<V>()
                     && entry.when.is_none()
                     && entry.default == default
                     && entry.reaches()
             })
         };
-        matching(true).chain(matching(false)).filter_map(|entry| {
-            self.mounted.rules.get::<Rule<V, T>>(&entry.key)
-        })
+        matching(true)
+            .chain(matching(false))
+            .map(|entry| entry.key)
+            .collect()
     }
 
     /// What the rules waiting on a state would set on an `E` resolved
@@ -496,6 +496,7 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
                     (own, !entry.default, depth, order),
                     Layer {
                         view: rule(E::unset(), self.theme),
+                        rule: entry.key,
                         when,
                         on: entry.root,
                         own,
@@ -694,11 +695,8 @@ impl<'a, B: Backend, T: 'static> Cx<'a, B, T> {
     /// Rules waiting on a state are left out: an element puts
     /// them on top while mounted.
     pub fn resolve<V: Styled>(&self, view: V) -> V {
-        let theme = self.theme;
-        let below = self
-            .rules::<V>(RuleKind::Set)
-            .fold(V::unset(), |below, rule| rule(below, theme));
-        view.over(below)
+        let keys = self.rule_keys::<V>();
+        view.over(self.mounted.rules.apply(&keys, self.theme))
     }
 
     /// Builds the replacement of `matched` by the latest show rule

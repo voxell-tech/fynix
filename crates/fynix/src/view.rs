@@ -173,6 +173,12 @@ pub trait Element<B: Backend, T>: Layered {
     /// Whether anything it holds can change after the build.
     fn is_live(&self) -> bool;
 
+    /// Whether a prop takes its value from the theme, so a new theme
+    /// can change it.
+    fn reads_theme(&self) -> bool {
+        false
+    }
+
     /// The bits of the props that may have changed since the last
     /// call. Every prop's check runs each call, as each one keeps
     /// its own memory of the last.
@@ -286,17 +292,22 @@ impl<E> Matched<E> {
             ..
         } = self;
         let layers = cx.layers::<E>();
-        let visual_layers = match element.visual() {
-            Some(_) => cx.layers::<Visual<B::World>>(),
-            None => Vec::new(),
+        let (visual_layers, visual_rules) = match element.visual() {
+            Some(_) => (
+                cx.layers::<Visual<B::World>>(),
+                cx.rule_keys::<Visual<B::World>>(),
+            ),
+            None => (Vec::new(), Vec::new()),
         };
         let travel = cx.travel();
         let node = cx.spawn_for(Some(TypeId::of::<E>()));
         let mut live = Live {
             layers,
             call,
+            rules: cx.rule_keys::<E>(),
             visual_layers,
             visual_call,
+            visual_rules,
             travel,
         };
         E::prepare(cx.world, node);
@@ -313,10 +324,13 @@ impl<E> Matched<E> {
             cx.theme(),
             Tick::default(),
         );
-        // One with a transition is kept too, so it can animate out.
+        // One with a transition is kept too, so it can animate out,
+        // and one whose look comes from the theme, to restyle.
         if element.is_live()
             || live.is_layered()
             || live.travel.is_some()
+            || live.is_ruled()
+            || element.reads_theme()
         {
             cx.mount(node, element, shown, live);
         }

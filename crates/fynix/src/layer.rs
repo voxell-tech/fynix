@@ -3,9 +3,11 @@
 
 use alloc::vec::Vec;
 
+use typarena::type_pool::PoolKey;
+
 use crate::backend::Backend;
 use crate::mounted::Tick;
-use crate::rules::When;
+use crate::rules::{RuleArena, When};
 use crate::transition::Curve;
 use crate::view::{Element, Layered};
 use crate::visual::Visual;
@@ -16,6 +18,8 @@ pub(crate) struct Layer<B: Backend, E> {
     /// Built by the rule from an unset view, so only the props it
     /// touches are set.
     pub view: E,
+    /// The rule it was built by, to build it again for a new theme.
+    pub rule: PoolKey,
     pub when: When<B>,
     /// The node the state is read on. `None` is the element's own.
     pub on: Option<B::Node>,
@@ -54,16 +58,41 @@ pub(crate) struct Live<B: Backend, E> {
     pub layers: Vec<Layer<B, E>>,
     /// The props the call site set.
     pub call: u64,
+    /// The set rules that filled the rest, in the order they ran.
+    pub rules: Vec<PoolKey>,
     /// Layers from rules for every kind of element, weakest first.
     pub visual_layers: Vec<Layer<B, Visual<B::World>>>,
     /// The [`Visual`] props the call site set.
     pub visual_call: u64,
+    /// The set rules for every kind of element that filled the
+    /// [`Visual`] props left after the element's own.
+    pub visual_rules: Vec<PoolKey>,
     /// The curve its props travel over, if a transition rule reaches
     /// it.
     pub travel: Option<Curve>,
 }
 
 impl<B: Backend, E> Live<B, E> {
+    /// Every rule it holds on to, to keep each alive while the
+    /// element is mounted.
+    pub fn rule_keys(&self) -> impl Iterator<Item = PoolKey> + '_ {
+        let layers = self.layers.iter().map(|layer| layer.rule);
+        let visual =
+            self.visual_layers.iter().map(|layer| layer.rule);
+        self.rules
+            .iter()
+            .chain(&self.visual_rules)
+            .copied()
+            .chain(layers)
+            .chain(visual)
+    }
+
+    /// Whether the element's look comes from rules, which a new
+    /// theme can change.
+    pub fn is_ruled(&self) -> bool {
+        !self.rules.is_empty() || !self.visual_rules.is_empty()
+    }
+
     /// Whether any state rule reaches the element.
     pub fn is_layered(&self) -> bool {
         !self.layers.is_empty() || !self.visual_layers.is_empty()
@@ -91,6 +120,31 @@ impl<B: Backend, E> Live<B, E> {
         let ons = self.layers.iter().map(|layer| layer.on);
         let visual = self.visual_layers.iter().map(|layer| layer.on);
         ons.chain(visual).flatten().filter(move |&on| on != node)
+    }
+
+    /// Runs every rule `element` was resolved with again, against
+    /// `theme`: what its call site left unset is filled anew, and the
+    /// layer of each state rule is built again.
+    pub fn restyle<T: 'static>(
+        &mut self,
+        element: &mut E,
+        rules: &RuleArena,
+        theme: &T,
+    ) where
+        E: Element<B, T>,
+    {
+        let mut fresh = rules.apply::<E, T>(&self.rules, theme);
+        element.swap_props(&mut fresh, !self.call);
+        if let Some(mut visual) = element.visual() {
+            // After the element's own rules, as when it was built.
+            visual.fill(rules.apply(&self.visual_rules, theme));
+        }
+        for layer in &mut self.layers {
+            layer.view = rules.apply(&[layer.rule], theme);
+        }
+        for layer in &mut self.visual_layers {
+            layer.view = rules.apply(&[layer.rule], theme);
+        }
     }
 
     /// Updates the props of `element` in `dirty` with every layer
