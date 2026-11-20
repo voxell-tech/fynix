@@ -12,10 +12,9 @@ use bevy::ui_widgets::popover::{
 
 use super::tree::{DockTree, NodeId};
 use super::{DockRegistry, DockTokens};
+use crate::interact::InteractExt;
 use crate::tokens::Tone;
-use crate::views::{
-    BehaviorExt, FrameProps, icon, label, menu_item, row, shut,
-};
+use crate::views::{FrameProps, icon, label, menu_item, row, shut};
 use crate::{AnyView, Bevy, ViewExt};
 
 /// A window that can be added: its id, name and icon.
@@ -88,7 +87,7 @@ fn choice_row<T: DockTokens>(
     }
     parts.push(label(name).boxed());
     menu_item(row(parts).align(AlignItems::Center))
-        .on_activate(move |world| {
+        .on_activate(move |world: &mut World| {
             world
                 .resource_mut::<DockTree>()
                 .add_tab(leaf, id.clone());

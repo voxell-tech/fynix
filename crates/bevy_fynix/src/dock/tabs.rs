@@ -25,19 +25,19 @@ use super::registry::DockRegistry;
 use super::tree::{DockTabEntry, DockTree, NodeId, TabId};
 use super::{DockTokens, popup};
 use crate::cursor::EntityCursor;
+use crate::interact::InteractExt;
 use crate::prop::resource;
 use crate::scroll::{
     OwnScrollbar, ScrollbarStyle, ScrollbarVisibility,
 };
+use crate::state::Hovered;
 use crate::tokens::Tone;
 use crate::views::{
     BehaviorExt, Frame, FrameProps, Icon, Label, ListWidth, Parts,
     button, frame, icon, label, list, row, scroll, tint, tint_to,
     tinted_icon,
 };
-use crate::{
-    AnyView, Bevy, Cx, Hovered, ScopedExt, StateExt, ViewExt, each,
-};
+use crate::{AnyView, Bevy, Cx, ScopedExt, StateExt, ViewExt, each};
 
 /// The icons of the dock's own buttons, inserted by the app. A button
 /// whose icon is `None`, or the whole resource, shows text instead:
@@ -211,7 +211,7 @@ fn tab<T: DockTokens>(
             .shrink(0.0)
             .tagged(DockTab { leaf, tab: id })
             .tagged(EntityCursor(SystemCursorIcon::Grab))
-            .on_activate(move |world| {
+            .on_activate(move |world: &mut World| {
                 world.resource_mut::<DockTree>().set_active(leaf, id);
             })
             .when::<ActiveTab, _>(lit::<T>)

@@ -397,12 +397,11 @@ mod tests {
     use motiongfx_interp::interpolation::Interpolation;
 
     use super::*;
+    use crate::state::{Hovered, Pressed};
     use crate::tests::{self, Plain};
     use crate::transition::BevyMarker;
     use crate::views::{Label, label};
-    use crate::{
-        AnyView, Hovered, Pressed, ScopedExt, StateExt, mount,
-    };
+    use crate::{AnyView, ScopedExt, StateExt, mount};
 
     const HOVER: Color = Color::srgb(0.3, 0.3, 0.3);
     const ACCENT: Color = Color::srgb(0.9, 0.5, 0.1);

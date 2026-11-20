@@ -18,13 +18,11 @@ use bevy::ui_widgets::popover::{
 use fynix::Condition;
 
 use crate::prop::component;
-use crate::state::State;
+use crate::state::{Hovered, State};
 use crate::tokens::{MotionTokens, SpacingTokens, SurfaceTokens};
 use crate::views::menu::{TOOLTIP_Z, float, menu_surface};
 use crate::views::{FrameProps, row};
-use crate::{
-    AnyView, Bevy, Cx, Hovered, ScopedExt, StateExt, View, hidden,
-};
+use crate::{AnyView, Bevy, Cx, ScopedExt, StateExt, View, hidden};
 
 /// How long the pointer rests on a source before its tooltip shows,
 /// and how long it stays away from the source and the tooltip before

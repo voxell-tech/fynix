@@ -4,6 +4,7 @@ pub mod backend;
 pub mod cursor;
 pub mod dock;
 pub mod icons;
+mod interactive;
 pub mod leave;
 pub mod modifier;
 pub mod mounted;
@@ -40,6 +41,7 @@ pub use fynix::{
     AnyView, Cx, Element, Layered, Matched, ScopedExt, Styled, View,
     ViewExt, ViewSeq,
 };
+pub use fynix_interact as interact;
 pub use leave::{Collapsing, Entering, Entrances, Held, Leaving};
 pub use modifier::ModifierExt;
 pub use mounted::Mounts;
@@ -48,10 +50,7 @@ pub use prop::{
     bind_component, bind_resource, component, derived, each,
     every_frame, keyed, resource,
 };
-pub use state::{
-    DirtyNodes, Dragging, Focused, Hovered, Pressed, State, StateExt,
-    hidden, own,
-};
+pub use state::{DirtyNodes, Dragging, State, StateExt, hidden, own};
 pub use style::{Style, style};
 pub use transition::{
     BevyMarker, ReducedMotion, ReducedMotionCursor,

@@ -24,6 +24,7 @@ use bevy::ui_widgets::{
     MenuAction, MenuButton, MenuEvent, MenuFocusState,
 };
 
+use crate::interact::InteractExt;
 use crate::modifier::ModifierExt;
 use crate::prop::{Binding, Prop, component, each};
 use crate::shortcut::{CommandId, CommandList, shortcut_text};
@@ -35,8 +36,7 @@ use crate::views::frame::{Frame, FrameProps};
 use crate::views::menu::{FocusOn, menu_item, menu_popup, slot};
 use crate::views::popup::corners;
 use crate::views::{
-    BehaviorExt, button, frame, icon, label, menu_bar, row,
-    tinted_icon,
+    button, frame, icon, label, menu_bar, row, tinted_icon,
 };
 use crate::{
     AnyView, Bevy, Cx, ScopedExt, Styled, View, ViewExt as _,

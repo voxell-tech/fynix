@@ -5,11 +5,12 @@ use bevy::ecs::query::With;
 use bevy::ecs::world::World;
 use bevy::ui::{UiRect, percent, px};
 use bevy_fynix::icons::CHEVRON;
+use bevy_fynix::interact::InteractExt;
 use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
-    AnimatedField, BehaviorExt, FrameProps, HasAction, button,
-    checkbox, column, dropdown, field_row, label, number_field, row,
-    scroll, segmented, slider, text_field,
+    AnimatedField, FrameProps, HasAction, button, checkbox, column,
+    dropdown, field_row, label, number_field, row, scroll, segmented,
+    slider, text_field,
 };
 use bevy_fynix::{
     AnyView, Bevy, Binding, ReducedMotion, ReducedMotionCursor,

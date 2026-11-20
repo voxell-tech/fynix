@@ -39,7 +39,7 @@ mount::<MyTheme>(
     column((
         label("Settings").size(20.0),
         button(label("Save"))
-            .when::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
+            .when_in::<Hovered, _>(|cx: &mut Cx<Bevy, MyTheme>| {
                 cx.set::<Label>(|l, _| l.tone(Tone::Accent));
             })
             .transition(MyTheme::interact),
@@ -53,6 +53,8 @@ mount::<MyTheme>(
 - [`fynix`](crates/fynix): the core crate, with a guide to building a
   UI framework on top of it.
 - [`fynix_macros`](crates/fynix_macros): the `#[element]` macro.
+- [`fynix_interact`](crates/fynix_interact): interactions and
+  accessibility for views written for any backend.
 - [`bevy_fynix`](crates/bevy_fynix): the Bevy backend, with a
   showcase example and ready-made looks.
 

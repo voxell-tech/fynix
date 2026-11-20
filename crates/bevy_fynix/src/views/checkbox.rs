@@ -12,10 +12,10 @@ use bevy::window::SystemCursorIcon;
 
 use crate::cursor::EntityCursor;
 use crate::prop::{Binding, Prop, Write, component};
-use crate::state::State;
+use crate::state::{Hovered, State};
 use crate::tokens::{MotionTokens, SpacingTokens, SurfaceTokens};
 use crate::views::frame::{Frame, FrameProps, frame};
-use crate::{Bevy, Cx, Hovered, Styled, View};
+use crate::{Bevy, Cx, Styled, View};
 
 /// A [`Frame`] on [`bevy::ui_widgets::Checkbox`], with a mark in it
 /// shown while the node holds [`Checked`].

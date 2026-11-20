@@ -106,9 +106,10 @@ mod tests {
     use bevy::ui::UiTransform;
 
     use super::*;
+    use crate::state::Hovered;
     use crate::tests::{Plain, app};
     use crate::tokens::MotionTokens;
-    use crate::{Hovered, ScopedExt, mount};
+    use crate::{ScopedExt, mount};
 
     fn scale(app: &App, node: Entity) -> Vec2 {
         app.world().get::<UiTransform>(node).unwrap().scale

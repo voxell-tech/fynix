@@ -5,10 +5,11 @@ use bevy::color::Color;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::system::{Local, Query, Res};
 use bevy::ui::{AlignItems, ComputedNode, UiRect, px};
+use bevy_fynix::interact::InteractExt;
 use bevy_fynix::tokens::{TextTokens, Tone};
 use bevy_fynix::views::{
-    BehaviorExt, FrameProps, RowSlot, Span, VirtualList, button,
-    checkbox, column, label, rich, row, virtual_list,
+    FrameProps, RowSlot, Span, VirtualList, button, checkbox, column,
+    label, rich, row, virtual_list,
 };
 use bevy_fynix::{AnyView, Bevy, View, bind_resource, resource};
 

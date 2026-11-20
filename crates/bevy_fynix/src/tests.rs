@@ -21,7 +21,7 @@ mod virtual_list;
 
 pub(crate) use support::{
     Plain, app, app_with, hover, key_down, keyboard, kids,
-    pointer_press, press, wheel,
+    pointer_click, pointer_press, press, wheel,
 };
 
 use crate::mounted::Mounts;
@@ -210,7 +210,7 @@ fn a_component_signal_follows_the_component() {
 
 #[test]
 fn a_seeded_state_rule_holds_for_the_first_write() {
-    use crate::Hovered;
+    use crate::state::Hovered;
     use crate::views::BehaviorExt;
 
     let mut app = themed_app(Warm);
@@ -235,7 +235,7 @@ fn a_seeded_state_rule_holds_for_the_first_write() {
 
 #[test]
 fn a_seed_goes_to_the_first_node_of_its_view_alone() {
-    use crate::Hovered;
+    use crate::state::Hovered;
     use crate::views::BehaviorExt;
 
     let mut app = themed_app(Warm);
@@ -260,7 +260,7 @@ fn a_seed_goes_to_the_first_node_of_its_view_alone() {
 
 #[test]
 fn a_seed_nothing_took_does_not_reach_a_later_node() {
-    use crate::Hovered;
+    use crate::state::Hovered;
     use crate::views::BehaviorExt;
 
     let mut app = themed_app(Warm);

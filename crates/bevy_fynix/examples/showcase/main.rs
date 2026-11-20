@@ -38,13 +38,14 @@ use bevy_fynix::dock::{
     DockAreaStyle, DockIcons, DockLeaf, DockPlugin, DockRegistry,
     DockTree, DockWindowKind, Edge, dock,
 };
+use bevy_fynix::interact::InteractExt;
 use bevy_fynix::shortcut::{
     CommandId, Invoke, run_command, shortcut_text,
 };
 use bevy_fynix::tokens::{SurfaceTokens, Tone};
 use bevy_fynix::views::{
-    BehaviorExt, FrameProps, Label, MenuEntry, MenuTitle, TooltipExt,
-    button, column, label, menu_button, primary, row, segmented,
+    FrameProps, Label, MenuEntry, MenuTitle, TooltipExt, button,
+    column, label, menu_button, primary, row, segmented,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, FynixSystems, ReducedMotion,

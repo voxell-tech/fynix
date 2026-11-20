@@ -6,6 +6,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::world::World;
 use bevy::ui::{BorderRadius, Overflow, Val, percent, px};
 
+use crate::interact::InteractExt;
 use crate::prop::{Binding, Prop, Write};
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens, Tone,

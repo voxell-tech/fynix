@@ -16,17 +16,12 @@ use crate::views::{Icon, Label, Rich};
 use crate::{Bevy, Cx, View};
 
 /// A handler run with the whole world and the node it fired on.
-type Handler = Box<dyn Fn(&mut World, Entity) + Send + Sync>;
+pub(crate) type Handler =
+    Box<dyn Fn(&mut World, Entity) + Send + Sync>;
 
-/// The handlers of a node's [`OnActivate`] wrappers, in build order.
+/// The handlers a node runs on [`Activate`], in the order given.
 #[derive(Component)]
 struct ActivateHandlers(Vec<Handler>);
-
-/// A view whose root node runs a handler on [`Activate`].
-pub struct OnActivate<V> {
-    inner: V,
-    handler: Handler,
-}
 
 /// A view whose root node carries a component.
 pub struct Tagged<V, C> {
@@ -51,35 +46,46 @@ pub struct Toned<V> {
 fn activated(activate: On<Activate>, mut commands: Commands) {
     let node = activate.event_target();
     commands.queue(move |world: &mut World| {
-        let Some(ActivateHandlers(handlers)) = world
-            .get_entity_mut(node)
-            .ok()
-            .and_then(|mut entity| entity.take::<ActivateHandlers>())
+        // The list is lent out and the component left in place, so a
+        // handler given while these run joins it rather than
+        // observing the node a second time.
+        let Some(handlers) =
+            world.get_entity_mut(node).ok().and_then(|mut entity| {
+                let mut kept =
+                    entity.get_mut::<ActivateHandlers>()?;
+                Some(core::mem::take(&mut kept.0))
+            })
         else {
             return;
         };
         for handler in &handlers {
             handler(world, node);
         }
-        if let Ok(mut entity) = world.get_entity_mut(node) {
-            entity.insert(ActivateHandlers(handlers));
+        if let Ok(mut entity) = world.get_entity_mut(node)
+            && let Some(mut kept) =
+                entity.get_mut::<ActivateHandlers>()
+        {
+            let added = core::mem::replace(&mut kept.0, handlers);
+            kept.0.extend(added);
         }
     });
 }
 
-impl<T, V: View<Bevy, T>> View<Bevy, T> for OnActivate<V> {
-    fn build(self, cx: &mut Cx<'_, Bevy, T>) -> Entity {
-        let node = self.inner.build(cx);
-        let mut entity = cx.world.entity_mut(node);
-        match entity.get_mut::<ActivateHandlers>() {
-            Some(mut existing) => existing.0.push(self.handler),
-            None => {
-                entity
-                    .insert(ActivateHandlers(vec![self.handler]))
-                    .observe(activated);
-            }
+/// Runs `handler` too whenever `node` is activated, after the
+/// handlers it was given before.
+pub(crate) fn add_activate(
+    world: &mut World,
+    node: Entity,
+    handler: Handler,
+) {
+    let mut entity = world.entity_mut(node);
+    match entity.get_mut::<ActivateHandlers>() {
+        Some(mut existing) => existing.0.push(handler),
+        None => {
+            entity
+                .insert(ActivateHandlers(vec![handler]))
+                .observe(activated);
         }
-        node
     }
 }
 
@@ -125,26 +131,6 @@ impl<T: 'static, V: View<Bevy, T>> View<Bevy, T> for Toned<V> {
 
 /// The behaviour modifiers any view takes.
 pub trait BehaviorExt: Sized {
-    /// This view, running `handler` when its root node is activated.
-    fn on_activate(
-        self,
-        handler: impl Fn(&mut World) + Send + Sync + 'static,
-    ) -> OnActivate<Self> {
-        self.on_activate_with(move |world, _| handler(world))
-    }
-
-    /// As [`on_activate`](Self::on_activate), with the root node
-    /// handed to `handler` too.
-    fn on_activate_with(
-        self,
-        handler: impl Fn(&mut World, Entity) + Send + Sync + 'static,
-    ) -> OnActivate<Self> {
-        OnActivate {
-            inner: self,
-            handler: Box::new(handler),
-        }
-    }
-
     /// This view, with `component` on its root node.
     fn tagged<C: Component>(self, component: C) -> Tagged<Self, C> {
         Tagged {

@@ -157,10 +157,9 @@ pub trait StateExt: Sized {
     /// unset. See [`Cx::when`].
     ///
     /// ```ignore
-    /// button(row((icon(save), label("Save"))))
-    ///     .when::<Hovered, _>(|cx: &mut Cx<Bevy, Theme>| {
-    ///         cx.set::<Label>(|l, _| l.tone(Tone::Accent));
-    ///     })
+    /// label("Grab").when::<Dragging, _>(|cx: &mut Cx<Bevy, Theme>| {
+    ///     cx.set::<Label>(|l, _| l.tone(Tone::Accent));
+    /// })
     /// ```
     fn when<S: Component, F>(
         self,

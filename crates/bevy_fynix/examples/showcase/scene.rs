@@ -3,15 +3,16 @@
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, JustifyContent, UiRect, percent, px};
 use bevy_fynix::icons::PLUS;
+use bevy_fynix::interact::{Hovered, InteractExt};
 use bevy_fynix::tokens::{MotionTokens, Tone};
 use bevy_fynix::views::{
-    Axis, BehaviorExt, ContextMenuExt, FrameProps, Icon, Label,
-    TooltipExt, column, divider, foldable, icon, label, menu_item,
-    row, scroll, submenu, tinted_icon,
+    Axis, ContextMenuExt, FrameProps, Icon, Label, TooltipExt,
+    column, divider, foldable, icon, label, menu_item, row, scroll,
+    submenu, tinted_icon,
 };
 use bevy_fynix::{
-    AnyView, Bevy, Hovered, ScopedExt, StateExt, View, ViewExt, each,
-    hidden, resource,
+    AnyView, Bevy, ScopedExt, StateExt, View, ViewExt, each, hidden,
+    resource,
 };
 
 use crate::common::Monokai;
@@ -63,7 +64,7 @@ pub fn scene() -> AnyView<Bevy, Monokai> {
 /// A row that lights its label and icon under the pointer, over the
 /// theme's curve.
 fn lit(view: impl View<Bevy, Monokai>) -> impl View<Bevy, Monokai> {
-    view.when::<Hovered, _>(|cx: &mut Build| {
+    view.when_in::<Hovered, _>(|cx: &mut Build| {
         cx.set::<Label>(|label, _| label.tone(Tone::Accent));
         cx.set::<Icon>(|icon, _| icon.tone(Tone::Accent));
     })

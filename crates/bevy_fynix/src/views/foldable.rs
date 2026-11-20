@@ -5,13 +5,12 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::world::World;
 use bevy::ui::{AlignItems, Display, FlexDirection, percent};
 
+use crate::interact::InteractExt;
 use crate::prop::component;
 use crate::tokens::{
     MotionTokens, SpacingTokens, SurfaceTokens, TextTokens,
 };
-use crate::views::{
-    BehaviorExt, FrameProps, button, frame, icon, row, tint,
-};
+use crate::views::{FrameProps, button, frame, icon, row, tint};
 use crate::{Bevy, Cx, ScopedExt, View, icons};
 
 /// On a [`Foldable`]'s root node while its body is shown.
