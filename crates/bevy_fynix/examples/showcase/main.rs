@@ -20,6 +20,8 @@ mod scene;
 mod styles;
 mod timeline;
 
+use core::num::NonZero;
+
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup, Startup, Update};
 use bevy::asset::{AssetId, Assets};
@@ -74,6 +76,9 @@ fn main() {
                     position: WindowPosition::Centered(
                         MonitorSelection::Primary,
                     ),
+                    // One frame queued, not two, so what is typed
+                    // shows a frame sooner.
+                    desired_maximum_frame_latency: NonZero::new(1),
                     ..default()
                 }),
                 ..default()
