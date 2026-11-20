@@ -184,6 +184,8 @@ pub(super) fn gained(
     if let Ok(mut field) = fields.get_mut(gained.event_target()) {
         field.active =
             time.map_or(Duration::ZERO, |time| time.elapsed());
+        field.focused = true;
+        field.redraw();
     }
 }
 
@@ -194,6 +196,8 @@ pub(super) fn lost(
     if let Ok(mut field) = fields.get_mut(lost.event_target()) {
         field.preedit = None;
         field.pending.push(Edit::Collapse);
+        field.focused = false;
+        field.redraw();
     }
 }
 

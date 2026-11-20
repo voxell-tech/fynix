@@ -130,3 +130,47 @@ fn a_press_in_a_scrolled_field_puts_the_caret_on_the_line_under_it() {
         scrolled
     );
 }
+
+#[test]
+fn blank_lines_before_hidden_text_keep_their_height() {
+    use crate::views::{Mark, MarkKind};
+    let mut app = laid_out();
+    app.add_plugins(bevy::text::TextPlugin);
+    app.world_mut()
+        .resource_mut::<Assets<Font>>()
+        .insert(AssetId::default(), Font::from_bytes(INTER.to_vec()))
+        .unwrap();
+    // Three blank lines, then `**bold**` with its stars hidden.
+    let text = "Some text\n\n\n\n**bold**";
+    let root = mount::<Plain>(
+        app.world_mut(),
+        rich_field()
+            .content([Piece::Text(text.into())])
+            .marks(|_: &str| {
+                [13..15, 19..21]
+                    .into_iter()
+                    .map(|range| Mark {
+                        range,
+                        kind: MarkKind::Hidden { shown_in: 13..21 },
+                    })
+                    .collect()
+            })
+            .width(px(420.0)),
+    );
+    for _ in 0..3 {
+        app.update();
+    }
+
+    let body = app.world().get::<Children>(root).unwrap()[0];
+    let text = app.world().get::<Children>(body).unwrap()[0];
+    let block = app
+        .world()
+        .get::<bevy::text::ComputedTextBlock>(text)
+        .unwrap();
+    let heights = block
+        .buffer()
+        .lines()
+        .map(|line| line.metrics().line_height)
+        .collect::<Vec<_>>();
+    assert_eq!(heights, [17.0; 5]);
+}

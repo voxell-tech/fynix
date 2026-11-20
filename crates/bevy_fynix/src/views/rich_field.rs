@@ -9,9 +9,11 @@
 mod content;
 mod edit;
 mod input;
+mod mark;
 mod paint;
 mod scroll;
 
+use core::ops::Range;
 use core::time::Duration;
 
 use bevy::app::{App, PostUpdate, PreUpdate, Update};
@@ -38,6 +40,8 @@ use bevy::window::SystemCursorIcon;
 use content::Content;
 pub use content::{Caret, Piece, Plain, PlainAtom};
 use edit::Edit;
+use mark::Marking;
+pub use mark::{Mark, MarkKind};
 use parley::editing::Selection;
 use parley::{Brush, Layout};
 use scroll::{MaxLines, Seen};
@@ -137,6 +141,14 @@ pub struct RichField {
     last_press: Option<(Vec2, usize)>,
     /// The keys the field leaves to what it is in.
     passed: Vec<Key>,
+    /// What gives the marks of the text, if anything does.
+    marking: Option<Marking>,
+    /// The marks of the content as it is now.
+    marks: Vec<Mark>,
+    /// The marks drawn: those of the content without the hidden ones
+    /// the selection shows.
+    drawn: Vec<Mark>,
+    focused: bool,
 }
 
 impl RichField {
@@ -163,7 +175,78 @@ impl RichField {
             seen: None,
             last_press: None,
             passed: Vec::new(),
+            marking: None,
+            marks: Vec::new(),
+            drawn: Vec::new(),
+            focused: false,
         }
+    }
+
+    /// Notes that the content changed: the change handler is to be
+    /// told, and the marks are asked for again.
+    fn changed(&mut self) {
+        self.version += 1;
+        self.remark();
+    }
+
+    /// Asks for the marks of the content as it is now.
+    fn remark(&mut self) {
+        self.marks =
+            self.marking.as_ref().map_or_else(Vec::new, |marking| {
+                mark::marks_of(marking, self.content.text())
+            });
+        self.redraw();
+    }
+
+    /// Draws the marks as the focus and the selection now ask.
+    fn redraw(&mut self) {
+        let selected = self.focused.then(|| self.selected());
+        let drawn = mark::drawn(&self.marks, selected);
+        if drawn != self.drawn {
+            self.drawn = drawn;
+        }
+    }
+
+    /// The bytes selected, or where the caret is.
+    fn selected(&self) -> Range<usize> {
+        let len = self.content.len();
+        let range = match self.at {
+            Some(at) => at..at,
+            None => self.selection.text_range(),
+        };
+        range.start.min(len)..range.end.min(len)
+    }
+
+    /// The marks drawn along the lines, a bar or a fill, in bytes of
+    /// the layout, which holds the preedit at the caret.
+    fn laid_marks(&self) -> Vec<Mark> {
+        let mut marks = self
+            .marks
+            .iter()
+            .filter(|mark| {
+                matches!(
+                    mark.kind,
+                    MarkKind::Bar { .. } | MarkKind::Fill(_)
+                )
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let Some(typing) = &self.preedit else {
+            return marks;
+        };
+        let (at, len) = (self.caret_index(), typing.len());
+        for mark in &mut marks {
+            let Range { start, end } = &mut mark.range;
+            // The preedit is before a mark that starts at it.
+            if *start >= at {
+                *start += len;
+            }
+            if *end > at {
+                *end += len;
+            }
+            *end = (*end).max(*start);
+        }
+        marks
     }
 
     /// What the field holds, in order, as text and atoms.
@@ -196,7 +279,7 @@ impl RichField {
     ) {
         self.content = Content::new(pieces);
         self.at = Some(self.content.len());
-        self.version += 1;
+        self.changed();
         self.pending.clear();
         self.paste = None;
         self.preedit = None;
@@ -266,7 +349,7 @@ impl RichField {
             .preedit
             .as_deref()
             .map(|typing| (self.caret_index(), typing));
-        self.content.spans(preedit)
+        self.content.spans(preedit, &self.drawn)
     }
 
     /// Whether `layout` is not yet the layout of the spans: it is not
@@ -300,6 +383,7 @@ pub struct RichFieldView {
     start: Vec<Piece>,
     on_change: Option<Handler>,
     on_submit: Option<Handler>,
+    marking: Option<Marking>,
 }
 
 /// An empty field of text and atoms.
@@ -312,6 +396,7 @@ pub fn rich_field() -> RichFieldView {
         start: Vec::new(),
         on_change: None,
         on_submit: None,
+        marking: None,
     }
 }
 
@@ -369,6 +454,18 @@ impl RichFieldView {
         self.on_submit = Some(Box::new(on_submit));
         self
     }
+
+    /// Draws the text as `marks` says, asked again each time the text
+    /// changes, not as the caret moves. It is given the text with a
+    /// zero-width space where each atom stands, and its marks' ranges
+    /// are bytes of it.
+    pub fn marks(
+        mut self,
+        marks: impl Fn(&str) -> Vec<Mark> + Send + Sync + 'static,
+    ) -> Self {
+        self.marking = Some(std::sync::Arc::new(marks));
+        self
+    }
 }
 
 impl FrameProps for RichFieldView {
@@ -412,6 +509,8 @@ where
             let mut field =
                 RichField::new(Entity::PLACEHOLDER, self.start);
             field.enter = self.enter;
+            field.marking = self.marking;
+            field.remark();
             let theme = cx.theme();
             field.caret_color = theme.tone(Tone::Body);
             field.selection_color = theme.selection();
@@ -586,5 +685,6 @@ fn apply(
                 break;
             }
         }
+        field.redraw();
     }
 }

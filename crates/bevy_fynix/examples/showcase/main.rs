@@ -15,6 +15,7 @@ mod commands;
 mod common;
 mod icons;
 mod inspector;
+mod markdown;
 mod output;
 mod scene;
 mod styles;

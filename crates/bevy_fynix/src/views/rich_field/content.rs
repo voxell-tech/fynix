@@ -3,6 +3,7 @@
 use core::ops::Range;
 use std::borrow::Cow;
 
+use super::mark::{self, Mark};
 use crate::views::{Atom, LineColor, Span};
 
 /// What stands for an atom in the text that is laid out. It is a
@@ -251,8 +252,14 @@ impl Content {
     /// The spans to lay out: the text, cut where each atom's marker
     /// is, with the atom's box before the marker. The caret after the
     /// marker is then after the box. A `preedit` is put at the byte
-    /// `at`, underlined, before the box when `at` is a marker's.
-    pub fn spans(&self, preedit: Option<(usize, &str)>) -> Vec<Span> {
+    /// `at`, underlined, before the box when `at` is a marker's. The
+    /// text is cut too where each of `marks` starts and ends, in the
+    /// look the marks give it.
+    pub fn spans(
+        &self,
+        preedit: Option<(usize, &str)>,
+        marks: &[Mark],
+    ) -> Vec<Span> {
         let mut spans = Vec::new();
         let mut from = 0;
         let mut preedit = preedit;
@@ -262,19 +269,17 @@ impl Content {
             .map(|(at, atom)| (*at, Some(atom)))
             .chain([(self.text.len(), None)]);
         for (end, atom) in cuts {
-            let run = &self.text[from..end];
             match preedit.filter(|(at, _)| (from..=end).contains(at))
             {
                 Some((at, typing)) => {
                     preedit = None;
-                    let (before, after) = run.split_at(at - from);
-                    spans.push(Span::new(before));
+                    self.marked(from..at, marks, &mut spans);
                     spans.push(
                         Span::new(typing).underline(LineColor::Ink),
                     );
-                    spans.push(Span::new(after));
+                    self.marked(at..end, marks, &mut spans);
                 }
-                None => spans.push(Span::new(run)),
+                None => self.marked(from..end, marks, &mut spans),
             }
             if let Some(atom) = atom {
                 spans.push(Span::atom(atom.clone()));
@@ -282,6 +287,34 @@ impl Content {
             from = end;
         }
         spans
+    }
+
+    /// Pushes the text of `range` to `spans`, cut where a mark starts
+    /// or ends, each piece in the look of the marks over it. An empty
+    /// range is one empty span.
+    fn marked(
+        &self,
+        range: Range<usize>,
+        marks: &[Mark],
+        spans: &mut Vec<Span>,
+    ) {
+        let mut cuts =
+            mark::cuts_in(marks, &range).collect::<Vec<_>>();
+        cuts.extend([range.start, range.end]);
+        cuts.sort_unstable();
+        cuts.dedup();
+        if let [only] = cuts[..] {
+            spans.push(Span::new(&self.text[only..only]));
+            return;
+        }
+        for pair in cuts.windows(2) {
+            let (at, to) = (pair[0], pair[1]);
+            spans.push(Span {
+                text: self.text[at..to].into(),
+                look: mark::look_of(marks, at, to),
+                atom: None,
+            });
+        }
     }
 }
 
@@ -442,7 +475,7 @@ mod tests {
     #[test]
     fn each_atom_is_before_its_marker() {
         assert_eq!(
-            shape(&content().spans(None)),
+            shape(&content().spans(None, &[])),
             ["ab", "[a]", "|cd", "[b]", "|ef"]
         );
     }
@@ -450,7 +483,7 @@ mod tests {
     #[test]
     fn a_preedit_is_before_the_box_of_the_atom_after_it() {
         let content = content();
-        let at = |at| shape(&content.spans(Some((at, "~"))));
+        let at = |at| shape(&content.spans(Some((at, "~")), &[]));
 
         assert_eq!(
             at(1),

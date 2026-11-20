@@ -66,8 +66,8 @@ pub use rich::{
 };
 pub(crate) use rich_field::plugin as rich_field_plugin;
 pub use rich_field::{
-    Caret, Enter, Piece, Plain, PlainAtom, RichField, RichFieldView,
-    rich_field,
+    Caret, Enter, Mark, MarkKind, Piece, Plain, PlainAtom, RichField,
+    RichFieldView, rich_field,
 };
 pub use segmented::{Segmented, segmented};
 pub use slider::{Slider, slider};

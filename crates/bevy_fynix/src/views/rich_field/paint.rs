@@ -1,6 +1,8 @@
 //! The caret and the selection of a rich field, drawn as nodes over
 //! its text, and where the input method puts its candidates.
 
+use core::ops::Range;
+
 use bevy::camera::visibility::{InheritedVisibility, Visibility};
 use bevy::color::{Alpha, Color};
 use bevy::ecs::change_detection::DetectChangesMut;
@@ -19,13 +21,14 @@ use bevy::ui::{
     PositionType, UiGlobalTransform, UiScale, ZIndex, px,
 };
 use bevy::window::{PrimaryWindow, Window};
-use parley::editing::Cursor;
+use parley::editing::{Cursor, Selection};
+use parley::layout::Affinity;
 use parley::{
     BoundingBox, Brush, Layout, PositionedInlineBox,
     PositionedLayoutItem,
 };
 
-use super::RichField;
+use super::{Mark, MarkKind, RichField};
 use crate::Focused;
 use crate::views::atom::AtomBox;
 use crate::views::overlay::{DrawnLayout, put, set_shown};
@@ -39,8 +42,11 @@ const CARET_WIDTH: f32 = 0.2;
 /// How opaque a selected atom's veil is, over the atom's own fill.
 const VEIL: f32 = 0.4;
 
-/// Behind the text, for the selection of text.
+/// Behind the text, for the selection of text and the marks' bars.
 const BEHIND: i32 = -1;
+
+/// Behind the selection, for the marks' fills.
+const FILL: i32 = -2;
 
 /// In front of the atoms, for the caret and the veils.
 const FRONT: i32 = 1;
@@ -113,14 +119,78 @@ pub(super) fn caret_box<B: Brush>(
         line.block_min_coord <= middle
             && middle < line.block_max_coord
     });
+    // The tallest text on the line, as hidden text is laid out tiny.
+    let run = line.as_ref().and_then(|line| {
+        line.runs().map(|run| *run.metrics()).reduce(|tall, run| {
+            if run.ascent + run.descent > tall.ascent + tall.descent {
+                run
+            } else {
+                tall
+            }
+        })
+    });
     if let Some(line) = line
-        && let Some(run) = line.runs().next()
+        && let Some(run) = run
     {
-        let (line, run) = (line.metrics(), run.metrics());
+        let line = line.metrics();
         area.y0 = f64::from(line.baseline - run.ascent);
         area.y1 = f64::from(line.baseline + run.descent);
     }
     area
+}
+
+/// The shapes `marks` draw along the lines of `layout`, whose text
+/// is `width` wide, in the layout's pixels, `scale` logical pixels
+/// to one.
+fn marked<B: Brush>(
+    marks: &[Mark],
+    layout: &Layout<B>,
+    width: f32,
+    scale: f32,
+) -> Vec<(Rect, Color, i32)> {
+    let mut shapes = Vec::new();
+    for mark in marks.iter().filter(|mark| !mark.range.is_empty()) {
+        let Range { start, end } = mark.range;
+        let over = Selection::new(
+            Cursor::from_byte_index(
+                layout,
+                start,
+                Affinity::Downstream,
+            ),
+            Cursor::from_byte_index(layout, end, Affinity::Upstream),
+        );
+        let mut lines = Vec::<(usize, f32, f32)>::new();
+        over.geometry_with(layout, |bounds, line| {
+            if lines.last().is_none_or(|(last, ..)| *last != line) {
+                lines.push((
+                    line,
+                    bounds.y0 as f32,
+                    bounds.y1 as f32,
+                ));
+            }
+        });
+        for (_, top, bottom) in lines {
+            match mark.kind {
+                MarkKind::Bar { color, x, width } => shapes.push((
+                    Rect::new(
+                        x / scale,
+                        top,
+                        (x + width) / scale,
+                        bottom,
+                    ),
+                    color,
+                    BEHIND,
+                )),
+                MarkKind::Fill(color) => shapes.push((
+                    Rect::new(0.0, top, width, bottom),
+                    color,
+                    FILL,
+                )),
+                _ => {}
+            }
+        }
+    }
+    shapes
 }
 
 /// The inline boxes of `layout`, in order.
@@ -183,7 +253,8 @@ pub(super) fn paint(
         }
         let scale = text.inverse_scale_factor();
         let selection = field.selection(layout);
-        let mut shapes = Vec::<(Rect, Color, i32)>::new();
+        let mut shapes =
+            marked(&field.laid_marks(), layout, text.size().x, scale);
         let mut caret = None;
         if focused && field.preedit.is_none() {
             if selection.is_collapsed() {
