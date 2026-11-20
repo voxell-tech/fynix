@@ -60,7 +60,8 @@ pub use number_field::{Number, NumberField, number_field};
 pub(crate) use popup::plugin as popup_plugin;
 pub use popup::{DISMISS, POPUP, Popup, corners, popup};
 pub use rich::{
-    LineColor, Look, Rich, RichAtoms, RichProps, Span, Spans, rich,
+    ItalicFaces, LineColor, Look, Rich, RichAtoms, RichProps, Span,
+    Spans, rich,
 };
 pub(crate) use rich_field::plugin as rich_field_plugin;
 pub use rich_field::{

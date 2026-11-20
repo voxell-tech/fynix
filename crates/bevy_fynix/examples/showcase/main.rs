@@ -45,8 +45,9 @@ use bevy_fynix::shortcut::{
 };
 use bevy_fynix::tokens::{SurfaceTokens, Tone};
 use bevy_fynix::views::{
-    BehaviorExt, FrameProps, Label, MenuEntry, MenuTitle, TooltipExt,
-    button, column, label, menu_button, primary, row, segmented,
+    BehaviorExt, FrameProps, ItalicFaces, Label, MenuEntry,
+    MenuTitle, TooltipExt, button, column, label, menu_button,
+    primary, row, segmented,
 };
 use bevy_fynix::{
     AnyView, Bevy, Cx, FynixPlugin, FynixSystems, ReducedMotion,
@@ -65,6 +66,10 @@ type Build<'a> = Cx<'a, Bevy, Monokai>;
 /// Inter, cut down to Latin.
 const INTER: &[u8] =
     include_bytes!("../../../../assets/fonts/Inter.ttf");
+
+/// Inter's italic, cut down as Inter is.
+const INTER_ITALIC: &[u8] =
+    include_bytes!("../../../../assets/fonts/Inter-Italic.ttf");
 
 fn main() {
     App::new()
@@ -178,11 +183,14 @@ struct LogRows(usize);
 struct FollowLog(bool);
 
 fn setup(world: &mut World) {
-    let inter = Font::from_bytes(INTER.to_vec());
-    world
-        .resource_mut::<Assets<Font>>()
-        .insert(AssetId::default(), inter)
+    let mut fonts = world.resource_mut::<Assets<Font>>();
+    fonts
+        .insert(AssetId::default(), Font::from_bytes(INTER.to_vec()))
         .unwrap();
+    let italic = fonts.add(Font::from_bytes(INTER_ITALIC.to_vec()));
+    let mut faces = ItalicFaces::default();
+    faces.0.insert(AssetId::default(), italic);
+    world.insert_resource(faces);
     icons::draw(world);
     world.spawn(Camera2d);
     seed_dock(world);
